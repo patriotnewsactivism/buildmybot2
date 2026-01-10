@@ -85,6 +85,10 @@ interface AnalyticsMetrics {
   totalLeads: number;
   conversionRate: number;
   avgResponseTime: number;
+  conversationGrowth?: number;
+  leadGrowth?: number;
+  conversionRateChange?: number;
+  activeBots?: number;
 }
 
 interface TimeSeriesDataPoint {

@@ -20,7 +20,7 @@ export const SEO: React.FC<SEOProps> = ({
   keywords = 'AI chatbot, chatbot builder, customer support automation, lead generation, conversational AI, business automation',
   ogTitle,
   ogDescription,
-  ogImage = 'https://buildmybot.app/og-image.png',
+  ogImage = 'https://www.buildmybot.app/og-image.png',
   ogUrl,
   twitterCard = 'summary_large_image',
   twitterSite = '@buildmybot',
