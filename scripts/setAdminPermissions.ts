@@ -1,23 +1,10 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import { config } from 'dotenv';
 import postgres from 'postgres';
-
-// Load environment variables from .env and .env.local
-const envPath = path.resolve(process.cwd(), '.env');
-if (fs.existsSync(envPath)) {
-  config({ path: envPath });
-}
-
-const envLocalPath = path.resolve(process.cwd(), '.env.local');
-if (fs.existsSync(envLocalPath)) {
-  config({ path: envLocalPath, override: true });
-}
+import { env } from '../server/env';
 
 async function setAdminPermissions() {
   console.log('Setting admin permissions...\n');
 
-  const databaseUrl = process.env.DATABASE_URL;
+  const databaseUrl = env.DATABASE_URL;
   if (!databaseUrl) {
     console.error('DATABASE_URL not found!');
     process.exit(1);
@@ -33,10 +20,10 @@ async function setAdminPermissions() {
   try {
     // Define the users and their roles
     const masterAdminEmail =
-      process.env.MASTER_ADMIN_EMAIL || 'mreardon@wtpnews.org';
-    const adminEmail = process.env.ADMIN_EMAIL || 'jadj19@gmail.com';
-    const masterAdminPlan = process.env.MASTER_ADMIN_PLAN || 'ENTERPRISE';
-    const adminPlan = process.env.ADMIN_PLAN || 'ENTERPRISE';
+      env.MASTER_ADMIN_EMAIL || 'mreardon@wtpnews.org';
+    const adminEmail = env.ADMIN_EMAIL || 'jadj19@gmail.com';
+    const masterAdminPlan = env.MASTER_ADMIN_PLAN || 'ENTERPRISE';
+    const adminPlan = env.ADMIN_PLAN || 'ENTERPRISE';
     const adminUsers = [
       {
         email: masterAdminEmail,

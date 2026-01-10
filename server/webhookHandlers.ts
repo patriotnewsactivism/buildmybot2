@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm';
 import Stripe from 'stripe';
 import { users } from '../shared/schema';
 import { db } from './db';
+import { env } from './env';
 import { getStripeSecretKey } from './stripeClient';
 
 export class WebhookHandlers {
@@ -15,7 +16,7 @@ export class WebhookHandlers {
       );
     }
 
-    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+    const webhookSecret = env.STRIPE_WEBHOOK_SECRET;
     if (!webhookSecret) {
       console.log('STRIPE_WEBHOOK_SECRET not set, skipping webhook processing');
       return;

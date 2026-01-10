@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
 import { bots } from '../../shared/schema';
 import { db } from '../db';
+import { env } from '../env';
 import { AuditService } from './AuditService';
 
 export type ChannelType =
@@ -363,12 +364,12 @@ export class ChannelService {
   }
 
   private generateWebhookUrl(channel: ChannelType, botId: string): string {
-    const baseUrl = process.env.APP_BASE_URL || 'https://app.buildmybot.com';
+    const baseUrl = env.APP_BASE_URL || 'https://app.buildmybot.com';
     return `${baseUrl}/api/webhooks/${channel}/${botId}`;
   }
 
   private generateEmbedCode(botId: string): string {
-    const baseUrl = process.env.APP_BASE_URL || 'https://app.buildmybot.com';
+    const baseUrl = env.APP_BASE_URL || 'https://app.buildmybot.com';
     return `<script src="${baseUrl}/widget.js" data-bot-id="${botId}"></script>`;
   }
 

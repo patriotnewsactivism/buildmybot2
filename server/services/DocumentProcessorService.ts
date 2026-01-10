@@ -4,6 +4,7 @@ import mammoth from 'mammoth';
 import { v4 as uuidv4 } from 'uuid';
 import { knowledgeChunks, knowledgeSources } from '../../shared/schema';
 import { db } from '../db';
+import { env } from '../env';
 const require = createRequire(import.meta.url);
 const pdfParse = require('pdf-parse');
 
@@ -134,7 +135,7 @@ export class DocumentProcessorService {
     buffer: Buffer,
     mimeType: string,
   ): Promise<string> {
-    const apiKey = process.env.OPENAI_API_KEY;
+    const apiKey = env.OPENAI_API_KEY;
     if (!apiKey) {
       throw new Error('OpenAI API key required for OCR');
     }

@@ -1,23 +1,10 @@
-import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
-import { config } from 'dotenv';
 import postgres from 'postgres';
-
-// Load environment variables
-const envPath = resolve(process.cwd(), '.env');
-if (existsSync(envPath)) {
-  config({ path: envPath });
-}
-
-const envLocalPath = resolve(process.cwd(), '.env.local');
-if (existsSync(envLocalPath)) {
-  config({ path: envLocalPath, override: true });
-}
+import { env } from '../server/env';
 
 async function testConnection() {
   console.log('Testing database connection...\n');
 
-  const databaseUrl = process.env.DATABASE_URL;
+  const databaseUrl = env.DATABASE_URL;
   if (!databaseUrl) {
     console.error('DATABASE_URL not found!');
     process.exit(1);

@@ -1,17 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-// Load environment variables first
-import { config } from 'dotenv';
-
-const envPath = path.resolve(process.cwd(), '.env');
-if (fs.existsSync(envPath)) {
-  config({ path: envPath });
-}
-
-const envLocalPath = path.resolve(process.cwd(), '.env.local');
-if (fs.existsSync(envLocalPath)) {
-  config({ path: envLocalPath, override: true });
-}
+import { env } from './env';
 
 import { fileURLToPath } from 'node:url';
 import compression from 'compression';
@@ -114,13 +103,13 @@ const app = express();
 // Trust proxy to properly handle X-Forwarded-For header for rate limiting
 app.set('trust proxy', 1);
 
-const isProduction = process.env.NODE_ENV === 'production';
+const isProduction = env.NODE_ENV === 'production';
 const PORT = isProduction
   ? 5000
-  : Number.parseInt(process.env.API_PORT || '3001', 10);
+  : Number.parseInt(env.API_PORT || '3001', 10);
 
 function getBaseUrl() {
-  const appBaseUrl = process.env.APP_BASE_URL?.trim();
+  const appBaseUrl = env.APP_BASE_URL?.trim();
   if (appBaseUrl) {
     return appBaseUrl.replace(/\/+$/, '');
   }
@@ -163,8 +152,7 @@ app.use(
       createTableIfMissing: true,
     }),
     secret:
-      process.env.SESSION_SECRET ||
-      'buildmybot-dev-secret-change-in-production',
+      env.SESSION_SECRET || 'buildmybot-dev-secret-change-in-production',
     resave: false,
     saveUninitialized: false,
     cookie: {
@@ -334,7 +322,7 @@ app.post('/api/stripe/whitelabel/checkout', async (req, res) => {
       return res.status(400).json({ error: 'Missing userId' });
     }
 
-    const priceId = process.env.STRIPE_WHITELABEL_PRICE_ID;
+    const priceId = env.STRIPE_WHITELABEL_PRICE_ID;
     if (!priceId) {
       return res
         .status(500)

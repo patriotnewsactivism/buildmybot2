@@ -1,7 +1,8 @@
 import Stripe from 'stripe';
+import { env } from './env';
 
 function getStripeSecretKeyInternal() {
-  const secretKey = process.env.STRIPE_SECRET_KEY;
+  const secretKey = env.STRIPE_SECRET_KEY;
   if (!secretKey) {
     throw new Error('Missing STRIPE_SECRET_KEY');
   }
@@ -16,7 +17,7 @@ export async function getUncachableStripeClient() {
 }
 
 export async function getStripePublishableKey() {
-  const publishableKey = process.env.STRIPE_PUBLISHABLE_KEY;
+  const publishableKey = env.STRIPE_PUBLISHABLE_KEY;
   if (!publishableKey) {
     throw new Error('Missing STRIPE_PUBLISHABLE_KEY');
   }

@@ -7,6 +7,20 @@
  * 3. Run: node scripts/createStripePlans.js
  */
 
+const fs = require('node:fs');
+const path = require('node:path');
+const { config } = require('dotenv');
+
+const envPath = path.resolve(process.cwd(), '.env');
+if (fs.existsSync(envPath)) {
+  config({ path: envPath });
+}
+
+const envLocalPath = path.resolve(process.cwd(), '.env.local');
+if (fs.existsSync(envLocalPath)) {
+  config({ path: envLocalPath, override: true });
+}
+
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 const PLANS = [
