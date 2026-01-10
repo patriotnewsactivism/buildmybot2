@@ -14,6 +14,7 @@ if (fs.existsSync(envLocalPath)) {
 }
 
 import { fileURLToPath } from 'node:url';
+import compression from 'compression';
 import connectPgSimple from 'connect-pg-simple';
 import cors from 'cors';
 import { desc, eq } from 'drizzle-orm';
@@ -137,6 +138,21 @@ app.use(
   }),
 );
 
+// Enable gzip/brotli compression for responses
+app.use(
+  compression({
+    level: 6, // Balanced compression level
+    threshold: 1024, // Only compress responses > 1KB
+    filter: (req, res) => {
+      // Don't compress if client doesn't accept it
+      if (req.headers['x-no-compression']) {
+        return false;
+      }
+      return compression.filter(req, res);
+    },
+  }),
+);
+
 // Configure session store with PostgreSQL
 const PgSession = connectPgSimple(session);
 app.use(
@@ -194,6 +210,24 @@ app.use('/api', apiLimiter);
 // Metrics collection
 app.use(metricsMiddleware);
 
+// Cache control helper middleware
+const cacheControl = (maxAge: number, isPublic = true) => {
+  return (
+    req: express.Request,
+    res: express.Response,
+    next: express.NextFunction,
+  ) => {
+    res.set(
+      'Cache-Control',
+      `${isPublic ? 'public' : 'private'}, max-age=${maxAge}`,
+    );
+    next();
+  };
+};
+
+// ETag support for efficient caching
+app.set('etag', 'strong');
+
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
 });
@@ -207,7 +241,8 @@ app.get('/api/stripe/publishable-key', async (req, res) => {
   }
 });
 
-app.get('/api/stripe/products', async (req, res) => {
+// Cache Stripe products for 5 minutes (300 seconds) - rarely changes
+app.get('/api/stripe/products', cacheControl(300), async (req, res) => {
   try {
     const products = await stripeService.listProductsWithPrices();
     const productsMap = new Map();

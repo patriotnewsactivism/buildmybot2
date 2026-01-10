@@ -230,6 +230,62 @@ export async function addPerformanceIndexes(): Promise<IndexResult> {
       sql: `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_impersonation_sessions_active
             ON impersonation_sessions(is_active, expires_at) WHERE is_active = true`,
     },
+
+    // ========================================
+    // KNOWLEDGE_SOURCES TABLE INDEXES
+    // ========================================
+    {
+      name: 'idx_knowledge_sources_bot_id',
+      sql: `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_knowledge_sources_bot_id
+            ON knowledge_sources(bot_id)`,
+    },
+    {
+      name: 'idx_knowledge_sources_status',
+      sql: `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_knowledge_sources_status
+            ON knowledge_sources(status, created_at DESC)`,
+    },
+
+    // ========================================
+    // KNOWLEDGE_CHUNKS TABLE INDEXES
+    // ========================================
+    {
+      name: 'idx_knowledge_chunks_bot_id',
+      sql: `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_knowledge_chunks_bot_id
+            ON knowledge_chunks(bot_id)`,
+    },
+    {
+      name: 'idx_knowledge_chunks_source_id',
+      sql: `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_knowledge_chunks_source_id
+            ON knowledge_chunks(source_id)`,
+    },
+    {
+      name: 'idx_knowledge_chunks_content_hash',
+      sql: `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_knowledge_chunks_content_hash
+            ON knowledge_chunks(content_hash)`,
+    },
+
+    // ========================================
+    // SESSIONS TABLE INDEX (for faster session lookups)
+    // ========================================
+    {
+      name: 'idx_sessions_expire',
+      sql: `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_sessions_expire
+            ON sessions(expire)`,
+    },
+
+    // ========================================
+    // COMPOSITE INDEXES FOR COMMON QUERIES
+    // ========================================
+    {
+      name: 'idx_bots_org_active_public',
+      sql: `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_bots_org_active_public
+            ON bots(organization_id, active, is_public) WHERE deleted_at IS NULL`,
+    },
+    {
+      name: 'idx_leads_org_status_created',
+      sql: `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_leads_org_status_created
+            ON leads(organization_id, status, created_at DESC)`,
+    },
   ];
 
   for (const index of indexes) {
@@ -259,8 +315,9 @@ export async function addPerformanceIndexes(): Promise<IndexResult> {
   return result;
 }
 
-// Run if executed directly
-if (require.main === module) {
+// Run if executed directly (ES module compatible)
+const isMainModule = import.meta.url === `file://${process.argv[1].replace(/\\/g, '/')}`;
+if (isMainModule) {
   addPerformanceIndexes()
     .then((result) => {
       process.exit(result.success ? 0 : 1);

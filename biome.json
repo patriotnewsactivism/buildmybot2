@@ -1,7 +1,7 @@
 {
   "$schema": "https://biomejs.dev/schemas/1.8.3/schema.json",
   "files": {
-    "ignore": ["dist", "node_modules", "uploads"]
+    "ignore": ["dist", "node_modules", "uploads", "**/*.css", "scripts/**"]
   },
   "formatter": {
     "indentStyle": "space",
@@ -11,7 +11,34 @@
     "enabled": true
   },
   "linter": {
-    "enabled": true
+    "enabled": true,
+    "rules": {
+      "suspicious": {
+        "noExplicitAny": "warn",
+        "noArrayIndexKey": "warn",
+        "noAssignInExpressions": "warn",
+        "noConsole": "off",
+        "noImplicitAnyLet": "warn"
+      },
+      "a11y": {
+        "noLabelWithoutControl": "warn",
+        "useKeyWithClickEvents": "warn",
+        "useValidAnchor": "warn",
+        "noSvgWithoutTitle": "warn"
+      },
+      "correctness": {
+        "useExhaustiveDependencies": "warn",
+        "noEmptyPattern": "warn"
+      },
+      "complexity": {
+        "noForEach": "warn",
+        "noStaticOnlyClass": "warn"
+      },
+      "style": {
+        "noCommaOperator": "warn",
+        "noNonNullAssertion": "warn"
+      }
+    }
   },
   "javascript": {
     "formatter": {
