@@ -1,0 +1,218 @@
+
+Database
+Databases
+Production Database
+55.2MB / 100GB
+Development Database
+55.18MB / 10GB
+Billing Period
+Renews monthly, Feb 1
+Hours of Compute Used
+0.16 hours
+Secrets
+Secrets
+Secrets are accessible to anyone who has access to this App. To restrict secret access, you must update App invite permissions. For more information, visit our documentation.
+SESSION_SECRET
+••••••••
+OPENAI_API_KEY
+••••••••
+CARTESIA_API_KEY
+••••••••
+Configurations
+Configurations are similar to secrets, but should only be used for non-sensitive information. They're useful for having a variable that's different between your published app and when testing on Replit.
+VITE_CARTESIA_API_KEY
+sk_car_CDBnrRA2HypnWPrm5h4ooa
+VITE_OPENAI_API_KEY
+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
+Auth
+Users
+User ID
+Name
+Last logged in
+No users
+Users who log in to your app will appear here.
+Multiplayer
+Multiplayers
+0 / 3
+Pending Invitations
+1
+jadj19@gmail.com
+Invited
+Private join link
+Anyone with this link can edit files
+
+Git
+Commit
+Fix bot saving and sharing by correctly handling new and existing bots
+Update dbService.saveBot to use POST for new bots and PUT for existing ones, refactor App.tsx to correctly update local bot state with server-generated IDs after saving, and add warnings in BotBuilder.tsx for unsaved bots to prevent sharing. Also, update embed.js to dynamically determine the domain for embed scripts.
+
+BA
+
+badactorsalbum
+badactorsalbum
+committed
+3 hours ago
+1 parent 
+Showing 4 changed files.
+
+App.tsx
+Modified
+BotBuilder.tsx
+components/BotBuilder
+Modified
+embed.js
+public
+Modified
+dbService.ts
+services
+Modified
+Preview
+/
+
+Agent
+•
+Free
+•
+Publish
+Published your App
+Worked for 1 minute
+•
+Free
+•
+Publish
+Published your App
+Screens resized the bot creates but doesn't save in my list, then when I try and use share link it never loads
+
+Improve bot saving and responsive design for all screen sizes
+Worked for 11 minutes
+•
+Free
+•
+Publish
+Published your App
+make sure every link in the footer opens up into its own page of populated data. allow document upload for chatbot knowledge. I want a fancy detailed separate page of all the features still leaving the landing page the way it is
+
+Saved progress at the end of the loop
+Worked for 24 minutes
+Fir the articles articles i want you to write 4 new articles about the features of buildmybot.app andbot and the future of businesses utilizing this, their reduction of expenses, their increase of revenue, and their rise of customer trust and satisfaction.
+
+Done! I've replaced the blog articles with 4 new BuildMyBot-focused pieces:
+
+1. "The Complete BuildMyBot Feature Guide" (Product Features)
+
+Covers all platform features: no-code bot builder, voice agents, lead capture CRM, marketing automation, and white-label partner capabilities
+2. "The Future of Business: How AI Chatbots Are Reshaping Customer Engagement" (Industry Insights)
+
+Explores how forward-thinking companies are positioning themselves for AI-driven customer engagement, emerging trends like voice-first interfaces and hyper-personalization
+3. "Slash Your Operating Costs" (Business Strategy)
+
+Focuses on expense reduction: automating routine inquiries, eliminating after-hours staffing, reducing repetitive work so employees can focus on strategic initiatives
+4. "From Visitors to Revenue" (Growth & Revenue)
+
+Covers revenue growth and customer trust: 24/7 lead capture, faster response times, improved conversion rates, and the virtuous cycle of happy customers leading to referrals
+The category filters have been updated to match: Product Features, Industry Insights, Business Strategy, and Growth & Revenue.
+
+Add four new articles about the features and benefits of BuildMyBot
+Worked for 1 minute
+
+Make, test, iterate…
+Console
+npm run dev
+npm run dev
+Publishing
+Time
+Log
+01-02 06:02:29
+at Object.match (/home/runner/workspace/node_modules/path-to-regexp/src/index.ts:438:28)
+01-02 06:02:47
+> NODE_ENV=production tsx server/index.ts
+01-02 06:02:47
+> buildmybot@1.0.0 start
+01-02 06:02:48
+Initializing Stripe schema...
+01-02 06:02:48
+PathError [TypeError]: Missing parameter name at index 1: *; visit https://git.new/pathToRegexpError for info
+01-02 06:02:48
+throw new PathError(`Missing parameter name at index ${index}`, str);
+01-02 06:02:48
+at Function.route (/home/runner/workspace/node_modules/router/index.js:428:17)
+01-02 06:02:48
+^
+01-02 06:02:48
+at parse (/home/runner/workspace/node_modules/path-to-regexp/src/index.ts:242:62)
+01-02 06:02:48
+at matcher (/home/runner/workspace/node_modules/router/lib/layer.js:86:23)
+01-02 06:02:48
+at name (/home/runner/workspace/node_modules/path-to-regexp/src/index.ts:225:13)
+01-02 06:02:48
+at Function.route (/home/runner/workspace/node_modules/express/lib/application.js:257:22)
+01-02 06:02:48
+at pathToRegexp (/home/runner/workspace/node_modules/path-to-regexp/src/index.ts:480:54)
+01-02 06:02:48
+at Object.match (/home/runner/workspace/node_modules/path-to-regexp/src/index.ts:438:28)
+01-02 06:02:48
+at new Layer (/home/runner/workspace/node_modules/router/lib/layer.js:93:62)
+01-02 06:02:48
+originalPath: '*'
+01-02 06:02:48
+at app. [as get] (/home/runner/workspace/node_modules/express/lib/application.js:478:22)
+01-02 06:02:48
+}
+01-02 06:02:48
+at (/home/runner/workspace/server/index.ts:413:7) {
+01-02 06:02:48
+/home/runner/workspace/node_modules/path-to-regexp/src/index.ts:225
+01-02 06:02:48
+Node.js v20.19.3
+01-02 06:02:48
+command finished with error [npm run start]: exit status 1
+01-02 06:02:55
+> buildmybot@1.0.0 start
+01-02 06:02:55
+> NODE_ENV=production tsx server/index.ts
+01-02 06:02:56
+Initializing Stripe schema...
+01-02 06:02:56
+throw new PathError(`Missing parameter name at index ${index}`, str);
+01-02 06:02:56
+at pathToRegexp (/home/runner/workspace/node_modules/path-to-regexp/src/index.ts:480:54)
+01-02 06:02:56
+at app. [as get] (/home/runner/workspace/node_modules/express/lib/application.js:478:22)
+01-02 06:02:56
+/home/runner/workspace/node_modules/path-to-regexp/src/index.ts:225
+01-02 06:02:56
+}
+01-02 06:02:56
+PathError [TypeError]: Missing parameter name at index 1: *; visit https://git.new/pathToRegexpError for info
+01-02 06:02:56
+at new Layer (/home/runner/workspace/node_modules/router/lib/layer.js:93:62)
+01-02 06:02:56
+originalPath: '*'
+01-02 06:02:56
+at Function.route (/home/runner/workspace/node_modules/express/lib/application.js:257:22)
+01-02 06:02:56
+Node.js v20.19.3
+01-02 06:02:56
+at (/home/runner/workspace/server/index.ts:413:7) {
+01-02 06:02:56
+at Object.match (/home/runner/workspace/node_modules/path-to-regexp/src/index.ts:438:28)
+01-02 06:02:56
+at name (/home/runner/workspace/node_modules/path-to-regexp/src/index.ts:225:13)
+01-02 06:02:56
+at matcher (/home/runner/workspace/node_modules/router/lib/layer.js:86:23)
+01-02 06:02:56
+at Function.route (/home/runner/workspace/node_modules/router/index.js:428:17)
+01-02 06:02:56
+at parse (/home/runner/workspace/node_modules/path-to-regexp/src/index.ts:242:62)
+01-02 06:02:56
+^
+01-02 06:02:56
+command finished with error [npm run start]: exit status 1
+01-02 06:03:05
+crash loop detected
+01-02 06:06:21
+starting up user application
+Wrap
+Colors
+Publishing
+Publish a live, stable, public version of your App, unaffected by the changes you make in the workspace.
