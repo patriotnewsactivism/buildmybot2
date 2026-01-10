@@ -54,7 +54,10 @@ import { getStripePublishableKey } from './stripeClient';
 import { stripeService } from './stripeService';
 import { WebhookHandlers } from './webhookHandlers';
 
-const uploadsDir = path.join(process.cwd(), 'uploads');
+const isVercel = Boolean(process.env.VERCEL);
+const uploadsDir = isVercel
+  ? path.join('/tmp', 'uploads')
+  : path.join(process.cwd(), 'uploads');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
@@ -1132,8 +1135,12 @@ if (isProduction) {
   });
 }
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(
-    `Server running on port ${PORT} (${isProduction ? 'production' : 'development'})`,
-  );
-});
+if (!isVercel) {
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(
+      `Server running on port ${PORT} (${isProduction ? 'production' : 'development'})`,
+    );
+  });
+}
+
+export { app };
