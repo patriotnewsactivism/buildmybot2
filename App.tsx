@@ -592,7 +592,7 @@ function App() {
 
             {/* Phase 2: Admin Dashboard with DashboardShell */}
             {currentView === 'admin' && (
-              <RouteGuard>
+              <RouteGuard role="admin">
                 <DashboardShell
                   currentPath={`/admin${adminActiveTab === 'metrics' ? '' : `/${adminActiveTab}`}`}
                   onNavigate={(path) => {
@@ -630,7 +630,7 @@ function App() {
 
             {/* Phase 2: Partner Dashboard with DashboardShell */}
             {currentView === 'reseller' && (
-              <RouteGuard>
+              <RouteGuard role="reseller">
                 <DashboardShell
                   currentPath={`/partner/${partnerActiveTab}`}
                   onNavigate={(path) => {
@@ -665,7 +665,7 @@ function App() {
 
             {/* Phase 2: Owner Dashboard with DashboardShell (regular business owners) */}
             {currentView === 'dashboard' && (
-              <RouteGuard>
+              <RouteGuard role="owner">
                 <DashboardShell
                   currentPath="/app"
                   onNavigate={(path) => {
@@ -688,7 +688,7 @@ function App() {
 
             {/* Phase 2: Client Dashboard with DashboardShell (CLIENT role - managed by resellers) */}
             {currentView === 'client' && (
-              <RouteGuard>
+              <RouteGuard role="client">
                 <DashboardShell
                   currentPath="/app"
                   onNavigate={(path) => {

@@ -184,7 +184,9 @@ export const ResellerDashboard: React.FC<ResellerProps> = ({
 
   const displayDomain =
     user.customDomain ||
-    (typeof window !== 'undefined' ? window.location.host : 'buildmybot.app');
+    (typeof window !== 'undefined'
+      ? window.location.host
+      : 'www.buildmybot.app');
   const referralUrl = `https://${displayDomain}/?ref=${user.resellerCode || 'CODE'}`;
   const isWhitelabel = Boolean(user.whitelabelEnabled);
   const whitelabelFeeDue = Boolean(realStats.whitelabelFeeDue);

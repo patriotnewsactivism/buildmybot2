@@ -364,12 +364,12 @@ export class ChannelService {
   }
 
   private generateWebhookUrl(channel: ChannelType, botId: string): string {
-    const baseUrl = env.APP_BASE_URL || 'https://app.buildmybot.com';
+    const baseUrl = env.APP_BASE_URL || 'https://www.buildmybot.app';
     return `${baseUrl}/api/webhooks/${channel}/${botId}`;
   }
 
   private generateEmbedCode(botId: string): string {
-    const baseUrl = env.APP_BASE_URL || 'https://app.buildmybot.com';
+    const baseUrl = env.APP_BASE_URL || 'https://www.buildmybot.app';
     return `<script src="${baseUrl}/widget.js" data-bot-id="${botId}"></script>`;
   }
 

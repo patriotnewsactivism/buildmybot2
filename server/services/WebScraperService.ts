@@ -59,7 +59,7 @@ export class WebScraperService {
 
   static async crawlWebsite(
     startUrl: string,
-    maxPages,
+    maxPages: number,
     sourceId: string,
     botId: string,
     organizationId?: string,

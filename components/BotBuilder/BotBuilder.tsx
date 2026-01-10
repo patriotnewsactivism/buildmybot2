@@ -235,7 +235,9 @@ export const BotBuilder: React.FC<BotBuilderProps> = ({
   // Determine domain for snippets
   const displayDomain =
     customDomain ||
-    (typeof window !== 'undefined' ? window.location.host : 'buildmybot.app');
+    (typeof window !== 'undefined'
+      ? window.location.host
+      : 'www.buildmybot.app');
   // Real working link
   const shareLink = `${window.location.protocol}//${displayDomain}/chat/${activeBot.id}`;
 
