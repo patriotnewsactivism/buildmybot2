@@ -3,20 +3,8 @@
  * Executes the migrateToOrganizations data migration
  */
 
-import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
-// Load environment variables FIRST
-import { config } from 'dotenv';
+import '../server/env';
 
-const envPath = resolve(process.cwd(), '.env');
-if (existsSync(envPath)) {
-  config({ path: envPath });
-}
-
-const envLocalPath = resolve(process.cwd(), '.env.local');
-if (existsSync(envLocalPath)) {
-  config({ path: envLocalPath, override: true });
-}
 
 console.log('🔄 Starting Data Migration to Organizations Model...\n');
 console.log('⚠️  WARNING: This will modify your database!');

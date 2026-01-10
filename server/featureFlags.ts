@@ -3,6 +3,8 @@
  * Controls feature rollout and A/B testing
  */
 
+import { env } from './env';
+
 export interface FeatureFlags {
   MULTI_TENANT: boolean;
   VOICE_AGENT: boolean;
@@ -30,42 +32,42 @@ const parseEnvBool = (
 // Feature flags configuration
 export const FEATURES: FeatureFlags = {
   // Core features - enabled by default
-  MULTI_TENANT: parseEnvBool(process.env.FEATURE_MULTI_TENANT, true),
+  MULTI_TENANT: parseEnvBool(env.FEATURE_MULTI_TENANT, true),
   PARTNER_IMPERSONATION: parseEnvBool(
-    process.env.FEATURE_PARTNER_IMPERSONATION,
+    env.FEATURE_PARTNER_IMPERSONATION,
     true,
   ),
 
   // Voice and communication
-  VOICE_AGENT: parseEnvBool(process.env.FEATURE_VOICE_AGENT, true),
-  MULTI_CHANNEL: parseEnvBool(process.env.FEATURE_MULTI_CHANNEL, false),
+  VOICE_AGENT: parseEnvBool(env.FEATURE_VOICE_AGENT, true),
+  MULTI_CHANNEL: parseEnvBool(env.FEATURE_MULTI_CHANNEL, false),
 
   // Analytics and metrics
   ADVANCED_ANALYTICS: parseEnvBool(
-    process.env.FEATURE_ADVANCED_ANALYTICS,
+    env.FEATURE_ADVANCED_ANALYTICS,
     true,
   ),
-  REAL_TIME_METRICS: parseEnvBool(process.env.FEATURE_REAL_TIME_METRICS, false),
+  REAL_TIME_METRICS: parseEnvBool(env.FEATURE_REAL_TIME_METRICS, false),
 
   // Bot building experience
   BOT_TEMPLATES_MARKETPLACE: parseEnvBool(
-    process.env.FEATURE_BOT_TEMPLATES,
+    env.FEATURE_BOT_TEMPLATES,
     true,
   ),
   SIMPLIFIED_BOT_WIZARD: parseEnvBool(
-    process.env.FEATURE_SIMPLIFIED_WIZARD,
+    env.FEATURE_SIMPLIFIED_WIZARD,
     true,
   ),
-  AB_TESTING: parseEnvBool(process.env.FEATURE_AB_TESTING, false),
+  AB_TESTING: parseEnvBool(env.FEATURE_AB_TESTING, false),
 
   // Dashboard features
-  CLIENT_DASHBOARD: parseEnvBool(process.env.FEATURE_CLIENT_DASHBOARD, true),
+  CLIENT_DASHBOARD: parseEnvBool(env.FEATURE_CLIENT_DASHBOARD, true),
 
   // Infrastructure
-  REDIS_CACHE: parseEnvBool(process.env.FEATURE_REDIS_CACHE, false),
+  REDIS_CACHE: parseEnvBool(env.FEATURE_REDIS_CACHE, false),
 
   // AI Models
-  GPT5O_MINI: parseEnvBool(process.env.FEATURE_GPT5O_MINI, true),
+  GPT5O_MINI: parseEnvBool(env.FEATURE_GPT5O_MINI, true),
 };
 
 /**

@@ -88,6 +88,7 @@ BuildMyBot is an all-in-one AI Operating System that empowers businesses to auto
    STRIPE_WHITELABEL_PRICE_ID=price_...
    STRIPE_WEBHOOK_SECRET=whsec_...
    ```
+   See `.env.example` for the full list of optional flags and client-exposed variables.
 
 4. Set up the database:
    ```bash

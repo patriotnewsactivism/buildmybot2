@@ -4,6 +4,7 @@ import rateLimit from 'express-rate-limit';
 import OpenAI from 'openai';
 import { bots } from '../../shared/schema';
 import { db } from '../db';
+import { env } from '../env';
 import {
   applyImpersonation,
   authenticate,
@@ -32,10 +33,9 @@ const botChatLimiter = rateLimit({
 });
 
 const openai = new OpenAI({
-  apiKey:
-    process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY,
+  apiKey: env.AI_INTEGRATIONS_OPENAI_API_KEY || env.OPENAI_API_KEY,
   baseURL:
-    process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || 'https://api.openai.com/v1',
+    env.AI_INTEGRATIONS_OPENAI_BASE_URL || 'https://api.openai.com/v1',
 });
 
 interface ChatMessage {
