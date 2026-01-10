@@ -47,7 +47,11 @@
       "Bash(node scripts/fixButtonTypes.js:*)",
       "Bash(dir:*)",
       "Bash(cd:*)",
-      "Bash(npx biome check:*)"
+      "Bash(npx biome check:*)",
+      "Bash(npx biome:*)",
+      "Bash(npx tsc:*)",
+      "Bash(timeout 30 npx tsx:*)",
+      "Bash(node --experimental-strip-types --no-warnings -e:*)"
     ]
   }
 }

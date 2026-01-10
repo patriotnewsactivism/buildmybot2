@@ -61,6 +61,7 @@ import { ResellerDashboard } from './components/Reseller/ResellerDashboard';
 import { ServiceCatalog } from './components/Services/ServiceCatalog';
 import { Settings } from './components/Settings/Settings';
 import { SupportTicketSystem } from './components/Support/SupportTicketSystem';
+import { ErrorBoundary } from './components/UI/ErrorBoundary';
 import { WebsiteBuilder } from './components/WebsiteBuilder/WebsiteBuilder';
 import { MOCK_ANALYTICS_DATA, PLANS } from './constants';
 import { useAuth } from './hooks/useAuth';
@@ -710,12 +711,14 @@ function App() {
 
             {/* Legacy views - not using DashboardShell yet */}
             {currentView === 'bots' && (
-              <BotBuilder
-                bots={bots}
-                onSave={handleSaveBot}
-                customDomain={activeUser?.customDomain}
-                onLeadDetected={handleLeadDetected}
-              />
+              <ErrorBoundary>
+                <BotBuilder
+                  bots={bots}
+                  onSave={handleSaveBot}
+                  customDomain={activeUser?.customDomain}
+                  onLeadDetected={handleLeadDetected}
+                />
+              </ErrorBoundary>
             )}
 
             {currentView === 'marketing' && <MarketingTools />}
@@ -727,11 +730,13 @@ function App() {
             {currentView === 'website' && <WebsiteBuilder />}
 
             {currentView === 'marketplace' && (
-              <TemplateMarketplace
-                onInstall={handleInstallTemplate as any}
-                userId={activeUser?.id}
-                organizationId={activeUser?.id}
-              />
+              <ErrorBoundary>
+                <TemplateMarketplace
+                  onInstall={handleInstallTemplate as any}
+                  userId={activeUser?.id}
+                  organizationId={activeUser?.id}
+                />
+              </ErrorBoundary>
             )}
 
             {currentView === 'phone' && activeUser && (
@@ -769,7 +774,9 @@ function App() {
             )}
 
             {currentView === 'analytics' && (
-              <AdvancedAnalytics organizationId={activeUser?.id || ''} />
+              <ErrorBoundary>
+                <AdvancedAnalytics organizationId={activeUser?.id || ''} />
+              </ErrorBoundary>
             )}
 
             {currentView === 'landing-pages' && (

@@ -6,45 +6,53 @@ import { db } from '../db';
 
 const router = Router();
 
-router.get('/', async (req, res) => {
-  try {
-    const { category, industry, search, featured } = req.query;
-    const conditions: SQL[] = [];
+// Cache templates for 2 minutes - public data that rarely changes
+router.get(
+  '/',
+  (req, res, next) => {
+    res.set('Cache-Control', 'public, max-age=120');
+    next();
+  },
+  async (req, res) => {
+    try {
+      const { category, industry, search, featured } = req.query;
+      const conditions: SQL[] = [];
 
-    if (category) {
-      conditions.push(eq(botTemplates.category, category as string));
+      if (category) {
+        conditions.push(eq(botTemplates.category, category as string));
+      }
+
+      if (industry) {
+        conditions.push(eq(botTemplates.industry, industry as string));
+      }
+
+      if (search) {
+        const term = `%${search}%`;
+        conditions.push(
+          sql`${botTemplates.name} ILIKE ${term} OR ${botTemplates.description} ILIKE ${term}`,
+        );
+      }
+
+      if (featured) {
+        conditions.push(eq(botTemplates.isPublic, true));
+      }
+
+      let baseQuery = db.select().from(botTemplates);
+
+      if (conditions.length) {
+        baseQuery = baseQuery.where(and(...conditions)) as typeof baseQuery;
+      }
+
+      const templates = featured
+        ? await baseQuery.orderBy(desc(botTemplates.rating))
+        : await baseQuery;
+      res.json(templates);
+    } catch (error) {
+      console.error('Template list error:', error);
+      res.status(500).json({ error: 'Failed to fetch templates' });
     }
-
-    if (industry) {
-      conditions.push(eq(botTemplates.industry, industry as string));
-    }
-
-    if (search) {
-      const term = `%${search}%`;
-      conditions.push(
-        sql`${botTemplates.name} ILIKE ${term} OR ${botTemplates.description} ILIKE ${term}`,
-      );
-    }
-
-    if (featured) {
-      conditions.push(eq(botTemplates.isPublic, true));
-    }
-
-    let baseQuery = db.select().from(botTemplates);
-
-    if (conditions.length) {
-      baseQuery = baseQuery.where(and(...conditions)) as typeof baseQuery;
-    }
-
-    const templates = featured
-      ? await baseQuery.orderBy(desc(botTemplates.rating))
-      : await baseQuery;
-    res.json(templates);
-  } catch (error) {
-    console.error('Template list error:', error);
-    res.status(500).json({ error: 'Failed to fetch templates' });
-  }
-});
+  },
+);
 
 router.post('/:id/install', async (req, res) => {
   try {
