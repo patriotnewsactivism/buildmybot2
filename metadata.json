@@ -1,0 +1,5 @@
+{
+  "name": "BuildMyBot",
+  "description": "The ultimate white-label AI chatbot platform for businesses and agencies. Build, deploy, and resell intelligent bots with zero coding.",
+  "requestFramePermissions": ["microphone"]
+}
