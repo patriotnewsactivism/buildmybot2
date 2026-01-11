@@ -14,6 +14,7 @@ import { dbService } from '../../services/dbService';
 import type { User } from '../../types';
 import { type Column, DataTable } from '../UI/DataTable';
 import { MetricCard } from '../UI/MetricCard';
+import { QuickMetricsWidget } from '../UI/QuickMetricsWidget';
 import { ReferralBanner } from '../UI/ReferralBanner';
 
 interface ClientOverviewProps {
@@ -227,6 +228,7 @@ export const ClientOverview: React.FC<ClientOverviewProps> = ({
 
   return (
     <div className="space-y-4 md:space-y-6 px-2 md:px-0">
+      <QuickMetricsWidget />
       {user && user.resellerCode && <ReferralBanner user={user} />}
       {showOnboarding && (
         <div className="bg-white border border-slate-200 rounded-xl p-4 md:p-6">
