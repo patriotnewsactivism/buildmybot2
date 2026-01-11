@@ -40,6 +40,7 @@ import {
   channelsRouter,
   chatRouter,
   clientsRouter,
+  healthRouter,
   impersonationRouter,
   knowledgeRouter,
   landingPagesRouter,
@@ -215,10 +216,6 @@ const cacheControl = (maxAge: number, isPublic = true) => {
 
 // ETag support for efficient caching
 app.set('etag', 'strong');
-
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok' });
-});
 
 app.get('/api/stripe/publishable-key', async (req, res) => {
   try {
@@ -988,6 +985,11 @@ app.delete('/api/documents/:docId', ...apiAuthStack, async (req, res) => {
     res.status(500).json({ error: 'Failed to delete document' });
   }
 });
+
+// ========================================
+// HEALTH CHECK ROUTES (no auth required)
+// ========================================
+app.use('/api/health', healthRouter);
 
 // ========================================
 // AUTHENTICATION ROUTES (no auth required)
