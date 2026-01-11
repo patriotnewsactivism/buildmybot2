@@ -71,7 +71,6 @@
     "react-dom": "^18.2.0",
     "recharts": "^2.12.2",
     "stripe": "^20.1.0",
-    "stripe-replit-sync": "^1.0.0",
     "tailwindcss": "^4.1.18",
     "tsx": "^4.20.3",
     "uuid": "^11.1.0",

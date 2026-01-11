@@ -51,7 +51,20 @@
       "Bash(npx biome:*)",
       "Bash(npx tsc:*)",
       "Bash(timeout 30 npx tsx:*)",
-      "Bash(node --experimental-strip-types --no-warnings -e:*)"
+      "Bash(node --experimental-strip-types --no-warnings -e:*)",
+      "Bash(npx drizzle-kit push:*)",
+      "Bash(echo:*)",
+      "Bash(npx drizzle-kit:*)",
+      "Bash(npm run server:*)",
+      "Bash(powershell:*)",
+      "Bash(nslookup:*)",
+      "Bash(ping:*)",
+      "Bash(vercel --version:*)",
+      "Bash(vercel login)",
+      "Bash(vercel:*)",
+      "Bash(git config:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }
