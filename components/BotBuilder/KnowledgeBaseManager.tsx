@@ -72,7 +72,9 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
     if (!botId || botId === 'new') return;
 
     try {
-      const response = await fetch(buildApiUrl(`/knowledge/sources/${botId}`));
+      const response = await fetch(buildApiUrl(`/knowledge/sources/${botId}`), {
+        credentials: 'include',
+      });
       if (response.ok) {
         const data = await response.json();
         setSources(data.sources || []);
@@ -113,6 +115,7 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
       const response = await fetch(buildApiUrl(`/knowledge/scrape/${botId}`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ url: urlInput, crawlDepth }),
       });
 
@@ -187,6 +190,7 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
           buildApiUrl(`/knowledge/upload/${botId}`),
           {
             method: 'POST',
+            credentials: 'include',
             body: formData,
           },
         );
@@ -221,6 +225,7 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
         buildApiUrl(`/knowledge/sources/${sourceId}`),
         {
           method: 'DELETE',
+          credentials: 'include',
         },
       );
 
@@ -242,6 +247,7 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
         buildApiUrl(`/knowledge/refresh/${sourceId}`),
         {
           method: 'POST',
+          credentials: 'include',
         },
       );
 
