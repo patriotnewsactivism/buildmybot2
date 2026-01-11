@@ -146,7 +146,7 @@ Admins can broadcast notifications to all users with optional acknowledgment req
   - Added comprehensive health check endpoints (/api/health, /api/health/live, /api/health/ready)
   - Created ReferralBanner component for reseller users to share referral links
   - Added QuickMetricsWidget showing performance snapshot on client dashboard
-  - Created pre-built industry FAQ knowledge bases (8 industries) with one-click install
+  - Created pre-built industry FAQ knowledge bases (19 industries) with one-click install
   - Added centralized error handling utility (server/utils/errorHandler.ts)
   - Enhanced validation middleware with TypeScript declaration merging (req.validated)
   - Added PrebuiltKnowledgeSelector UI component with industry icons and one-click install
