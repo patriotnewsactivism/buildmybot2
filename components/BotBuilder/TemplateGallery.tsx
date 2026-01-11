@@ -43,9 +43,10 @@ export const TemplateGallery: React.FC<TemplateGalleryProps> = ({
       if (showFeatured) params.featured = 'true';
 
       const data = await dbService.getTemplates(params);
-      setTemplates(data || []);
+      setTemplates(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Failed to load templates:', error);
+      setTemplates([]);
     } finally {
       setLoading(false);
     }
