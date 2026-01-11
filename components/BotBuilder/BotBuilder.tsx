@@ -42,7 +42,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AVAILABLE_MODELS } from '../../constants';
 import { dbService } from '../../services/dbService';
 import {
-  generateBotResponse,
+  generateBotResponseDemo,
   scrapeWebsiteContent,
 } from '../../services/openaiService';
 import type { BotDocument, Bot as BotType } from '../../types';
@@ -466,7 +466,7 @@ export const BotBuilder: React.FC<BotBuilderProps> = ({
 
     try {
       const context = activeBot.knowledgeBase.join('\n\n');
-      const response = await generateBotResponse(
+      const response = await generateBotResponseDemo(
         activeBot.systemPrompt,
         updatedHistory,
         newMessage.text,
