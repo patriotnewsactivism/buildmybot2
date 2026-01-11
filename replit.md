@@ -142,6 +142,11 @@ Admins can broadcast notifications to all users with optional acknowledgment req
 - Scheduled notifications with datetime picker
 
 ## Recent Changes
+- 2026-01-11: Knowledge base and AI service fixes
+  - Fixed "Access denied" errors in knowledge base by adding credentials to all API calls
+  - Updated DocumentProcessorService OCR to use Replit AI Integrations (AI_INTEGRATIONS_OPENAI_API_KEY)
+  - Fixed template marketplace loading with proper credential handling and array validation
+  - All knowledge base operations (upload, scrape, delete, refresh) now properly authenticated
 - 2026-01-11: Platform improvements for revenue and UX
   - Added comprehensive health check endpoints (/api/health, /api/health/live, /api/health/ready)
   - Created ReferralBanner component for reseller users to share referral links
