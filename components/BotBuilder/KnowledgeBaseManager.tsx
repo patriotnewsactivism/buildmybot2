@@ -16,6 +16,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { buildApiUrl } from '../../services/apiConfig';
 import { dbService } from '../../services/dbService';
 import type { BotDocument } from '../../types';
+import { PrebuiltKnowledgeSelector } from '../Knowledge/PrebuiltKnowledgeSelector';
 
 interface KnowledgeSource {
   id: string;
@@ -517,6 +518,10 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
             ))}
           </div>
         </div>
+      )}
+
+      {botId && botId !== 'new' && (
+        <PrebuiltKnowledgeSelector botId={botId} onInstallComplete={fetchSources} />
       )}
 
       <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
