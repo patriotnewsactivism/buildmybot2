@@ -148,6 +148,9 @@ Admins can broadcast notifications to all users with optional acknowledgment req
   - Added QuickMetricsWidget showing performance snapshot on client dashboard
   - Created pre-built industry FAQ knowledge bases (8 industries) with one-click install
   - Added centralized error handling utility (server/utils/errorHandler.ts)
+  - Enhanced validation middleware with TypeScript declaration merging (req.validated)
+  - Added PrebuiltKnowledgeSelector UI component with industry icons and one-click install
+  - Integrated PrebuiltKnowledgeSelector into KnowledgeBaseManager in bot builder
 - 2026-01-10: Added admin broadcast notification system
   - NotificationComposer for admins to create broadcasts with priority and targeting
   - NotificationBell with popup modal for acknowledgment-required notifications
