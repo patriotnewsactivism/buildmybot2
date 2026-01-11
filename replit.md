@@ -142,6 +142,12 @@ Admins can broadcast notifications to all users with optional acknowledgment req
 - Scheduled notifications with datetime picker
 
 ## Recent Changes
+- 2026-01-11: Platform improvements for revenue and UX
+  - Added comprehensive health check endpoints (/api/health, /api/health/live, /api/health/ready)
+  - Created ReferralBanner component for reseller users to share referral links
+  - Added QuickMetricsWidget showing performance snapshot on client dashboard
+  - Created pre-built industry FAQ knowledge bases (8 industries) with one-click install
+  - Added centralized error handling utility (server/utils/errorHandler.ts)
 - 2026-01-10: Added admin broadcast notification system
   - NotificationComposer for admins to create broadcasts with priority and targeting
   - NotificationBell with popup modal for acknowledgment-required notifications
