@@ -58,7 +58,8 @@ router.post(
     try {
       const { botId } = req.params;
       const { url, crawlDepth = 1 } = req.body;
-      const organizationId = (req as any).organizationId;
+      const user = (req as any).user;
+      const organizationId = user?.organizationId || (req as any).organization?.id;
 
       if (!url || typeof url !== 'string') {
         return res.status(400).json({ error: 'URL is required' });
@@ -129,7 +130,8 @@ router.post(
     try {
       const { botId } = req.params;
       const file = req.file;
-      const organizationId = (req as any).organizationId;
+      const user = (req as any).user;
+      const organizationId = user?.organizationId || (req as any).organization?.id;
 
       if (!file) {
         return res.status(400).json({ error: 'File is required' });
