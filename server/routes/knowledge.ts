@@ -2,9 +2,13 @@ import { and, eq } from 'drizzle-orm';
 import { type Request, type Response, Router } from 'express';
 import multer from 'multer';
 import { v4 as uuidv4 } from 'uuid';
-import { bots, knowledgeSources } from '../../shared/schema';
+import { bots, knowledgeChunks, knowledgeSources } from '../../shared/schema';
 import { db } from '../db';
 import { authenticate, loadOrganizationContext } from '../middleware';
+import {
+  formatKnowledgeBaseAsText,
+  INDUSTRY_KNOWLEDGE_BASES,
+} from '../seeds/industryKnowledgeBases';
 import { DocumentProcessorService } from '../services/DocumentProcessorService';
 import { KnowledgeService } from '../services/KnowledgeService';
 import { WebScraperService } from '../services/WebScraperService';
@@ -304,6 +308,81 @@ router.post(
       });
     } catch (error: any) {
       console.error('Refresh error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
+router.get('/prebuilt', authenticate, async (req: Request, res: Response) => {
+  try {
+    const knowledgeBases = INDUSTRY_KNOWLEDGE_BASES.map((kb) => ({
+      id: kb.id,
+      name: kb.name,
+      industry: kb.industry,
+      description: kb.description,
+      faqCount: kb.faqs.length,
+    }));
+    res.json({ knowledgeBases });
+  } catch (error: any) {
+    console.error('Error fetching prebuilt knowledge bases:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post(
+  '/prebuilt/:botId/install',
+  authenticate,
+  loadOrganizationContext,
+  async (req: Request, res: Response) => {
+    try {
+      const { botId } = req.params;
+      const { knowledgeBaseId } = req.body;
+      const organizationId = (req as any).organizationId;
+
+      if (!(await canAccessBot(botId, req))) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      const kb = INDUSTRY_KNOWLEDGE_BASES.find((k) => k.id === knowledgeBaseId);
+      if (!kb) {
+        return res.status(404).json({ error: 'Knowledge base not found' });
+      }
+
+      const sourceId = uuidv4();
+      const content = formatKnowledgeBaseAsText(kb);
+
+      await db.insert(knowledgeSources).values({
+        id: sourceId,
+        botId,
+        organizationId,
+        sourceType: 'prebuilt',
+        sourceName: kb.name,
+        status: 'completed',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      const chunks = DocumentProcessorService.chunkDocument(content, 500);
+      for (let i = 0; i < chunks.length; i++) {
+        await db.insert(knowledgeChunks).values({
+          id: uuidv4(),
+          sourceId,
+          botId,
+          content: chunks[i],
+          chunkIndex: i,
+          tokenCount: Math.ceil(chunks[i].length / 4),
+          metadata: { title: kb.name, industry: kb.industry },
+        });
+      }
+
+      res.json({
+        success: true,
+        sourceId,
+        name: kb.name,
+        chunksCreated: chunks.length,
+      });
+    } catch (error: any) {
+      console.error('Error installing prebuilt knowledge base:', error);
       res.status(500).json({ error: error.message });
     }
   },
