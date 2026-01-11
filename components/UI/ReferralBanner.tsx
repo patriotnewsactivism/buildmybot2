@@ -1,9 +1,13 @@
 import { Copy, Gift, Share2, Users } from 'lucide-react';
 import React, { useState } from 'react';
-import type { User } from '../../shared/schema';
+
+interface ReferralUser {
+  resellerCode?: string | null;
+  referralCredits?: number | null;
+}
 
 interface ReferralBannerProps {
-  user: User;
+  user: ReferralUser;
 }
 
 export const ReferralBanner: React.FC<ReferralBannerProps> = ({ user }) => {
