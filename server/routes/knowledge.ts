@@ -38,13 +38,16 @@ const upload = multer({
 });
 
 async function canAccessBot(botId: string, req: Request): Promise<boolean> {
-  const userId = (req as any).userId;
-  const organizationId = (req as any).organizationId;
+  const user = (req as any).user;
+  const userId = user?.id;
+  const organizationId = user?.organizationId || (req as any).organization?.id;
+
+  if (!userId) return false;
 
   const bot = await db.select().from(bots).where(eq(bots.id, botId)).limit(1);
   if (bot.length === 0) return false;
 
-  return bot[0].userId === userId || bot[0].organizationId === organizationId;
+  return bot[0].userId === userId || (organizationId && bot[0].organizationId === organizationId);
 }
 
 router.post(
