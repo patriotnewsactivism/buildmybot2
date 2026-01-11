@@ -231,6 +231,314 @@ export const INDUSTRY_KNOWLEDGE_BASES: IndustryKnowledgeBase[] = [
       },
     ],
   },
+  {
+    id: 'automotive-kb',
+    name: 'Auto Dealership FAQ',
+    industry: 'Automotive',
+    description: 'Common questions for car dealerships and auto services',
+    faqs: [
+      {
+        question: 'Do you offer financing options?',
+        answer: 'Yes, we work with multiple lenders to offer competitive financing for all credit types. We can often get you approved the same day with rates starting as low as 2.9% APR for qualified buyers. Bring your pay stubs and ID to get pre-approved.',
+      },
+      {
+        question: 'Can I trade in my current vehicle?',
+        answer: 'Absolutely! We accept trade-ins of all makes and models. Our appraisers will evaluate your vehicle and provide a fair market value offer. You can also get an online estimate through our website before visiting.',
+      },
+      {
+        question: 'What is included in your vehicle warranty?',
+        answer: 'New vehicles include manufacturer warranties typically covering 3 years/36,000 miles bumper-to-bumper and 5 years/60,000 miles powertrain. Certified pre-owned vehicles include extended warranty coverage. Extended warranties are available for additional protection.',
+      },
+      {
+        question: 'Do you offer test drives?',
+        answer: 'Yes, test drives are encouraged! Simply bring a valid drivers license and proof of insurance. You can schedule a test drive online or walk in during business hours. We recommend calling ahead to ensure the vehicle you want is available.',
+      },
+      {
+        question: 'What service packages do you offer?',
+        answer: 'Our service center handles oil changes, tire rotations, brake service, inspections, and major repairs. We offer prepaid maintenance packages that save up to 30%. Schedule online or call for same-day appointments on most services.',
+      },
+    ],
+  },
+  {
+    id: 'salon-kb',
+    name: 'Salon & Spa FAQ',
+    industry: 'Beauty',
+    description: 'Common questions for hair salons, spas, and beauty services',
+    faqs: [
+      {
+        question: 'How do I book an appointment?',
+        answer: 'You can book online through our website 24/7, call us directly, or download our app. New clients are always welcome! We recommend booking color services 1-2 weeks in advance, especially for weekends.',
+      },
+      {
+        question: 'What is your cancellation policy?',
+        answer: 'We require 24-hour notice for cancellations. Late cancellations or no-shows may be charged 50% of the service cost. We understand emergencies happen, so please call us as soon as possible if your plans change.',
+      },
+      {
+        question: 'Do you offer gift cards?',
+        answer: 'Yes! Gift cards are available in any amount and never expire. Purchase them in-salon or online. Digital gift cards can be emailed directly to the recipient. They make perfect gifts for any occasion.',
+      },
+      {
+        question: 'What hair products do you use and sell?',
+        answer: 'We use and sell professional-grade products including brands like Redken, Olaplex, and Kevin Murphy. Our stylists can recommend the best products for your hair type. Members receive 15% off all retail purchases.',
+      },
+      {
+        question: 'Do you offer bridal or special event packages?',
+        answer: 'Yes! We offer complete bridal packages including trials, day-of styling, and group services. We also do prom, graduation, and special occasion styling. Book your consultation at least 2 months before your event for best availability.',
+      },
+    ],
+  },
+  {
+    id: 'veterinary-kb',
+    name: 'Veterinary Clinic FAQ',
+    industry: 'Veterinary',
+    description: 'Common questions for animal hospitals and pet care',
+    faqs: [
+      {
+        question: 'What vaccines does my pet need?',
+        answer: 'Core vaccines for dogs include rabies, distemper, parvovirus, and adenovirus. Cats need rabies, FVRCP (feline distemper combo), and may need feline leukemia. We create personalized vaccination schedules based on your pets age and lifestyle.',
+      },
+      {
+        question: 'Do you offer emergency services?',
+        answer: 'We handle urgent care during regular hours. For after-hours emergencies, we partner with the 24-hour emergency animal hospital located at [address]. Always call ahead so we can prepare for your arrival.',
+      },
+      {
+        question: 'How often should my pet have a checkup?',
+        answer: 'Annual wellness exams are recommended for adult pets. Puppies and kittens need more frequent visits for vaccinations. Senior pets (7+ years) benefit from twice-yearly exams to catch age-related issues early.',
+      },
+      {
+        question: 'Do you offer payment plans?',
+        answer: 'We accept CareCredit and Scratchpay for financing larger procedures. We also offer wellness plans with monthly payments that cover routine care including exams, vaccines, and preventive medications at a discounted rate.',
+      },
+      {
+        question: 'What should I bring to my pets first visit?',
+        answer: 'Please bring any medical records from previous veterinarians, current medications, a list of foods and treats your pet eats, and a fresh stool sample if possible. Keep dogs on leash and cats in carriers for safety.',
+      },
+    ],
+  },
+  {
+    id: 'photography-kb',
+    name: 'Photography Studio FAQ',
+    industry: 'Photography',
+    description: 'Common questions for photography services and studios',
+    faqs: [
+      {
+        question: 'What types of photography do you offer?',
+        answer: 'We specialize in portraits, weddings, events, family sessions, headshots, and commercial photography. Each session is customized to your needs. View our portfolio online to see examples of our work in each category.',
+      },
+      {
+        question: 'How long until I receive my photos?',
+        answer: 'Portrait sessions are delivered within 2 weeks. Wedding galleries take 6-8 weeks for full editing. You will receive an online gallery with high-resolution downloads. Rush delivery is available for an additional fee.',
+      },
+      {
+        question: 'What should I wear for my session?',
+        answer: 'Choose solid colors and avoid busy patterns. Coordinate but dont match exactly for group photos. Bring outfit options and we can help you choose. A style guide is sent upon booking with detailed recommendations.',
+      },
+      {
+        question: 'Do you offer prints and albums?',
+        answer: 'Yes! We offer professional-quality prints, canvas wraps, albums, and wall art. Products are ordered through your online gallery. We use archival-quality materials that last generations. Album design consultations are included with wedding packages.',
+      },
+      {
+        question: 'How do I book and what is the deposit?',
+        answer: 'A 50% deposit secures your date, with the balance due before the session. Wedding deposits are non-refundable. You can book online or contact us for a custom quote. Popular dates book months in advance, especially for weddings.',
+      },
+    ],
+  },
+  {
+    id: 'accounting-kb',
+    name: 'Accounting Services FAQ',
+    industry: 'Accounting',
+    description: 'Common questions for accountants and tax professionals',
+    faqs: [
+      {
+        question: 'What documents do I need for tax preparation?',
+        answer: 'Bring W-2s, 1099s, mortgage interest statements, property tax records, charitable donation receipts, medical expense records, and prior year tax returns. Self-employed clients should also bring business income and expense records.',
+      },
+      {
+        question: 'When is the tax filing deadline?',
+        answer: 'Individual tax returns are due April 15th. Extensions are available until October 15th, but any taxes owed are still due by April 15th. Business deadlines vary by entity type. We recommend starting early to maximize deductions.',
+      },
+      {
+        question: 'Do you handle small business accounting?',
+        answer: 'Yes! We offer full-service bookkeeping, payroll, quarterly taxes, financial statements, and year-end tax preparation for small businesses. We work with QuickBooks, Xero, and other popular accounting software.',
+      },
+      {
+        question: 'What are your fees?',
+        answer: 'Fees vary by complexity. Simple individual returns start at $150. Business returns and complex situations are quoted after review. We offer upfront pricing with no surprises. Payment plans are available for larger engagements.',
+      },
+      {
+        question: 'Can you help if I am being audited?',
+        answer: 'Yes, we provide audit representation and can communicate with the IRS on your behalf. We will review your situation, gather documentation, and guide you through the process. Having professional representation often leads to better outcomes.',
+      },
+    ],
+  },
+  {
+    id: 'cleaning-kb',
+    name: 'Cleaning Services FAQ',
+    industry: 'Cleaning',
+    description: 'Common questions for residential and commercial cleaning',
+    faqs: [
+      {
+        question: 'What cleaning services do you offer?',
+        answer: 'We offer regular house cleaning, deep cleaning, move-in/move-out cleaning, post-construction cleanup, and commercial office cleaning. Services can be weekly, bi-weekly, monthly, or one-time. All services are customizable to your needs.',
+      },
+      {
+        question: 'Do I need to be home during cleaning?',
+        answer: 'No, many clients provide a key, garage code, or smart lock access. All our cleaners are background-checked and bonded. We can also work around your schedule if you prefer to be present.',
+      },
+      {
+        question: 'What products do you use?',
+        answer: 'We use professional-grade, eco-friendly cleaning products that are safe for children and pets. If you have allergies or preferences for specific products, we can accommodate your requests at no extra charge.',
+      },
+      {
+        question: 'How much does cleaning cost?',
+        answer: 'Pricing depends on home size, condition, and frequency. Regular cleanings for a 3-bedroom home typically range $120-180. Deep cleans and first-time visits cost more. We provide free in-home estimates for accurate quotes.',
+      },
+      {
+        question: 'What is your satisfaction guarantee?',
+        answer: 'If you are not completely satisfied, contact us within 24 hours and we will re-clean any areas of concern at no additional charge. Your satisfaction is our top priority and we stand behind our work.',
+      },
+    ],
+  },
+  {
+    id: 'plumbing-kb',
+    name: 'Plumbing Services FAQ',
+    industry: 'Plumbing',
+    description: 'Common questions for plumbing contractors',
+    faqs: [
+      {
+        question: 'Do you offer emergency plumbing services?',
+        answer: 'Yes, we offer 24/7 emergency service for urgent issues like burst pipes, sewage backups, and no hot water. Our emergency line is always answered by a real person. We aim to arrive within 1-2 hours for emergencies.',
+      },
+      {
+        question: 'How much does a plumber cost?',
+        answer: 'Service calls start at $89 for diagnosis. We provide upfront pricing before any work begins. Common repairs range from $150-500. Major projects like water heater replacement or repiping are quoted individually.',
+      },
+      {
+        question: 'What causes a clogged drain?',
+        answer: 'Common causes include hair, soap buildup, grease, food particles, and foreign objects. Tree roots can also infiltrate sewer lines. We use camera inspection to diagnose stubborn clogs and recommend the best solution.',
+      },
+      {
+        question: 'Should I repair or replace my water heater?',
+        answer: 'Water heaters typically last 10-15 years. If yours is over 10 years old and needs major repairs, replacement is often more cost-effective. We offer both traditional and tankless options with financing available.',
+      },
+      {
+        question: 'Are you licensed and insured?',
+        answer: 'Yes, we are fully licensed, bonded, and insured. All our plumbers are certified and undergo regular training. We pull permits when required and our work meets all local codes. Licensing information is available upon request.',
+      },
+    ],
+  },
+  {
+    id: 'education-kb',
+    name: 'Tutoring & Education FAQ',
+    industry: 'Education',
+    description: 'Common questions for tutoring centers and educational services',
+    faqs: [
+      {
+        question: 'What subjects do you tutor?',
+        answer: 'We offer tutoring in math (all levels through calculus), science, English, reading, writing, foreign languages, and test prep (SAT, ACT, GRE). Our tutors are subject-matter experts with teaching credentials or advanced degrees.',
+      },
+      {
+        question: 'How do tutoring sessions work?',
+        answer: 'Sessions are typically 1 hour, either in-person at our center or online via video. We assess your child first to create a personalized learning plan. Sessions are interactive with practice problems and immediate feedback.',
+      },
+      {
+        question: 'How much does tutoring cost?',
+        answer: 'Rates range from $40-80 per hour depending on subject and tutor level. Test prep and specialized subjects are at the higher end. We offer package discounts for 10+ sessions. Financial assistance may be available.',
+      },
+      {
+        question: 'How do I know if my child needs tutoring?',
+        answer: 'Signs include declining grades, homework struggles, lack of confidence, or falling behind peers. Early intervention is key. We offer a free assessment to identify gaps and determine if tutoring would help.',
+      },
+      {
+        question: 'Do you offer test preparation?',
+        answer: 'Yes! We offer comprehensive SAT, ACT, PSAT, and AP exam prep. Our proven methods typically improve scores by 150+ points on the SAT. We also provide practice tests, strategy sessions, and flexible scheduling.',
+      },
+    ],
+  },
+  {
+    id: 'hotel-kb',
+    name: 'Hotel & Hospitality FAQ',
+    industry: 'Hospitality',
+    description: 'Common questions for hotels and lodging',
+    faqs: [
+      {
+        question: 'What time is check-in and check-out?',
+        answer: 'Standard check-in is 3:00 PM and check-out is 11:00 AM. Early check-in and late check-out may be available upon request for an additional fee, subject to availability. Contact the front desk to arrange.',
+      },
+      {
+        question: 'Do you offer airport shuttle service?',
+        answer: 'Yes, complimentary airport shuttle runs every 30 minutes from 5 AM to midnight. Call the shuttle hotline when you arrive at baggage claim. Private car service can also be arranged for an additional fee.',
+      },
+      {
+        question: 'Is breakfast included?',
+        answer: 'Complimentary hot breakfast is included with all room rates, served daily from 6-10 AM. Our breakfast includes eggs, bacon, pastries, fresh fruit, yogurt, and coffee. In-room dining is also available.',
+      },
+      {
+        question: 'Do you have a pool and fitness center?',
+        answer: 'Yes! Our heated indoor pool and hot tub are open 6 AM-10 PM. The 24-hour fitness center features cardio equipment and free weights. Pool towels are provided. Guests under 16 must be accompanied by an adult.',
+      },
+      {
+        question: 'What is your pet policy?',
+        answer: 'We are pet-friendly! Dogs under 50 lbs are welcome for a $50 per night fee (max $150 per stay). Pets must be crated when unattended. We provide water bowls and treats. Designated pet relief areas are on the property.',
+      },
+    ],
+  },
+  {
+    id: 'construction-kb',
+    name: 'Construction & Remodeling FAQ',
+    industry: 'Construction',
+    description: 'Common questions for contractors and home remodeling',
+    faqs: [
+      {
+        question: 'How long will my project take?',
+        answer: 'Timelines vary by project scope. Kitchen remodels typically take 6-10 weeks, bathroom remodels 3-6 weeks, and room additions 3-5 months. We provide detailed timelines in our proposal and communicate any changes promptly.',
+      },
+      {
+        question: 'Do you handle permits?',
+        answer: 'Yes, we handle all permit applications and inspections as part of our service. Permit costs are included in our proposals. Working with permits ensures your project meets code and protects your investment.',
+      },
+      {
+        question: 'What is included in a free estimate?',
+        answer: 'Our free estimate includes an on-site consultation, project assessment, design recommendations, material options, and a detailed written proposal. There is no obligation and we are happy to answer all your questions.',
+      },
+      {
+        question: 'How do you handle payments?',
+        answer: 'We typically require a deposit to secure materials and schedule work, with progress payments at milestones. Final payment is due upon completion and your satisfaction. We accept checks, cards, and offer financing options.',
+      },
+      {
+        question: 'Are you licensed and insured?',
+        answer: 'Yes, we are fully licensed, bonded, and insured with workers compensation and liability coverage. We are happy to provide copies of all documentation. Our license number is displayed on all contracts and proposals.',
+      },
+    ],
+  },
+  {
+    id: 'medical-kb',
+    name: 'Medical Practice FAQ',
+    industry: 'Medical',
+    description: 'Common questions for doctors offices and clinics',
+    faqs: [
+      {
+        question: 'Are you accepting new patients?',
+        answer: 'Yes, we are currently accepting new patients! Call our office to schedule your first appointment. Please arrive 15 minutes early to complete paperwork, or download forms from our website to fill out in advance.',
+      },
+      {
+        question: 'What insurance do you accept?',
+        answer: 'We accept most major insurance plans including Blue Cross, Aetna, Cigna, United, and Medicare. Please contact our billing department to verify your specific coverage. We also offer self-pay rates and payment plans.',
+      },
+      {
+        question: 'How do I request prescription refills?',
+        answer: 'Request refills through our patient portal, by calling our prescription line, or by having your pharmacy send a refill request. Please allow 48-72 hours for processing. Controlled substances may require an office visit.',
+      },
+      {
+        question: 'Do you offer telehealth appointments?',
+        answer: 'Yes! We offer video visits for many conditions including follow-ups, minor illnesses, and medication management. Telehealth visits are covered by most insurance. Schedule through our portal or call the office.',
+      },
+      {
+        question: 'How do I access my medical records?',
+        answer: 'Access your records anytime through our patient portal where you can view test results, visit summaries, and immunization records. For official copies, submit a records release request. Records are typically ready within 5-7 days.',
+      },
+    ],
+  },
 ];
 
 export function getKnowledgeBaseByIndustry(industry: string): IndustryKnowledgeBase | undefined {

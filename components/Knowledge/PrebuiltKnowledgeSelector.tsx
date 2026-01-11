@@ -1,15 +1,26 @@
 import {
   BookOpen,
+  Briefcase,
   Building2,
+  Calculator,
+  Camera,
   Car,
   Check,
+  Dog,
   Dumbbell,
   Gavel,
+  GraduationCap,
+  Hammer,
   Heart,
+  Hotel,
   Loader,
   Package,
+  Scissors,
   ShoppingCart,
+  Sparkles,
+  Stethoscope,
   Utensils,
+  Wrench,
 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 
@@ -29,12 +40,23 @@ interface PrebuiltKnowledgeSelectorProps {
 const industryIcons: Record<string, React.ElementType> = {
   'Real Estate': Building2,
   Healthcare: Heart,
-  'Home Services': Car,
+  'Home Services': Wrench,
   Legal: Gavel,
   'Food Service': Utensils,
   Fitness: Dumbbell,
   Insurance: Package,
   'E-commerce': ShoppingCart,
+  Automotive: Car,
+  Beauty: Scissors,
+  Veterinary: Dog,
+  Photography: Camera,
+  Accounting: Calculator,
+  Cleaning: Sparkles,
+  Plumbing: Wrench,
+  Education: GraduationCap,
+  Hospitality: Hotel,
+  Construction: Hammer,
+  Medical: Stethoscope,
 };
 
 export const PrebuiltKnowledgeSelector: React.FC<
