@@ -135,8 +135,8 @@ export class DocumentProcessorService {
     buffer: Buffer,
     mimeType: string,
   ): Promise<string> {
-    const apiKey = env.AI_INTEGRATIONS_OPENAI_API_KEY || env.OPENAI_API_KEY;
-    const baseURL = env.AI_INTEGRATIONS_OPENAI_BASE_URL || 'https://api.openai.com/v1';
+    const apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+    const baseURL = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || 'https://api.openai.com/v1';
     
     if (!apiKey) {
       throw new Error('OpenAI API key required for OCR');
