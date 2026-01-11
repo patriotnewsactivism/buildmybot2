@@ -481,7 +481,7 @@ app.post('/api/bots', ...apiAuthStack, async (req, res) => {
       },
       userId: user?.id || req.body.userId,
       organizationId: user?.organizationId || req.body.organizationId,
-      isPublic: req.body.isPublic ?? false,
+      isPublic: req.body.isPublic ?? true,
       analytics: req.body.analytics || {},
       createdAt: new Date(),
       updatedAt: new Date(),
