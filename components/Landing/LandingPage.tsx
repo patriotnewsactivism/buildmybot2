@@ -2,7 +2,7 @@ import {
   ArrowRight,
   Bolt,
   CircuitBoard,
-  MagicWand,
+  Wand2,
   ShieldCheck,
   Sparkles,
   TrendingUp,
@@ -50,7 +50,7 @@ const HOW_IT_WORKS = [
     title: 'Shape your mission',
     detail:
       'Describe who the bot should help, what conversations matter, and add any brand phrases you love.',
-    icon: MagicWand,
+    icon: Wand2,
   },
   {
     title: 'Assemble intelligent components',
@@ -98,10 +98,10 @@ export const LandingPage: React.FC<LandingProps> = ({
                   <img
                     src="/logo.jpg"
                     alt="BuildMyBot.App"
-                    className="h-8 sm:h-9 w-auto rounded-md object-contain shadow-sm"
+                    className="h-7 sm:h-8 w-auto rounded-md object-contain shadow-sm"
                   />
                   <div className="flex flex-col">
-                    <span className="text-sm sm:text-base font-semibold tracking-[0.1em] text-white">
+                    <span className="text-xs sm:text-sm font-semibold tracking-[0.1em] text-white">
                       BuildMyBot.App
                     </span>
                     <span className="text-xs uppercase tracking-[0.3em] text-luminous-teal">
@@ -136,11 +136,11 @@ export const LandingPage: React.FC<LandingProps> = ({
                   <p className="text-sm uppercase tracking-[0.4em] text-luminous-teal">
                     Democratizing AI automation
                   </p>
-                  <h1 className="font-spaceGrotesk text-3xl leading-tight text-white sm:text-4xl lg:text-5xl">
+                  <h1 className="font-spaceGrotesk text-2xl leading-tight text-white sm:text-3xl lg:text-4xl">
                     Build smart. Chat simply. Launch a bot that feels like part of
                     your team.
                   </h1>
-                  <p className="text-soft-gray text-base leading-relaxed sm:text-lg">
+                  <p className="text-soft-gray text-sm leading-relaxed sm:text-base">
                     BuildMyBot.App now shines with a neon horizon aesthetic that
                     celebrates the joy of creation. Spin up intelligent
                     assistants, guide every conversation, and deliver delight in
@@ -168,7 +168,7 @@ export const LandingPage: React.FC<LandingProps> = ({
                   <div className="mt-8 flex flex-wrap items-center gap-6 text-sm sm:text-base">
                     {HERO_STATS.map((stat) => (
                       <div key={stat.label}>
-                        <p className="text-2xl sm:text-3xl font-semibold text-white">
+                        <p className="text-xl sm:text-2xl font-semibold text-white">
                           {stat.value}
                         </p>
                         <p className="text-soft-gray">{stat.label}</p>
@@ -231,7 +231,7 @@ export const LandingPage: React.FC<LandingProps> = ({
               <p className="text-sm uppercase tracking-[0.4em] text-luminous-teal">
                 What makes BuildMyBot exciting
               </p>
-              <h2 className="font-spaceGrotesk text-2xl sm:text-3xl lg:text-4xl">
+              <h2 className="font-spaceGrotesk text-xl sm:text-2xl lg:text-3xl">
                 A neon toolkit for confident creators.
               </h2>
               <p className="text-soft-gray sm:text-lg">
@@ -253,7 +253,7 @@ export const LandingPage: React.FC<LandingProps> = ({
                       <span className="inline-flex items-center justify-center rounded-full bg-electric-violet/10 p-2 text-electric-violet">
                         <Icon size={20} />
                       </span>
-                      <h3 className="text-xl font-semibold">{feature.title}</h3>
+                      <h3 className="text-lg font-semibold">{feature.title}</h3>
                       <p className="text-sm text-soft-gray">{feature.description}</p>
                     </div>
                   </div>
@@ -268,7 +268,7 @@ export const LandingPage: React.FC<LandingProps> = ({
                 <p className="text-sm uppercase tracking-[0.4em] text-luminous-teal">
                   How it works
                 </p>
-                <h2 className="mt-4 font-spaceGrotesk text-2xl sm:text-3xl lg:text-4xl">
+                <h2 className="mt-4 font-spaceGrotesk text-xl sm:text-2xl lg:text-3xl">
                   Every step glows with guidance.
                 </h2>
                 <p className="mt-3 text-soft-gray">
@@ -294,7 +294,7 @@ export const LandingPage: React.FC<LandingProps> = ({
                           <span className="rounded-full border border-electric-violet/30 p-3 text-electric-violet">
                             <StepIcon size={18} />
                           </span>
-                          <h3 className="font-spaceGrotesk text-lg font-semibold">
+                          <h3 className="font-spaceGrotesk text-base font-semibold">
                             {step.title}
                           </h3>
                         </div>
@@ -312,7 +312,7 @@ export const LandingPage: React.FC<LandingProps> = ({
 
           <section className="relative z-10 px-4 sm:px-6 lg:px-8 pb-20">
             <div className="mx-auto max-w-4xl text-center">
-              <h2 className="font-spaceGrotesk text-2xl sm:text-3xl lg:text-4xl">
+              <h2 className="font-spaceGrotesk text-xl sm:text-2xl lg:text-3xl">
                 From idea to intelligent bot in minutes.
               </h2>
               <p className="mt-4 text-soft-gray">
