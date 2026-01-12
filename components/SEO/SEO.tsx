@@ -61,7 +61,7 @@ export const SEO: React.FC<SEOProps> = ({
     }
 
     // Update or create each meta tag
-    metaTags.forEach(({ name, property, content }) => {
+    for (const { name, property, content } of metaTags) {
       const selector = name
         ? `meta[name="${name}"]`
         : `meta[property="${property}"]`;
@@ -75,7 +75,7 @@ export const SEO: React.FC<SEOProps> = ({
       }
 
       element.setAttribute('content', content);
-    });
+    }
 
     // Update canonical URL
     if (canonical) {
