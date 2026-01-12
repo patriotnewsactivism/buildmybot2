@@ -8,17 +8,17 @@ interface PageLayoutProps {
 export const PageLayout: React.FC<PageLayoutProps> = ({ children }) => {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
-      <nav className="h-14 sm:h-16 border-b border-slate-200/60 bg-white/95 backdrop-blur-lg sticky top-0 z-40 shadow-sm">
+      <nav className="h-12 sm:h-14 border-b border-slate-200/60 bg-white/95 backdrop-blur-lg sticky top-0 z-40 shadow-sm">
         <div className="mx-auto flex h-full w-full max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <a href="/" className="flex items-center gap-2">
-            <Bot className="w-5 h-5 sm:w-6 sm:h-6 text-blue-700" />
-            <span className="font-bold text-base sm:text-lg text-slate-900">
+            <Bot className="w-4 h-4 sm:w-5 sm:h-5 text-blue-700" />
+            <span className="font-bold text-sm sm:text-base text-slate-900">
               BuildMyBot
             </span>
           </a>
           <a
             href="/"
-            className="flex items-center gap-2 text-slate-600 hover:text-blue-700 transition-colors font-medium text-sm sm:text-base"
+            className="flex items-center gap-2 text-slate-600 hover:text-blue-700 transition-colors font-medium text-xs sm:text-sm"
           >
             <ArrowLeft size={18} />
             <span className="hidden sm:inline">Back to Home</span>
