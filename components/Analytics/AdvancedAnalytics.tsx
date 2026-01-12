@@ -825,8 +825,8 @@ export const AdvancedAnalytics: React.FC<AdvancedAnalyticsProps> = ({
               <Loader className="animate-spin text-slate-400" size={32} />
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <div className="min-w-[600px]">
+            <div className="overflow-x-hidden md:overflow-x-auto">
+              <div className="min-w-0 md:min-w-[600px]">
                 <div className="grid grid-cols-[auto_repeat(7,1fr)] gap-1">
                   <div className="w-12" />
                   {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(

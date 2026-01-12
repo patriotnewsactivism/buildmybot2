@@ -683,7 +683,7 @@ export const BotBuilder: React.FC<BotBuilderProps> = ({
         </div>
 
         {/* Tabs */}
-        <div className="border-b border-slate-200 bg-slate-50 px-3 md:px-6 flex gap-1 md:gap-6 overflow-x-auto scrollbar-hide">
+        <div className="border-b border-slate-200 bg-slate-50 px-3 md:px-6 flex flex-wrap md:flex-nowrap gap-1 md:gap-6 overflow-x-hidden">
           {tabs.map((tab) => (
             <button
               type="button"
@@ -1108,7 +1108,7 @@ export const BotBuilder: React.FC<BotBuilderProps> = ({
                     <code>&lt;head&gt;</code> tag.
                   </p>
                   <div
-                    className={`bg-slate-900 text-slate-300 p-4 rounded-lg font-mono text-xs overflow-x-auto relative group ${activeBot.id === 'new' ? 'opacity-50' : ''}`}
+                    className={`bg-slate-900 text-slate-300 p-4 rounded-lg font-mono text-xs overflow-x-hidden md:overflow-x-auto break-all relative group ${activeBot.id === 'new' ? 'opacity-50' : ''}`}
                   >
                     <pre className="whitespace-pre-wrap break-all">
                       {embedCode}
