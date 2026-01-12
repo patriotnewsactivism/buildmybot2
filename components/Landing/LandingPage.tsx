@@ -609,13 +609,9 @@ export const LandingPage: React.FC<LandingProps> = ({
       {/* Navbar */}
       <nav className="border-b border-slate-200/60 bg-white/95 backdrop-blur-lg sticky top-0 z-40 shadow-sm">
         <div className="mx-auto flex h-14 sm:h-16 w-full max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-2 sm:gap-3">
-            <img
-              src="/logo.jpg"
-              alt="BuildMyBot"
-              className="h-4 sm:h-5 md:h-6 w-auto rounded-md object-contain shadow-sm"
-            />
-            <span className="font-bold text-sm sm:text-base md:text-lg text-slate-900 hidden sm:block">
+          <div className="flex items-center gap-2">
+            <Bot className="w-6 h-6 text-blue-700" />
+            <span className="font-bold text-lg text-slate-900">
               BuildMyBot
             </span>
           </div>
