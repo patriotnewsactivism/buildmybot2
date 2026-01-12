@@ -31,6 +31,11 @@ export const MarketingMaterials: React.FC = () => {
       downloadUrl: '/marketing/partner-course.pdf',
     },
     {
+      title: 'Revenue Recovery Handbook',
+      description: 'Master playbook for speed-to-lead recovery',
+      downloadUrl: '/marketing/revenue-recovery-handbook.pdf',
+    },
+    {
       title: 'Sales Deck',
       description: 'Slide deck for prospect presentations',
       downloadUrl: '/marketing/sales-deck.pdf',

@@ -10,6 +10,7 @@ This folder contains ready-to-use messaging, playbooks, and guides for:
 - Agent start free course: `docs/marketing/agent-start-free-course.md`
 - Partner playbook: `docs/marketing/partner-playbook.md`
 - Partner course: `docs/marketing/partner-course.md`
+- Revenue recovery handbook: `docs/marketing/revenue-recovery-handbook.md`
 - Client onboarding: `docs/marketing/client-onboarding-guide.md`
 - Client success plan: `docs/marketing/client-success-guide.md`
 
