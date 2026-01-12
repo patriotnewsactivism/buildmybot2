@@ -505,7 +505,7 @@ export const VoiceMinutes: React.FC<VoiceMinutesProps> = ({
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-hidden md:overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-slate-100">

@@ -362,7 +362,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
               Detailed Bot Performance
             </h3>
           </div>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-hidden md:overflow-x-auto">
             <table className="w-full">
               <thead className="bg-slate-50">
                 <tr>

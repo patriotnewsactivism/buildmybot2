@@ -658,7 +658,7 @@ export const LandingPageBuilder: React.FC<LandingPageBuilderProps> = ({
                 </button>
               </div>
 
-              <div className="border-b border-slate-200 bg-slate-50 px-2 md:px-4 flex gap-1 overflow-x-auto scrollbar-hide">
+              <div className="border-b border-slate-200 bg-slate-50 px-2 md:px-4 flex flex-wrap md:flex-nowrap gap-1 overflow-x-hidden">
                 {editorTabs.map((tab) => {
                   const Icon = tab.icon;
                   const isActive = activeEditorTab === tab.id;
