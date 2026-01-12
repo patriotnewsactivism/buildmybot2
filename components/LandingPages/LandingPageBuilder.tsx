@@ -30,7 +30,7 @@ import {
   Zap,
 } from 'lucide-react';
 import type React from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { API_BASE } from '../../services/apiConfig';
 import type { Bot } from '../../types';
 
@@ -138,11 +138,7 @@ export const LandingPageBuilder: React.FC<LandingPageBuilderProps> = ({
   const [draggedFieldId, setDraggedFieldId] = useState<string | null>(null);
   const heroImageInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    fetchLandingPages();
-  }, []);
-
-  const fetchLandingPages = async () => {
+  const fetchLandingPages = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch(`${API_BASE}/landing-pages`, {
@@ -164,7 +160,11 @@ export const LandingPageBuilder: React.FC<LandingPageBuilderProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchLandingPages();
+  }, [fetchLandingPages]);
 
   const filteredPages = pages.filter(
     (page) =>
@@ -689,10 +689,14 @@ export const LandingPageBuilder: React.FC<LandingPageBuilderProps> = ({
                       </h3>
                       <div className="space-y-4">
                         <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-2">
+                          <label
+                            htmlFor="landing-page-name"
+                            className="block text-sm font-medium text-slate-700 mb-2"
+                          >
                             Page Name
                           </label>
                           <input
+                            id="landing-page-name"
                             type="text"
                             value={selectedPage.name}
                             onChange={(e) =>
@@ -703,12 +707,16 @@ export const LandingPageBuilder: React.FC<LandingPageBuilderProps> = ({
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-2">
+                          <label
+                            htmlFor="landing-page-slug"
+                            className="block text-sm font-medium text-slate-700 mb-2"
+                          >
                             URL Slug
                           </label>
                           <div className="flex items-center gap-2">
                             <span className="text-slate-400 text-sm">/</span>
                             <input
+                              id="landing-page-slug"
                               type="text"
                               value={selectedPage.slug}
                               onChange={(e) =>
@@ -729,10 +737,14 @@ export const LandingPageBuilder: React.FC<LandingPageBuilderProps> = ({
                           </p>
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-2">
+                          <label
+                            htmlFor="landing-page-seo-title"
+                            className="block text-sm font-medium text-slate-700 mb-2"
+                          >
                             SEO Title
                           </label>
                           <input
+                            id="landing-page-seo-title"
                             type="text"
                             value={selectedPage.seoTitle || ''}
                             onChange={(e) =>
@@ -743,10 +755,14 @@ export const LandingPageBuilder: React.FC<LandingPageBuilderProps> = ({
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-2">
+                          <label
+                            htmlFor="landing-page-seo-description"
+                            className="block text-sm font-medium text-slate-700 mb-2"
+                          >
                             SEO Description
                           </label>
                           <textarea
+                            id="landing-page-seo-description"
                             value={selectedPage.seoDescription || ''}
                             onChange={(e) =>
                               updateSelectedPage(
@@ -772,10 +788,14 @@ export const LandingPageBuilder: React.FC<LandingPageBuilderProps> = ({
                       </h3>
                       <div className="space-y-4">
                         <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-2">
+                          <label
+                            htmlFor="landing-page-headline"
+                            className="block text-sm font-medium text-slate-700 mb-2"
+                          >
                             Headline
                           </label>
                           <input
+                            id="landing-page-headline"
                             type="text"
                             value={selectedPage.headline || ''}
                             onChange={(e) =>
@@ -786,10 +806,14 @@ export const LandingPageBuilder: React.FC<LandingPageBuilderProps> = ({
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-2">
+                          <label
+                            htmlFor="landing-page-subheadline"
+                            className="block text-sm font-medium text-slate-700 mb-2"
+                          >
                             Subheadline
                           </label>
                           <textarea
+                            id="landing-page-subheadline"
                             value={selectedPage.subheadline || ''}
                             onChange={(e) =>
                               updateSelectedPage('subheadline', e.target.value)
@@ -833,7 +857,8 @@ export const LandingPageBuilder: React.FC<LandingPageBuilderProps> = ({
                           </div>
                         </div>
                       ) : (
-                        <div
+                        <button
+                          type="button"
                           onClick={() => heroImageInputRef.current?.click()}
                           className="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center cursor-pointer hover:border-orange-400 hover:bg-slate-50 transition"
                         >
@@ -847,7 +872,7 @@ export const LandingPageBuilder: React.FC<LandingPageBuilderProps> = ({
                           <p className="text-xs text-slate-400 mt-1">
                             PNG, JPG up to 5MB
                           </p>
-                        </div>
+                        </button>
                       )}
                       <input
                         ref={heroImageInputRef}
@@ -869,10 +894,14 @@ export const LandingPageBuilder: React.FC<LandingPageBuilderProps> = ({
                       </h3>
                       <div className="space-y-4">
                         <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-2">
+                          <label
+                            htmlFor="landing-page-cta-text"
+                            className="block text-sm font-medium text-slate-700 mb-2"
+                          >
                             Button Text
                           </label>
                           <input
+                            id="landing-page-cta-text"
                             type="text"
                             value={selectedPage.ctaText}
                             onChange={(e) =>
@@ -883,7 +912,10 @@ export const LandingPageBuilder: React.FC<LandingPageBuilderProps> = ({
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-2">
+                          <label
+                            htmlFor="landing-page-cta-color"
+                            className="block text-sm font-medium text-slate-700 mb-2"
+                          >
                             Button Color
                           </label>
                           <div className="flex items-center gap-3">
@@ -897,10 +929,12 @@ export const LandingPageBuilder: React.FC<LandingPageBuilderProps> = ({
                                 onChange={(e) =>
                                   updateSelectedPage('ctaColor', e.target.value)
                                 }
+                                aria-label="CTA button color picker"
                                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                               />
                             </div>
                             <input
+                              id="landing-page-cta-color"
                               type="text"
                               value={selectedPage.ctaColor}
                               onChange={(e) =>
@@ -912,9 +946,9 @@ export const LandingPageBuilder: React.FC<LandingPageBuilderProps> = ({
                           </div>
                         </div>
                         <div className="pt-4">
-                          <label className="block text-sm font-medium text-slate-700 mb-2">
+                          <p className="block text-sm font-medium text-slate-700 mb-2">
                             Preview
-                          </label>
+                          </p>
                           <button
                             type="button"
                             className="px-6 py-3 rounded-lg font-semibold text-white shadow-lg transition transform hover:-translate-y-0.5"
@@ -1034,9 +1068,9 @@ export const LandingPageBuilder: React.FC<LandingPageBuilderProps> = ({
                       </div>
 
                       <div className="border-t border-slate-200 pt-4">
-                        <label className="block text-sm font-medium text-slate-700 mb-3">
+                        <p className="block text-sm font-medium text-slate-700 mb-3">
                           Add Field
-                        </label>
+                        </p>
                         <div className="flex flex-wrap gap-2">
                           {(
                             [
