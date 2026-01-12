@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import type React from 'react';
 import { useState } from 'react';
+import { SEO, SEOConfig } from '../../SEO/SEO';
 import { PageLayout } from './PageLayout';
 
 export const ContactPage: React.FC = () => {
@@ -26,6 +27,11 @@ export const ContactPage: React.FC = () => {
 
   return (
     <PageLayout>
+      <SEO
+        title={SEOConfig.contact.title}
+        description={SEOConfig.contact.description}
+        keywords={SEOConfig.contact.keywords}
+      />
       <div className="max-w-7xl mx-auto px-6 lg:px-12 py-16 space-y-16">
         <section className="text-center space-y-6">
           <h1 className="text-4xl md:text-5xl font-extrabold text-slate-900">
