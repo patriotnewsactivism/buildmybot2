@@ -822,6 +822,46 @@ Thanks for being a great partner!
         size: 'Updated',
         downloadUrl: '/marketing/partner-course.pdf',
       },
+      {
+        title: 'Sales Deck',
+        description: 'Slide deck for prospect presentations',
+        icon: Presentation,
+        type: 'PDF',
+        size: 'Updated',
+        downloadUrl: '/marketing/sales-deck.pdf',
+      },
+      {
+        title: 'One-Pager',
+        description: 'Quick summary for prospects',
+        icon: FileText,
+        type: 'PDF',
+        size: 'Updated',
+        downloadUrl: '/marketing/one-pager.pdf',
+      },
+      {
+        title: 'ROI Calculator',
+        description: 'Spreadsheet for projecting value',
+        icon: FileText,
+        type: 'CSV',
+        size: 'Updated',
+        downloadUrl: '/marketing/roi-calculator.csv',
+      },
+      {
+        title: 'Case Study Template',
+        description: 'Fill-in template for client success stories',
+        icon: FileText,
+        type: 'PDF',
+        size: 'Updated',
+        downloadUrl: '/marketing/case-study-template.pdf',
+      },
+      {
+        title: 'Demo Checklist',
+        description: 'Pre, during, and post-demo checklist',
+        icon: FileText,
+        type: 'PDF',
+        size: 'Updated',
+        downloadUrl: '/marketing/demo-checklist.pdf',
+      },
     ];
 
     return (

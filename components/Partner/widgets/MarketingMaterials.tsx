@@ -30,6 +30,31 @@ export const MarketingMaterials: React.FC = () => {
       description: 'Enablement modules and scaling plan',
       downloadUrl: '/marketing/partner-course.pdf',
     },
+    {
+      title: 'Sales Deck',
+      description: 'Slide deck for prospect presentations',
+      downloadUrl: '/marketing/sales-deck.pdf',
+    },
+    {
+      title: 'ROI Calculator',
+      description: 'Spreadsheet for projecting value',
+      downloadUrl: '/marketing/roi-calculator.csv',
+    },
+    {
+      title: 'Case Study Template',
+      description: 'Fill-in success story template',
+      downloadUrl: '/marketing/case-study-template.pdf',
+    },
+    {
+      title: 'One-Pager',
+      description: 'Quick summary for prospects',
+      downloadUrl: '/marketing/one-pager.pdf',
+    },
+    {
+      title: 'Demo Checklist',
+      description: 'Pre, during, and post-demo checklist',
+      downloadUrl: '/marketing/demo-checklist.pdf',
+    },
   ];
 
   const fetchMaterials = useCallback(async () => {

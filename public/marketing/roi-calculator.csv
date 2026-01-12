@@ -1,0 +1,15 @@
+Label,Value,Notes
+BuildMyBot ROI Calculator,,Fill in inputs in column B
+Input: Monthly website visits,,
+Input: Visitor to lead conversion (%),,
+Input: Lead close rate (%),,
+Input: Average deal value ($),,
+Input: Plan price ($/mo),99,
+Input: Estimated conversion lift (percentage points),,
+Output: Current leads per month,=B3*(B4/100),Visits x conversion
+Output: Projected leads per month,=B3*((B4+B8)/100),Assumes lift
+Output: Current monthly revenue,=B9*(B5/100)*B6,Leads x close rate x deal value
+Output: Projected monthly revenue,=B10*(B5/100)*B6,Uses lifted conversion
+Output: Revenue increase,=B12-B11,Projected minus current
+Output: ROI multiple,"=IF(B7>0,B13/B7,"""")",Revenue increase / plan price
+Output: Payback days,"=IF(B13>0,B7/(B13/30),"""")",Plan price / daily gain
