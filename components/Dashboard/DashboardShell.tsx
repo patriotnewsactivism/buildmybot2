@@ -121,9 +121,16 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
 
             {/* Logo/Brand */}
             <div className="flex-shrink-0">
-              <h1 className="text-lg sm:text-xl font-bold text-slate-900">
-                BuildMyBot
-              </h1>
+              <div className="flex items-center gap-2">
+                <img
+                  src="/logo.jpg"
+                  alt="BuildMyBot"
+                  className="h-7 sm:h-8 w-auto rounded-md object-contain shadow-sm"
+                />
+                <h1 className="text-base sm:text-lg md:text-xl font-bold text-slate-900 hidden sm:block">
+                  BuildMyBot
+                </h1>
+              </div>
             </div>
 
             {/* Right side actions */}

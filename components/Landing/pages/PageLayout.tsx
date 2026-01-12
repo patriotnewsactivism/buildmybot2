@@ -8,14 +8,14 @@ interface PageLayoutProps {
 export const PageLayout: React.FC<PageLayoutProps> = ({ children }) => {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
-      <nav className="h-20 border-b border-slate-200/60 bg-white/95 backdrop-blur-lg px-6 lg:px-12 flex items-center justify-between sticky top-0 z-40 shadow-sm">
-        <a href="/" className="flex items-center gap-3">
+      <nav className="h-14 sm:h-16 md:h-20 border-b border-slate-200/60 bg-white/95 backdrop-blur-lg px-4 sm:px-6 lg:px-12 flex items-center justify-between sticky top-0 z-40 shadow-sm">
+        <a href="/" className="flex items-center gap-2 sm:gap-3">
           <img
             src="/logo.jpg"
             alt="BuildMyBot"
-            className="h-8 sm:h-9 md:h-10 w-auto rounded-md object-contain"
+            className="h-7 sm:h-8 md:h-9 lg:h-10 w-auto rounded-md object-contain shadow-sm"
           />
-          <span className="font-bold text-xl text-slate-900 hidden sm:block">
+          <span className="font-bold text-base sm:text-lg md:text-xl text-slate-900 hidden sm:block">
             BuildMyBot
           </span>
         </a>
