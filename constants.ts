@@ -93,8 +93,8 @@ export const PLANS = {
 export const RESELLER_TIERS = [
   { min: 0, max: 49, commission: 0.2, label: 'Bronze' },
   { min: 50, max: 149, commission: 0.3, label: 'Silver' },
-  { min: 150, max: 249, commission: 0.4, label: 'Gold' },
-  { min: 250, max: 999999, commission: 0.5, label: 'Platinum' },
+  { min: 150, max: 250, commission: 0.4, label: 'Gold' },
+  { min: 251, max: 999999, commission: 0.5, label: 'Platinum' },
 ];
 
 export const WHITELABEL_FEE = {
@@ -102,16 +102,16 @@ export const WHITELABEL_FEE = {
   intervalDays: 30,
   netTermsDays: 30,
   commission: 0.5,
-  label: 'Whitelabel',
+  label: 'Partner Access',
   features: [
-    'Guaranteed 50% revenue split while fee is current',
+    'Immediate partner access at $499/mo',
+    '50% split on new accounts created after enrollment',
+    'Existing accounts keep their current commission rate',
     'Billed every 30 days (net 30)',
-    'If unpaid, $499 is deducted from partner payouts',
-    'Skip the tiered structure entirely',
-    'Custom domain & branding',
+    'Skip the tiered sales agent structure',
+    'Optional white-label branding and custom domain',
     'White-label dashboard',
     'Priority support',
-    'No client minimums required',
   ],
 };
 
@@ -152,47 +152,99 @@ export const AVAILABLE_MODELS = [
 
 export const VOICE_AGENT_PRICING = [
   {
-    id: 'voice_starter',
-    name: 'Voice Starter',
+    id: 'voice_basic',
+    name: 'Voice Basic',
     price: 49,
-    minutesIncluded: 100,
+    minutesIncluded: 150,
     overagePerMinute: 0.12,
     features: [
-      '100 minutes/month',
+      '150 minutes/month',
       'Cartesia ultra-realistic voice',
       'Basic call routing',
       'Call transcripts',
     ],
   },
   {
+    id: 'voice_standard',
+    name: 'Voice Standard',
+    price: 99,
+    minutesIncluded: 450,
+    overagePerMinute: 0.1,
+    features: [
+      '450 minutes/month',
+      'All Cartesia voices',
+      'Call transfers',
+      'Scheduling workflows',
+      'Analytics dashboard',
+    ],
+  },
+  {
     id: 'voice_professional',
     name: 'Voice Professional',
-    price: 149,
-    minutesIncluded: 500,
+    price: 199,
+    minutesIncluded: 1000,
     overagePerMinute: 0.08,
     features: [
-      '500 minutes/month',
-      'All Cartesia voices',
-      'Call transfers & scheduling',
+      '1,000 minutes/month',
       'CRM integration',
-      'Analytics dashboard',
+      'Call transfers & scheduling',
+      'Advanced analytics',
+      'Priority routing rules',
     ],
   },
   {
     id: 'voice_enterprise',
     name: 'Voice Enterprise',
     price: 399,
-    minutesIncluded: 2000,
+    minutesIncluded: 2500,
     overagePerMinute: 0.05,
     features: [
-      '2000 minutes/month',
-      'Custom voice cloning',
+      '2,500 minutes/month',
       'Multi-language support',
       'Priority support',
       'White-label ready',
       'API access',
     ],
   },
+];
+
+export const EXPERT_SETUP_SERVICES = [
+  {
+    id: 'basic_setup',
+    name: 'Basic Setup',
+    price: 299,
+    deliveryDays: 3,
+    highlights: ['1 bot', '10 pages knowledge base'],
+  },
+  {
+    id: 'standard_setup',
+    name: 'Standard Setup',
+    price: 799,
+    deliveryDays: 5,
+    highlights: ['3 bots', 'CRM integration'],
+  },
+  {
+    id: 'premium_setup',
+    name: 'Premium Setup',
+    price: 1599,
+    deliveryDays: 10,
+    highlights: ['10 bots', 'voice agent + API integrations'],
+  },
+  {
+    id: 'enterprise_launch',
+    name: 'Enterprise Launch',
+    price: 2499,
+    deliveryDays: 14,
+    highlights: ['Unlimited bots', 'dedicated success manager'],
+  },
+];
+
+export const TEMPLATE_MARKETPLACE_PRICING = [
+  { id: 'starter_templates', name: 'Starter Templates', price: 0 },
+  { id: 'industry_packs', name: 'Industry Packs', price: 49 },
+  { id: 'advanced_workflows', name: 'Advanced Workflows', price: 99 },
+  { id: 'voice_agent_templates', name: 'Voice Agent Templates', price: 149 },
+  { id: 'enterprise_suite', name: 'Enterprise Suite', price: 299 },
 ];
 
 export const MOCK_ANALYTICS_DATA = [
