@@ -33,7 +33,7 @@ export function DataTable<T extends { id: string }>({
   const [searchTerm, setSearchTerm] = useState('');
 
   const getItemValue = (item: T, key: Column<T>['key']) =>
-    (item as Record<string, any>)[String(key)];
+    (item as Record<string, unknown>)[String(key)];
 
   const handleRowKeyDown = (event: React.KeyboardEvent, item: T) => {
     if (event.key === 'Enter' || event.key === ' ') {
@@ -61,10 +61,15 @@ export function DataTable<T extends { id: string }>({
 
   const sortedData = sortKey
     ? [...filteredData].sort((a, b) => {
-        const aVal = (a as Record<string, any>)[sortKey];
-        const bVal = (b as Record<string, any>)[sortKey];
+        const aVal = getItemValue(a, sortKey);
+        const bVal = getItemValue(b, sortKey);
         if (aVal === bVal) return 0;
-        const comparison = aVal > bVal ? 1 : -1;
+
+        const aComparable =
+          typeof aVal === 'number' ? aVal : String(aVal ?? '');
+        const bComparable =
+          typeof bVal === 'number' ? bVal : String(bVal ?? '');
+        const comparison = aComparable > bComparable ? 1 : -1;
         return sortDirection === 'asc' ? comparison : -comparison;
       })
     : filteredData;
