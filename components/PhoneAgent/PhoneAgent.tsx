@@ -340,11 +340,15 @@ export const PhoneAgent: React.FC<PhoneAgentProps> = ({ user, onUpdate }) => {
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
+                <label
+                  htmlFor="cartesia-api-key"
+                  className="block text-sm font-medium text-slate-700 mb-2"
+                >
                   Your API Key
                 </label>
                 <div className="relative">
                   <input
+                    id="cartesia-api-key"
                     type={showApiKey ? 'text' : 'password'}
                     value={cartesiaApiKey}
                     onChange={(e) => setCartesiaApiKey(e.target.value)}
@@ -411,10 +415,14 @@ export const PhoneAgent: React.FC<PhoneAgentProps> = ({ user, onUpdate }) => {
             </p>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
+                <label
+                  htmlFor="cartesia-delegation-link"
+                  className="block text-sm font-medium text-slate-700 mb-2"
+                >
                   Delegation Link (Optional)
                 </label>
                 <input
+                  id="cartesia-delegation-link"
                   type="url"
                   value={delegationLink}
                   onChange={(e) => setDelegationLink(e.target.value)}
@@ -445,10 +453,14 @@ export const PhoneAgent: React.FC<PhoneAgentProps> = ({ user, onUpdate }) => {
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                  <label
+                    htmlFor="cartesia-intro-message"
+                    className="block text-sm font-medium text-slate-700 mb-2"
+                  >
                     What your AI will say when answering
                   </label>
                   <textarea
+                    id="cartesia-intro-message"
                     value={introMessage}
                     onChange={(e) => setIntroMessage(e.target.value)}
                     className="w-full rounded-lg border-slate-200 focus:ring-blue-900 focus:border-blue-900 h-24 p-3 text-sm"
@@ -473,29 +485,29 @@ export const PhoneAgent: React.FC<PhoneAgentProps> = ({ user, onUpdate }) => {
                 {cartesiaVoices.map((v) => (
                   <div
                     key={v.id}
-                    onClick={() => setVoice(v.id)}
-                    className={`p-3 rounded-lg border cursor-pointer hover:border-blue-300 transition ${
+                    className={`p-3 rounded-lg border hover:border-blue-300 transition ${
                       voice === v.id
                         ? 'border-blue-900 bg-blue-50'
                         : 'border-slate-200 bg-white'
                     }`}
                   >
-                    <div className="flex justify-between items-start">
-                      <div>
+                    <div className="flex justify-between items-start gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setVoice(v.id)}
+                        className="flex-1 text-left"
+                      >
                         <span className="font-medium text-slate-700">
                           {v.name}
                         </span>
                         <p className="text-xs text-slate-500">
                           {v.description}
                         </p>
-                      </div>
+                      </button>
                       <button
                         type="button"
                         className="text-slate-400 hover:text-blue-900 p-1"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          playVoicePreview(v.id);
-                        }}
+                        onClick={() => playVoicePreview(v.id)}
                         disabled={isPlayingPreview === v.id}
                       >
                         {isPlayingPreview === v.id ? (

@@ -44,6 +44,8 @@ interface LandingProps {
   onAdminLogin?: () => void;
 }
 
+type ModalContent = 'privacy' | 'terms' | 'about' | 'contact' | 'features';
+
 const HUMAN_NAMES = ['Sarah', 'Michael', 'Jessica', 'David', 'Emma', 'James'];
 const AVATAR_COLORS = ['#1e3a8a', '#be123c', '#047857', '#d97706', '#7c3aed'];
 
@@ -53,9 +55,7 @@ export const LandingPage: React.FC<LandingProps> = ({
   onAdminLogin,
 }) => {
   // ... (State hooks and useEffects remain identical)
-  const [modalContent, setModalContent] = useState<
-    'privacy' | 'terms' | 'about' | 'contact' | 'features' | null
-  >(null);
+  const [modalContent, setModalContent] = useState<ModalContent | null>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatHistory, setChatHistory] = useState<
     { role: 'user' | 'model'; text: string }[]
@@ -80,10 +80,15 @@ export const LandingPage: React.FC<LandingProps> = ({
   }, []);
 
   useEffect(() => {
-    if (chatScrollRef.current) {
+    if (!chatScrollRef.current) {
+      return;
+    }
+    const shouldScroll =
+      chatHistory.length > 0 || isTyping || isChatOpen;
+    if (shouldScroll) {
       chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
     }
-  }, [chatHistory, isTyping, isChatOpen]);
+  }, [chatHistory.length, isTyping, isChatOpen]);
 
   // Open Greeting
   useEffect(() => {
@@ -100,7 +105,7 @@ export const LandingPage: React.FC<LandingProps> = ({
         setIsTyping(false);
       }, 1500);
     }
-  }, [isChatOpen, demoIdentity]);
+  }, [isChatOpen, demoIdentity.name, chatHistory.length]);
 
   const scrollToSection = (
     e: React.MouseEvent<HTMLAnchorElement>,
@@ -160,7 +165,7 @@ export const LandingPage: React.FC<LandingProps> = ({
     }
   };
 
-  const openModal = (type: any) => setModalContent(type);
+  const openModal = (type: ModalContent) => setModalContent(type);
   const closeModal = () => setModalContent(null);
   const InfoModal = () => (modalContent ? <div /> : null); // Abbreviated for brevity in this file
 
@@ -191,7 +196,7 @@ export const LandingPage: React.FC<LandingProps> = ({
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 items-start">
-            {Object.entries(PLANS).map(([key, plan]: [string, any]) => {
+            {Object.entries(PLANS).map(([key, plan]) => {
               const isEnterprise = key === PlanType.ENTERPRISE;
               const isProfessional = key === PlanType.PROFESSIONAL;
               const displayTitle = isEnterprise
@@ -301,9 +306,9 @@ export const LandingPage: React.FC<LandingProps> = ({
 
                   {/* List */}
                   <ul className="space-y-3 mb-8 flex-1">
-                    {plan.features.map((feature: string, idx: number) => (
+                    {plan.features.map((feature: string) => (
                       <li
-                        key={idx}
+                        key={feature}
                         className={`flex items-start gap-3 text-xs leading-relaxed ${isEnterprise ? 'text-slate-400' : 'text-slate-600'}`}
                       >
                         <CheckCircle

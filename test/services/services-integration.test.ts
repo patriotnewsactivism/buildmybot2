@@ -80,7 +80,9 @@ describe('Service Layer Integration', () => {
       };
 
       expect(org.slug).toMatch(/^[a-z0-9-]+$/);
-      expect(org.plan).toMatch(/^(FREE|STARTER|PROFESSIONAL|EXECUTIVE|ENTERPRISE)$/);
+      expect(org.plan).toMatch(
+        /^(FREE|STARTER|PROFESSIONAL|EXECUTIVE|ENTERPRISE)$/,
+      );
       expect(org.subscriptionStatus).toMatch(/^(active|canceled|past_due)$/);
     });
 
@@ -231,7 +233,8 @@ describe('Service Layer Integration', () => {
         satisfactionScore: 4.2,
       };
 
-      const conversionRate = (botMetrics.totalLeads / botMetrics.totalConversations) * 100;
+      const conversionRate =
+        (botMetrics.totalLeads / botMetrics.totalConversations) * 100;
 
       expect(conversionRate).toBe(25);
       expect(botMetrics.satisfactionScore).toBeGreaterThanOrEqual(0);
