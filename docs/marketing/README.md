@@ -18,6 +18,10 @@ This folder contains ready-to-use messaging, playbooks, and guides for:
 - Templates and scripts: `docs/marketing/templates-and-scripts.md`
 - Objection handling: `docs/marketing/objection-handling.md`
 - Industry pitches: `docs/marketing/industry-pitches.md`
+- Sales deck: `docs/marketing/sales-deck.md`
+- One-pager: `docs/marketing/one-pager.md`
+- Demo checklist: `docs/marketing/demo-checklist.md`
+- Case study template: `docs/marketing/case-study-template.md`
 
 ## Usage notes
 - Keep claims factual and common sense. Avoid hard performance promises.
@@ -28,3 +32,4 @@ This folder contains ready-to-use messaging, playbooks, and guides for:
 ## PDF generation
 - Install `md-to-pdf` and run `node scripts/renderMarketingPdfs.mjs`
 - PDFs are written to `public/marketing`
+- ROI calculator CSV is available at `public/marketing/roi-calculator.csv`
