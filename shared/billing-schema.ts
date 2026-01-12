@@ -177,6 +177,7 @@ export const organizationBranding = pgTable('organization_branding', {
   companyName: varchar('company_name', { length: 255 }),
   supportEmail: varchar('support_email', { length: 255 }),
   customCss: text('custom_css'),
+  smtpConfig: json('smtp_config'), // { host, port, user, pass, secure, from }
   hideBuiltWithBadge: boolean('hide_built_with_badge').default(false),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),

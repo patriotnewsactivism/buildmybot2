@@ -3,11 +3,12 @@
  * Shared layout for all dashboard experiences with navigation and impersonation banner
  */
 
-import { AlertTriangle, LogOut, Menu, Settings, User, X } from 'lucide-react';
+import { AlertTriangle, LogOut, Menu, Search, Settings, User, X } from 'lucide-react';
 import type React from 'react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useDashboardContext } from '../../hooks/useDashboardContext';
 import { UserRole } from '../../types';
+import { UnifiedSearch } from '../UI/UnifiedSearch';
 import { NotificationBell } from './NotificationBell';
 import {
   DASHBOARD_NAV,
@@ -33,6 +34,19 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
   const { user, isImpersonating, impersonatedUser, exitImpersonation } =
     useDashboardContext();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        setSearchOpen((prev) => !prev);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   if (!user) {
     return <div>Loading...</div>;
@@ -68,6 +82,8 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
 
   return (
     <div className="min-h-screen bg-slate-50">
+      <UnifiedSearch isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
+      
       {/* Impersonation Banner */}
       {isImpersonating && impersonatedUser && (
         <div className="bg-amber-500 text-white px-4 py-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
@@ -112,6 +128,25 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
 
             {/* Right side actions */}
             <div className="flex items-center gap-1 sm:gap-4">
+              <button
+                type="button"
+                onClick={() => setSearchOpen(true)}
+                className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200 transition-colors mr-2"
+              >
+                <Search size={16} />
+                <span className="text-sm">Search...</span>
+                <kbd className="hidden lg:inline-block text-xs bg-white px-1.5 py-0.5 rounded border border-slate-300">
+                  ⌘K
+                </kbd>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSearchOpen(true)}
+                className="md:hidden p-2.5 rounded-md text-slate-600 hover:bg-slate-100 active:bg-slate-200 min-h-[44px] min-w-[44px] flex items-center justify-center"
+              >
+                <Search size={20} />
+              </button>
+
               <NotificationBell />
               <button
                 type="button"

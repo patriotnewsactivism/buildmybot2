@@ -393,4 +393,42 @@ router.post(
   },
 );
 
+router.get(
+  '/preview/:sourceId',
+  authenticate,
+  loadOrganizationContext,
+  async (req: Request, res: Response) => {
+    try {
+      const { sourceId } = req.params;
+
+      const source = await db
+        .select()
+        .from(knowledgeSources)
+        .where(eq(knowledgeSources.id, sourceId))
+        .limit(1);
+
+      if (source.length === 0) {
+        return res.status(404).json({ error: 'Source not found' });
+      }
+
+      if (!(await canAccessBot(source[0].botId!, req))) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      const chunks = await db
+        .select({ content: knowledgeChunks.content })
+        .from(knowledgeChunks)
+        .where(eq(knowledgeChunks.sourceId, sourceId))
+        .orderBy(knowledgeChunks.chunkIndex);
+
+      const content = chunks.map((c) => c.content).join('\n\n--- Chunk Boundary ---\n\n');
+
+      res.json({ content });
+    } catch (error: any) {
+      console.error('Preview error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
 export default router;

@@ -23,6 +23,7 @@ import revenueRouter from './revenue';
 import templatesRouter from './templates';
 import webhooksRouter from './webhooks';
 import searchRouter from './search';
+import teamRouter from './team';
 
 export {
   organizationsRouter,
@@ -36,6 +37,7 @@ export {
   webhooksRouter,
   channelsRouter,
   searchRouter,
+  teamRouter,
   knowledgeRouter,
   revenueRouter,
   chatRouter,
