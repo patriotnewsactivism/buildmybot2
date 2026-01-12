@@ -10,6 +10,8 @@ import {
   strictLimiter,
   tenantIsolation,
 } from '../middleware';
+import { integrationService } from '../services/IntegrationService';
+import { openAIService } from '../services/OpenAIService';
 
 const router = Router();
 
@@ -49,6 +51,14 @@ router.post('/capture', strictLimiter, async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Bot not found' });
     }
 
+    // Calculate score using AI
+    const score = await openAIService.scoreLead({
+      name,
+      email,
+      phone,
+      conversationContext,
+    });
+
     const leadId = uuidv4();
     const [newLead] = await db
       .insert(leads)
@@ -57,7 +67,7 @@ router.post('/capture', strictLimiter, async (req: Request, res: Response) => {
         name: name || 'Anonymous',
         email,
         phone: phone || null,
-        score: calculateLeadScore({ name, email, phone, conversationContext }),
+        score,
         status: 'New',
         sourceBotId: botId,
         userId: bot.userId,
@@ -65,6 +75,9 @@ router.post('/capture', strictLimiter, async (req: Request, res: Response) => {
         createdAt: new Date(),
       })
       .returning();
+
+    // Trigger CRM sync asynchronously
+    integrationService.syncLead(newLead).catch(console.error);
 
     res.json(newLead);
   } catch (error) {
@@ -240,60 +253,5 @@ router.delete('/:id', ...apiAuthStack, async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Failed to delete lead' });
   }
 });
-
-function calculateLeadScore(data: {
-  name?: string;
-  email?: string;
-  phone?: string;
-  conversationContext?: any;
-}): number {
-  let score = 50;
-
-  if (data.name && data.name !== 'Anonymous') {
-    score += 15;
-  }
-
-  if (data.email) {
-    score += 20;
-    if (
-      data.email.includes('@gmail.com') ||
-      data.email.includes('@yahoo.com') ||
-      data.email.includes('@hotmail.com')
-    ) {
-      score -= 5;
-    }
-  }
-
-  if (data.phone) {
-    score += 15;
-  }
-
-  if (data.conversationContext) {
-    const context =
-      typeof data.conversationContext === 'string'
-        ? data.conversationContext
-        : JSON.stringify(data.conversationContext);
-
-    const buyingSignals = [
-      'pricing',
-      'cost',
-      'quote',
-      'demo',
-      'trial',
-      'buy',
-      'purchase',
-      'interested',
-    ];
-    const lowerContext = context.toLowerCase();
-
-    buyingSignals.forEach((signal) => {
-      if (lowerContext.includes(signal)) {
-        score += 5;
-      }
-    });
-  }
-
-  return Math.min(Math.max(score, 0), 100);
-}
 
 export default router;

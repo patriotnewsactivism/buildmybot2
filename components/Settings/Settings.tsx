@@ -5,6 +5,7 @@ import {
   Globe,
   Key,
   Lock,
+  Plug,
   Save,
   Server,
   User,
@@ -13,6 +14,7 @@ import {
 import type React from 'react';
 import { useState } from 'react';
 import type { User as UserType } from '../../types';
+import { Integrations } from './Integrations';
 
 interface SettingsProps {
   user?: UserType;
@@ -23,7 +25,7 @@ export const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser }) => {
   const [activeTab, setActiveTab] = useState('profile');
   const [notification, setNotification] = useState<string | null>(null);
 
-  // Local state for forms
+  // Local state for free text inputs
   const [customDomain, setCustomDomain] = useState(user?.customDomain || '');
   const [companyName, setCompanyName] = useState(user?.companyName || '');
   const [webhookUrl, setWebhookUrl] = useState('');
@@ -58,6 +60,7 @@ export const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser }) => {
             { id: 'company', label: 'Company Info', icon: Building },
             { id: 'billing', label: 'Billing & Invoices', icon: CreditCard },
             { id: 'security', label: 'Security', icon: Lock },
+            { id: 'integrations', label: 'Integrations', icon: Plug },
             { id: 'notifications', label: 'Notifications', icon: Bell },
             { id: 'developers', label: 'Developer API', icon: Webhook },
           ].map((item) => (
@@ -244,6 +247,8 @@ export const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser }) => {
             </div>
           )}
 
+          {activeTab === 'integrations' && <Integrations />}
+
           {activeTab === 'notifications' && (
             <div className="space-y-6">
               <h3 className="text-lg font-semibold text-slate-800 border-b border-slate-100 pb-4">
@@ -365,7 +370,7 @@ export const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser }) => {
             </div>
           )}
 
-          {activeTab !== 'security' && activeTab !== 'billing' && (
+          {activeTab !== 'security' && activeTab !== 'billing' && activeTab !== 'integrations' && (
             <div className="mt-8 pt-6 border-t border-slate-100 flex justify-end">
               <button
                 type="button"
