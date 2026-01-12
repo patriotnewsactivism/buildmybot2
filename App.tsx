@@ -286,6 +286,42 @@ function App() {
     setTimeout(() => setNotification(null), 3000);
   };
 
+  const handlePartnerSignup = async (data: PartnerSignupData) => {
+    const resellerCode =
+      data.companyName.substring(0, 3).toUpperCase() +
+      Date.now().toString().slice(-4);
+    const newPartner: Omit<User, 'id'> = {
+      email: data.email,
+      name: data.name,
+      role: UserRole.OWNER,
+      plan: PlanType.FREE,
+      companyName: data.companyName,
+      resellerCode: resellerCode,
+      status: 'Pending' as const,
+      createdAt: new Date().toISOString(),
+    };
+
+    const savedPartner = await dbService.createUser(newPartner);
+
+    if (savedPartner) {
+      setUser(savedPartner);
+      setIsLoggedIn(true);
+      dbService.setAuthContext({ userId: savedPartner.id });
+      setShowPartnerSignup(false);
+      setShowPartnerPage(false);
+      setCurrentView('dashboard');
+      setNotification(
+        "Partner application submitted! Your account is pending approval. You'll receive full partner access once approved.",
+      );
+      setTimeout(() => setNotification(null), 5000);
+    } else {
+      setNotification(
+        'Failed to submit application. The email may already be in use.',
+      );
+      setTimeout(() => setNotification(null), 4000);
+    }
+  };
+
   const currentPath = window.location.pathname;
   if (currentPath === '/status') {
     return <StatusPage />;
@@ -439,41 +475,7 @@ function App() {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  const handlePartnerSignup = async (data: PartnerSignupData) => {
-    const resellerCode =
-      data.companyName.substring(0, 3).toUpperCase() +
-      Date.now().toString().slice(-4);
-    const newPartner: Omit<User, 'id'> = {
-      email: data.email,
-      name: data.name,
-      role: UserRole.OWNER,
-      plan: PlanType.FREE,
-      companyName: data.companyName,
-      resellerCode: resellerCode,
-      status: 'Pending' as const,
-      createdAt: new Date().toISOString(),
-    };
 
-    const savedPartner = await dbService.createUser(newPartner);
-
-    if (savedPartner) {
-      setUser(savedPartner);
-      setIsLoggedIn(true);
-      dbService.setAuthContext({ userId: savedPartner.id });
-      setShowPartnerSignup(false);
-      setShowPartnerPage(false);
-      setCurrentView('dashboard');
-      setNotification(
-        "Partner application submitted! Your account is pending approval. You'll receive full partner access once approved.",
-      );
-      setTimeout(() => setNotification(null), 5000);
-    } else {
-      setNotification(
-        'Failed to submit application. The email may already be in use.',
-      );
-      setTimeout(() => setNotification(null), 4000);
-    }
-  };
 
   const handleInstallTemplate = (template: MarketplaceTemplate) => {
     const category = template.category || 'Custom';
