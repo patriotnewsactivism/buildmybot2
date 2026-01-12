@@ -610,7 +610,7 @@ export const UsageCredits: React.FC<UsageCreditsProps> = ({
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-hidden md:overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-slate-100">

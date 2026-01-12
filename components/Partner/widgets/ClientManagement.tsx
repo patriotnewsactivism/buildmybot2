@@ -250,7 +250,7 @@ export const ClientManagement: React.FC<ClientManagementProps> = ({
       </div>
 
       {/* Client Table */}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-hidden md:overflow-x-auto">
         <DataTable
           columns={columns}
           data={clients}

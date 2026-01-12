@@ -381,7 +381,7 @@ export const LeadsCRM: React.FC<LeadsCRMProps> = ({ leads, onUpdateLead }) => {
               />
             </div>
 
-            <div className="flex gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0">
+            <div className="flex flex-wrap gap-2 w-full md:w-auto pb-2 md:pb-0">
               {['All', 'New', 'Contacted', 'Qualified', 'Closed'].map(
                 (status) => (
                   <button
@@ -401,8 +401,91 @@ export const LeadsCRM: React.FC<LeadsCRMProps> = ({ leads, onUpdateLead }) => {
             </div>
           </div>
 
+          {/* Mobile Cards */}
+          <div className="md:hidden divide-y divide-slate-100">
+            {filteredLeads.map((lead) => (
+              <div key={lead.id} className="p-4 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-blue-800 font-bold shrink-0">
+                      {lead.name.charAt(0)}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-semibold text-slate-800 truncate">
+                        {lead.name}
+                      </p>
+                      <p className="text-xs text-slate-400">
+                        {new Date(lead.createdAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {lead.score > 75 && (
+                      <Flame
+                        size={16}
+                        className="text-orange-500 fill-orange-500"
+                      />
+                    )}
+                    <span
+                      className={`text-sm font-bold ${lead.score > 75 ? 'text-orange-600' : 'text-slate-600'}`}
+                    >
+                      {lead.score}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="text-sm text-slate-600 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Mail size={14} className="text-slate-400" /> {lead.email}
+                  </div>
+                  {lead.phone && (
+                    <div className="flex items-center gap-2">
+                      <Phone size={14} className="text-slate-400" />{' '}
+                      {lead.phone}
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2 text-slate-500">
+                    <UserIcon size={14} className="text-slate-400" /> Bot #
+                    {lead.sourceBotId}
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+                  <select
+                    value={lead.status}
+                    onChange={(e) =>
+                      handleStatusChange(
+                        lead.id,
+                        e.target.value as Lead['status'],
+                      )
+                    }
+                    className={`text-xs font-semibold px-3 py-2 rounded-full focus:ring-0 cursor-pointer border w-full sm:w-auto ${getStatusColor(lead.status)}`}
+                  >
+                    <option value="New">New</option>
+                    <option value="Contacted">Contacted</option>
+                    <option value="Qualified">Qualified</option>
+                    <option value="Closed">Closed</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => openEmailModal(lead)}
+                    className="px-3 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg transition text-xs font-medium flex items-center gap-1 w-full sm:w-auto justify-center"
+                  >
+                    <Mail size={14} /> Email
+                  </button>
+                </div>
+              </div>
+            ))}
+            {filteredLeads.length === 0 && (
+              <div className="px-6 py-12 text-center text-slate-400">
+                <UserIcon size={48} className="mx-auto mb-3 opacity-20" />
+                <p>No leads found matching your criteria.</p>
+              </div>
+            )}
+          </div>
+
           {/* Table */}
-          <div className="overflow-x-auto">
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left">
               <thead className="bg-slate-50 text-slate-500 text-xs uppercase border-b border-slate-200">
                 <tr>

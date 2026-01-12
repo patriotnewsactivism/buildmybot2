@@ -202,7 +202,7 @@ export const PartnerDashboardV2: React.FC<PartnerDashboardV2Props> = ({
 
       {/* Premium Tab Navigation */}
       <div className="bg-slate-900 rounded-xl p-1.5 md:p-2 shadow-lg overflow-hidden">
-        <div className="flex overflow-x-auto gap-1 scrollbar-hide">
+        <div className="flex flex-wrap md:flex-nowrap gap-1 overflow-x-hidden">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;

@@ -578,7 +578,7 @@ export const AdminDashboard: React.FC = () => {
                 All Users ({users.length})
               </h3>
             </div>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-hidden md:overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
                   <tr>
@@ -641,7 +641,7 @@ export const AdminDashboard: React.FC = () => {
                 All Bots ({adminBots.length})
               </h3>
             </div>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-hidden md:overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
                   <tr>
@@ -693,7 +693,7 @@ export const AdminDashboard: React.FC = () => {
                 Organizations ({organizations.length})
               </h3>
             </div>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-hidden md:overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
                   <tr>

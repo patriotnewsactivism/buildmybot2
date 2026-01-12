@@ -319,6 +319,47 @@ export const FeaturesPage: React.FC = () => {
     }
   }, [demoMessages.length, isTyping]);
 
+  const renderComparisonValue = (
+    value: boolean | string,
+    highlight = false,
+  ) => {
+    if (typeof value === 'boolean') {
+      return value ? (
+        <Check
+          size={18}
+          className={highlight ? 'text-emerald-400' : 'text-slate-400'}
+        />
+      ) : (
+        <X size={18} className="text-slate-600" />
+      );
+    }
+
+    return (
+      <span
+        className={
+          highlight
+            ? 'text-emerald-400 font-semibold'
+            : 'text-slate-400'
+        }
+      >
+        {value}
+      </span>
+    );
+  };
+
+  const renderComparisonRow = (
+    label: string,
+    value: boolean | string,
+    highlight = false,
+  ) => (
+    <div className="flex items-center justify-between gap-4">
+      <span className="text-sm text-slate-300">{label}</span>
+      <div className="flex items-center justify-end">
+        {renderComparisonValue(value, highlight)}
+      </div>
+    </div>
+  );
+
   const handleDemoSend = () => {
     if (!demoInput.trim()) return;
     const userMsg = demoInput;
@@ -606,8 +647,27 @@ export const FeaturesPage: React.FC = () => {
               </p>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[700px]">
+            <div className="md:hidden space-y-4">
+              {comparisonData.map((row) => (
+                <div
+                  key={row.feature}
+                  className="bg-slate-800/60 border border-slate-700 rounded-2xl p-4"
+                >
+                  <div className="text-sm font-semibold text-white">
+                    {row.feature}
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    {renderComparisonRow('BuildMyBot', row.buildmybot, true)}
+                    {renderComparisonRow('Intercom', row.intercom)}
+                    {renderComparisonRow('Drift', row.drift)}
+                    {renderComparisonRow('Zendesk', row.zendesk)}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full md:min-w-[700px]">
                 <thead>
                   <tr className="border-b border-slate-700">
                     <th className="text-left py-4 px-4 text-slate-400 font-medium">
