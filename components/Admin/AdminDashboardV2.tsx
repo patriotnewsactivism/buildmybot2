@@ -390,6 +390,18 @@ export const AdminDashboardV2: React.FC<AdminDashboardV2Props> = ({
                 </div>
               </div>
 
+              <div className="mb-6">
+                <a
+                  href="/status"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center space-x-2 px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors text-sm font-medium"
+                >
+                  <Activity size={16} />
+                  <span>View Public Status Page</span>
+                </a>
+              </div>
+
               <div className="space-y-3">
                 <SystemStatusItem
                   label="API Gateway"

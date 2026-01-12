@@ -23,3 +23,4 @@ export {
 } from './security';
 export { metricsMiddleware } from './metrics';
 export { applyImpersonation } from './impersonation';
+export { requestLogger } from './logger';
