@@ -68,4 +68,8 @@ export const env = {
   ADMIN_PLAN: process.env.ADMIN_PLAN,
   MASTER_ADMIN_EMAIL: process.env.MASTER_ADMIN_EMAIL,
   MASTER_ADMIN_PLAN: process.env.MASTER_ADMIN_PLAN,
+  RESELLER_EMAIL: process.env.RESELLER_EMAIL,
+  RESELLER_PLAN: process.env.RESELLER_PLAN,
+  CLIENT_EMAIL: process.env.CLIENT_EMAIL,
+  CLIENT_PLAN: process.env.CLIENT_PLAN,
 };

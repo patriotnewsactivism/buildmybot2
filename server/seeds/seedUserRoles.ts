@@ -3,21 +3,10 @@ import { eq } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
 import { organizationMembers, organizations, users } from '../../shared/schema';
 import { db } from '../db';
+import { ADMIN_USERS } from '../config/admins';
 
-const USER_ROLES = [
-  {
-    email: 'mreardon@wtpnews.org',
-    role: 'MasterAdmin',
-    description: 'Master Admin',
-  },
-  { email: 'jadj19@gmail.com', role: 'ADMIN', description: 'Admin' },
-  {
-    email: 'patriotnewsactivism@gmail.com',
-    role: 'RESELLER',
-    description: 'Reseller',
-  },
-  { email: 'news@wtpnews.org', role: 'CLIENT', description: 'Client' },
-];
+// Use centralized admin configuration from server/config/admins.ts
+const USER_ROLES = ADMIN_USERS;
 
 async function ensureOrganization(
   userId: string,
@@ -54,7 +43,7 @@ async function ensureOrganization(
       name: orgName,
       slug: orgSlug,
       ownerId: userId,
-      plan: userRole === 'RESELLER' ? 'PROFESSIONAL' : 'FREE',
+      plan: userRole === 'RESELLER' ? 'PROFESSIONAL' : 'FREE', // Organization plan logic
       subscriptionStatus: 'active',
       settings: {},
       createdAt: new Date(),
@@ -128,12 +117,7 @@ export async function seedUserRoles() {
           email: userConfig.email,
           name: userConfig.email.split('@')[0],
           role: userConfig.role,
-          plan:
-            userConfig.role === 'RESELLER'
-              ? 'PROFESSIONAL'
-              : userConfig.role === 'MasterAdmin' || userConfig.role === 'ADMIN'
-                ? 'ENTERPRISE'
-                : 'FREE',
+          plan: userConfig.plan, // Use plan from admin config
           status: 'Active',
           companyName: '',
           organizationId: orgId,
