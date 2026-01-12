@@ -16,6 +16,7 @@ import { chatService } from '../services/ChatService';
 import { KnowledgeService } from '../services/KnowledgeService';
 
 const router = Router();
+const isDevelopment = process.env.NODE_ENV !== 'production';
 
 const apiAuthStack = [
   authenticate,
@@ -26,7 +27,7 @@ const apiAuthStack = [
 
 const botChatLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 30,
+  max: isDevelopment ? 120 : 60,
   message: { error: 'Too many requests. Please slow down.' },
   standardHeaders: true,
   legacyHeaders: false,

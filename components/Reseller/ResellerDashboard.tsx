@@ -105,26 +105,61 @@ export const ResellerDashboard: React.FC<ResellerProps> = ({
   const computeFallbackStats = useCallback(
     (usersList: User[]): ResellerStats => {
       const clientCount = usersList.length;
-      const totalRev = usersList.reduce((acc, u) => {
-        const plan = PLANS[u.plan as keyof typeof PLANS];
-        return acc + (plan?.price || 0);
-      }, 0);
-
       const currentTier =
         RESELLER_TIERS.find(
           (t) => clientCount >= t.min && clientCount <= t.max,
         ) || RESELLER_TIERS[0];
       const whitelabelEnabled = Boolean(user.whitelabelEnabled);
-      const commissionRate = whitelabelEnabled
-        ? WHITELABEL_FEE.commission
-        : currentTier.commission;
+      const partnerAccessStart = user.whitelabelEnabledAt
+        ? new Date(user.whitelabelEnabledAt)
+        : null;
+      const partnerAccessAppliesToAll =
+        currentTier.commission >= WHITELABEL_FEE.commission ||
+        (whitelabelEnabled && !partnerAccessStart);
+
+      let legacyRevenue = 0;
+      let partnerAccessRevenue = 0;
+      let partnerAccessEligibleClients = 0;
+      let partnerAccessLegacyClients = 0;
+
+      for (const referral of usersList) {
+        const plan = PLANS[referral.plan as keyof typeof PLANS];
+        const price = plan?.price || 0;
+        const createdAt = referral.createdAt
+          ? new Date(referral.createdAt)
+          : null;
+        const eligibleForPartnerRate =
+          partnerAccessAppliesToAll ||
+          (whitelabelEnabled &&
+            partnerAccessStart &&
+            createdAt &&
+            createdAt.getTime() >= partnerAccessStart.getTime());
+
+        if (eligibleForPartnerRate) {
+          partnerAccessRevenue += price;
+          partnerAccessEligibleClients += 1;
+        } else {
+          legacyRevenue += price;
+          partnerAccessLegacyClients += 1;
+        }
+      }
+
+      const totalRev = legacyRevenue + partnerAccessRevenue;
+      const grossCommission =
+        legacyRevenue * currentTier.commission +
+        partnerAccessRevenue * WHITELABEL_FEE.commission;
+      const commissionRate =
+        totalRev > 0
+          ? grossCommission / totalRev
+          : whitelabelEnabled || partnerAccessAppliesToAll
+            ? WHITELABEL_FEE.commission
+            : currentTier.commission;
       const paidThrough = user.whitelabelPaidThrough
         ? new Date(user.whitelabelPaidThrough)
         : null;
       const whitelabelFeeDue =
         whitelabelEnabled &&
         (!paidThrough || paidThrough.getTime() < Date.now());
-      const grossCommission = totalRev * commissionRate;
       const whitelabelFeeAmount = whitelabelFeeDue ? WHITELABEL_FEE.price : 0;
 
       return {
@@ -138,9 +173,20 @@ export const ResellerDashboard: React.FC<ResellerProps> = ({
         whitelabelPaidThrough: paidThrough
           ? paidThrough.toISOString()
           : undefined,
+        partnerAccessActive: whitelabelEnabled,
+        partnerAccessAppliesToAll,
+        partnerAccessStart: partnerAccessStart
+          ? partnerAccessStart.toISOString()
+          : null,
+        partnerAccessEligibleClients,
+        partnerAccessLegacyClients,
       };
     },
-    [user.whitelabelEnabled, user.whitelabelPaidThrough],
+    [
+      user.whitelabelEnabled,
+      user.whitelabelEnabledAt,
+      user.whitelabelPaidThrough,
+    ],
   );
 
   useEffect(() => {
@@ -199,13 +245,28 @@ export const ResellerDashboard: React.FC<ResellerProps> = ({
       ? window.location.host
       : 'www.buildmybot.app');
   const referralUrl = `https://${displayDomain}/?ref=${user.resellerCode || 'CODE'}`;
-  const isWhitelabel = Boolean(user.whitelabelEnabled);
+  const partnerAccessActive =
+    realStats.partnerAccessActive ?? Boolean(user.whitelabelEnabled);
+  const partnerAccessAppliesToAll =
+    realStats.partnerAccessAppliesToAll ??
+    currentTier.commission >= WHITELABEL_FEE.commission;
+  const partnerAccessStart = realStats.partnerAccessStart
+    ? new Date(realStats.partnerAccessStart)
+    : user.whitelabelEnabledAt
+      ? new Date(user.whitelabelEnabledAt)
+      : null;
+  const partnerAccessStartLabel = partnerAccessStart
+    ? partnerAccessStart.toLocaleDateString()
+    : 'enrollment';
+  const partnerAccessLegacyClients = realStats.partnerAccessLegacyClients || 0;
+  const showBlended =
+    partnerAccessActive &&
+    !partnerAccessAppliesToAll &&
+    partnerAccessLegacyClients > 0;
+  const splitLabel = showBlended ? 'Blended Split' : 'Commission Split';
   const whitelabelFeeDue = Boolean(realStats.whitelabelFeeDue);
   const whitelabelFeeAmount = realStats.whitelabelFeeAmount || 0;
   const grossCommission = realStats.grossCommission ?? realStats.pendingPayout;
-  const whitelabelPaidThrough = realStats.whitelabelPaidThrough
-    ? new Date(realStats.whitelabelPaidThrough)
-    : null;
 
   const handleWhitelabelCheckout = async () => {
     if (!user?.id) {
@@ -225,8 +286,8 @@ export const ResellerDashboard: React.FC<ResellerProps> = ({
         throw new Error('No checkout URL returned');
       }
     } catch (error) {
-      console.error('Whitelabel checkout error:', error);
-      alert('Failed to start whitelabel checkout. Please try again.');
+      console.error('Partner access checkout error:', error);
+      alert('Failed to start partner access checkout. Please try again.');
       setWhitelabelProcessing(false);
     }
   };
@@ -268,7 +329,7 @@ export const ResellerDashboard: React.FC<ResellerProps> = ({
               <TrendingUp size={20} />
             </div>
             <span className="text-xs font-semibold bg-cyan-100 text-cyan-700 px-2 py-1 rounded">
-              {realStats.commissionRate * 100}% Split
+              {(realStats.commissionRate * 100).toFixed(0)}% {splitLabel}
             </span>
           </div>
           <p className="text-3xl font-bold text-slate-800">
@@ -282,7 +343,7 @@ export const ResellerDashboard: React.FC<ResellerProps> = ({
           )}
           {whitelabelFeeDue && (
             <p className="text-xs text-amber-700 mt-2">
-              Includes $499 whitelabel fee deduction
+              Includes $499 partner access fee deduction
             </p>
           )}
         </div>
@@ -337,7 +398,7 @@ export const ResellerDashboard: React.FC<ResellerProps> = ({
             <ul className="text-xs text-slate-500 space-y-1">
               {REFERRAL_REWARDS.howItWorks.slice(0, 3).map((step) => (
                 <li key={step} className="flex items-start gap-1">
-                  <span className="text-amber-500">•</span>
+                  <span className="text-amber-500">&gt;</span>
                   {step}
                 </li>
               ))}
@@ -346,26 +407,30 @@ export const ResellerDashboard: React.FC<ResellerProps> = ({
         </div>
       </div>
 
-      {/* Whitelabel Fee Status */}
+      {/* Partner Access Status */}
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h3 className="font-bold text-slate-800">Whitelabel Program</h3>
+            <h3 className="font-bold text-slate-800">Partner Access</h3>
             <p className="text-sm text-slate-600 mt-1">
-              ${WHITELABEL_FEE.price} billed every 30 days (net 30) for a
-              guaranteed 50% revenue split.
+              ${WHITELABEL_FEE.price}/mo partner access for immediate 50% on new
+              accounts. Existing accounts stay at your current tier rate. Reach
+              251+ clients for 50% across all accounts.
             </p>
-            {isWhitelabel ? (
+            {partnerAccessActive ? (
               <p
                 className={`text-sm mt-2 ${whitelabelFeeDue ? 'text-amber-700' : 'text-emerald-700'}`}
               >
                 {whitelabelFeeDue
                   ? 'Payment due. Fee will be deducted from payouts until current.'
-                  : `Paid through ${whitelabelPaidThrough ? whitelabelPaidThrough.toLocaleDateString() : 'current period'}.`}
+                  : partnerAccessAppliesToAll
+                    ? 'Partner access active: 50% split on all accounts.'
+                    : `Partner access active. 50% applies to new accounts after ${partnerAccessStartLabel}.`}
               </p>
             ) : (
               <p className="text-sm text-slate-500 mt-2">
-                Not enrolled. Upgrade to lock the 50% split.
+                Not enrolled. Start on tiered commissions or activate partner
+                access.
               </p>
             )}
           </div>
@@ -377,9 +442,9 @@ export const ResellerDashboard: React.FC<ResellerProps> = ({
           >
             {whitelabelProcessing
               ? 'Redirecting...'
-              : isWhitelabel
+              : partnerAccessActive
                 ? 'Pay $499 Now'
-                : 'Upgrade to Whitelabel'}
+                : 'Activate Partner Access'}
           </button>
         </div>
       </div>
@@ -402,8 +467,10 @@ export const ResellerDashboard: React.FC<ResellerProps> = ({
           />
         </div>
         <p className="text-sm text-slate-500">
-          {isWhitelabel
-            ? 'Whitelabel partners keep a 50% split while the fee is current.'
+          {partnerAccessActive
+            ? partnerAccessAppliesToAll
+              ? 'Partner access is active with a 50% split on all accounts.'
+              : 'Partner access applies to new accounts. Reach 251+ clients for 50% across all accounts.'
             : nextTier
               ? `Recruit ${nextTier.min - realStats.totalClients} more clients to unlock ${nextTier.commission * 100}% commission!`
               : "You've reached the top tier!"}
@@ -1256,9 +1323,9 @@ Thanks for being a great partner!
       <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 flex gap-4">
         <AlertTriangle className="text-amber-700 shrink-0" size={22} />
         <div>
-          <h4 className="font-bold text-amber-900">Whitelabel Fee Terms</h4>
+          <h4 className="font-bold text-amber-900">Partner Access Fee Terms</h4>
           <p className="text-sm text-amber-800 mt-1">
-            The ${WHITELABEL_FEE.price} whitelabel fee is billed every 30 days
+            The ${WHITELABEL_FEE.price} partner access fee is billed every 30 days
             (net 30). If unpaid, the fee is deducted from your monthly payouts.
           </p>
         </div>

@@ -141,15 +141,15 @@ const coreFeatures = [
   },
   {
     icon: Crown,
-    title: 'White-Label & Partner',
-    subtitle: 'Build Your Brand',
+    title: 'Partner Access + White-Label',
+    subtitle: 'Scale Your Agency',
     description:
-      'Resell BuildMyBot under your own brand. Full white-label customization, custom domains, and generous partner commissions.',
+      'Start as a sales agent with tiered commissions or unlock partner access for immediate 50% on new accounts. Optional white-label branding included.',
     highlights: [
+      'Partner access option',
+      '50% on new accounts',
       'Custom branding',
-      'Your own domain',
       'Partner dashboard',
-      'Revenue sharing',
     ],
     gradient: 'from-slate-600 to-slate-800',
     bgGlow: 'bg-slate-500/20',

@@ -102,11 +102,6 @@ router.get('/commissions', async (req, res) => {
           .where(eq(users.referredBy, partner.resellerCode))
       : [];
 
-    const totalRevenue = referredClients.reduce((sum, client) => {
-      const price = PLANS[client.plan as keyof typeof PLANS]?.price || 0;
-      return sum + price;
-    }, 0);
-
     const currentTier =
       RESELLER_TIERS.find(
         (tier) =>
@@ -115,16 +110,53 @@ router.get('/commissions', async (req, res) => {
       ) || RESELLER_TIERS[0];
 
     const whitelabelEnabled = Boolean(partner?.whitelabelEnabled);
+    const partnerAccessStart = partner?.whitelabelEnabledAt
+      ? new Date(partner.whitelabelEnabledAt)
+      : null;
+    const partnerAccessAppliesToAll =
+      currentTier.commission >= WHITELABEL_FEE.commission ||
+      (whitelabelEnabled && !partnerAccessStart);
+
+    let legacyRevenue = 0;
+    let partnerAccessRevenue = 0;
+    let partnerAccessEligibleClients = 0;
+    let partnerAccessLegacyClients = 0;
+
+    for (const client of referredClients) {
+      const price = PLANS[client.plan as keyof typeof PLANS]?.price || 0;
+      const createdAt = client.createdAt ? new Date(client.createdAt) : null;
+      const eligibleForPartnerRate =
+        partnerAccessAppliesToAll ||
+        (whitelabelEnabled &&
+          partnerAccessStart &&
+          createdAt &&
+          createdAt.getTime() >= partnerAccessStart.getTime());
+
+      if (eligibleForPartnerRate) {
+        partnerAccessRevenue += price;
+        partnerAccessEligibleClients += 1;
+      } else {
+        legacyRevenue += price;
+        partnerAccessLegacyClients += 1;
+      }
+    }
+
+    const totalRevenue = legacyRevenue + partnerAccessRevenue;
+    const grossCommission =
+      legacyRevenue * currentTier.commission +
+      partnerAccessRevenue * WHITELABEL_FEE.commission;
+    const commissionRate =
+      totalRevenue > 0
+        ? grossCommission / totalRevenue
+        : whitelabelEnabled || partnerAccessAppliesToAll
+          ? WHITELABEL_FEE.commission
+          : currentTier.commission;
+
     const paidThrough = partner?.whitelabelPaidThrough
       ? new Date(partner.whitelabelPaidThrough)
       : null;
     const whitelabelFeeDue =
       whitelabelEnabled && (!paidThrough || paidThrough.getTime() < Date.now());
-
-    const commissionRate = whitelabelEnabled
-      ? WHITELABEL_FEE.commission
-      : currentTier.commission;
-    const grossCommission = totalRevenue * commissionRate;
     const whitelabelFeeAmount = whitelabelFeeDue ? WHITELABEL_FEE.price : 0;
     const pendingPayout = Math.max(grossCommission - whitelabelFeeAmount, 0);
 
@@ -143,6 +175,13 @@ router.get('/commissions', async (req, res) => {
         pendingPayout,
         whitelabelFeeDue,
         whitelabelFeeAmount,
+        partnerAccessActive: whitelabelEnabled,
+        partnerAccessAppliesToAll,
+        partnerAccessStart: partnerAccessStart
+          ? partnerAccessStart.toISOString()
+          : null,
+        partnerAccessEligibleClients,
+        partnerAccessLegacyClients,
       },
       tier: currentTier,
       payouts,

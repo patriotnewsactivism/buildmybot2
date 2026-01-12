@@ -217,7 +217,7 @@ export const SEOConfig = {
   partnerProgram: {
     title: 'BuildMyBot Partner Program | White-Label AI Chatbot Reseller',
     description:
-      'Join the BuildMyBot partner program and earn recurring commissions with white-label options, dedicated support, and sales resources.',
+      'Join the BuildMyBot partner program with sales-agent tiers or $499/mo partner access, optional white-label branding, and sales resources.',
     keywords:
       'partner program, reseller program, white label chatbot, referral program, earn commission',
   },

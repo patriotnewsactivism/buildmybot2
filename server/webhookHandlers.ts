@@ -79,6 +79,16 @@ export class WebhookHandlers {
       const updates: Record<string, unknown> = {
         whitelabelEnabled: true,
       };
+      const [existingUser] = await db
+        .select({ whitelabelEnabledAt: users.whitelabelEnabledAt })
+        .from(users)
+        .where(eq(users.id, userId));
+
+      if (!existingUser?.whitelabelEnabledAt) {
+        updates.whitelabelEnabledAt = session.created
+          ? new Date(session.created * 1000)
+          : new Date();
+      }
 
       if (session.subscription) {
         updates.whitelabelSubscriptionId = session.subscription.toString();

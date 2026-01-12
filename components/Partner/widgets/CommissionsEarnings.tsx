@@ -19,6 +19,11 @@ interface CommissionStats {
   pendingPayout: number;
   whitelabelFeeDue: boolean;
   whitelabelFeeAmount: number;
+  partnerAccessActive?: boolean;
+  partnerAccessAppliesToAll?: boolean;
+  partnerAccessStart?: string | null;
+  partnerAccessEligibleClients?: number;
+  partnerAccessLegacyClients?: number;
 }
 
 interface Tier {
@@ -46,6 +51,11 @@ const defaultStats: CommissionStats = {
   pendingPayout: 0,
   whitelabelFeeDue: false,
   whitelabelFeeAmount: 0,
+  partnerAccessActive: false,
+  partnerAccessAppliesToAll: false,
+  partnerAccessStart: null,
+  partnerAccessEligibleClients: 0,
+  partnerAccessLegacyClients: 0,
 };
 
 const defaultTier: Tier = {
@@ -81,6 +91,21 @@ export const CommissionsEarnings: React.FC = () => {
   useEffect(() => {
     fetchCommissions();
   }, [fetchCommissions]);
+
+  const blendedRate =
+    stats.partnerAccessActive &&
+    !stats.partnerAccessAppliesToAll &&
+    (stats.partnerAccessLegacyClients ?? 0) > 0;
+  const commissionLabel = blendedRate ? 'Blended Rate' : 'Commission Rate';
+  const partnerAccessStart = stats.partnerAccessStart
+    ? new Date(stats.partnerAccessStart)
+    : null;
+  const partnerAccessStartLabel = partnerAccessStart
+    ? partnerAccessStart.toLocaleDateString()
+    : 'enrollment';
+  const tierRange =
+    tier.max >= 999999 ? `${tier.min}+` : `${tier.min}-${tier.max}`;
+  const legacyRate = (tier.commission * 100).toFixed(0);
 
   const payoutColumns: Column<Payout>[] = [
     {
@@ -174,7 +199,7 @@ export const CommissionsEarnings: React.FC = () => {
         />
         <MetricCard
           icon={Award}
-          label="Commission Rate"
+          label={commissionLabel}
           value={`${(stats.commissionRate * 100).toFixed(0)}%`}
           loading={loading}
         />
@@ -188,15 +213,35 @@ export const CommissionsEarnings: React.FC = () => {
               Current Tier: {tier.label}
             </h3>
             <p className="text-xs md:text-sm text-slate-700">
-              You're earning{' '}
-              <span className="font-bold text-orange-600">
-                {(tier.commission * 100).toFixed(0)}%
-              </span>{' '}
-              commission on all client revenue
+              {stats.partnerAccessActive ? (
+                stats.partnerAccessAppliesToAll ? (
+                  <>
+                    Partner access is active.{' '}
+                    <span className="font-bold text-emerald-600">50%</span>{' '}
+                    commission on all client revenue
+                  </>
+                ) : (
+                  <>
+                    Legacy clients earn{' '}
+                    <span className="font-bold text-orange-600">
+                      {legacyRate}%
+                    </span>
+                    . New clients after {partnerAccessStartLabel} earn{' '}
+                    <span className="font-bold text-emerald-600">50%</span>.
+                  </>
+                )
+              ) : (
+                <>
+                  You're earning{' '}
+                  <span className="font-bold text-orange-600">
+                    {legacyRate}%
+                  </span>{' '}
+                  commission on all client revenue
+                </>
+              )}
             </p>
             <p className="text-xs text-slate-600 mt-2">
-              Tier range: {tier.min}-{tier.max === 999999 ? '∞' : tier.max}{' '}
-              clients
+              Tier range: {tierRange} clients
             </p>
           </div>
           <Award
@@ -206,14 +251,14 @@ export const CommissionsEarnings: React.FC = () => {
         </div>
       </div>
 
-      {/* Whitelabel Fee Notice */}
+      {/* Partner Access Fee Notice */}
       {stats.whitelabelFeeDue && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 md:p-4">
           <div className="flex items-center space-x-2">
             <CreditCard className="text-yellow-600" size={20} />
             <div>
               <p className="text-sm font-medium text-yellow-900">
-                Whitelabel Fee Due: ${stats.whitelabelFeeAmount.toFixed(2)}
+                Partner Access Fee Due: ${stats.whitelabelFeeAmount.toFixed(2)}
               </p>
               <p className="text-xs text-yellow-700">
                 This fee will be deducted from your next payout
@@ -263,7 +308,9 @@ export const CommissionsEarnings: React.FC = () => {
             </div>
             {stats.whitelabelFeeDue && (
               <div className="flex justify-between items-center">
-                <span className="text-sm text-slate-600">Whitelabel Fee</span>
+                <span className="text-sm text-slate-600">
+                  Partner Access Fee
+                </span>
                 <span className="font-medium text-red-700">
                   -${stats.whitelabelFeeAmount.toFixed(2)}
                 </span>
