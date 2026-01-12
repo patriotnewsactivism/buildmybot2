@@ -46,7 +46,7 @@ describe('OpenAI Service - Model Migration', () => {
       }),
     };
 
-    vi.mocked(global.fetch).mockResolvedValue(mockResponse as any);
+    vi.mocked(global.fetch).mockResolvedValue(mockResponse as Response);
 
     await scrapeWebsiteContent('https://example.com');
 

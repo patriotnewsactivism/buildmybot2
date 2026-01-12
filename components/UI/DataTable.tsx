@@ -32,6 +32,16 @@ export function DataTable<T extends { id: string }>({
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [searchTerm, setSearchTerm] = useState('');
 
+  const getItemValue = (item: T, key: Column<T>['key']) =>
+    (item as Record<string, unknown>)[String(key)];
+
+  const handleRowKeyDown = (event: React.KeyboardEvent, item: T) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      onRowClick?.(item);
+    }
+  };
+
   const handleSort = (key: string) => {
     if (sortKey === key) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
@@ -51,8 +61,8 @@ export function DataTable<T extends { id: string }>({
 
   const sortedData = sortKey
     ? [...filteredData].sort((a, b) => {
-        const aVal = (a as any)[sortKey];
-        const bVal = (b as any)[sortKey];
+        const aVal = (a as Record<string, unknown>)[sortKey];
+        const bVal = (b as Record<string, unknown>)[sortKey];
         if (aVal === bVal) return 0;
         const comparison = aVal > bVal ? 1 : -1;
         return sortDirection === 'asc' ? comparison : -comparison;
@@ -101,6 +111,9 @@ export function DataTable<T extends { id: string }>({
               <div
                 key={item.id}
                 onClick={() => onRowClick?.(item)}
+                onKeyDown={(event) => handleRowKeyDown(event, item)}
+                role={onRowClick ? 'button' : undefined}
+                tabIndex={onRowClick ? 0 : undefined}
                 className={`bg-white rounded-lg shadow-sm border border-slate-200 p-4 ${
                   onRowClick
                     ? 'cursor-pointer hover:bg-slate-50 active:bg-slate-100'
@@ -118,7 +131,7 @@ export function DataTable<T extends { id: string }>({
                     <div className="text-sm text-slate-900">
                       {column.render
                         ? column.render(item)
-                        : String((item as any)[column.key] || '-')}
+                        : String(getItemValue(item, column.key) || '-')}
                     </div>
                   </div>
                 ))}
@@ -139,22 +152,29 @@ export function DataTable<T extends { id: string }>({
                   className={`px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider ${
                     column.sortable ? 'cursor-pointer hover:bg-slate-100' : ''
                   }`}
-                  onClick={() =>
-                    column.sortable && handleSort(String(column.key))
-                  }
                 >
-                  <div className="flex items-center space-x-1">
-                    <span>{column.label}</span>
-                    {column.sortable && sortKey === column.key && (
-                      <span>
-                        {sortDirection === 'asc' ? (
-                          <ChevronUp size={16} />
-                        ) : (
-                          <ChevronDown size={16} />
-                        )}
-                      </span>
-                    )}
-                  </div>
+                  {column.sortable ? (
+                    <button
+                      type="button"
+                      onClick={() => handleSort(String(column.key))}
+                      className="flex items-center space-x-1"
+                    >
+                      <span>{column.label}</span>
+                      {sortKey === column.key && (
+                        <span>
+                          {sortDirection === 'asc' ? (
+                            <ChevronUp size={16} />
+                          ) : (
+                            <ChevronDown size={16} />
+                          )}
+                        </span>
+                      )}
+                    </button>
+                  ) : (
+                    <div className="flex items-center space-x-1">
+                      <span>{column.label}</span>
+                    </div>
+                  )}
                 </th>
               ))}
             </tr>
@@ -174,6 +194,9 @@ export function DataTable<T extends { id: string }>({
                 <tr
                   key={item.id}
                   onClick={() => onRowClick?.(item)}
+                  onKeyDown={(event) => handleRowKeyDown(event, item)}
+                  role={onRowClick ? 'button' : undefined}
+                  tabIndex={onRowClick ? 0 : undefined}
                   className={`${onRowClick ? 'cursor-pointer hover:bg-slate-50' : ''}`}
                 >
                   {columns.map((column) => (
@@ -183,7 +206,7 @@ export function DataTable<T extends { id: string }>({
                     >
                       {column.render
                         ? column.render(item)
-                        : String((item as any)[column.key] || '-')}
+                        : String(getItemValue(item, column.key) || '-')}
                     </td>
                   ))}
                 </tr>

@@ -1,5 +1,6 @@
 import { Copy, Gift, Share2, Users } from 'lucide-react';
-import React, { useState } from 'react';
+import type React from 'react';
+import { useState } from 'react';
 
 interface ReferralUser {
   resellerCode?: string | null;
@@ -71,7 +72,9 @@ export const ReferralBanner: React.FC<ReferralBannerProps> = ({ user }) => {
 
         <div className="flex flex-col sm:flex-row gap-2">
           <div className="flex items-center gap-2 bg-white/10 rounded-lg px-3 py-2 border border-white/20">
-            <code className="text-xs truncate max-w-[200px]">{referralUrl}</code>
+            <code className="text-xs truncate max-w-[200px]">
+              {referralUrl}
+            </code>
             <button
               type="button"
               onClick={copyToClipboard}

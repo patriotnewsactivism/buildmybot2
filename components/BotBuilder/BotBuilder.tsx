@@ -18,6 +18,7 @@ import {
   Link,
   Linkedin,
   Loader2,
+  type LucideIcon,
   Menu,
   MessageSquare,
   Monitor,
@@ -37,7 +38,6 @@ import {
   X,
   Zap,
 } from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
 import type React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AVAILABLE_MODELS } from '../../constants';
@@ -1054,7 +1054,7 @@ export const BotBuilder: React.FC<BotBuilderProps> = ({
                   )}
                   {activeBot.knowledgeBase.map((item, index) => (
                     <div
-                      key={`${item}-${index}`}
+                      key={`${activeBot.id}-${item}`}
                       className="flex items-start justify-between bg-slate-50 p-3 rounded-lg border border-slate-100 text-sm"
                     >
                       <p className="text-slate-700 whitespace-pre-wrap">

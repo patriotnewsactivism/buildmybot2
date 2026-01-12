@@ -5,7 +5,8 @@ import {
   TrendingUp,
   Users,
 } from 'lucide-react';
-import React, { useEffect, useState } from 'react';
+import type React from 'react';
+import { useEffect, useState } from 'react';
 
 interface QuickMetrics {
   totalConversations: number;
@@ -112,13 +113,17 @@ export const QuickMetricsWidget: React.FC<QuickMetricsWidgetProps> = ({
             className="bg-white/5 rounded-lg p-3 md:p-4 border border-white/10"
           >
             <div className="flex items-center gap-2 mb-2">
-              <div className={`p-1.5 rounded-lg bg-gradient-to-br ${metric.color}`}>
+              <div
+                className={`p-1.5 rounded-lg bg-gradient-to-br ${metric.color}`}
+              >
                 <metric.icon size={14} className="text-white" />
               </div>
               <span className="text-xs text-slate-400">{metric.label}</span>
             </div>
             <div className="flex items-baseline justify-between">
-              <span className="text-xl md:text-2xl font-bold">{metric.value}</span>
+              <span className="text-xl md:text-2xl font-bold">
+                {metric.value}
+              </span>
               {metric.growth !== undefined && (
                 <span
                   className={`text-xs font-medium ${

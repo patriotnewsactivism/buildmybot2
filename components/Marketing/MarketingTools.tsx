@@ -3,12 +3,12 @@ import {
   Copy,
   Instagram,
   Loader,
+  type LucideIcon,
   Mail,
   Megaphone,
   Smartphone,
   Twitter,
 } from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
 import type React from 'react';
 import { useState } from 'react';
 import { generateMarketingContent } from '../../services/openaiService';

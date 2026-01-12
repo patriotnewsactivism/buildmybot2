@@ -18,7 +18,7 @@ import {
   Zap,
 } from 'lucide-react';
 import type React from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { buildApiUrl } from '../../services/apiConfig';
 
 interface BrandingSettings {
@@ -59,7 +59,7 @@ const ColorPicker: React.FC<{
   description?: string;
 }> = ({ label, value, onChange, description }) => (
   <div className="space-y-2">
-    <label className="block text-sm font-medium text-slate-700">{label}</label>
+    <p className="block text-sm font-medium text-slate-700">{label}</p>
     {description && <p className="text-xs text-slate-500">{description}</p>}
     <div className="flex items-center gap-3">
       <div
@@ -129,9 +129,7 @@ const FileUploadZone: React.FC<{
 
   return (
     <div className="space-y-2">
-      <label className="block text-sm font-medium text-slate-700">
-        {label}
-      </label>
+      <p className="block text-sm font-medium text-slate-700">{label}</p>
       {description && <p className="text-xs text-slate-500">{description}</p>}
 
       {currentUrl ? (
@@ -163,16 +161,18 @@ const FileUploadZone: React.FC<{
           </div>
         </div>
       ) : (
-        <div
+        <button
+          type="button"
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
           onClick={() => fileInputRef.current?.click()}
-          className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors ${
+          className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors ${
             isDragging
               ? 'border-orange-500 bg-orange-50'
               : 'border-slate-300 hover:border-orange-400 hover:bg-slate-50'
           }`}
+          aria-label={`Upload ${label}`}
         >
           <Upload className="mx-auto text-slate-400 mb-2" size={24} />
           <p className="text-sm text-slate-600">
@@ -180,7 +180,7 @@ const FileUploadZone: React.FC<{
             <span className="text-orange-500 font-medium">browse</span>
           </p>
           <p className="text-xs text-slate-400 mt-1">PNG, JPG, SVG up to 2MB</p>
-        </div>
+        </button>
       )}
 
       <input
@@ -212,18 +212,7 @@ export const WhiteLabelSettings: React.FC<WhiteLabelSettingsProps> = ({
     message: string;
   } | null>(null);
 
-  useEffect(() => {
-    fetchBranding();
-  }, [organizationId]);
-
-  useEffect(() => {
-    if (notification) {
-      const timer = setTimeout(() => setNotification(null), 4000);
-      return () => clearTimeout(timer);
-    }
-  }, [notification]);
-
-  const fetchBranding = async () => {
+  const fetchBranding = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch(
@@ -232,13 +221,13 @@ export const WhiteLabelSettings: React.FC<WhiteLabelSettingsProps> = ({
       if (response.ok) {
         const data = await response.json();
         if (data) {
-          setBranding({
-            ...branding,
+          setBranding((prev) => ({
+            ...prev,
             ...data,
             primaryColor: data.primaryColor || '#3B82F6',
             secondaryColor: data.secondaryColor || '#1E40AF',
             accentColor: data.accentColor || '#F97316',
-          });
+          }));
         }
       }
     } catch (error) {
@@ -246,7 +235,18 @@ export const WhiteLabelSettings: React.FC<WhiteLabelSettingsProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [organizationId]);
+
+  useEffect(() => {
+    fetchBranding();
+  }, [fetchBranding]);
+
+  useEffect(() => {
+    if (notification) {
+      const timer = setTimeout(() => setNotification(null), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [notification]);
 
   const saveBranding = async () => {
     try {
@@ -410,10 +410,14 @@ export const WhiteLabelSettings: React.FC<WhiteLabelSettingsProps> = ({
 
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
+              <label
+                htmlFor="whitelabel-company-name"
+                className="block text-sm font-medium text-slate-700 mb-2"
+              >
                 Company Name
               </label>
               <input
+                id="whitelabel-company-name"
                 type="text"
                 value={branding.companyName || ''}
                 onChange={(e) => updateField('companyName', e.target.value)}
@@ -423,7 +427,10 @@ export const WhiteLabelSettings: React.FC<WhiteLabelSettingsProps> = ({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
+              <label
+                htmlFor="whitelabel-support-email"
+                className="block text-sm font-medium text-slate-700 mb-2"
+              >
                 Support Email
               </label>
               <div className="relative">
@@ -432,6 +439,7 @@ export const WhiteLabelSettings: React.FC<WhiteLabelSettingsProps> = ({
                   size={18}
                 />
                 <input
+                  id="whitelabel-support-email"
                   type="email"
                   value={branding.supportEmail || ''}
                   onChange={(e) => updateField('supportEmail', e.target.value)}
@@ -458,10 +466,14 @@ export const WhiteLabelSettings: React.FC<WhiteLabelSettingsProps> = ({
 
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
+              <label
+                htmlFor="whitelabel-domain-url"
+                className="block text-sm font-medium text-slate-700 mb-2"
+              >
                 Domain URL
               </label>
               <input
+                id="whitelabel-domain-url"
                 type="text"
                 value={branding.customDomain || ''}
                 onChange={(e) => updateField('customDomain', e.target.value)}
