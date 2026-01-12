@@ -1,5 +1,6 @@
 import { ArrowRight, Clock, Tag } from 'lucide-react';
 import React from 'react';
+import { SEO, SEOConfig } from '../../SEO/SEO';
 import { PageLayout } from './PageLayout';
 
 const blogPosts = [
@@ -59,6 +60,18 @@ const categories = [
 
 export const BlogPage: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = React.useState('All');
+  const siteUrl =
+    typeof window !== 'undefined'
+      ? window.location.origin
+      : 'https://buildmybot.app';
+
+  const toIsoDate = (value: string) => {
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+      return value;
+    }
+    return parsed.toISOString();
+  };
 
   const filteredPosts =
     selectedCategory === 'All'
@@ -66,9 +79,42 @@ export const BlogPage: React.FC = () => {
       : blogPosts.filter((post) => post.category === selectedCategory);
 
   const featuredPosts = blogPosts.filter((post) => post.featured);
+  const blogStructuredData = {
+    '@context': 'https://schema.org',
+    '@type': 'Blog',
+    name: 'BuildMyBot Blog',
+    url: `${siteUrl}/blog`,
+    description: SEOConfig.blog.description,
+    publisher: {
+      '@type': 'Organization',
+      name: 'BuildMyBot',
+      url: siteUrl,
+      logo: {
+        '@type': 'ImageObject',
+        url: `${siteUrl}/logo.jpg`,
+      },
+    },
+    blogPost: blogPosts.map((post) => ({
+      '@type': 'BlogPosting',
+      headline: post.title,
+      description: post.excerpt,
+      url: `${siteUrl}/blog/${post.id}`,
+      datePublished: toIsoDate(post.date),
+      author: {
+        '@type': 'Person',
+        name: 'Matthew Reardon',
+      },
+    })),
+  };
 
   return (
     <PageLayout>
+      <SEO
+        title={SEOConfig.blog.title}
+        description={SEOConfig.blog.description}
+        keywords={SEOConfig.blog.keywords}
+        structuredData={blogStructuredData}
+      />
       <div className="max-w-7xl mx-auto px-6 lg:px-12 py-16 space-y-16">
         <section className="text-center space-y-6">
           <h1 className="text-4xl md:text-5xl font-extrabold text-slate-900">

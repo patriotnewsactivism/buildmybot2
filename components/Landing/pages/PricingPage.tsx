@@ -2,6 +2,7 @@ import { ArrowRight, CheckCircle, Sparkles } from 'lucide-react';
 import type React from 'react';
 import { PLANS } from '../../../constants';
 import { PlanType } from '../../../types';
+import { SEO, SEOConfig } from '../../SEO/SEO';
 import { PageLayout } from './PageLayout';
 
 interface PricingPageProps {
@@ -21,8 +22,48 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onLogin }) => {
     }
   };
 
+  const siteUrl =
+    typeof window !== 'undefined'
+      ? window.location.origin
+      : 'https://buildmybot.app';
+  const planValues = Object.values(PLANS);
+  const priceValues = planValues.map((plan) => plan.price);
+  const planOffers = planValues.map((plan) => ({
+    '@type': 'Offer',
+    name: plan.name,
+    price: plan.price.toString(),
+    priceCurrency: 'USD',
+    availability: 'https://schema.org/InStock',
+    url: `${siteUrl}/pricing`,
+  }));
+  const pricingStructuredData = {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: 'BuildMyBot',
+    description: SEOConfig.pricing.description,
+    brand: {
+      '@type': 'Brand',
+      name: 'BuildMyBot',
+    },
+    offers: {
+      '@type': 'AggregateOffer',
+      lowPrice: Math.min(...priceValues),
+      highPrice: Math.max(...priceValues),
+      priceCurrency: 'USD',
+      offerCount: planOffers.length,
+      offers: planOffers,
+    },
+  };
+
   return (
     <PageLayout>
+      <SEO
+        title={SEOConfig.pricing.title}
+        description={SEOConfig.pricing.description}
+        keywords={SEOConfig.pricing.keywords}
+        ogType="product"
+        structuredData={pricingStructuredData}
+      />
       <div className="max-w-7xl mx-auto px-6 lg:px-12 py-16 space-y-16">
         <section className="text-center space-y-6">
           <div className="inline-flex items-center gap-2 bg-blue-100 text-blue-700 px-4 py-2 rounded-full text-sm font-semibold">

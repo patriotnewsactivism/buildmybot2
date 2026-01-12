@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import type React from 'react';
 import { useState } from 'react';
+import { SEO, SEOConfig } from '../../SEO/SEO';
 import { PageLayout } from './PageLayout';
 
 interface FaqPageProps {
@@ -44,6 +45,18 @@ const faqs = [
 
 export const FaqPage: React.FC<FaqPageProps> = ({ onLogin }) => {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const faqStructuredData = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: faqs.map((faq) => ({
+      '@type': 'Question',
+      name: faq.q,
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: faq.a,
+      },
+    })),
+  };
 
   const handleLogin = () => {
     if (onLogin) {
@@ -57,6 +70,12 @@ export const FaqPage: React.FC<FaqPageProps> = ({ onLogin }) => {
 
   return (
     <PageLayout>
+      <SEO
+        title={SEOConfig.faq.title}
+        description={SEOConfig.faq.description}
+        keywords={SEOConfig.faq.keywords}
+        structuredData={faqStructuredData}
+      />
       <div className="max-w-5xl mx-auto px-6 lg:px-12 py-16 space-y-16">
         <section className="text-center space-y-6">
           <div className="inline-flex items-center gap-2 bg-slate-100 text-slate-700 px-4 py-2 rounded-full text-sm font-semibold">

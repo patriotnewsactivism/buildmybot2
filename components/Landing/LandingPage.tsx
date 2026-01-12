@@ -61,6 +61,7 @@ import {
   scrapeWebsiteContent,
 } from '../../services/openaiService';
 import { PlanType } from '../../types';
+import { SEO, SEOConfig } from '../SEO/SEO';
 
 interface LandingProps {
   onLogin: () => void;
@@ -485,8 +486,28 @@ export const LandingPage: React.FC<LandingProps> = ({
     );
   };
 
+  const faqStructuredData = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: faqs.map((faq) => ({
+      '@type': 'Question',
+      name: faq.q,
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: faq.a,
+      },
+    })),
+  };
+
   return (
-    <div className="min-h-screen bg-slate-50 overflow-x-hidden">
+    <>
+      <SEO
+        title={SEOConfig.home.title}
+        description={SEOConfig.home.description}
+        keywords={SEOConfig.home.keywords}
+        structuredData={faqStructuredData}
+      />
+      <div className="min-h-screen bg-slate-50 overflow-x-hidden">
       {/* Floating Hover Widget */}
       <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-4">
         {isHoverOpen && (
@@ -584,13 +605,13 @@ export const LandingPage: React.FC<LandingProps> = ({
           <a href="/faq" className="hover:text-blue-700 transition-colors">
             FAQ
           </a>
-          <button
-            type="button"
-            onClick={onNavigateToPartner}
+          <a
+            href="/partner-program"
+            onClick={() => onNavigateToPartner?.()}
             className="hover:text-blue-700 transition-colors text-emerald-600 font-semibold"
           >
             Partners
-          </button>
+          </a>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -636,8 +657,8 @@ export const LandingPage: React.FC<LandingProps> = ({
             >
               FAQ
             </a>
-            <button
-              type="button"
+            <a
+              href="/partner-program"
               onClick={() => {
                 onNavigateToPartner?.();
                 setIsMobileMenuOpen(false);
@@ -645,7 +666,7 @@ export const LandingPage: React.FC<LandingProps> = ({
               className="text-lg font-medium text-emerald-600 hover:text-emerald-700 py-3 border-b border-slate-100 text-left"
             >
               Partners
-            </button>
+            </a>
             <button
               type="button"
               onClick={() => {
@@ -1065,13 +1086,12 @@ export const LandingPage: React.FC<LandingProps> = ({
                   brand, your pricing, your clients
                 </li>
               </ul>
-              <button
-                type="button"
-                onClick={onNavigateToPartner}
+              <a
+                href="/partner-program"
                 className="bg-emerald-500 text-white px-8 py-4 rounded-xl font-bold text-lg hover:bg-emerald-600 transition-all shadow-xl shadow-emerald-500/30 flex items-center gap-3"
               >
                 Learn About Partnership <ArrowRight size={20} />
-              </button>
+              </a>
             </div>
             <div className="bg-white/5 backdrop-blur-sm rounded-xl sm:rounded-2xl p-4 sm:p-8 border border-white/10">
               <div className="text-center mb-4 sm:mb-6">
@@ -1467,5 +1487,6 @@ export const LandingPage: React.FC<LandingProps> = ({
         </div>
       </footer>
     </div>
+    </>
   );
 };

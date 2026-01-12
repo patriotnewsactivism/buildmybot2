@@ -16,6 +16,7 @@ import {
 import type React from 'react';
 import { useState } from 'react';
 import { RESELLER_TIERS, WHITELABEL_FEE } from '../../constants';
+import { SEO, SEOConfig } from '../SEO/SEO';
 
 interface PartnerProps {
   onBack: () => void;
@@ -51,7 +52,13 @@ export const PartnerProgramPage: React.FC<PartnerProps> = ({
   const annualIncome = partnerCommission * 12;
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+    <>
+      <SEO
+        title={SEOConfig.partnerProgram.title}
+        description={SEOConfig.partnerProgram.description}
+        keywords={SEOConfig.partnerProgram.keywords}
+      />
+      <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
       {/* Nav */}
       <nav className="fixed w-full bg-white/90 backdrop-blur-md z-30 border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
@@ -542,6 +549,7 @@ export const PartnerProgramPage: React.FC<PartnerProps> = ({
           © 2025 BuildMyBot.app. All rights reserved. • Houston, TX
         </div>
       </footer>
-    </div>
+      </div>
+    </>
   );
 };
