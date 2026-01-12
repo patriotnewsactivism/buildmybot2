@@ -268,9 +268,10 @@ export class DocumentProcessorService {
     apiKey: string,
     baseURL: string,
   ): Promise<string> {
+    const purpose = mimeType === 'application/pdf' ? 'assistants' : 'vision';
     const formData = new FormData();
     formData.append('file', new Blob([buffer], { type: mimeType }), fileName);
-    formData.append('purpose', 'vision');
+    formData.append('purpose', purpose);
 
     const response = await fetch(`${baseURL}/files`, {
       method: 'POST',
@@ -282,14 +283,15 @@ export class DocumentProcessorService {
 
     if (!response.ok) {
       const error = await response.text();
-      if (error.includes('Invalid purpose')) {
+      if (error.includes('Invalid purpose') || error.includes('Invalid file format')) {
+        const fallbackPurpose = purpose === 'assistants' ? 'user_data' : 'assistants';
         return DocumentProcessorService.uploadOpenAIFileWithPurpose(
           buffer,
           fileName,
           mimeType,
           apiKey,
           baseURL,
-          'assistants',
+          fallbackPurpose,
         );
       }
       throw new Error(`OpenAI file upload error: ${error}`);
