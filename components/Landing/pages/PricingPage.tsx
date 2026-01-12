@@ -120,7 +120,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onLogin }) => {
                     </li>
                   ))}
                 </ul>
-                {plan.overage && (
+                {'overage' in plan && plan.overage && (
                   <div className="text-xs text-slate-500 mb-4">
                     ${plan.overage} per additional conversation
                   </div>
