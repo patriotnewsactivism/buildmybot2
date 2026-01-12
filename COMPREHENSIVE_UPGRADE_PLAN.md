@@ -2048,6 +2048,41 @@ if (FEATURES.ADVANCED_ANALYTICS) {
 }
 ```
 
+### 7.3 Railway Deployment and Connection
+
+**Objective:** Deploy the Express API to Railway, connect it to Postgres, and wire the frontend to the Railway backend.
+
+**Railway Service Setup:**
+1. Create a Railway project and deploy from the GitHub repo.
+2. Use the repo root and set the start command to `npm run start`.
+3. Add `railway.json` to codify the start command and health check path.
+4. Configure health checks to `/api/health/ready`.
+5. Enable automatic deploys from the main branch.
+
+**Railway Environment Variables:**
+- NODE_ENV=production
+- PORT (Railway injects this; server must bind to it)
+- DATABASE_URL
+- SESSION_SECRET
+- APP_BASE_URL (Vercel URL or custom domain)
+- STRIPE_SECRET_KEY, STRIPE_PUBLISHABLE_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_WHITELABEL_PRICE_ID
+- OPENAI_API_KEY or AI_INTEGRATIONS_OPENAI_API_KEY
+- CARTESIA_API_KEY (optional)
+- TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER (if voice enabled)
+- Feature flags as needed
+
+**Database Options:**
+- Use the existing Supabase pooler connection string in DATABASE_URL.
+- Or provision Railway Postgres and copy its connection string into DATABASE_URL.
+- Run schema updates with `npm run db:push` (or the migration scripts defined for Phase 7).
+
+**Frontend Connection:**
+- Set `VITE_API_URL` to the Railway service URL.
+- Update `vercel.json` rewrites to proxy `/api/*` to Railway.
+
+**File Storage Note:**
+- Railway's filesystem is ephemeral; move uploads to object storage (S3 or Supabase Storage) for production.
+
 ---
 
 ## PHASE 7.5: AI MODEL MIGRATION & COST OPTIMIZATION (Week 15.5)
@@ -2365,6 +2400,8 @@ The phased approach allows for iterative delivery, early feedback, and risk miti
 - [ ] Perform load testing
 - [ ] Security audit and penetration testing
 - [ ] Set up blue-green deployment pipeline
+- [ ] Deploy backend to Railway and configure health checks
+- [ ] Wire Vercel frontend to Railway API
 - [ ] Create database migration scripts
 - [ ] Implement feature flags system
 - [ ] Configure monitoring and alerting
@@ -2533,6 +2570,9 @@ The phased approach allows for iterative delivery, early feedback, and risk miti
 - [ ] Deploy to staging first
 - [ ] Smoke tests on staging
 - [ ] Deploy to production (blue-green)
+- [ ] Railway service deployed with `/api/health/ready` health check
+- [ ] Railway environment variables set (DATABASE_URL, SESSION_SECRET, APP_BASE_URL, PORT)
+- [ ] Vercel `VITE_API_URL` and rewrites point to Railway
 - [ ] Verify health checks
 - [ ] Monitor error rates
 - [ ] Check performance metrics

@@ -105,9 +105,8 @@ const app = express();
 app.set('trust proxy', 1);
 
 const isProduction = env.NODE_ENV === 'production';
-const PORT = isProduction
-  ? 5000
-  : Number.parseInt(env.API_PORT || '3001', 10);
+const defaultPort = isProduction ? '5000' : env.API_PORT || '3001';
+const PORT = Number.parseInt(env.PORT || defaultPort, 10);
 
 function getBaseUrl() {
   const appBaseUrl = env.APP_BASE_URL?.trim();
