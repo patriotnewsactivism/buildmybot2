@@ -40,19 +40,27 @@ describe('OpenAI Service - Model Migration', () => {
   it('uses gpt-5o-mini for website scraping', async () => {
     const mockResponse = {
       ok: true,
+      text: async () => 'Scraped raw text content',
       json: async () => ({
         choices: [{ message: { content: 'Scraped content' } }],
       }),
     };
 
-    vi.mocked(global.fetch).mockResolvedValue(mockResponse as Response);
+    vi.mocked(global.fetch).mockResolvedValue(mockResponse as any);
 
     await scrapeWebsiteContent('https://example.com');
 
-    const fetchCall = vi.mocked(global.fetch).mock.calls[0];
-    const requestBody = JSON.parse(fetchCall[1]?.body as string);
+    // First call is to proxy/jina, second is to OpenAI
+    const fetchCalls = vi.mocked(global.fetch).mock.calls;
+    const openAiCall = fetchCalls.find((call) =>
+      (call[0] as string).includes('/chat/demo'),
+    );
 
-    expect(requestBody.model).toBe('gpt-5o-mini');
+    expect(openAiCall).toBeDefined();
+    if (openAiCall) {
+      const requestBody = JSON.parse(openAiCall[1]?.body as string);
+      expect(requestBody.model).toBe('gpt-5o-mini');
+    }
   });
 
   it('uses gpt-5o-mini for marketing content generation', async () => {
@@ -99,8 +107,13 @@ describe('OpenAI Service - Model Migration', () => {
   it('handles API errors gracefully', async () => {
     vi.mocked(global.fetch).mockRejectedValue(new Error('API Error'));
 
-    await expect(
-      generateBotResponse('Test prompt', [], 'User message'),
-    ).rejects.toThrow();
+    const response = await generateBotResponse(
+      'Test prompt',
+      [],
+      'User message',
+    );
+    expect(response).toBe(
+      "I'm having trouble connecting to my AI brain right now. Please check your internet connection.",
+    );
   });
 });
