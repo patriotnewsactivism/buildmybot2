@@ -39,6 +39,10 @@ const sources = [
     input: path.join(root, 'docs', 'marketing', 'demo-checklist.md'),
     output: path.join(outputDir, 'demo-checklist.pdf'),
   },
+  {
+    input: path.join(root, 'docs', 'marketing', 'revenue-recovery-handbook.md'),
+    output: path.join(outputDir, 'revenue-recovery-handbook.pdf'),
+  },
 ];
 
 await fs.mkdir(outputDir, { recursive: true });

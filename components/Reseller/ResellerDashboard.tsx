@@ -823,6 +823,14 @@ Thanks for being a great partner!
         downloadUrl: '/marketing/partner-course.pdf',
       },
       {
+        title: 'Revenue Recovery Handbook',
+        description: 'Master playbook for speed-to-lead recovery',
+        icon: FileText,
+        type: 'PDF',
+        size: 'Updated',
+        downloadUrl: '/marketing/revenue-recovery-handbook.pdf',
+      },
+      {
         title: 'Sales Deck',
         description: 'Slide deck for prospect presentations',
         icon: Presentation,
