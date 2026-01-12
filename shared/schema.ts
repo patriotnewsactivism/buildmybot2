@@ -418,7 +418,7 @@ export const knowledgeChunks = pgTable('knowledge_chunks', {
 
 
 // ========================================
-// INTEGRATIONS
+// INTEGRATIONS & WEBHOOKS
 // ========================================
 
 export const integrations = pgTable('integrations', {
@@ -431,6 +431,34 @@ export const integrations = pgTable('integrations', {
   isActive: boolean('is_active').default(true),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+export const webhooks = pgTable('webhooks', {
+  id: text('id').primaryKey(),
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+  url: text('url').notNull(),
+  eventTypes: json('event_types').notNull().default([]), // ['lead.captured', 'conversation.ended', etc.]
+  secret: text('secret'),
+  isActive: boolean('is_active').default(true),
+  description: text('description'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+export const webhookLogs = pgTable('webhook_logs', {
+  id: text('id').primaryKey(),
+  webhookId: text('webhook_id')
+    .notNull()
+    .references(() => webhooks.id, { onDelete: 'cascade' }),
+  eventType: varchar('event_type', { length: 100 }).notNull(),
+  payload: json('payload').notNull(),
+  responseStatus: integer('response_status'),
+  responseBody: text('response_body'),
+  durationMs: integer('duration_ms'),
+  error: text('error'),
+  createdAt: timestamp('created_at').defaultNow(),
 });
 
 // ========================================
@@ -452,8 +480,24 @@ export const organizationsRelations = relations(
     analyticsEvents: many(analyticsEvents),
     partnerRelationships: many(partnerClients),
     integrations: many(integrations),
+    webhooks: many(webhooks),
   }),
 );
+
+export const webhooksRelations = relations(webhooks, ({ one, many }) => ({
+  organization: one(organizations, {
+    fields: [webhooks.organizationId],
+    references: [organizations.id],
+  }),
+  logs: many(webhookLogs),
+}));
+
+export const webhookLogsRelations = relations(webhookLogs, ({ one }) => ({
+  webhook: one(webhooks, {
+    fields: [webhookLogs.webhookId],
+    references: [webhooks.id],
+  }),
+}));
 
 export const organizationMembersRelations = relations(
   organizationMembers,
@@ -911,6 +955,10 @@ export type SupportTicket = typeof supportTickets.$inferSelect;
 export type InsertSupportTicket = typeof supportTickets.$inferInsert;
 export type Integration = typeof integrations.$inferSelect;
 export type InsertIntegration = typeof integrations.$inferInsert;
+export type Webhook = typeof webhooks.$inferSelect;
+export type InsertWebhook = typeof webhooks.$inferInsert;
+export type WebhookLog = typeof webhookLogs.$inferSelect;
+export type InsertWebhookLog = typeof webhookLogs.$inferInsert;
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
