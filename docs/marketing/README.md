@@ -8,6 +8,8 @@ This folder contains ready-to-use messaging, playbooks, and guides for:
 ## Quick start
 - Agent playbook: `docs/marketing/agent-playbook.md`
 - Agent start free course: `docs/marketing/agent-start-free-course.md`
+- Field operations manual: `docs/marketing/field-operations-manual.md`
+- Ghost shopper audit template: `docs/marketing/ghost-shopper-audit-template.md`
 - Partner playbook: `docs/marketing/partner-playbook.md`
 - Partner course: `docs/marketing/partner-course.md`
 - Revenue recovery handbook: `docs/marketing/revenue-recovery-handbook.md`

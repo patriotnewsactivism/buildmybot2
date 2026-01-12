@@ -43,6 +43,14 @@ const sources = [
     input: path.join(root, 'docs', 'marketing', 'revenue-recovery-handbook.md'),
     output: path.join(outputDir, 'revenue-recovery-handbook.pdf'),
   },
+  {
+    input: path.join(root, 'docs', 'marketing', 'field-operations-manual.md'),
+    output: path.join(outputDir, 'field-operations-manual.pdf'),
+  },
+  {
+    input: path.join(root, 'docs', 'marketing', 'ghost-shopper-audit-template.md'),
+    output: path.join(outputDir, 'ghost-shopper-audit-template.pdf'),
+  },
 ];
 
 await fs.mkdir(outputDir, { recursive: true });
