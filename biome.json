@@ -9,7 +9,8 @@
       "scripts/**",
       ".vercel/**",
       ".local/**",
-      ".claude/**"
+      ".claude/**",
+      "coverage/**"
     ]
   },
   "formatter": {
