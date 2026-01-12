@@ -4,7 +4,7 @@ export const generateBotResponse = async (
   systemPrompt: string,
   history: { role: 'user' | 'model'; text: string }[],
   lastMessage: string,
-  modelName = 'gpt-4o-mini',
+  modelName = 'gpt-5o-mini',
   context?: string,
 ): Promise<string> => {
   const messages = [...history, { role: 'user' as const, text: lastMessage }];
@@ -99,7 +99,7 @@ export const generateBotResponseDemo = async (
   systemPrompt: string,
   history: { role: 'user' | 'model'; text: string }[],
   lastMessage: string,
-  modelName = 'gpt-4o-mini',
+  modelName = 'gpt-5o-mini',
   context?: string,
 ): Promise<string> => {
   const messages = [...history, { role: 'user' as const, text: lastMessage }];
@@ -172,7 +172,7 @@ export const scrapeWebsiteContent = async (url: string): Promise<string> => {
         ],
         systemPrompt:
           'You are a precise Data Extractor. Extract business facts.',
-        model: 'gpt-4o-mini',
+        model: 'gpt-5o-mini',
       }),
     });
 
@@ -204,7 +204,7 @@ export const generateMarketingContent = async (
           },
         ],
         systemPrompt: `You are an expert Copywriter. Tone: ${tone}.`,
-        model: 'gpt-4o-mini',
+        model: 'gpt-5o-mini',
       }),
     });
     const data = await response.json();
@@ -233,7 +233,7 @@ export const generateWebsiteStructure = async (
         ],
         systemPrompt:
           'You are a Website Builder AI. Output JSON only with keys: headline, subheadline, features (array of strings), ctaText.',
-        model: 'gpt-4o-mini',
+        model: 'gpt-5o-mini',
       }),
     });
     const data = await response.json();

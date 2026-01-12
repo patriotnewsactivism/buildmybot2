@@ -22,7 +22,8 @@ import {
   Utensils,
   Wrench,
 } from 'lucide-react';
-import React, { useEffect, useState } from 'react';
+import type React from 'react';
+import { useEffect, useState } from 'react';
 
 interface PrebuiltKnowledgeBase {
   id: string;
@@ -123,7 +124,9 @@ export const PrebuiltKnowledgeSelector: React.FC<
       <div className="bg-white rounded-xl border border-slate-200 p-6">
         <div className="flex items-center justify-center py-8">
           <Loader className="animate-spin text-slate-400" size={24} />
-          <span className="ml-2 text-slate-500">Loading knowledge bases...</span>
+          <span className="ml-2 text-slate-500">
+            Loading knowledge bases...
+          </span>
         </div>
       </div>
     );

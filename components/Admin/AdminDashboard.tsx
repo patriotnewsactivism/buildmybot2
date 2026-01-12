@@ -40,7 +40,7 @@ import {
 } from 'recharts';
 import { PLANS, RESELLER_TIERS, VOICE_AGENT_PRICING } from '../../constants';
 import { dbService } from '../../services/dbService';
-import { type User, UserRole } from '../../types';
+import { PlanType, type User, UserRole } from '../../types';
 
 type TabType =
   | 'overview'
@@ -78,11 +78,47 @@ interface FreeCode {
   validUntil?: string;
 }
 
+interface RevenuePoint {
+  month: string;
+  amount: number;
+}
+
+interface AdminBotSummary {
+  id: string;
+  name: string;
+  type: string;
+  userId?: string | null;
+  active: boolean;
+}
+
+interface OrganizationSummary {
+  id: string;
+  name: string;
+  slug: string;
+  plan: string;
+  subscriptionStatus: string;
+}
+
+interface FeatureFlagSetting {
+  key: string;
+  enabled: boolean;
+}
+
+interface PlanSummary {
+  name: string;
+  price: number;
+  features: string[];
+}
+
+interface PlansData {
+  plans?: Record<string, PlanSummary>;
+}
+
 export const AdminDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<User[]>([]);
   const [partners, setPartners] = useState<User[]>([]);
-  const [revenueData, setRevenueData] = useState<any[]>([]);
+  const [revenueData, setRevenueData] = useState<RevenuePoint[]>([]);
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<'ADMIN' | 'RESELLER'>('ADMIN');
@@ -91,10 +127,10 @@ export const AdminDashboard: React.FC = () => {
 
   const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>([]);
   const [freeCodes, setFreeCodes] = useState<FreeCode[]>([]);
-  const [adminBots, setAdminBots] = useState<any[]>([]);
-  const [organizations, setOrganizations] = useState<any[]>([]);
-  const [featureFlags, setFeatureFlags] = useState<any[]>([]);
-  const [plansData, setPlansData] = useState<any>(null);
+  const [adminBots, setAdminBots] = useState<AdminBotSummary[]>([]);
+  const [organizations, setOrganizations] = useState<OrganizationSummary[]>([]);
+  const [featureFlags, setFeatureFlags] = useState<FeatureFlagSetting[]>([]);
+  const [plansData, setPlansData] = useState<PlansData | null>(null);
 
   const [showDiscountModal, setShowDiscountModal] = useState(false);
   const [showFreeCodeModal, setShowFreeCodeModal] = useState(false);
@@ -264,27 +300,28 @@ export const AdminDashboard: React.FC = () => {
   const handleSendInvite = async () => {
     if (!inviteEmail) return;
     setInviteError(false);
-    const inviteData = {
+    const inviteData: Omit<User, 'id'> = {
       email: inviteEmail,
       name: inviteEmail.split('@')[0],
       role: inviteRole === 'ADMIN' ? UserRole.ADMIN : UserRole.RESELLER,
-      plan: 'FREE' as any,
+      plan: PlanType.FREE,
       companyName:
         inviteRole === 'ADMIN' ? 'BuildMyBot Admin' : 'Partner Pending',
       status: 'Pending' as const,
+      createdAt: new Date().toISOString(),
       resellerCode:
         inviteRole === 'RESELLER'
           ? inviteEmail.substring(0, 3).toUpperCase() +
             Date.now().toString().slice(-4)
           : undefined,
     };
-    const result = await dbService.createUser(inviteData as any);
+    const result = await dbService.createUser(inviteData);
     if (result) {
       setInviteSent(true);
       setInviteEmail('');
       setTimeout(() => setInviteSent(false), 3000);
       if (inviteRole === 'RESELLER')
-        setPartners((prev) => [...prev, result as any]);
+        setPartners((prev) => [...prev, result]);
     } else {
       setInviteError(true);
       setTimeout(() => setInviteError(false), 4000);
@@ -725,8 +762,7 @@ export const AdminDashboard: React.FC = () => {
             </div>
             <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
               {plansData?.plans &&
-                Object.entries(plansData.plans).map(
-                  ([key, plan]: [string, any]) => (
+                Object.entries(plansData.plans).map(([key, plan]) => (
                     <div
                       key={key}
                       className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm"
@@ -741,8 +777,8 @@ export const AdminDashboard: React.FC = () => {
                       <ul className="text-sm text-slate-600 space-y-1">
                         {plan.features
                           .slice(0, 4)
-                          .map((f: string, i: number) => (
-                            <li key={i} className="flex items-center gap-1">
+                          .map((f: string) => (
+                            <li key={f} className="flex items-center gap-1">
                               <CheckCircle
                                 size={12}
                                 className="text-emerald-500"
@@ -824,7 +860,14 @@ export const AdminDashboard: React.FC = () => {
                           type="button"
                           onClick={() => {
                             setEditingDiscount(code);
-                            setDiscountForm(code as any);
+                            setDiscountForm({
+                              code: code.code,
+                              type: code.type,
+                              value: code.value,
+                              description: code.description || '',
+                              maxUses: code.maxUses || 0,
+                              validUntil: code.validUntil || '',
+                            });
                             setShowDiscountModal(true);
                           }}
                           className="text-xs text-blue-600 hover:underline"
@@ -941,7 +984,14 @@ export const AdminDashboard: React.FC = () => {
                           type="button"
                           onClick={() => {
                             setEditingFreeCode(code);
-                            setFreeCodeForm(code as any);
+                            setFreeCodeForm({
+                              code: code.code,
+                              plan: code.plan,
+                              durationDays: code.durationDays,
+                              description: code.description || '',
+                              maxUses: code.maxUses || 1,
+                              validUntil: code.validUntil || '',
+                            });
                             setShowFreeCodeModal(true);
                           }}
                           className="text-xs text-blue-600 hover:underline"
@@ -1011,7 +1061,7 @@ export const AdminDashboard: React.FC = () => {
                 },
               ].map((feature) => {
                 const flag = featureFlags.find(
-                  (f: any) => f.key === feature.key,
+                  (featureFlag) => featureFlag.key === feature.key,
                 );
                 const enabled = flag?.enabled ?? true;
                 return (

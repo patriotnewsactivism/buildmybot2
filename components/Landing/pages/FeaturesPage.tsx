@@ -277,13 +277,17 @@ const faqs = [
   },
 ];
 
+const createDemoMessageId = () =>
+  `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
 export const FeaturesPage: React.FC = () => {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState(0);
   const [demoMessages, setDemoMessages] = useState<
-    { role: 'user' | 'bot'; text: string }[]
-  >([
+    { id: string; role: 'user' | 'bot'; text: string }[]
+  >(() => [
     {
+      id: createDemoMessageId(),
       role: 'bot',
       text: "Hi! 👋 I'm the BuildMyBot demo assistant. Ask me anything about our features!",
     },
@@ -293,15 +297,22 @@ export const FeaturesPage: React.FC = () => {
   const chatRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (chatRef.current) {
+    if (!chatRef.current) {
+      return;
+    }
+    const shouldScroll = demoMessages.length > 0 || isTyping;
+    if (shouldScroll) {
       chatRef.current.scrollTop = chatRef.current.scrollHeight;
     }
-  }, [demoMessages, isTyping]);
+  }, [demoMessages.length, isTyping]);
 
   const handleDemoSend = () => {
     if (!demoInput.trim()) return;
     const userMsg = demoInput;
-    setDemoMessages((prev) => [...prev, { role: 'user', text: userMsg }]);
+    setDemoMessages((prev) => [
+      ...prev,
+      { id: createDemoMessageId(), role: 'user', text: userMsg },
+    ]);
     setDemoInput('');
     setIsTyping(true);
 
@@ -316,7 +327,7 @@ export const FeaturesPage: React.FC = () => {
         responses[Math.floor(Math.random() * responses.length)];
       setDemoMessages((prev) => [
         ...prev,
-        { role: 'bot', text: randomResponse },
+        { id: createDemoMessageId(), role: 'bot', text: randomResponse },
       ]);
       setIsTyping(false);
     }, 1500);
@@ -405,9 +416,9 @@ export const FeaturesPage: React.FC = () => {
             </div>
 
             <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {coreFeatures.map((feature, index) => (
+              {coreFeatures.map((feature) => (
                 <div
-                  key={index}
+                  key={feature.title}
                   className="group relative bg-white rounded-2xl p-6 border border-slate-200 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 overflow-hidden"
                 >
                   <div
@@ -432,9 +443,9 @@ export const FeaturesPage: React.FC = () => {
                     </p>
 
                     <ul className="space-y-2">
-                      {feature.highlights.map((highlight, i) => (
+                      {feature.highlights.map((highlight) => (
                         <li
-                          key={i}
+                          key={highlight}
                           className="flex items-center gap-2 text-sm text-slate-700"
                         >
                           <Check
@@ -489,9 +500,9 @@ export const FeaturesPage: React.FC = () => {
                   ref={chatRef}
                   className="h-80 overflow-y-auto p-4 space-y-4 bg-slate-50"
                 >
-                  {demoMessages.map((msg, i) => (
+                  {demoMessages.map((msg) => (
                     <div
-                      key={i}
+                      key={msg.id}
                       className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
                       <div
@@ -546,10 +557,10 @@ export const FeaturesPage: React.FC = () => {
                       'How does AI training work?',
                       'Tell me about Voice Agent',
                       'Pricing info',
-                    ].map((q, i) => (
+                    ].map((q) => (
                       <button
                         type="button"
-                        key={i}
+                        key={q}
                         onClick={() => {
                           setDemoInput(q);
                         }}
@@ -599,9 +610,9 @@ export const FeaturesPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {comparisonData.map((row, i) => (
+                  {comparisonData.map((row) => (
                     <tr
-                      key={i}
+                      key={row.feature}
                       className="border-b border-slate-800 hover:bg-slate-800/50 transition-colors"
                     >
                       <td className="py-4 px-4 text-slate-300">
@@ -686,9 +697,9 @@ export const FeaturesPage: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
-              {integrations.map((integration, i) => (
+              {integrations.map((integration) => (
                 <div
-                  key={i}
+                  key={integration.name}
                   className="group bg-slate-50 hover:bg-white border border-slate-200 hover:border-blue-300 rounded-2xl p-6 text-center transition-all duration-300 hover:shadow-lg hover:-translate-y-1"
                 >
                   <div className="text-4xl mb-3 group-hover:scale-110 transition-transform duration-300">
@@ -786,7 +797,7 @@ export const FeaturesPage: React.FC = () => {
             <div className="space-y-4">
               {faqs.map((faq, i) => (
                 <div
-                  key={i}
+                  key={faq.q}
                   className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition-shadow"
                 >
                   <button
