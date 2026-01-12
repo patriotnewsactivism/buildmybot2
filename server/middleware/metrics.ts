@@ -1,8 +1,13 @@
 import type { NextFunction, Request, Response } from 'express';
 import { systemMetricsService } from '../services/SystemMetricsService';
 
+interface MetricsRequest extends Request {
+  user?: { id?: string };
+  actor?: { id?: string };
+}
+
 export function metricsMiddleware(
-  req: Request,
+  req: MetricsRequest,
   res: Response,
   next: NextFunction,
 ): void {
@@ -13,7 +18,7 @@ export function metricsMiddleware(
       timestamp: Date.now(),
       status: res.statusCode,
       durationMs: Date.now() - start,
-      userId: (req as any).user?.id ?? (req as any).actor?.id,
+      userId: req.user?.id ?? req.actor?.id,
     });
   });
 
