@@ -45,17 +45,17 @@ export const PageLayout: React.FC<PageLayoutProps> = ({ children }) => {
             <h4 className="text-white font-bold mb-4">Product</h4>
             <ul className="space-y-2 text-sm">
               <li>
-                <a href="/#features" className="hover:text-white transition">
+                <a href="/features" className="hover:text-white transition">
                   Features
                 </a>
               </li>
               <li>
-                <a href="/#pricing" className="hover:text-white transition">
+                <a href="/pricing" className="hover:text-white transition">
                   Pricing
                 </a>
               </li>
               <li>
-                <a href="/#demo" className="hover:text-white transition">
+                <a href="/demo" className="hover:text-white transition">
                   Demo
                 </a>
               </li>
@@ -85,7 +85,7 @@ export const PageLayout: React.FC<PageLayoutProps> = ({ children }) => {
             <h4 className="text-white font-bold mb-4">Support</h4>
             <ul className="space-y-2 text-sm">
               <li>
-                <a href="/#faq" className="hover:text-white transition">
+                <a href="/faq" className="hover:text-white transition">
                   FAQ
                 </a>
               </li>

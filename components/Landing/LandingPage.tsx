@@ -116,6 +116,7 @@ export const LandingPage: React.FC<LandingProps> = ({
     setDemoIdentity({ name: randomName, color: randomColor });
   }, []);
 
+
   useEffect(() => {
     if (chatScrollRef.current) {
       chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
@@ -564,13 +565,13 @@ export const LandingPage: React.FC<LandingProps> = ({
           </span>
         </div>
         <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-600">
-          <a href="#features" className="hover:text-blue-700 transition-colors">
+          <a href="/features" className="hover:text-blue-700 transition-colors">
             Features
           </a>
-          <a href="#pricing" className="hover:text-blue-700 transition-colors">
+          <a href="/pricing" className="hover:text-blue-700 transition-colors">
             Pricing
           </a>
-          <a href="#faq" className="hover:text-blue-700 transition-colors">
+          <a href="/faq" className="hover:text-blue-700 transition-colors">
             FAQ
           </a>
           <button
@@ -605,21 +606,21 @@ export const LandingPage: React.FC<LandingProps> = ({
         <div className="md:hidden fixed inset-0 top-16 bg-white z-30 animate-in slide-in-from-top-2">
           <div className="flex flex-col p-6 space-y-4">
             <a
-              href="#features"
+              href="/features"
               onClick={() => setIsMobileMenuOpen(false)}
               className="text-lg font-medium text-slate-700 hover:text-blue-700 py-3 border-b border-slate-100"
             >
               Features
             </a>
             <a
-              href="#pricing"
+              href="/pricing"
               onClick={() => setIsMobileMenuOpen(false)}
               className="text-lg font-medium text-slate-700 hover:text-blue-700 py-3 border-b border-slate-100"
             >
               Pricing
             </a>
             <a
-              href="#faq"
+              href="/faq"
               onClick={() => setIsMobileMenuOpen(false)}
               className="text-lg font-medium text-slate-700 hover:text-blue-700 py-3 border-b border-slate-100"
             >
@@ -677,7 +678,7 @@ export const LandingPage: React.FC<LandingProps> = ({
               Start Free <ArrowRight size={20} />
             </button>
             <a
-              href="#demo"
+              href="/demo"
               className="w-full sm:w-auto bg-white text-slate-700 border-2 border-slate-200 px-10 py-4 rounded-2xl font-bold text-lg hover:border-blue-300 hover:text-blue-700 transition-all flex items-center justify-center gap-3 shadow-sm"
             >
               <Play size={20} /> See It In Action
@@ -1347,7 +1348,7 @@ export const LandingPage: React.FC<LandingProps> = ({
               Start Free Now <ArrowRight size={20} />
             </button>
             <a
-              href="#demo"
+              href="/demo"
               className="w-full sm:w-auto border-2 border-white text-white px-8 py-4 rounded-xl font-bold text-lg hover:bg-white/10 transition flex items-center justify-center gap-2"
             >
               <Play size={20} /> Watch Demo
@@ -1387,12 +1388,12 @@ export const LandingPage: React.FC<LandingProps> = ({
                 </a>
               </li>
               <li>
-                <a href="#pricing" className="hover:text-white transition">
+                <a href="/pricing" className="hover:text-white transition">
                   Pricing
                 </a>
               </li>
               <li>
-                <a href="#demo" className="hover:text-white transition">
+                <a href="/demo" className="hover:text-white transition">
                   Demo
                 </a>
               </li>
@@ -1422,7 +1423,7 @@ export const LandingPage: React.FC<LandingProps> = ({
             <h4 className="text-white font-bold mb-4">Support</h4>
             <ul className="space-y-2 text-sm">
               <li>
-                <a href="#faq" className="hover:text-white transition">
+                <a href="/faq" className="hover:text-white transition">
                   FAQ
                 </a>
               </li>

@@ -364,7 +364,7 @@ export const FeaturesPage: React.FC = () => {
                   />
                 </a>
                 <a
-                  href="#demo"
+                  href="/demo"
                   className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm text-white border border-white/20 px-8 py-4 rounded-xl font-bold hover:bg-white/20 transition-all"
                 >
                   <Play size={18} />
