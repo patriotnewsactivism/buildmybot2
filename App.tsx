@@ -274,6 +274,41 @@ function App() {
       });
   }, [user]);
 
+  const handleManualAuth = (
+    email: string,
+    name?: string,
+    companyName?: string,
+  ) => {
+    // Check master admin list for manual auth as well
+    const isMasterAdmin = MASTER_ADMINS.includes(email.toLowerCase());
+
+    const newUser: User = {
+      id: `demo-user-${Date.now()}`,
+      name: name || email.split('@')[0],
+      email: email,
+      role: isMasterAdmin ? UserRole.MASTER_ADMIN : UserRole.OWNER,
+      plan: PlanType.FREE,
+      companyName: companyName || 'Demo Company',
+      createdAt: new Date().toISOString(),
+    };
+
+    setUser(newUser);
+    setIsLoggedIn(true);
+    dbService.setAuthContext({ userId: newUser.id });
+    setAuthModalOpen(false);
+
+    setNotification(
+      isMasterAdmin ? 'Welcome Master Admin' : 'Logged in successfully',
+    );
+
+    // Auto-switch view for admin (MasterAdmin or ADMIN roles)
+    if (isMasterAdmin) {
+      setCurrentView('admin');
+    }
+
+    setTimeout(() => setNotification(null), 3000);
+  };
+
   const currentPath = window.location.pathname;
   if (currentPath.startsWith('/chat/')) {
     const botId = currentPath.split('/')[2];
@@ -394,41 +429,6 @@ function App() {
       impersonationToken: undefined,
     });
     setNotification('Logged out successfully');
-    setTimeout(() => setNotification(null), 3000);
-  };
-
-  const handleManualAuth = (
-    email: string,
-    name?: string,
-    companyName?: string,
-  ) => {
-    // Check master admin list for manual auth as well
-    const isMasterAdmin = MASTER_ADMINS.includes(email.toLowerCase());
-
-    const newUser: User = {
-      id: `demo-user-${Date.now()}`,
-      name: name || email.split('@')[0],
-      email: email,
-      role: isMasterAdmin ? UserRole.MASTER_ADMIN : UserRole.OWNER,
-      plan: PlanType.FREE,
-      companyName: companyName || 'Demo Company',
-      createdAt: new Date().toISOString(),
-    };
-
-    setUser(newUser);
-    setIsLoggedIn(true);
-    dbService.setAuthContext({ userId: newUser.id });
-    setAuthModalOpen(false);
-
-    setNotification(
-      isMasterAdmin ? 'Welcome Master Admin' : 'Logged in successfully',
-    );
-
-    // Auto-switch view for admin (MasterAdmin or ADMIN roles)
-    if (isMasterAdmin) {
-      setCurrentView('admin');
-    }
-
     setTimeout(() => setNotification(null), 3000);
   };
 
