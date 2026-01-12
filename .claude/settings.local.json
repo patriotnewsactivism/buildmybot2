@@ -67,7 +67,8 @@
       "Bash(git commit:*)",
       "Bash(railway login:*)",
       "Bash(npm run test:run:*)",
-      "Bash(npm run test:coverage:*)"
+      "Bash(npm run test:coverage:*)",
+      "Bash(npm run db:migrate:*)"
     ]
   }
 }
