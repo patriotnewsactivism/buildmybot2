@@ -5,6 +5,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { knowledgeChunks, knowledgeSources } from '../../shared/schema';
 import { db } from '../db';
 import { env } from '../env';
+import * as pdfjsLib from 'pdfjs-dist';
+import { createCanvas } from 'canvas';
 const require = createRequire(import.meta.url);
 const pdfParse = require('pdf-parse');
 
@@ -33,16 +35,44 @@ export class DocumentProcessorService {
 
     try {
       if (mimeType === 'application/pdf') {
+        // First try standard PDF text extraction
         const pdfResult =
           await DocumentProcessorService.extractTextFromPdf(buffer);
         content = pdfResult.text;
         pageCount = pdfResult.pageCount;
+
+        // If extraction yielded very little text, try enhanced extraction with pdfjs
         if (content.trim().length < 100) {
-          content = await DocumentProcessorService.extractTextWithOCR(
-            buffer,
-            mimeType,
-          );
-          ocrUsed = true;
+          console.log('Low text content detected, trying enhanced PDF extraction...');
+          const enhancedResult = await DocumentProcessorService.extractTextFromPdfEnhanced(buffer);
+          if (enhancedResult.text.trim().length > content.trim().length) {
+            content = enhancedResult.text;
+            pageCount = enhancedResult.pageCount;
+          }
+        }
+
+        // If still very little text, this is likely a scanned/image-based PDF
+        // Try OCR on the PDF pages
+        if (content.trim().length < 100) {
+          console.log('Scanned PDF detected, attempting OCR...');
+          try {
+            const ocrContent = await DocumentProcessorService.extractTextFromPdfWithOCR(buffer);
+            if (ocrContent.trim().length > content.trim().length) {
+              content = ocrContent;
+              ocrUsed = true;
+              console.log(`OCR successful: extracted ${content.length} characters`);
+            }
+          } catch (ocrError: any) {
+            console.error('OCR failed for PDF:', ocrError.message);
+            // If OCR fails but we have some text, use it
+            if (content.trim().length > 0) {
+              console.log('Using partial text extraction despite OCR failure');
+            } else {
+              throw new Error(
+                `Unable to extract text from PDF. The document appears to be empty or heavily damaged. Original error: ${ocrError.message}`
+              );
+            }
+          }
         }
       } else if (mimeType.includes('image/')) {
         content = await DocumentProcessorService.extractTextWithOCR(
@@ -118,6 +148,114 @@ export class DocumentProcessorService {
     } catch (error: any) {
       console.error('PDF parse error:', error.message);
       return { text: '', pageCount: 0 };
+    }
+  }
+
+  /**
+   * Enhanced PDF text extraction using pdfjs-dist
+   * Better at extracting text from complex PDFs
+   */
+  static async extractTextFromPdfEnhanced(
+    buffer: Buffer,
+  ): Promise<{ text: string; pageCount: number }> {
+    try {
+      // Load the PDF document
+      const typedArray = new Uint8Array(buffer);
+      const loadingTask = pdfjsLib.getDocument({
+        data: typedArray,
+        useSystemFonts: true,
+      });
+      const pdfDocument = await loadingTask.promise;
+      const pageCount = pdfDocument.numPages;
+
+      let fullText = '';
+
+      // Extract text from each page
+      for (let i = 1; i <= pageCount; i++) {
+        const page = await pdfDocument.getPage(i);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items
+          .map((item: any) => item.str)
+          .join(' ');
+        fullText += pageText + '\n\n';
+      }
+
+      return {
+        text: fullText.replace(/\s+/g, ' ').trim(),
+        pageCount,
+      };
+    } catch (error: any) {
+      console.error('Enhanced PDF extraction error:', error.message);
+      return { text: '', pageCount: 0 };
+    }
+  }
+
+  /**
+   * Extract text from scanned/image-based PDFs using OCR
+   * Renders each page and sends to OpenAI's vision API
+   */
+  static async extractTextFromPdfWithOCR(buffer: Buffer): Promise<string> {
+    try {
+      // Load the PDF document
+      const typedArray = new Uint8Array(buffer);
+      const loadingTask = pdfjsLib.getDocument({
+        data: typedArray,
+        useSystemFonts: true,
+      });
+      const pdfDocument = await loadingTask.promise;
+      const pageCount = pdfDocument.numPages;
+
+      let fullText = '';
+
+      // For now, limit OCR to first 10 pages to avoid excessive API costs
+      const pagesToProcess = Math.min(pageCount, 10);
+
+      console.log(`Processing ${pagesToProcess} pages with OCR (total pages: ${pageCount})`);
+
+      for (let i = 1; i <= pagesToProcess; i++) {
+        try {
+          const page = await pdfDocument.getPage(i);
+
+          // Get page viewport at 2x scale for better OCR quality
+          const viewport = page.getViewport({ scale: 2.0 });
+
+          // Create canvas and render page
+          const canvas = createCanvas(viewport.width, viewport.height);
+          const context = canvas.getContext('2d');
+
+          await page.render({
+            canvasContext: context as any,
+            viewport: viewport,
+          }).promise;
+
+          // Convert canvas to PNG buffer
+          const pngBuffer = canvas.toBuffer('image/png');
+
+          console.log(`OCR processing page ${i}/${pagesToProcess}...`);
+
+          // Run OCR on the rendered page
+          const pageText = await DocumentProcessorService.extractTextWithOCR(
+            pngBuffer,
+            'image/png'
+          );
+
+          fullText += `\n\n--- Page ${i} ---\n\n${pageText}`;
+
+        } catch (pageError: any) {
+          console.error(`Error processing page ${i}:`, pageError.message);
+          // Continue with other pages even if one fails
+          fullText += `\n\n--- Page ${i} (OCR failed) ---\n\n`;
+        }
+      }
+
+      if (pageCount > pagesToProcess) {
+        fullText += `\n\n[Note: Only processed first ${pagesToProcess} of ${pageCount} pages to manage OCR costs]`;
+      }
+
+      return fullText.trim();
+    } catch (error: any) {
+      console.error('PDF OCR extraction error:', error.message);
+      throw new Error(`Failed to perform OCR on PDF: ${error.message}`);
     }
   }
 
