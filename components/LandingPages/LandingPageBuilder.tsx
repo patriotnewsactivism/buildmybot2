@@ -1240,7 +1240,7 @@ export const LandingPageBuilder: React.FC<LandingPageBuilderProps> = ({
 
               <div className="flex-1 overflow-y-auto flex justify-center p-4 md:p-8">
                 <div
-                  className={`bg-white shadow-xl transition-all duration-300 overflow-hidden ${previewMode === 'mobile' ? 'w-[375px] rounded-3xl border-8 border-slate-800' : 'w-full rounded-lg'}`}
+                  className={`bg-white shadow-xl transition-all duration-300 overflow-hidden ${previewMode === 'mobile' ? 'w-full max-w-[375px] rounded-3xl border-8 border-slate-800' : 'w-full rounded-lg'}`}
                 >
                   <div className="flex flex-col min-h-full">
                     <nav className="p-4 border-b border-gray-100 flex justify-between items-center">
