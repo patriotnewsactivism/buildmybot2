@@ -324,7 +324,10 @@ export const TemplateMarketplace: React.FC<TemplateMarketplaceProps> = ({
         >
           <PremiumCard className="p-4 space-y-5">
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">
+              <label
+                htmlFor="template-search"
+                className="block text-sm font-semibold text-slate-700 mb-2"
+              >
                 Search
               </label>
               <div className="relative">
@@ -333,6 +336,7 @@ export const TemplateMarketplace: React.FC<TemplateMarketplaceProps> = ({
                   size={18}
                 />
                 <input
+                  id="template-search"
                   type="text"
                   placeholder="Search templates..."
                   value={searchTerm}
@@ -343,9 +347,9 @@ export const TemplateMarketplace: React.FC<TemplateMarketplaceProps> = ({
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">
+              <p className="block text-sm font-semibold text-slate-700 mb-2">
                 Category
-              </label>
+              </p>
               <div className="flex flex-wrap gap-2">
                 {categories.slice(0, 6).map((cat) => (
                   <button
@@ -378,10 +382,14 @@ export const TemplateMarketplace: React.FC<TemplateMarketplaceProps> = ({
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">
+              <label
+                htmlFor="template-industry"
+                className="block text-sm font-semibold text-slate-700 mb-2"
+              >
                 Industry
               </label>
               <select
+                id="template-industry"
                 value={industryFilter}
                 onChange={(e) => setIndustryFilter(e.target.value)}
                 className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-orange-500"
@@ -395,9 +403,9 @@ export const TemplateMarketplace: React.FC<TemplateMarketplaceProps> = ({
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">
+              <p className="block text-sm font-semibold text-slate-700 mb-2">
                 Price
-              </label>
+              </p>
               <div className="flex gap-2">
                 {(['all', 'free', 'paid'] as PriceFilter[]).map((price) => (
                   <button
@@ -421,10 +429,14 @@ export const TemplateMarketplace: React.FC<TemplateMarketplaceProps> = ({
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">
+              <label
+                htmlFor="template-sort"
+                className="block text-sm font-semibold text-slate-700 mb-2"
+              >
                 Sort By
               </label>
               <select
+                id="template-sort"
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as SortType)}
                 className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-orange-500"
@@ -658,9 +670,9 @@ export const TemplateMarketplace: React.FC<TemplateMarketplaceProps> = ({
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                       {selectedTemplate.configuration.features.map(
-                        (feature, idx) => (
+                        (feature) => (
                           <div
-                            key={idx}
+                            key={feature}
                             className="flex items-center gap-2 text-sm text-slate-600 bg-slate-50 px-3 py-2 rounded-lg"
                           >
                             <CheckCircle
@@ -684,9 +696,9 @@ export const TemplateMarketplace: React.FC<TemplateMarketplaceProps> = ({
                     </h3>
                     <div className="bg-slate-50 rounded-xl p-4 space-y-3 border border-slate-100">
                       {selectedTemplate.configuration.previewFlow.map(
-                        (msg, idx) => (
+                        (msg) => (
                           <div
-                            key={idx}
+                            key={`${msg.role}-${msg.text}`}
                             className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                           >
                             <div

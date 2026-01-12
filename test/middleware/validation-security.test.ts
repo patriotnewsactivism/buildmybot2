@@ -427,10 +427,10 @@ describe('Security Middleware', () => {
         'javascript:alert("XSS")',
       ];
 
-      inputs.forEach((input) => {
+      for (const input of inputs) {
         const hasScript = /<script|javascript:|onerror=/i.test(input);
         expect(hasScript).toBe(true);
-      });
+      }
     });
 
     it('validates safe HTML', () => {
@@ -449,10 +449,10 @@ describe('Security Middleware', () => {
         'UNION SELECT * FROM passwords',
       ];
 
-      inputs.forEach((input) => {
+      for (const input of inputs) {
         const hasSqlPattern = /('|;|--|UNION|DROP|SELECT)/i.test(input);
         expect(hasSqlPattern).toBe(true);
-      });
+      }
     });
 
     it('validates parameterized queries', () => {
