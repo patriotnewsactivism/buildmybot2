@@ -48,6 +48,8 @@ interface EnhancedMarketplaceProps {
   onInstall?: (template: Template) => void;
 }
 
+type SortOption = 'popular' | 'rating' | 'new';
+
 const EXPANDED_TEMPLATES: Template[] = [
   {
     id: 't1',
@@ -345,7 +347,7 @@ export const EnhancedMarketplace: React.FC<EnhancedMarketplaceProps> = ({
 }) => {
   const [filter, setFilter] = useState('All');
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortBy, setSortBy] = useState<'popular' | 'rating' | 'new'>('popular');
+  const [sortBy, setSortBy] = useState<SortOption>('popular');
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(
     null,
   );
@@ -421,7 +423,7 @@ export const EnhancedMarketplace: React.FC<EnhancedMarketplaceProps> = ({
           <div className="flex gap-2">
             <select
               value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as any)}
+              onChange={(e) => setSortBy(e.target.value as SortOption)}
               className="px-4 py-2 rounded-lg border-slate-200 focus:ring-blue-900 focus:border-blue-900 text-sm"
             >
               <option value="popular">Most Popular</option>
@@ -628,9 +630,9 @@ export const EnhancedMarketplace: React.FC<EnhancedMarketplaceProps> = ({
                   Key Features
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {selectedTemplate.features.map((feature, idx) => (
+                  {selectedTemplate.features.map((feature) => (
                     <div
-                      key={idx}
+                      key={feature}
                       className="flex items-center gap-2 text-sm text-slate-600"
                     >
                       <CheckCircle
@@ -677,12 +679,12 @@ export const EnhancedMarketplace: React.FC<EnhancedMarketplaceProps> = ({
                               {review.author}
                             </div>
                             <div className="flex items-center gap-1 mt-1">
-                              {[...Array(5)].map((_, i) => (
+                              {[1, 2, 3, 4, 5].map((star) => (
                                 <Star
-                                  key={i}
+                                  key={star}
                                   size={12}
                                   className={
-                                    i < review.rating
+                                    star <= review.rating
                                       ? 'text-yellow-500 fill-current'
                                       : 'text-slate-300'
                                   }
