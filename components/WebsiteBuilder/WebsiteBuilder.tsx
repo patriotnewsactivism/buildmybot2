@@ -53,9 +53,9 @@ export const WebsiteBuilder: React.FC = () => {
   };
 
   return (
-    <div className="h-[calc(100vh-8rem)] flex gap-6 animate-fade-in">
+    <div className="flex flex-col lg:flex-row gap-4 md:gap-6 animate-fade-in h-auto lg:h-[calc(100vh-8rem)]">
       {/* Editor Sidebar */}
-      <div className="w-80 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-y-auto">
+      <div className="w-full lg:w-80 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-y-auto">
         <div className="p-6 border-b border-slate-100">
           <h2 className="font-bold text-slate-800 flex items-center gap-2">
             <Layout className="text-blue-900" size={20} /> Site Builder
@@ -152,10 +152,10 @@ export const WebsiteBuilder: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto flex justify-center p-8">
+        <div className="flex-1 overflow-y-auto flex justify-center p-4 md:p-8">
           {siteData ? (
             <div
-              className={`bg-white shadow-xl transition-all duration-300 overflow-hidden ${previewMode === 'mobile' ? 'w-[375px] rounded-3xl border-8 border-slate-800' : 'w-full rounded-lg'}`}
+              className={`bg-white shadow-xl transition-all duration-300 overflow-hidden ${previewMode === 'mobile' ? 'w-full max-w-[375px] rounded-3xl border-8 border-slate-800' : 'w-full rounded-lg'}`}
             >
               {/* Mock Generated Website */}
               <div className="flex flex-col min-h-full">
