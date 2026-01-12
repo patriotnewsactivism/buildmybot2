@@ -610,8 +610,69 @@ export const UsageCredits: React.FC<UsageCreditsProps> = ({
             </p>
           </div>
         ) : (
-          <div className="overflow-x-hidden md:overflow-x-auto">
-            <table className="w-full">
+          <>
+            <div className="md:hidden space-y-3">
+              {usageHistory.map((entry) => {
+                const config =
+                  resourceTypeConfig[entry.resourceType] ||
+                  resourceTypeConfig.sms_credits;
+                const Icon = config.icon;
+                return (
+                  <div
+                    key={entry.id}
+                    className="border border-slate-200 rounded-lg p-4 bg-white"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <div
+                          className={`p-1.5 rounded-lg bg-gradient-to-br ${config.gradient}`}
+                        >
+                          <Icon size={14} className="text-white" />
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium text-slate-700">
+                            {config.label}
+                          </div>
+                          <div className="text-xs text-slate-500">
+                            {entry.description || 'Usage'}
+                          </div>
+                        </div>
+                      </div>
+                      <div
+                        className={`text-sm font-semibold ${
+                          entry.amount > 0
+                            ? 'text-emerald-600'
+                            : 'text-red-600'
+                        }`}
+                      >
+                        {entry.amount > 0 ? '+' : ''}
+                        {entry.amount.toLocaleString()}
+                      </div>
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <div className="text-xs uppercase tracking-wide text-slate-400">
+                          Balance After
+                        </div>
+                        <div className="text-slate-700 font-medium">
+                          {entry.balanceAfter?.toLocaleString() ?? '-'}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs uppercase tracking-wide text-slate-400">
+                          Date
+                        </div>
+                        <div className="text-slate-700 font-medium">
+                          {formatDate(entry.createdAt)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full">
               <thead>
                 <tr className="border-b border-slate-100">
                   <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider py-3 px-4">
@@ -681,6 +742,7 @@ export const UsageCredits: React.FC<UsageCreditsProps> = ({
               </tbody>
             </table>
           </div>
+          </>
         )}
       </PremiumCard>
 

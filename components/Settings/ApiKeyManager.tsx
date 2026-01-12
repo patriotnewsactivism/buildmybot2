@@ -536,8 +536,133 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
             </button>
           </div>
         ) : (
-          <div className="overflow-x-hidden md:overflow-x-auto mx-0">
-            <table className="w-full md:min-w-[700px]">
+          <>
+            <div className="md:hidden space-y-4">
+              {apiKeys.map((key) => (
+                <div
+                  key={key.id}
+                  className="border border-slate-200 rounded-lg p-4 bg-white space-y-3"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="font-semibold text-slate-900 truncate">
+                        {key.name}
+                      </div>
+                      <div className="text-xs text-slate-500 mt-0.5">
+                        Rate: {key.rateLimitPerMin}/min
+                      </div>
+                    </div>
+                    {key.isActive ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                        Active
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-red-50 text-red-700">
+                        <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                        Revoked
+                      </span>
+                    )}
+                  </div>
+                  <div>
+                    <div className="text-xs uppercase tracking-wide text-slate-400 mb-1">
+                      Key Prefix
+                    </div>
+                    <code className="text-xs font-mono text-slate-600 bg-slate-100 px-2 py-1 rounded break-all inline-block">
+                      {key.keyPrefix}...
+                    </code>
+                  </div>
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setShowScopes(showScopes === key.id ? null : key.id)
+                      }
+                      className="flex items-center gap-1 text-sm text-slate-600 hover:text-slate-900"
+                    >
+                      {showScopes === key.id ? (
+                        <EyeOff size={14} />
+                      ) : (
+                        <Eye size={14} />
+                      )}
+                      {(key.scopes as string[]).includes('*')
+                        ? 'Full Access'
+                        : `${(key.scopes as string[]).length} scopes`}
+                    </button>
+                    {showScopes === key.id && (
+                      <div className="mt-2 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                        <div className="text-xs font-medium text-slate-500 mb-2">
+                          Permissions
+                        </div>
+                        <div className="space-y-1">
+                          {(key.scopes as string[]).map((scope) => (
+                            <div
+                              key={scope}
+                              className="text-sm text-slate-700 flex items-center gap-2"
+                            >
+                              <Check size={12} className="text-emerald-500" />
+                              {scope === '*' ? 'Full Access' : scope}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-slate-400">
+                        Last Used
+                      </div>
+                      <div className="text-slate-700 font-medium">
+                        {formatDateTime(key.lastUsedAt)}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-slate-400">
+                        Created
+                      </div>
+                      <div className="text-slate-700 font-medium">
+                        {formatDate(key.createdAt)}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(key.keyPrefix, key.id)}
+                      className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                      title="Copy prefix"
+                    >
+                      {copiedKeyId === key.id ? (
+                        <Check size={16} className="text-emerald-500" />
+                      ) : (
+                        <Copy size={16} />
+                      )}
+                    </button>
+                    {key.isActive && (
+                      <button
+                        type="button"
+                        onClick={() => revokeApiKey(key.id)}
+                        className="p-2 text-amber-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                        title="Revoke key"
+                      >
+                        <Ban size={16} />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => deleteApiKey(key.id)}
+                      className="p-2 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Delete key"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="hidden md:block overflow-x-auto mx-0">
+              <table className="w-full md:min-w-[700px]">
               <thead>
                 <tr className="border-b border-slate-100">
                   <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
@@ -681,6 +806,7 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
               </tbody>
             </table>
           </div>
+          </>
         )}
       </PremiumCard>
 
@@ -755,8 +881,56 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
             <p className="text-slate-500">No API requests logged yet</p>
           </div>
         ) : (
-          <div className="overflow-x-hidden md:overflow-x-auto mx-0">
-            <table className="w-full md:min-w-[600px]">
+          <>
+            <div className="md:hidden space-y-3">
+              {logs.map((log) => (
+                <div
+                  key={log.id}
+                  className="border border-slate-200 rounded-lg p-4 bg-white"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <span
+                      className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${getMethodColor(log.method)}`}
+                    >
+                      {log.method}
+                    </span>
+                    <span
+                      className={`text-sm font-medium ${getStatusColor(log.statusCode)}`}
+                    >
+                      {log.statusCode}
+                    </span>
+                  </div>
+                  <div className="mt-2">
+                    <div className="text-xs uppercase tracking-wide text-slate-400">
+                      Endpoint
+                    </div>
+                    <code className="text-sm text-slate-700 break-all">
+                      {log.endpoint}
+                    </code>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-slate-400">
+                        Response Time
+                      </div>
+                      <div className="text-slate-700 font-medium">
+                        {log.responseTimeMs}ms
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-slate-400">
+                        Time
+                      </div>
+                      <div className="text-slate-700 font-medium">
+                        {formatDateTime(log.createdAt)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="hidden md:block overflow-x-auto mx-0">
+              <table className="w-full md:min-w-[600px]">
               <thead>
                 <tr className="border-b border-slate-100">
                   <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
@@ -812,6 +986,7 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
               </tbody>
             </table>
           </div>
+          </>
         )}
       </PremiumCard>
 

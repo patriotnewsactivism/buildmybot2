@@ -43,6 +43,19 @@ export const PartnerProgramPage: React.FC<PartnerProps> = ({
   const [clientCount, setClientCount] = useState(25);
   const [avgPrice, setAvgPrice] = useState(99);
 
+  const clampNumber = (value: number, min: number, max: number) =>
+    Math.min(Math.max(value, min), max);
+
+  const handleClientCountChange = (value: string) => {
+    const next = Number.parseInt(value, 10);
+    setClientCount(Number.isNaN(next) ? 1 : clampNumber(next, 1, 500));
+  };
+
+  const handleAvgPriceChange = (value: string) => {
+    const next = Number.parseInt(value, 10);
+    setAvgPrice(Number.isNaN(next) ? 49 : clampNumber(next, 49, 499));
+  };
+
   // Calculate earnings based on tiers
   const currentTier =
     RESELLER_TIERS.find((t) => clientCount >= t.min && clientCount <= t.max) ||
@@ -404,68 +417,63 @@ export const PartnerProgramPage: React.FC<PartnerProps> = ({
                 Calculate Your Potential
               </h2>
               <p className="text-slate-600 mb-8">
-                See exactly how much recurring revenue you can generate. Drag
-                the sliders to simulate your growth.
+                See exactly how much recurring revenue you can generate. Enter
+                your numbers to model your growth.
               </p>
 
               <div className="space-y-8">
                 <div>
-                  <div className="flex justify-between mb-2">
-                    <label
-                      htmlFor="partner-client-count"
-                      className="font-bold text-slate-700"
-                    >
-                      Active Clients
-                    </label>
-                    <span className="text-blue-900 font-bold bg-blue-50 px-3 py-1 rounded-lg">
-                      {clientCount}
+                  <label
+                    htmlFor="partner-client-count"
+                    className="font-bold text-slate-700"
+                  >
+                    Active Clients
+                  </label>
+                  <div className="mt-2 flex flex-col sm:flex-row sm:items-center gap-3">
+                    <input
+                      id="partner-client-count"
+                      type="number"
+                      inputMode="numeric"
+                      min="1"
+                      max="500"
+                      step="1"
+                      value={clientCount}
+                      onChange={(e) => handleClientCountChange(e.target.value)}
+                      className="w-full sm:w-40 px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-900 focus:border-blue-900"
+                    />
+                    <span className="text-xs text-slate-400">
+                      Min 1, max 500 clients
                     </span>
-                  </div>
-                  <input
-                    id="partner-client-count"
-                    type="range"
-                    min="1"
-                    max="500"
-                    step="1"
-                    value={clientCount}
-                    onChange={(e) =>
-                      setClientCount(Number.parseInt(e.target.value))
-                    }
-                    className="w-full h-3 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-900"
-                  />
-                  <div className="flex justify-between text-xs text-slate-400 mt-2">
-                    <span>1 Client</span>
-                    <span>500 Clients</span>
                   </div>
                 </div>
 
                 <div>
-                  <div className="flex justify-between mb-2">
-                    <label
-                      htmlFor="partner-avg-price"
-                      className="font-bold text-slate-700"
-                    >
-                      Avg. Monthly Price You Charge
-                    </label>
-                    <span className="text-emerald-700 font-bold bg-emerald-50 px-3 py-1 rounded-lg">
-                      ${avgPrice}
+                  <label
+                    htmlFor="partner-avg-price"
+                    className="font-bold text-slate-700"
+                  >
+                    Avg. Monthly Price You Charge
+                  </label>
+                  <div className="mt-2 flex flex-col sm:flex-row sm:items-center gap-3">
+                    <div className="relative w-full sm:w-40">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                        $
+                      </span>
+                      <input
+                        id="partner-avg-price"
+                        type="number"
+                        inputMode="numeric"
+                        min="49"
+                        max="499"
+                        step="1"
+                        value={avgPrice}
+                        onChange={(e) => handleAvgPriceChange(e.target.value)}
+                        className="w-full pl-7 pr-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                      />
+                    </div>
+                    <span className="text-xs text-slate-400">
+                      Min $49, max $499 per month
                     </span>
-                  </div>
-                  <input
-                    id="partner-avg-price"
-                    type="range"
-                    min="49"
-                    max="499"
-                    step="10"
-                    value={avgPrice}
-                    onChange={(e) =>
-                      setAvgPrice(Number.parseInt(e.target.value))
-                    }
-                    className="w-full h-3 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
-                  />
-                  <div className="flex justify-between text-xs text-slate-400 mt-2">
-                    <span>$49/mo</span>
-                    <span>$499/mo</span>
                   </div>
                 </div>
               </div>

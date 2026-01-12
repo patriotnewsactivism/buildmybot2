@@ -1,3 +1,9 @@
+<!-- BRAND_HEADER -->
+<p class="brand-header">
+  <img src="../../public/logo.jpg" alt="BuildMyBot.App" class="brand-logo" />
+  <span class="brand-meta">BuildMyBot.App | Speed-to-Lead Revenue Recovery</span>
+</p>
+
 # BuildMyBot Partner Playbook
 
 ## Purpose

@@ -362,7 +362,55 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
               Detailed Bot Performance
             </h3>
           </div>
-          <div className="overflow-x-hidden md:overflow-x-auto">
+          <div className="md:hidden p-4 space-y-3">
+            {performance.map((bot) => (
+              <div
+                key={bot.botId || bot.botName}
+                className="border border-slate-200 rounded-lg p-4 bg-white"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="font-semibold text-slate-900 truncate">
+                      {bot.botName}
+                    </div>
+                  </div>
+                  <span className="px-2 py-1 text-xs font-medium bg-emerald-100 text-emerald-800 rounded-full">
+                    {bot.conversionRate
+                      ? `${bot.conversionRate.toFixed(1)}%`
+                      : '0%'}
+                  </span>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <div className="text-xs uppercase tracking-wide text-slate-400">
+                      Conversations
+                    </div>
+                    <div className="text-slate-700 font-medium">
+                      {bot.conversationCount || 0}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs uppercase tracking-wide text-slate-400">
+                      Leads
+                    </div>
+                    <div className="text-slate-700 font-medium">
+                      {bot.leadCount || 0}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs uppercase tracking-wide text-slate-400">
+                      Avg. Messages
+                    </div>
+                    <div className="text-slate-700 font-medium">
+                      {bot.avgMessages ? bot.avgMessages.toFixed(1) : '0'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full">
               <thead className="bg-slate-50">
                 <tr>
