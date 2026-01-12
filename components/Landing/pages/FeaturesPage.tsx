@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import type React from 'react';
 import { useEffect, useRef, useState } from 'react';
+import { SEO, SEOConfig } from '../../SEO/SEO';
 import { PageLayout } from './PageLayout';
 
 const coreFeatures = [
@@ -295,6 +296,18 @@ export const FeaturesPage: React.FC = () => {
   const [demoInput, setDemoInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const chatRef = useRef<HTMLDivElement>(null);
+  const faqStructuredData = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: faqs.map((faq) => ({
+      '@type': 'Question',
+      name: faq.q,
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: faq.a,
+      },
+    })),
+  };
 
   useEffect(() => {
     if (!chatRef.current) {
@@ -335,6 +348,12 @@ export const FeaturesPage: React.FC = () => {
 
   return (
     <PageLayout>
+      <SEO
+        title={SEOConfig.features.title}
+        description={SEOConfig.features.description}
+        keywords={SEOConfig.features.keywords}
+        structuredData={faqStructuredData}
+      />
       <div className="relative overflow-hidden">
         <section className="relative py-24 lg:py-32 overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900" />

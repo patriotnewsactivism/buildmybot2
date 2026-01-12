@@ -1,9 +1,15 @@
 import type React from 'react';
+import { SEO, SEOConfig } from '../../SEO/SEO';
 import { PageLayout } from './PageLayout';
 
 export const PrivacyPage: React.FC = () => {
   return (
     <PageLayout>
+      <SEO
+        title={SEOConfig.privacy.title}
+        description={SEOConfig.privacy.description}
+        keywords={SEOConfig.privacy.keywords}
+      />
       <div className="max-w-4xl mx-auto px-6 lg:px-12 py-16">
         <h1 className="text-4xl md:text-5xl font-extrabold text-slate-900 mb-4">
           Privacy Policy

@@ -9,6 +9,7 @@ import {
   Server, 
   XCircle 
 } from 'lucide-react';
+import { SEO, SEOConfig } from '../SEO/SEO';
 
 interface ServiceStatus {
   status: 'up' | 'down' | 'unknown';
@@ -33,6 +34,14 @@ export const StatusPage: React.FC = () => {
   const [health, setHealth] = useState<HealthData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const seo = (
+    <SEO
+      title={SEOConfig.status.title}
+      description={SEOConfig.status.description}
+      keywords={SEOConfig.status.keywords}
+      noindex
+    />
+  );
 
   const fetchHealth = useCallback(async () => {
     try {
@@ -83,24 +92,29 @@ export const StatusPage: React.FC = () => {
 
   if (loading && !health) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-900" />
-      </div>
+      <>
+        {seo}
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-900" />
+        </div>
+      </>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-3xl mx-auto">
-        <div className="text-center mb-12">
-          <div className="flex justify-center mb-4">
-            <div className="w-16 h-16 bg-blue-900 rounded-2xl flex items-center justify-center shadow-xl">
-              <Server className="text-white" size={32} />
+    <>
+      {seo}
+      <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-3xl mx-auto">
+          <div className="text-center mb-12">
+            <div className="flex justify-center mb-4">
+              <div className="w-16 h-16 bg-blue-900 rounded-2xl flex items-center justify-center shadow-xl">
+                <Server className="text-white" size={32} />
+              </div>
             </div>
+            <h1 className="text-3xl font-bold text-slate-900 mb-2">BuildMyBot Status</h1>
+            <p className="text-slate-600">Real-time status of our services and infrastructure</p>
           </div>
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">BuildMyBot Status</h1>
-          <p className="text-slate-600">Real-time status of our services and infrastructure</p>
-        </div>
 
         {/* Overall Status */}
         <div className={`rounded-xl p-6 mb-8 flex items-center gap-4 shadow-sm border ${
@@ -175,8 +189,9 @@ export const StatusPage: React.FC = () => {
             &larr; Back to BuildMyBot
           </a>
         </div>
+        </div>
       </div>
-    </div>
+    </>
   );
 };
 
