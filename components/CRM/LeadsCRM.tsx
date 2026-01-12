@@ -82,7 +82,7 @@ export const LeadsCRM: React.FC<LeadsCRMProps> = ({ leads, onUpdateLead }) => {
     e.dataTransfer.dropEffect = 'move';
   };
 
-  const handleDrop = (e: React.DragEvent, newStatus: string) => {
+  const handleDrop = (e: React.DragEvent, newStatus: Lead['status']) => {
     e.preventDefault();
     if (draggedLeadId) {
       handleStatusChange(draggedLeadId, newStatus);
@@ -133,10 +133,10 @@ export const LeadsCRM: React.FC<LeadsCRMProps> = ({ leads, onUpdateLead }) => {
     document.body.removeChild(link);
   };
 
-  const KanbanColumn: React.FC<{ status: string; items: Lead[] }> = ({
-    status,
-    items,
-  }) => (
+  const KanbanColumn: React.FC<{
+    status: Lead['status'];
+    items: Lead[];
+  }> = ({ status, items }) => (
     <div
       onDragOver={handleDragOver}
       onDrop={(e) => handleDrop(e, status)}
@@ -468,7 +468,10 @@ export const LeadsCRM: React.FC<LeadsCRMProps> = ({ leads, onUpdateLead }) => {
                       <select
                         value={lead.status}
                         onChange={(e) =>
-                          handleStatusChange(lead.id, e.target.value)
+                          handleStatusChange(
+                            lead.id,
+                            e.target.value as Lead['status'],
+                          )
                         }
                         className={`text-xs font-semibold px-2 py-1 rounded-full focus:ring-0 cursor-pointer border ${getStatusColor(lead.status)}`}
                       >

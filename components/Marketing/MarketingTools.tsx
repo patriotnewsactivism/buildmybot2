@@ -8,6 +8,7 @@ import {
   Smartphone,
   Twitter,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type React from 'react';
 import { useState } from 'react';
 import { generateMarketingContent } from '../../services/openaiService';
@@ -22,7 +23,7 @@ type MarketingContentType =
 type MarketingTool = {
   id: MarketingContentType;
   label: string;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
+  icon: LucideIcon;
   desc: string;
 };
 
