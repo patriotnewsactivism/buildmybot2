@@ -56,7 +56,7 @@ async function handleChatCompletion(req: Request, res: Response) {
     const {
       messages,
       systemPrompt,
-      model = 'gpt-4o-mini',
+      model = 'gpt-5o-mini',
       context,
       botId,
     } = req.body as ChatRequest;
@@ -217,7 +217,7 @@ router.post(
         });
       });
 
-      const useModel = model || bot.model || 'gpt-4o-mini';
+      const useModel = model || bot.model || 'gpt-5o-mini';
 
       const response = await openai.chat.completions.create({
         model: useModel,

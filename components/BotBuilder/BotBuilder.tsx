@@ -56,6 +56,15 @@ interface BotBuilderProps {
   onLeadDetected?: (email: string) => void;
 }
 
+type BotBuilderTab = 'config' | 'knowledge' | 'test' | 'embed';
+
+type TabConfig = {
+  id: BotBuilderTab;
+  label: string;
+  fullLabel: string;
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+};
+
 const HUMAN_NAMES = [
   'Sarah',
   'Michael',
@@ -193,9 +202,7 @@ export const BotBuilder: React.FC<BotBuilderProps> = ({
     },
   );
 
-  const [activeTab, setActiveTab] = useState<
-    'config' | 'knowledge' | 'test' | 'embed'
-  >('config');
+  const [activeTab, setActiveTab] = useState<BotBuilderTab>('config');
   const [testInput, setTestInput] = useState('');
   const [testHistory, setTestHistory] = useState<
     { role: 'user' | 'model'; text: string; timestamp: number }[]
@@ -262,7 +269,7 @@ export const BotBuilder: React.FC<BotBuilderProps> = ({
         setActiveBot(updatedBot);
       }
     }
-  }, [bots]);
+  }, [bots, activeBot, selectedBotId]);
 
   useEffect(() => {
     if (activeBot.randomizeIdentity) {
@@ -274,18 +281,17 @@ export const BotBuilder: React.FC<BotBuilderProps> = ({
     } else {
       setPreviewIdentity({ name: activeBot.name, color: activeBot.themeColor });
     }
-  }, [
-    activeBot.randomizeIdentity,
-    activeBot.name,
-    activeBot.themeColor,
-    selectedBotId,
-  ]);
+  }, [activeBot.randomizeIdentity, activeBot.name, activeBot.themeColor]);
 
   useEffect(() => {
-    if (scrollRef.current) {
+    if (!scrollRef.current) {
+      return;
+    }
+    const shouldScroll = testHistory.length > 0 || isTesting;
+    if (shouldScroll) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [testHistory, isTesting]);
+  }, [testHistory.length, isTesting]);
 
   useEffect(() => {
     if (selectedBotId && selectedBotId !== 'new') {
@@ -295,51 +301,54 @@ export const BotBuilder: React.FC<BotBuilderProps> = ({
     }
   }, [selectedBotId]);
 
-  const handleFileUpload = async (files: FileList | null) => {
-    if (
-      !files ||
-      files.length === 0 ||
-      !activeBot.id ||
-      activeBot.id === 'new'
-    ) {
-      if (activeBot.id === 'new') {
-        alert('Please save the bot first before uploading documents.');
+  const handleFileUpload = useCallback(
+    async (files: FileList | null) => {
+      if (
+        !files ||
+        files.length === 0 ||
+        !activeBot.id ||
+        activeBot.id === 'new'
+      ) {
+        if (activeBot.id === 'new') {
+          alert('Please save the bot first before uploading documents.');
+        }
+        return;
       }
-      return;
-    }
 
-    const file = files[0];
-    const allowedTypes = ['.pdf', '.docx', '.txt'];
-    const ext = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
+      const file = files[0];
+      const allowedTypes = ['.pdf', '.docx', '.txt'];
+      const ext = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
 
-    if (!allowedTypes.includes(ext)) {
-      alert('Only PDF, DOCX, and TXT files are allowed.');
-      return;
-    }
-
-    setIsUploading(true);
-    setUploadProgress(0);
-
-    try {
-      const newDoc = await dbService.uploadBotDocument(
-        activeBot.id,
-        file,
-        setUploadProgress,
-      );
-      if (newDoc) {
-        setDocuments((prev) => [newDoc, ...prev]);
+      if (!allowedTypes.includes(ext)) {
+        alert('Only PDF, DOCX, and TXT files are allowed.');
+        return;
       }
-    } catch (error) {
-      console.error('Upload error:', error);
-      alert('Failed to upload document');
-    } finally {
-      setIsUploading(false);
+
+      setIsUploading(true);
       setUploadProgress(0);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
+
+      try {
+        const newDoc = await dbService.uploadBotDocument(
+          activeBot.id,
+          file,
+          setUploadProgress,
+        );
+        if (newDoc) {
+          setDocuments((prev) => [newDoc, ...prev]);
+        }
+      } catch (error) {
+        console.error('Upload error:', error);
+        alert('Failed to upload document');
+      } finally {
+        setIsUploading(false);
+        setUploadProgress(0);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
       }
-    }
-  };
+    },
+    [activeBot.id],
+  );
 
   const handleDeleteDocument = async (docId: string) => {
     if (!confirm('Are you sure you want to delete this document?')) return;
@@ -368,7 +377,7 @@ export const BotBuilder: React.FC<BotBuilderProps> = ({
       setIsDragging(false);
       handleFileUpload(e.dataTransfer.files);
     },
-    [activeBot.id],
+    [handleFileUpload],
   );
 
   const formatFileSize = (bytes: number): string => {
@@ -501,6 +510,28 @@ export const BotBuilder: React.FC<BotBuilderProps> = ({
     handleBotSelect(bot);
     setShowMobileBotSelector(false);
   };
+
+  const tabs: TabConfig[] = [
+    {
+      id: 'config',
+      label: 'Config',
+      fullLabel: 'Configuration',
+      icon: Settings,
+    },
+    {
+      id: 'knowledge',
+      label: 'KB',
+      fullLabel: 'Knowledge Base',
+      icon: FileText,
+    },
+    {
+      id: 'embed',
+      label: 'Embed',
+      fullLabel: 'Embed & Share',
+      icon: Share2,
+    },
+    { id: 'test', label: 'Test', fullLabel: 'Test Bot', icon: Play },
+  ];
 
   return (
     <div className="h-[calc(100vh-6rem)] flex flex-col md:flex-row gap-4 md:gap-6 animate-fade-in overflow-x-hidden">
@@ -652,31 +683,11 @@ export const BotBuilder: React.FC<BotBuilderProps> = ({
 
         {/* Tabs */}
         <div className="border-b border-slate-200 bg-slate-50 px-3 md:px-6 flex gap-1 md:gap-6 overflow-x-auto scrollbar-hide">
-          {[
-            {
-              id: 'config',
-              label: 'Config',
-              fullLabel: 'Configuration',
-              icon: Settings,
-            },
-            {
-              id: 'knowledge',
-              label: 'KB',
-              fullLabel: 'Knowledge Base',
-              icon: FileText,
-            },
-            {
-              id: 'embed',
-              label: 'Embed',
-              fullLabel: 'Embed & Share',
-              icon: Share2,
-            },
-            { id: 'test', label: 'Test', fullLabel: 'Test Bot', icon: Play },
-          ].map((tab) => (
+          {tabs.map((tab) => (
             <button
               type="button"
               key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
+              onClick={() => setActiveTab(tab.id)}
               className={`py-3 md:py-4 px-3 md:px-1 text-sm font-medium flex items-center gap-1.5 md:gap-2 border-b-2 transition whitespace-nowrap min-h-[48px] ${
                 activeTab === tab.id
                   ? 'border-blue-900 text-blue-900'
@@ -753,10 +764,14 @@ export const BotBuilder: React.FC<BotBuilderProps> = ({
                 </h3>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                    <label
+                      htmlFor="bot-builder-system-prompt"
+                      className="block text-sm font-medium text-slate-700 mb-2"
+                    >
                       System Prompt
                     </label>
                     <textarea
+                      id="bot-builder-system-prompt"
                       value={activeBot.systemPrompt}
                       onChange={(e) =>
                         setActiveBot({
@@ -774,10 +789,14 @@ export const BotBuilder: React.FC<BotBuilderProps> = ({
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">
+                      <label
+                        htmlFor="bot-builder-model"
+                        className="block text-sm font-medium text-slate-700 mb-2"
+                      >
                         AI Model
                       </label>
                       <select
+                        id="bot-builder-model"
                         value={activeBot.model}
                         onChange={(e) =>
                           setActiveBot({ ...activeBot, model: e.target.value })
@@ -792,10 +811,14 @@ export const BotBuilder: React.FC<BotBuilderProps> = ({
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">
+                      <label
+                        htmlFor="bot-builder-temperature"
+                        className="block text-sm font-medium text-slate-700 mb-2"
+                      >
                         Creativity (Temperature)
                       </label>
                       <input
+                        id="bot-builder-temperature"
                         type="range"
                         min="0"
                         max="1"
@@ -827,7 +850,10 @@ export const BotBuilder: React.FC<BotBuilderProps> = ({
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <label className="text-sm font-medium text-slate-700">
+                      <label
+                        htmlFor="bot-builder-randomize"
+                        className="text-sm font-medium text-slate-700"
+                      >
                         Randomize Identity
                       </label>
                       <p className="text-xs text-slate-500">
@@ -836,6 +862,7 @@ export const BotBuilder: React.FC<BotBuilderProps> = ({
                       </p>
                     </div>
                     <input
+                      id="bot-builder-randomize"
                       type="checkbox"
                       checked={activeBot.randomizeIdentity}
                       onChange={(e) =>
@@ -849,10 +876,14 @@ export const BotBuilder: React.FC<BotBuilderProps> = ({
                   </div>
 
                   <div>
-                    <label className="text-sm font-medium text-slate-700 mb-2 block">
+                    <label
+                      htmlFor="bot-builder-typing-delay"
+                      className="text-sm font-medium text-slate-700 mb-2 block"
+                    >
                       Typing Delay (ms)
                     </label>
                     <input
+                      id="bot-builder-typing-delay"
                       type="range"
                       min="0"
                       max="5000"
@@ -1020,9 +1051,9 @@ export const BotBuilder: React.FC<BotBuilderProps> = ({
                       No knowledge added yet.
                     </div>
                   )}
-                  {activeBot.knowledgeBase.map((item, i) => (
+                  {activeBot.knowledgeBase.map((item) => (
                     <div
-                      key={i}
+                      key={item}
                       className="flex items-start justify-between bg-slate-50 p-3 rounded-lg border border-slate-100 text-sm"
                     >
                       <p className="text-slate-700 whitespace-pre-wrap">
@@ -1151,10 +1182,10 @@ export const BotBuilder: React.FC<BotBuilderProps> = ({
                 </h3>
 
                 <div className="space-y-4 mb-8">
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">
+                  <fieldset>
+                    <legend className="text-xs font-bold text-slate-500 uppercase mb-1 block">
                       Brand Color
-                    </label>
+                    </legend>
                     <div className="flex gap-2">
                       {AVATAR_COLORS.map((c) => (
                         <button
@@ -1168,14 +1199,18 @@ export const BotBuilder: React.FC<BotBuilderProps> = ({
                         />
                       ))}
                     </div>
-                  </div>
+                  </fieldset>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">
+                      <label
+                        htmlFor="bot-builder-embed-position"
+                        className="text-xs font-bold text-slate-500 uppercase mb-1 block"
+                      >
                         Position
                       </label>
                       <select
+                        id="bot-builder-embed-position"
                         value={embedConfig.position}
                         onChange={(e) =>
                           setEmbedConfig({
@@ -1190,10 +1225,14 @@ export const BotBuilder: React.FC<BotBuilderProps> = ({
                       </select>
                     </div>
                     <div>
-                      <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">
+                      <label
+                        htmlFor="bot-builder-embed-style"
+                        className="text-xs font-bold text-slate-500 uppercase mb-1 block"
+                      >
                         Style
                       </label>
                       <select
+                        id="bot-builder-embed-style"
                         value={embedConfig.buttonStyle}
                         onChange={(e) =>
                           setEmbedConfig({
@@ -1283,9 +1322,9 @@ export const BotBuilder: React.FC<BotBuilderProps> = ({
                     Start typing to test your bot.
                   </div>
                 )}
-                {testHistory.map((msg, i) => (
+                {testHistory.map((msg) => (
                   <div
-                    key={i}
+                    key={msg.timestamp}
                     className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
                     <div

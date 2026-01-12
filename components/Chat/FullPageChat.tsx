@@ -60,10 +60,14 @@ export const FullPageChat: React.FC<FullPageChatProps> = ({ botId }) => {
   }, [botId]);
 
   useEffect(() => {
-    if (scrollRef.current) {
+    if (!scrollRef.current) {
+      return;
+    }
+    const shouldScroll = messages.length > 0 || isTyping || showLeadForm;
+    if (shouldScroll) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages, isTyping, showLeadForm]);
+  }, [messages.length, isTyping, showLeadForm]);
 
   useEffect(() => {
     if (!bot || leadCaptured || showLeadForm) return;
@@ -240,7 +244,7 @@ export const FullPageChat: React.FC<FullPageChatProps> = ({ botId }) => {
         botId,
         messages,
         userMsg.text,
-        bot.model || 'gpt-4o-mini',
+        bot.model || 'gpt-5o-mini',
       );
 
       const delay = bot.responseDelay || 1000;
@@ -377,9 +381,9 @@ export const FullPageChat: React.FC<FullPageChatProps> = ({ botId }) => {
           className="flex-1 overflow-y-auto p-3 space-y-3 bg-slate-50"
           ref={scrollRef}
         >
-          {messages.map((msg, i) => (
+          {messages.map((msg) => (
             <div
-              key={i}
+              key={`${msg.role}-${msg.text}`}
               className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
               <div
@@ -467,9 +471,9 @@ export const FullPageChat: React.FC<FullPageChatProps> = ({ botId }) => {
           className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/50"
           ref={scrollRef}
         >
-          {messages.map((msg, i) => (
+          {messages.map((msg) => (
             <div
-              key={i}
+              key={`${msg.role}-${msg.text}`}
               className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
               <div

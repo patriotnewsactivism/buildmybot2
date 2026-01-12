@@ -248,9 +248,9 @@ export const Billing: React.FC<BillingProps> = ({ user }) => {
               </div>
 
               <ul className="space-y-3 mb-8 flex-1">
-                {plan.features.map((feature: string, idx: number) => (
+                {plan.features.map((feature: string) => (
                   <li
-                    key={idx}
+                    key={feature}
                     className={`flex items-start gap-3 text-xs leading-relaxed ${isEnterprise ? 'text-slate-400' : 'text-slate-600'}`}
                   >
                     <CheckCircle

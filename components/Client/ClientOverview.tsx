@@ -9,7 +9,7 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import type React from 'react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { dbService } from '../../services/dbService';
 import type { User } from '../../types';
 import { type Column, DataTable } from '../UI/DataTable';
@@ -67,7 +67,7 @@ export const ClientOverview: React.FC<ClientOverviewProps> = ({
     goal?: string;
   }>({});
 
-  const fetchOverview = async () => {
+  const fetchOverview = useCallback(async () => {
     try {
       const data = await dbService.getClientOverview();
       setStats(data.stats);
@@ -80,11 +80,11 @@ export const ClientOverview: React.FC<ClientOverviewProps> = ({
       setError('Failed to load dashboard data');
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchOverview();
-  }, []);
+  }, [fetchOverview]);
 
   const handleCreateBot = () => {
     if (onCreateBot) {
@@ -226,10 +226,12 @@ export const ClientOverview: React.FC<ClientOverviewProps> = ({
     );
   }
 
+  const resellerCode = user?.resellerCode;
+
   return (
     <div className="space-y-4 md:space-y-6 px-2 md:px-0">
       <QuickMetricsWidget />
-      {user && user.resellerCode && <ReferralBanner user={user} />}
+      {resellerCode ? <ReferralBanner user={user as User} /> : null}
       {showOnboarding && (
         <div className="bg-white border border-slate-200 rounded-xl p-4 md:p-6">
           <div className="flex items-center justify-between mb-4">
@@ -242,10 +244,14 @@ export const ClientOverview: React.FC<ClientOverviewProps> = ({
           </div>
           {onboardingStep === 1 && (
             <div className="space-y-4">
-              <label className="block text-sm font-medium text-slate-700">
+              <label
+                htmlFor="client-onboarding-industry"
+                className="block text-sm font-medium text-slate-700"
+              >
                 Choose your industry
               </label>
               <input
+                id="client-onboarding-industry"
                 value={onboardingData.industry || ''}
                 onChange={(event) =>
                   setOnboardingData({
@@ -260,10 +266,14 @@ export const ClientOverview: React.FC<ClientOverviewProps> = ({
           )}
           {onboardingStep === 2 && (
             <div className="space-y-4">
-              <label className="block text-sm font-medium text-slate-700">
+              <label
+                htmlFor="client-onboarding-goal"
+                className="block text-sm font-medium text-slate-700"
+              >
                 Primary goal for your bot
               </label>
               <input
+                id="client-onboarding-goal"
                 value={onboardingData.goal || ''}
                 onChange={(event) =>
                   setOnboardingData({

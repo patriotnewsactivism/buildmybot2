@@ -97,7 +97,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
     <>
       {/* Mobile Overlay */}
       {isOpen && (
-        <div
+        <button
+          type="button"
+          aria-label="Close sidebar"
           className="fixed inset-0 bg-slate-900/80 z-40 md:hidden backdrop-blur-sm transition-opacity"
           onClick={onClose}
         />
@@ -170,12 +172,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 {usage.toLocaleString()} / {planLimit.toLocaleString()} msgs
               </span>
               {usagePercent > 90 && (
-                <span
-                  className="text-red-400 font-bold cursor-pointer hover:underline"
+                <button
+                  type="button"
+                  className="text-red-400 font-bold hover:underline bg-transparent border-0 p-0"
                   onClick={() => setView('billing')}
                 >
                   Upgrade
-                </span>
+                </button>
               )}
             </p>
           </div>

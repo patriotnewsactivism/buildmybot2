@@ -196,8 +196,9 @@ export const NotificationBell: React.FC = () => {
                   const isExpanded = expandedId === notification.id;
 
                   return (
-                    <div
+                    <button
                       key={notification.id}
+                      type="button"
                       className={`px-4 py-3 border-b border-slate-50 last:border-b-0 cursor-pointer transition-colors border-l-4 ${
                         priorityBorderColors[notification.priority]
                       } ${isUnread ? 'bg-blue-50/50' : 'bg-white hover:bg-slate-50'}`}
@@ -241,7 +242,7 @@ export const NotificationBell: React.FC = () => {
                           </p>
                         </div>
                       </div>
-                    </div>
+                    </button>
                   );
                 })
               ) : (
