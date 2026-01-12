@@ -1,6 +1,6 @@
 import { RefreshCw, Target, TrendingUp, Users } from 'lucide-react';
 import type React from 'react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { dbService } from '../../../services/dbService';
 import { MetricCard } from '../../UI/MetricCard';
 
@@ -28,7 +28,7 @@ export const PartnerAnalytics: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchAnalytics = async () => {
+  const fetchAnalytics = useCallback(async () => {
     try {
       const data = await dbService.getPartnerAnalytics();
       setFunnel(data.funnel);
@@ -40,11 +40,11 @@ export const PartnerAnalytics: React.FC = () => {
       setError('Failed to load analytics');
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchAnalytics();
-  }, []);
+  }, [fetchAnalytics]);
 
   if (error) {
     return (

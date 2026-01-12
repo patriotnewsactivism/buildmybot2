@@ -530,16 +530,18 @@ export const PhoneAgent: React.FC<PhoneAgentProps> = ({ user, onUpdate }) => {
               <div className="relative z-10 text-center">
                 <h3 className="font-bold text-lg mb-4">Test Your Voice</h3>
 
-                <div
-                  className={`w-20 h-20 rounded-full mx-auto flex items-center justify-center mb-4 transition-all duration-500 ${isSimulating ? 'bg-red-500 animate-pulse' : 'bg-emerald-500 hover:scale-105 cursor-pointer'}`}
+                <button
+                  type="button"
+                  className={`w-20 h-20 rounded-full mx-auto flex items-center justify-center mb-4 transition-all duration-500 ${isSimulating ? 'bg-red-500 animate-pulse' : 'bg-emerald-500 hover:scale-105'}`}
                   onClick={isSimulating ? endSimulation : startSimulation}
+                  aria-label="Toggle call simulation"
                 >
                   {isSimulating ? (
                     <Phone size={32} className="rotate-135" />
                   ) : (
                     <PlayCircle size={32} />
                   )}
-                </div>
+                </button>
 
                 <p className="text-sm font-medium">{simulationStatus}</p>
                 <p className="text-xs text-slate-400 mt-2">
@@ -572,9 +574,9 @@ export const PhoneAgent: React.FC<PhoneAgentProps> = ({ user, onUpdate }) => {
                     duration: '1m 05s',
                     status: 'completed',
                   },
-                ].map((call, i) => (
+                ].map((call) => (
                   <div
-                    key={i}
+                    key={`${call.from}-${call.time}`}
                     className="flex justify-between items-center text-sm border-b border-slate-50 last:border-0 pb-2 last:pb-0"
                   >
                     <div>

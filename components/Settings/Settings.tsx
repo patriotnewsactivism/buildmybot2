@@ -103,30 +103,42 @@ export const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser }) => {
               </div>
               <div className="grid grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                  <label
+                    htmlFor="settings-first-name"
+                    className="block text-sm font-medium text-slate-700 mb-2"
+                  >
                     First Name
                   </label>
                   <input
+                    id="settings-first-name"
                     type="text"
                     defaultValue={user?.name.split(' ')[0]}
                     className="w-full rounded-lg border-slate-200 focus:ring-blue-900 focus:border-blue-900"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                  <label
+                    htmlFor="settings-last-name"
+                    className="block text-sm font-medium text-slate-700 mb-2"
+                  >
                     Last Name
                   </label>
                   <input
+                    id="settings-last-name"
                     type="text"
                     defaultValue={user?.name.split(' ')[1]}
                     className="w-full rounded-lg border-slate-200 focus:ring-blue-900 focus:border-blue-900"
                   />
                 </div>
                 <div className="col-span-2">
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                  <label
+                    htmlFor="settings-email"
+                    className="block text-sm font-medium text-slate-700 mb-2"
+                  >
                     Email Address
                   </label>
                   <input
+                    id="settings-email"
                     type="email"
                     defaultValue={user?.email}
                     className="w-full rounded-lg border-slate-200 focus:ring-blue-900 focus:border-blue-900"
@@ -142,10 +154,14 @@ export const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser }) => {
                 Business Details
               </h3>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
+                <label
+                  htmlFor="settings-company-name"
+                  className="block text-sm font-medium text-slate-700 mb-2"
+                >
                   Company Name
                 </label>
                 <input
+                  id="settings-company-name"
                   type="text"
                   value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}
@@ -178,10 +194,14 @@ export const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser }) => {
                   </li>
                 </ol>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                  <label
+                    htmlFor="settings-custom-domain"
+                    className="block text-sm font-medium text-slate-700 mb-2"
+                  >
                     Custom Domain URL
                   </label>
                   <input
+                    id="settings-custom-domain"
                     type="text"
                     value={customDomain}
                     onChange={(e) => setCustomDomain(e.target.value)}
@@ -205,10 +225,16 @@ export const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser }) => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
+                <label
+                  htmlFor="settings-industry"
+                  className="block text-sm font-medium text-slate-700 mb-2"
+                >
                   Industry
                 </label>
-                <select className="w-full rounded-lg border-slate-200 focus:ring-blue-900 focus:border-blue-900">
+                <select
+                  id="settings-industry"
+                  className="w-full rounded-lg border-slate-200 focus:ring-blue-900 focus:border-blue-900"
+                >
                   <option>Marketing Agency</option>
                   <option>E-commerce</option>
                   <option>Real Estate</option>
@@ -231,9 +257,9 @@ export const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser }) => {
                   'Weekly analytics report',
                   'System updates and maintenance',
                   'Reseller commission alerts',
-                ].map((item, i) => (
+                ].map((item) => (
                   <div
-                    key={i}
+                    key={item}
                     className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0"
                   >
                     <span
@@ -267,7 +293,10 @@ export const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser }) => {
               </h3>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
+                <label
+                  htmlFor="settings-webhook-url"
+                  className="block text-sm font-medium text-slate-700 mb-2"
+                >
                   Webhook URL
                 </label>
                 <p className="text-xs text-slate-500 mb-2">
@@ -280,6 +309,7 @@ export const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser }) => {
                     size={18}
                   />
                   <input
+                    id="settings-webhook-url"
                     type="url"
                     value={webhookUrl}
                     onChange={(e) => setWebhookUrl(e.target.value)}

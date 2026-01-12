@@ -101,7 +101,9 @@ export const TemplateMarketplace: React.FC<TemplateMarketplaceProps> = ({
       if (!response.ok) throw new Error('Failed to fetch templates');
       const data = await response.json();
       setTemplates(Array.isArray(data) ? data : []);
-      const installed = (Array.isArray(data) ? data : []).filter((t: Template) => t.installCount > 0);
+      const installed = (Array.isArray(data) ? data : []).filter(
+        (t: Template) => t.installCount > 0,
+      );
       setMyTemplates(installed.slice(0, 3));
     } catch (err) {
       console.error('Error fetching templates:', err);
@@ -695,24 +697,22 @@ export const TemplateMarketplace: React.FC<TemplateMarketplaceProps> = ({
                       Conversation Preview
                     </h3>
                     <div className="bg-slate-50 rounded-xl p-4 space-y-3 border border-slate-100">
-                      {selectedTemplate.configuration.previewFlow.map(
-                        (msg) => (
+                      {selectedTemplate.configuration.previewFlow.map((msg) => (
+                        <div
+                          key={`${msg.role}-${msg.content}`}
+                          className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                        >
                           <div
-                            key={`${msg.role}-${msg.text}`}
-                            className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                            className={`max-w-[80%] px-4 py-2 rounded-2xl text-sm ${
+                              msg.role === 'user'
+                                ? 'bg-orange-500 text-white rounded-br-md'
+                                : 'bg-white border border-slate-200 text-slate-700 rounded-bl-md shadow-sm'
+                            }`}
                           >
-                            <div
-                              className={`max-w-[80%] px-4 py-2 rounded-2xl text-sm ${
-                                msg.role === 'user'
-                                  ? 'bg-orange-500 text-white rounded-br-md'
-                                  : 'bg-white border border-slate-200 text-slate-700 rounded-bl-md shadow-sm'
-                              }`}
-                            >
-                              {msg.content}
-                            </div>
+                            {msg.content}
                           </div>
-                        ),
-                      )}
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}

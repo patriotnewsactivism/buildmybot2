@@ -376,9 +376,9 @@ export const ServiceCatalog: React.FC<ServiceCatalogProps> = ({
 
                           {features.length > 0 && (
                             <div className="space-y-2 mb-6 flex-1">
-                              {features.map((feature, idx) => (
+                              {features.map((feature) => (
                                 <div
-                                  key={idx}
+                                  key={feature}
                                   className="flex items-start gap-2 text-sm text-slate-600"
                                 >
                                   <Check
@@ -600,9 +600,9 @@ export const ServiceCatalog: React.FC<ServiceCatalogProps> = ({
                       Includes:
                     </h5>
                     <div className="space-y-2">
-                      {selectedService.features.map((feature, idx) => (
+                      {selectedService.features.map((feature) => (
                         <div
-                          key={idx}
+                          key={feature}
                           className="flex items-start gap-2 text-sm text-slate-600"
                         >
                           <Check
@@ -617,10 +617,14 @@ export const ServiceCatalog: React.FC<ServiceCatalogProps> = ({
                 )}
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                <label
+                  htmlFor="service-order-notes"
+                  className="block text-sm font-semibold text-slate-700 mb-2"
+                >
                   Notes / Requirements (optional)
                 </label>
                 <textarea
+                  id="service-order-notes"
                   value={orderNotes}
                   onChange={(e) => setOrderNotes(e.target.value)}
                   placeholder="Add any specific requirements or details for this service..."

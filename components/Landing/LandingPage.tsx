@@ -116,7 +116,6 @@ export const LandingPage: React.FC<LandingProps> = ({
     setDemoIdentity({ name: randomName, color: randomColor });
   }, []);
 
-
   useEffect(() => {
     if (!chatScrollRef.current) {
       return;
