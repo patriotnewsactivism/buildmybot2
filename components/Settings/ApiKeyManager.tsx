@@ -536,8 +536,8 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
             </button>
           </div>
         ) : (
-          <div className="overflow-x-auto -mx-4 md:mx-0">
-            <table className="w-full min-w-[700px]">
+          <div className="overflow-x-hidden md:overflow-x-auto mx-0">
+            <table className="w-full md:min-w-[700px]">
               <thead>
                 <tr className="border-b border-slate-100">
                   <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
@@ -755,8 +755,8 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
             <p className="text-slate-500">No API requests logged yet</p>
           </div>
         ) : (
-          <div className="overflow-x-auto -mx-4 md:mx-0">
-            <table className="w-full min-w-[600px]">
+          <div className="overflow-x-hidden md:overflow-x-auto mx-0">
+            <table className="w-full md:min-w-[600px]">
               <thead>
                 <tr className="border-b border-slate-100">
                   <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
