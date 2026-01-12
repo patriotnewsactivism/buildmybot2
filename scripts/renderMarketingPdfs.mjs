@@ -23,6 +23,22 @@ const sources = [
     input: path.join(root, 'docs', 'marketing', 'partner-course.md'),
     output: path.join(outputDir, 'partner-course.pdf'),
   },
+  {
+    input: path.join(root, 'docs', 'marketing', 'sales-deck.md'),
+    output: path.join(outputDir, 'sales-deck.pdf'),
+  },
+  {
+    input: path.join(root, 'docs', 'marketing', 'one-pager.md'),
+    output: path.join(outputDir, 'one-pager.pdf'),
+  },
+  {
+    input: path.join(root, 'docs', 'marketing', 'case-study-template.md'),
+    output: path.join(outputDir, 'case-study-template.pdf'),
+  },
+  {
+    input: path.join(root, 'docs', 'marketing', 'demo-checklist.md'),
+    output: path.join(outputDir, 'demo-checklist.pdf'),
+  },
 ];
 
 await fs.mkdir(outputDir, { recursive: true });
