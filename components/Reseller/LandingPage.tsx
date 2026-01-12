@@ -83,8 +83,7 @@ export const LandingPage: React.FC<LandingProps> = ({
     if (!chatScrollRef.current) {
       return;
     }
-    const shouldScroll =
-      chatHistory.length > 0 || isTyping || isChatOpen;
+    const shouldScroll = chatHistory.length > 0 || isTyping || isChatOpen;
     if (shouldScroll) {
       chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
     }
