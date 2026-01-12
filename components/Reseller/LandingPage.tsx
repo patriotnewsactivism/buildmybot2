@@ -205,12 +205,12 @@ export const LandingPage: React.FC<LandingProps> = ({
               return (
                 <div
                   key={key}
-                  className={`relative rounded-2xl p-6 flex flex-col transition-all duration-300 h-full ${
+                  className={`relative rounded-2xl p-6 flex flex-col transition-all duration-300 h-full shadow-[0_18px_40px_rgba(15,23,42,0.12)] hover:-translate-y-1 hover:shadow-[0_24px_55px_rgba(15,23,42,0.18)] ${
                     isProfessional
-                      ? 'bg-white border-2 border-blue-900 shadow-xl scale-105 z-10'
+                      ? 'bg-white border-2 border-blue-900 ring-2 ring-blue-900/20 scale-105 z-10'
                       : isEnterprise
-                        ? 'bg-slate-900 border border-slate-800 text-white shadow-lg'
-                        : 'bg-white border border-slate-200 hover:shadow-lg'
+                        ? 'bg-slate-900 border border-slate-800 text-white ring-1 ring-slate-700/60 shadow-[0_18px_40px_rgba(15,23,42,0.35)]'
+                        : 'bg-white border border-slate-200 ring-1 ring-slate-200/60'
                   }`}
                 >
                   {/* Badges */}
@@ -232,17 +232,31 @@ export const LandingPage: React.FC<LandingProps> = ({
                     >
                       {displayTitle}
                     </h3>
-                    <div className="flex items-baseline mt-2">
-                      <span
-                        className={`text-4xl font-extrabold ${isEnterprise ? 'text-white' : 'text-slate-900'}`}
+                    <div className="mt-3">
+                      <div
+                        className={`inline-flex items-baseline gap-2 rounded-xl border-2 px-4 py-3 ${
+                          isEnterprise
+                            ? 'border-slate-700 bg-slate-800/70 text-white shadow-[0_12px_25px_rgba(15,23,42,0.45)]'
+                            : isProfessional
+                              ? 'border-blue-900 bg-blue-50 text-blue-900 shadow-[0_12px_25px_rgba(15,23,42,0.18)]'
+                              : 'border-slate-200 bg-slate-50 text-slate-900 shadow-sm'
+                        }`}
                       >
-                        ${plan.price}
-                      </span>
-                      <span
-                        className={`text-sm ml-1 ${isEnterprise ? 'text-slate-400' : 'text-slate-500'}`}
-                      >
-                        /mo
-                      </span>
+                        <span className="text-4xl font-extrabold tracking-tight">
+                          ${plan.price}
+                        </span>
+                        <span
+                          className={`text-sm font-semibold ${
+                            isEnterprise
+                              ? 'text-slate-300'
+                              : isProfessional
+                                ? 'text-blue-900/70'
+                                : 'text-slate-600'
+                          }`}
+                        >
+                          /mo
+                        </span>
+                      </div>
                     </div>
                   </div>
 
@@ -308,7 +322,11 @@ export const LandingPage: React.FC<LandingProps> = ({
                     {plan.features.map((feature: string) => (
                       <li
                         key={feature}
-                        className={`flex items-start gap-3 text-xs leading-relaxed ${isEnterprise ? 'text-slate-400' : 'text-slate-600'}`}
+                        className={`flex items-start gap-3 rounded-lg border px-3 py-2 text-xs leading-relaxed shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+                          isEnterprise
+                            ? 'border-slate-800 bg-slate-900/70 text-slate-300'
+                            : 'border-slate-200 bg-slate-50 text-slate-600'
+                        }`}
                       >
                         <CheckCircle
                           size={14}

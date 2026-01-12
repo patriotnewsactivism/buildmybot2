@@ -229,7 +229,7 @@ export const PartnerProgramPage: React.FC<PartnerProps> = ({
           {/* Path Comparison */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-16">
             {/* Free Path - Tiered */}
-            <div className="bg-slate-50 rounded-2xl p-8 border border-slate-200">
+            <div className="bg-white rounded-2xl p-8 border-2 border-slate-200 shadow-[0_18px_40px_rgba(15,23,42,0.12)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_55px_rgba(15,23,42,0.18)]">
               <div className="flex items-center gap-3 mb-6">
                 <div className="p-3 bg-blue-100 rounded-xl">
                   <TrendingUp size={24} className="text-blue-700" />
@@ -244,11 +244,15 @@ export const PartnerProgramPage: React.FC<PartnerProps> = ({
                 </div>
               </div>
 
-              <div className="text-3xl font-extrabold text-slate-900 mb-2">
-                $0{' '}
-                <span className="text-lg font-normal text-slate-500">
-                  to start
-                </span>
+              <div className="mb-4">
+                <div className="inline-flex items-baseline gap-2 rounded-xl border-2 border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 shadow-sm">
+                  <span className="text-4xl font-extrabold tracking-tight">
+                    $0
+                  </span>
+                  <span className="text-sm font-semibold text-slate-500">
+                    to start
+                  </span>
+                </div>
               </div>
               <p className="text-slate-600 mb-6">
                 Start earning 20% immediately. Grow your client base to unlock
@@ -256,25 +260,25 @@ export const PartnerProgramPage: React.FC<PartnerProps> = ({
               </p>
 
               <div className="space-y-3 mb-6">
-                <div className="flex items-center justify-between py-2 border-b border-slate-200">
+                <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 shadow-sm">
                   <span className="text-slate-700">0-49 clients</span>
                   <span className="font-bold text-blue-700">
                     20% commission
                   </span>
                 </div>
-                <div className="flex items-center justify-between py-2 border-b border-slate-200">
+                <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 shadow-sm">
                   <span className="text-slate-700">50-149 clients</span>
                   <span className="font-bold text-blue-700">
                     30% commission
                   </span>
                 </div>
-                <div className="flex items-center justify-between py-2 border-b border-slate-200">
+                <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 shadow-sm">
                   <span className="text-slate-700">150-249 clients</span>
                   <span className="font-bold text-blue-700">
                     40% commission
                   </span>
                 </div>
-                <div className="flex items-center justify-between py-2">
+                <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 shadow-sm">
                   <span className="text-slate-700">250+ clients</span>
                   <span className="font-bold text-emerald-600">
                     50% commission
@@ -283,15 +287,15 @@ export const PartnerProgramPage: React.FC<PartnerProps> = ({
               </div>
 
               <ul className="space-y-2 text-sm text-slate-600 mb-6">
-                <li className="flex items-center gap-2">
+                <li className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 shadow-sm">
                   <CheckCircle size={14} className="text-emerald-600" /> No
                   upfront investment
                 </li>
-                <li className="flex items-center gap-2">
+                <li className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 shadow-sm">
                   <CheckCircle size={14} className="text-emerald-600" /> Zero
                   risk to get started
                 </li>
-                <li className="flex items-center gap-2">
+                <li className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 shadow-sm">
                   <CheckCircle size={14} className="text-emerald-600" /> Grow at
                   your own pace
                 </li>
@@ -307,7 +311,7 @@ export const PartnerProgramPage: React.FC<PartnerProps> = ({
             </div>
 
             {/* Partner Access - Immediate 50% on new accounts */}
-            <div className="bg-gradient-to-br from-blue-900 to-slate-900 rounded-2xl p-8 border border-blue-700 relative overflow-hidden">
+            <div className="bg-gradient-to-br from-blue-900 to-slate-900 rounded-2xl p-8 border-2 border-blue-700 relative overflow-hidden shadow-[0_20px_45px_rgba(15,23,42,0.35)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_28px_60px_rgba(15,23,42,0.45)]">
               <div className="absolute top-4 right-4 bg-amber-400 text-amber-900 text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
                 <Crown size={12} /> BEST VALUE
               </div>
@@ -326,11 +330,15 @@ export const PartnerProgramPage: React.FC<PartnerProps> = ({
                 </div>
               </div>
 
-              <div className="text-3xl font-extrabold text-white mb-2">
-                ${WHITELABEL_FEE.price}{' '}
-                <span className="text-lg font-normal text-blue-300">
-                  / month
-                </span>
+              <div className="mb-4">
+                <div className="inline-flex items-baseline gap-2 rounded-xl border-2 border-white/20 bg-white/10 px-4 py-3 text-white shadow-[0_12px_25px_rgba(15,23,42,0.35)]">
+                  <span className="text-4xl font-extrabold tracking-tight">
+                    ${WHITELABEL_FEE.price}
+                  </span>
+                  <span className="text-sm font-semibold text-blue-200">
+                    / month
+                  </span>
+                </div>
               </div>
               <p className="text-blue-200 mb-6">
                 Billed monthly (net 30). Partner access gives you a 50% split on
@@ -339,7 +347,7 @@ export const PartnerProgramPage: React.FC<PartnerProps> = ({
                 from payouts.
               </p>
 
-              <div className="bg-white/10 rounded-xl p-4 mb-6">
+              <div className="bg-white/10 rounded-xl p-4 mb-6 border border-white/20 shadow-[0_10px_25px_rgba(15,23,42,0.25)]">
                 <div className="flex items-center justify-between">
                   <span className="text-blue-200">Your commission rate</span>
                   <span className="text-3xl font-extrabold text-emerald-400">
@@ -353,7 +361,10 @@ export const PartnerProgramPage: React.FC<PartnerProps> = ({
 
               <ul className="space-y-2 text-sm text-blue-100 mb-6">
                 {WHITELABEL_FEE.features.map((feature) => (
-                  <li key={feature} className="flex items-center gap-2">
+                  <li
+                    key={feature}
+                    className="flex items-center gap-2 rounded-lg border border-white/15 bg-white/5 px-3 py-2 shadow-sm"
+                  >
                     <CheckCircle size={14} className="text-emerald-400" />{' '}
                     {feature}
                   </li>
@@ -380,7 +391,7 @@ export const PartnerProgramPage: React.FC<PartnerProps> = ({
             {RESELLER_TIERS.map((tier) => (
               <div
                 key={tier.label}
-                className={`p-6 rounded-xl border text-center ${
+                className={`p-6 rounded-xl border text-center shadow-[0_12px_25px_rgba(15,23,42,0.12)] transition hover:-translate-y-1 hover:shadow-[0_18px_35px_rgba(15,23,42,0.18)] ${
                   tier.label === 'Platinum'
                     ? 'bg-slate-900 text-white border-slate-700'
                     : 'bg-white border-slate-200'
