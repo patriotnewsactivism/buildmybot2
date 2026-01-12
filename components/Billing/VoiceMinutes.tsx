@@ -505,8 +505,69 @@ export const VoiceMinutes: React.FC<VoiceMinutesProps> = ({
             </p>
           </div>
         ) : (
-          <div className="overflow-x-hidden md:overflow-x-auto">
-            <table className="w-full">
+          <>
+            <div className="md:hidden space-y-3">
+              {callLogs.map((log) => (
+                <div
+                  key={log.id}
+                  className="border border-slate-200 rounded-lg p-4 bg-white"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      {log.direction === 'outbound' ? (
+                        <PhoneOutgoing size={16} className="text-blue-500" />
+                      ) : (
+                        <PhoneIncoming size={16} className="text-emerald-500" />
+                      )}
+                      <span className="text-sm font-medium text-slate-700 capitalize">
+                        {log.direction || 'Unknown'}
+                      </span>
+                    </div>
+                    <span className="text-xs text-slate-500">
+                      {formatDate(log.createdAt)}
+                    </span>
+                  </div>
+                  <div className="mt-3 space-y-2 text-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-slate-500">Phone</span>
+                      <span className="text-slate-700 font-medium">
+                        {(log.direction === 'outbound'
+                          ? log.calleeId
+                          : log.callerId) || 'Unknown'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-slate-500">Duration</span>
+                      <span className="text-slate-700">
+                        {formatDuration(log.durationSeconds)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-slate-500">Minutes Used</span>
+                      <span className="text-slate-700">
+                        {log.minutesUsed.toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-slate-500">Status</span>
+                      <span
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          log.status === 'completed'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : log.status === 'failed'
+                              ? 'bg-red-100 text-red-800'
+                              : 'bg-slate-100 text-slate-800'
+                        }`}
+                      >
+                        {log.status || 'Unknown'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full">
               <thead>
                 <tr className="border-b border-slate-100">
                   <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider py-3 px-4">
@@ -582,6 +643,7 @@ export const VoiceMinutes: React.FC<VoiceMinutesProps> = ({
               </tbody>
             </table>
           </div>
+          </>
         )}
       </PremiumCard>
 
