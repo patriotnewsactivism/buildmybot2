@@ -285,6 +285,7 @@ export const users = pgTable('users', {
   stripeCustomerId: text('stripe_customer_id'),
   stripeSubscriptionId: text('stripe_subscription_id'),
   whitelabelEnabled: boolean('whitelabel_enabled').default(false),
+  whitelabelEnabledAt: timestamp('whitelabel_enabled_at'),
   whitelabelPaidThrough: timestamp('whitelabel_paid_through'),
   whitelabelSubscriptionId: text('whitelabel_subscription_id'),
   referralCredits: real('referral_credits').default(0),

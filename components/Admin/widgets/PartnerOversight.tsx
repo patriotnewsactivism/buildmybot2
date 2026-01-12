@@ -186,7 +186,7 @@ export const PartnerOversight: React.FC = () => {
     },
     {
       key: 'whitelabel',
-      label: 'Whitelabel',
+      label: 'Partner Access',
       render: (metric) => (
         <span
           className={`px-2 py-1 rounded-full text-xs font-medium ${

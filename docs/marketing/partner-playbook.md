@@ -20,9 +20,9 @@ Help partner sales teams win clients and grow recurring revenue with BuildMyBot.
 - Sales reps building a book of business
 
 ## Program overview (high level)
-- Tiered commissions from 20 to 50 percent based on active clients
-- Optional whitelabel fee for an immediate 50 percent split
-- Custom domain and branding supported
+- Sales agent commissions from 20 to 50 percent based on active clients
+- Partner access at $499 per month for immediate 50 percent on new accounts
+- Partner status at 251+ active accounts or with partner access; optional white-label branding and custom domains
 
 ## Partner value props
 - New recurring revenue without building software

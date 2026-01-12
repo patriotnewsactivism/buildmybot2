@@ -4,14 +4,18 @@ import { env } from '../env';
 
 export function initSentry() {
   const dsn = env.VITE_SENTRY_DSN || env.NEXT_PUBLIC_SENTRY_DSN;
-  
-  if (!dsn) {
-    console.log('Sentry DSN not found, skipping Sentry initialization');
+  const normalizedDsn = typeof dsn === 'string' ? dsn.trim() : '';
+  const isPlaceholder =
+    normalizedDsn.includes('your-sentry-dsn') ||
+    normalizedDsn.includes('sentry.io/project-id');
+
+  if (!normalizedDsn || isPlaceholder) {
+    console.log('Sentry DSN not configured, skipping Sentry initialization');
     return;
   }
 
   Sentry.init({
-    dsn,
+    dsn: normalizedDsn,
     integrations: [
       nodeProfilingIntegration(),
     ],
