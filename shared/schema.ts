@@ -328,6 +328,7 @@ export const bots = pgTable('bots', {
   // Phase 1 additions
   organizationId: text('organization_id').references(() => organizations.id),
   analytics: json('analytics').default({}),
+  abTestConfig: json('ab_test_config').default({}), // Phase 5 A/B Testing
   deletedAt: timestamp('deleted_at'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
@@ -461,6 +462,45 @@ export const webhookLogs = pgTable('webhook_logs', {
   createdAt: timestamp('created_at').defaultNow(),
 });
 
+export const nurtureSequences = pgTable('nurture_sequences', {
+  id: text('id').primaryKey(),
+  organizationId: text('organization_id').references(() => organizations.id, {
+    onDelete: 'cascade',
+  }),
+  name: varchar('name', { length: 255 }).notNull(),
+  description: text('description'),
+  triggerType: varchar('trigger_type', { length: 50 }).notNull(), // 'lead_captured', 'tag_added'
+  isActive: boolean('is_active').default(true),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+export const nurtureSteps = pgTable('nurture_steps', {
+  id: text('id').primaryKey(),
+  sequenceId: text('sequence_id')
+    .notNull()
+    .references(() => nurtureSequences.id, { onDelete: 'cascade' }),
+  stepOrder: integer('step_order').notNull(),
+  delayHours: integer('delay_hours').default(0),
+  actionType: varchar('action_type', { length: 50 }).notNull(), // 'send_email', 'add_tag'
+  actionConfig: json('action_config').notNull(), // { templateId, subject, etc. }
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+export const nurtureEnrollments = pgTable('nurture_enrollments', {
+  id: text('id').primaryKey(),
+  sequenceId: text('sequence_id')
+    .notNull()
+    .references(() => nurtureSequences.id, { onDelete: 'cascade' }),
+  leadId: text('lead_id')
+    .notNull()
+    .references(() => leads.id, { onDelete: 'cascade' }),
+  currentStepOrder: integer('current_step_order').default(0),
+  nextStepDueAt: timestamp('next_step_due_at'),
+  status: varchar('status', { length: 50 }).default('active'), // active, completed, canceled
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
 // ========================================
 // RELATIONS
 // ========================================
@@ -481,8 +521,27 @@ export const organizationsRelations = relations(
     partnerRelationships: many(partnerClients),
     integrations: many(integrations),
     webhooks: many(webhooks),
+    nurtureSequences: many(nurtureSequences),
   }),
 );
+
+export const nurtureSequencesRelations = relations(
+  nurtureSequences,
+  ({ one, many }) => ({
+    organization: one(organizations, {
+      fields: [nurtureSequences.organizationId],
+      references: [organizations.id],
+    }),
+    steps: many(nurtureSteps),
+  }),
+);
+
+export const nurtureStepsRelations = relations(nurtureSteps, ({ one }) => ({
+  sequence: one(nurtureSequences, {
+    fields: [nurtureSteps.sequenceId],
+    references: [nurtureSequences.id],
+  }),
+}));
 
 export const webhooksRelations = relations(webhooks, ({ one, many }) => ({
   organization: one(organizations, {
@@ -754,7 +813,21 @@ export const landingPagesRelations = relations(landingPages, ({ one }) => ({
   }),
 }));
 
-export const leadsRelations = relations(leads, ({ one }) => ({
+export const nurtureEnrollmentsRelations = relations(
+  nurtureEnrollments,
+  ({ one }) => ({
+    sequence: one(nurtureSequences, {
+      fields: [nurtureEnrollments.sequenceId],
+      references: [nurtureSequences.id],
+    }),
+    lead: one(leads, {
+      fields: [nurtureEnrollments.leadId],
+      references: [leads.id],
+    }),
+  }),
+);
+
+export const leadsRelations = relations(leads, ({ one, many }) => ({
   user: one(users, {
     fields: [leads.userId],
     references: [users.id],
@@ -767,6 +840,7 @@ export const leadsRelations = relations(leads, ({ one }) => ({
     fields: [leads.sourceBotId],
     references: [bots.id],
   }),
+  enrollments: many(nurtureEnrollments),
 }));
 
 export const conversationsRelations = relations(conversations, ({ one }) => ({
@@ -959,6 +1033,12 @@ export type Webhook = typeof webhooks.$inferSelect;
 export type InsertWebhook = typeof webhooks.$inferInsert;
 export type WebhookLog = typeof webhookLogs.$inferSelect;
 export type InsertWebhookLog = typeof webhookLogs.$inferInsert;
+export type NurtureSequence = typeof nurtureSequences.$inferSelect;
+export type InsertNurtureSequence = typeof nurtureSequences.$inferInsert;
+export type NurtureStep = typeof nurtureSteps.$inferSelect;
+export type InsertNurtureStep = typeof nurtureSteps.$inferInsert;
+export type NurtureEnrollment = typeof nurtureEnrollments.$inferSelect;
+export type InsertNurtureEnrollment = typeof nurtureEnrollments.$inferInsert;
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
