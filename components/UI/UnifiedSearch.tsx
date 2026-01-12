@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, Bot, User, FileText, X, Loader, ArrowRight } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 
 interface SearchResult {
   bots: any[];
@@ -8,12 +7,17 @@ interface SearchResult {
   knowledge: any[];
 }
 
-export const UnifiedSearch: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
+interface UnifiedSearchProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onNavigate?: (path: string) => void;
+}
+
+export const UnifiedSearch: React.FC<UnifiedSearchProps> = ({ isOpen, onClose, onNavigate }) => {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult | null>(null);
   const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const navigate = useNavigate();
 
   useEffect(() => {
     if (isOpen && inputRef.current) {
@@ -59,7 +63,9 @@ export const UnifiedSearch: React.FC<{ isOpen: boolean; onClose: () => void }> =
   }, [query]);
 
   const handleNavigate = (path: string) => {
-    navigate(path);
+    if (onNavigate) {
+      onNavigate(path);
+    }
     onClose();
   };
 
