@@ -68,6 +68,8 @@ interface LandingProps {
   onAdminLogin?: () => void;
 }
 
+type ChatMessage = { role: 'user' | 'model'; text: string };
+
 const HUMAN_NAMES = ['Sarah', 'Michael', 'Jessica', 'David', 'Emma', 'James'];
 const AVATAR_COLORS = ['#1e3a8a', '#be123c', '#047857', '#d97706', '#7c3aed'];
 
@@ -78,9 +80,7 @@ export const LandingPage: React.FC<LandingProps> = ({
 }) => {
   const [isHoverOpen, setIsHoverOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [chatHistory, setChatHistory] = useState<
-    { role: 'user' | 'model'; text: string }[]
-  >([
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([
     {
       role: 'model',
       text: "Hi there! 👋 How can I help you today? I'm here to answer any questions about our AI chatbot and voice agent solutions.",
@@ -118,20 +118,24 @@ export const LandingPage: React.FC<LandingProps> = ({
 
 
   useEffect(() => {
-    if (chatScrollRef.current) {
+    if (!chatScrollRef.current) {
+      return;
+    }
+    const shouldScroll = chatHistory.length > 0 || isTyping;
+    if (shouldScroll) {
       chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
     }
-  }, [chatHistory, isTyping]);
+  }, [chatHistory.length, isTyping]);
 
   const handleSend = async (
     input: string,
-    history: any[],
-    setHistory: any,
-    setTyping: any,
+    history: ChatMessage[],
+    setHistory: React.Dispatch<React.SetStateAction<ChatMessage[]>>,
+    setTyping: React.Dispatch<React.SetStateAction<boolean>>,
   ) => {
     if (!input.trim()) return;
     const userMsg = { role: 'user' as const, text: input };
-    setHistory((prev: any) => [...prev, userMsg]);
+    setHistory((prev) => [...prev, userMsg]);
     setTyping(true);
     try {
       const response = await generateBotResponseDemo(
@@ -139,9 +143,9 @@ export const LandingPage: React.FC<LandingProps> = ({
         history,
         input,
       );
-      setHistory((prev: any) => [...prev, { role: 'model', text: response }]);
+      setHistory((prev) => [...prev, { role: 'model', text: response }]);
     } catch (e) {
-      setHistory((prev: any) => [
+      setHistory((prev) => [
         ...prev,
         {
           role: 'model',
@@ -222,8 +226,10 @@ export const LandingPage: React.FC<LandingProps> = ({
     try {
       const result = await scrapeWebsiteContent(demoUrl);
       setDemoResult(result);
-    } catch (e: any) {
-      setDemoResult(`Error: ${e.message || 'Failed to scrape website'}`);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to scrape website';
+      setDemoResult(`Error: ${message}`);
     } finally {
       setDemoLoading(false);
     }
@@ -391,9 +397,7 @@ export const LandingPage: React.FC<LandingProps> = ({
   );
 
   const FixedEmbedChat = () => {
-    const [embedHistory, setEmbedHistory] = useState<
-      { role: 'user' | 'model'; text: string }[]
-    >([
+    const [embedHistory, setEmbedHistory] = useState<ChatMessage[]>([
       {
         role: 'model',
         text: "Hello! 👋 I'm your AI assistant. How can I help you today?",
@@ -404,9 +408,14 @@ export const LandingPage: React.FC<LandingProps> = ({
     const scrollRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-      if (scrollRef.current)
+      if (!scrollRef.current) {
+        return;
+      }
+      const shouldScroll = embedHistory.length > 0 || embedTyping;
+      if (shouldScroll) {
         scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }, [embedHistory, embedTyping]);
+      }
+    }, [embedHistory.length, embedTyping]);
 
     return (
       <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden flex flex-col h-[400px] sm:h-[500px] lg:h-[600px] w-full max-w-md mx-auto">
@@ -423,9 +432,9 @@ export const LandingPage: React.FC<LandingProps> = ({
           className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50"
           ref={scrollRef}
         >
-          {embedHistory.map((msg, i) => (
+          {embedHistory.map((msg) => (
             <div
-              key={i}
+              key={`${msg.role}-${msg.text}`}
               className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
               <div
@@ -443,16 +452,17 @@ export const LandingPage: React.FC<LandingProps> = ({
           <input
             value={embedInput}
             onChange={(e) => setEmbedInput(e.target.value)}
-            onKeyDown={(e) =>
-              e.key === 'Enter' &&
-              (handleSend(
-                embedInput,
-                embedHistory,
-                setEmbedHistory,
-                setEmbedTyping,
-              ),
-              setEmbedInput(''))
-            }
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                handleSend(
+                  embedInput,
+                  embedHistory,
+                  setEmbedHistory,
+                  setEmbedTyping,
+                );
+                setEmbedInput('');
+              }
+            }}
             className="flex-1 bg-slate-100 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-600"
             placeholder="Test fixed embed..."
           />
@@ -492,9 +502,9 @@ export const LandingPage: React.FC<LandingProps> = ({
               className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50"
               ref={chatScrollRef}
             >
-              {chatHistory.map((msg, i) => (
+              {chatHistory.map((msg) => (
                 <div
-                  key={i}
+                  key={`${msg.role}-${msg.text}`}
                   className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div
@@ -512,16 +522,17 @@ export const LandingPage: React.FC<LandingProps> = ({
               <input
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
-                onKeyDown={(e) =>
-                  e.key === 'Enter' &&
-                  (handleSend(
-                    chatInput,
-                    chatHistory,
-                    setChatHistory,
-                    setIsTyping,
-                  ),
-                  setChatInput(''))
-                }
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleSend(
+                      chatInput,
+                      chatHistory,
+                      setChatHistory,
+                      setIsTyping,
+                    );
+                    setChatInput('');
+                  }
+                }}
                 className="flex-1 bg-slate-100 rounded-lg px-4 py-2 text-sm"
                 placeholder="Ask me anything..."
               />
@@ -772,7 +783,7 @@ export const LandingPage: React.FC<LandingProps> = ({
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6 sm:gap-8">
             {setupSteps.map((step, i) => (
-              <div key={i} className="text-center">
+              <div key={step.title} className="text-center">
                 <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-4 relative">
                   <step.icon className="text-blue-900" size={28} />
                   <div className="absolute -top-2 -right-2 w-8 h-8 bg-blue-900 text-white rounded-full flex items-center justify-center text-sm font-bold">
@@ -799,13 +810,17 @@ export const LandingPage: React.FC<LandingProps> = ({
           <div className="flex flex-col lg:flex-row gap-8 lg:gap-12">
             <div className="space-y-8 max-w-xl">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
+                <label
+                  htmlFor="roi-monthly-leads"
+                  className="block text-sm font-medium text-slate-700 mb-2"
+                >
                   Monthly Website Leads:{' '}
                   <span className="text-blue-900 font-bold">
                     {monthlyLeads}
                   </span>
                 </label>
                 <input
+                  id="roi-monthly-leads"
                   type="range"
                   min="1"
                   max="1000"
@@ -815,13 +830,17 @@ export const LandingPage: React.FC<LandingProps> = ({
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
+                <label
+                  htmlFor="roi-avg-deal"
+                  className="block text-sm font-medium text-slate-700 mb-2"
+                >
                   Average Deal Value:{' '}
                   <span className="text-blue-900 font-bold">
                     ${avgDealValue.toLocaleString()}
                   </span>
                 </label>
                 <input
+                  id="roi-avg-deal"
                   type="range"
                   min="100"
                   max="50000"
@@ -832,13 +851,17 @@ export const LandingPage: React.FC<LandingProps> = ({
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
+                <label
+                  htmlFor="roi-current-conversion"
+                  className="block text-sm font-medium text-slate-700 mb-2"
+                >
                   Current Conversion Rate:{' '}
                   <span className="text-blue-900 font-bold">
                     {currentConversion}%
                   </span>
                 </label>
                 <input
+                  id="roi-current-conversion"
                   type="range"
                   min="1"
                   max="50"
@@ -900,9 +923,9 @@ export const LandingPage: React.FC<LandingProps> = ({
                 'Leads go cold before follow-up',
                 'No visibility into conversation quality',
                 'Competitors steal your hot leads',
-              ].map((item, i) => (
+              ].map((item) => (
                 <li
-                  key={i}
+                  key={item}
                   className="flex items-start gap-3 text-red-800 leading-relaxed"
                 >
                   <XCircle size={20} className="shrink-0 mt-0.5" />
@@ -926,9 +949,9 @@ export const LandingPage: React.FC<LandingProps> = ({
                 'Automatic follow-up sequences',
                 'Full analytics and lead scoring',
                 'Never lose a lead to competition again',
-              ].map((item, i) => (
+              ].map((item) => (
                 <li
-                  key={i}
+                  key={item}
                   className="flex items-start gap-3 text-emerald-800 leading-relaxed"
                 >
                   <CheckCircle size={20} className="shrink-0 mt-0.5" />
@@ -988,9 +1011,9 @@ export const LandingPage: React.FC<LandingProps> = ({
             </p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
-            {industries.map((ind, i) => (
+            {industries.map((ind) => (
               <div
-                key={i}
+                key={ind.name}
                 className="bg-white p-4 sm:p-6 rounded-xl border border-slate-200 hover:border-blue-500 hover:shadow-lg transition-all text-center group cursor-pointer overflow-hidden"
               >
                 <ind.icon
@@ -1264,9 +1287,9 @@ export const LandingPage: React.FC<LandingProps> = ({
                     {plan.conversations.toLocaleString()} convos
                   </div>
                   <ul className="space-y-2 mb-6">
-                    {plan.features.slice(0, 4).map((f, i) => (
+                    {plan.features.slice(0, 4).map((f) => (
                       <li
-                        key={i}
+                        key={f}
                         className="flex items-start gap-2 text-sm text-slate-600"
                       >
                         <CheckCircle
@@ -1303,7 +1326,7 @@ export const LandingPage: React.FC<LandingProps> = ({
           <div className="max-w-3xl mx-auto space-y-3 sm:space-y-4">
             {faqs.map((faq, i) => (
               <div
-                key={i}
+                key={faq.q}
                 className="bg-white rounded-xl border border-slate-200 overflow-hidden"
               >
                 <button

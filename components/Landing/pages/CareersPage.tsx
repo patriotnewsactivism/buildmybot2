@@ -190,9 +190,9 @@ export const CareersPage: React.FC = () => {
             </p>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {perks.map((perk, i) => (
+            {perks.map((perk) => (
               <div
-                key={i}
+                key={perk.title}
                 className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm hover:shadow-lg transition-shadow"
               >
                 <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center text-blue-700 mb-4">
@@ -250,8 +250,8 @@ export const CareersPage: React.FC = () => {
                       Requirements
                     </h4>
                     <ul className="space-y-2 text-sm text-slate-600">
-                      {job.requirements.map((req, i) => (
-                        <li key={i} className="flex items-start gap-2">
+                      {job.requirements.map((req) => (
+                        <li key={req} className="flex items-start gap-2">
                           <span className="text-blue-600 mt-1">•</span>
                           {req}
                         </li>

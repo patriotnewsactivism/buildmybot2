@@ -6,7 +6,7 @@ import {
   Users,
 } from 'lucide-react';
 import type React from 'react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { dbService } from '../../../services/dbService';
 import { type Column, DataTable } from '../../UI/DataTable';
 import { MetricCard } from '../../UI/MetricCard';
@@ -37,7 +37,7 @@ export const ClientManagement: React.FC<ClientManagementProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchClients = async () => {
+  const fetchClients = useCallback(async () => {
     try {
       const data = await dbService.getPartnerClients();
       setClients(data);
@@ -48,11 +48,11 @@ export const ClientManagement: React.FC<ClientManagementProps> = ({
       setError('Failed to load clients');
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchClients();
-  }, []);
+  }, [fetchClients]);
 
   const totalClients = clients.length;
   const activeClients = clients.filter((c) => c.status === 'Active').length;

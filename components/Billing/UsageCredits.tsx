@@ -705,6 +705,8 @@ export const UsageCredits: React.FC<UsageCreditsProps> = ({
               const config = resourceTypeConfig[resourceType];
               const Icon = config.icon;
               const settings = autoTopUp[resourceType];
+              const thresholdId = `auto-topup-threshold-${resourceType}`;
+              const topUpId = `auto-topup-amount-${resourceType}`;
 
               return (
                 <div
@@ -751,10 +753,14 @@ export const UsageCredits: React.FC<UsageCreditsProps> = ({
                   {settings.enabled && (
                     <div className="mt-4 pt-4 border-t border-orange-200 grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                        <label
+                          htmlFor={thresholdId}
+                          className="block text-sm font-medium text-slate-700 mb-2"
+                        >
                           Threshold (trigger when below)
                         </label>
                         <input
+                          id={thresholdId}
                           type="number"
                           min="1"
                           value={settings.threshold}
@@ -769,10 +775,14 @@ export const UsageCredits: React.FC<UsageCreditsProps> = ({
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                        <label
+                          htmlFor={topUpId}
+                          className="block text-sm font-medium text-slate-700 mb-2"
+                        >
                           Top-up Amount
                         </label>
                         <select
+                          id={topUpId}
                           value={settings.topUpAmount}
                           onChange={(e) =>
                             handleTopUpAmountChange(

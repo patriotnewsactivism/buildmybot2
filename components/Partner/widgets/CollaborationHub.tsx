@@ -1,6 +1,6 @@
 import { CheckCircle2, ClipboardList, Plus, RefreshCw } from 'lucide-react';
 import type React from 'react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { dbService } from '../../../services/dbService';
 import type { PartnerNote, PartnerTask } from '../../../types';
 
@@ -12,7 +12,7 @@ export const CollaborationHub: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchCollaboration = async () => {
+  const fetchCollaboration = useCallback(async () => {
     try {
       const [notesData, tasksData] = await Promise.all([
         dbService.getPartnerNotes(),
@@ -27,11 +27,11 @@ export const CollaborationHub: React.FC = () => {
       setError('Failed to load collaboration data');
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchCollaboration();
-  }, []);
+  }, [fetchCollaboration]);
 
   const handleAddNote = async () => {
     if (!noteInput.trim()) return;

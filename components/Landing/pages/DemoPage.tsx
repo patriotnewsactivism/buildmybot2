@@ -10,11 +10,11 @@ import {
 } from 'lucide-react';
 import type React from 'react';
 import { useState } from 'react';
-import { PageLayout } from './PageLayout';
 import {
   generateMarketingContent,
   scrapeWebsiteContent,
 } from '../../../services/openaiService';
+import { PageLayout } from './PageLayout';
 
 interface DemoPageProps {
   onLogin?: () => void;
@@ -243,8 +243,8 @@ export const DemoPage: React.FC<DemoPageProps> = ({ onLogin }) => {
             Launch your AI agent today
           </h2>
           <p className="text-slate-300 max-w-2xl mx-auto">
-            Start free and turn more visitors into qualified leads with
-            24/7 automation.
+            Start free and turn more visitors into qualified leads with 24/7
+            automation.
           </p>
           <button
             type="button"

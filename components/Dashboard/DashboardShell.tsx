@@ -218,7 +218,9 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
 
         {/* Overlay for mobile */}
         {sidebarOpen && (
-          <div
+          <button
+            type="button"
+            aria-label="Close menu"
             className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden"
             onClick={() => setSidebarOpen(false)}
           />

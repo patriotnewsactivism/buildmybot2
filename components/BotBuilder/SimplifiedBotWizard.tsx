@@ -128,16 +128,21 @@ export const SimplifiedBotWizard: React.FC<SimplifiedBotWizardProps> = ({
     if ('systemPrompt' in template && 'id' in template) {
       // BotTemplate from marketplace
       const botTemplate = template as BotTemplate;
+      const templateConfig =
+        botTemplate.configuration &&
+        typeof botTemplate.configuration === 'object' &&
+        !Array.isArray(botTemplate.configuration)
+          ? (botTemplate.configuration as Record<string, unknown>)
+          : null;
+      const themeColor =
+        templateConfig && typeof templateConfig.themeColor === 'string'
+          ? templateConfig.themeColor
+          : '#1e3a8a';
       setBotConfig({
         ...botConfig,
         name: botTemplate.name || '',
         systemPrompt: botTemplate.systemPrompt || '',
-        themeColor:
-          botTemplate.configuration &&
-          typeof botTemplate.configuration === 'object' &&
-          'themeColor' in botTemplate.configuration
-            ? (botTemplate.configuration as any).themeColor
-            : '#1e3a8a',
+        themeColor: themeColor,
       });
     } else {
       // Quick template
@@ -341,10 +346,14 @@ export const SimplifiedBotWizard: React.FC<SimplifiedBotWizardProps> = ({
               <div className="space-y-4">
                 {/* Bot Name */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                  <label
+                    htmlFor="bot-wizard-name"
+                    className="block text-sm font-medium text-slate-700 mb-2"
+                  >
                     Bot Name
                   </label>
                   <input
+                    id="bot-wizard-name"
                     type="text"
                     value={botConfig.name}
                     onChange={(e) =>
@@ -356,11 +365,11 @@ export const SimplifiedBotWizard: React.FC<SimplifiedBotWizardProps> = ({
                 </div>
 
                 {/* Theme Color */}
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2 flex items-center gap-2">
+                <fieldset>
+                  <legend className="block text-sm font-medium text-slate-700 mb-2 flex items-center gap-2">
                     <Palette size={16} />
                     Theme Color
-                  </label>
+                  </legend>
                   <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
                     {THEME_COLORS.map((color) => (
                       <button
@@ -388,15 +397,19 @@ export const SimplifiedBotWizard: React.FC<SimplifiedBotWizardProps> = ({
                       </button>
                     ))}
                   </div>
-                </div>
+                </fieldset>
 
                 {/* System Prompt (Optional) */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2 flex items-center gap-2">
+                  <label
+                    htmlFor="bot-wizard-prompt"
+                    className="block text-sm font-medium text-slate-700 mb-2 flex items-center gap-2"
+                  >
                     <MessageSquare size={16} />
                     Instructions (Optional)
                   </label>
                   <textarea
+                    id="bot-wizard-prompt"
                     value={botConfig.systemPrompt}
                     onChange={(e) =>
                       setBotConfig({
@@ -417,7 +430,10 @@ export const SimplifiedBotWizard: React.FC<SimplifiedBotWizardProps> = ({
                 <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
                   <div className="flex items-center justify-between">
                     <div>
-                      <label className="text-sm font-medium text-slate-700 flex items-center gap-2">
+                      <label
+                        htmlFor="bot-wizard-randomize"
+                        className="text-sm font-medium text-slate-700 flex items-center gap-2"
+                      >
                         <Sparkles size={16} />
                         Human-Like Identity
                       </label>
@@ -426,6 +442,7 @@ export const SimplifiedBotWizard: React.FC<SimplifiedBotWizardProps> = ({
                       </p>
                     </div>
                     <input
+                      id="bot-wizard-randomize"
                       type="checkbox"
                       checked={botConfig.randomizeIdentity}
                       onChange={(e) =>

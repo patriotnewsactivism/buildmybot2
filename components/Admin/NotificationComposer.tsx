@@ -13,7 +13,7 @@ import {
   X,
 } from 'lucide-react';
 import type React from 'react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 interface NotificationStats {
   totalReceipts: number;
@@ -47,6 +47,16 @@ interface NotificationFormData {
   audienceFilter: { plans?: string[]; roles?: string[] };
   scheduleEnabled: boolean;
   publishAt: string;
+}
+
+interface NotificationPayload {
+  title: string;
+  body: string;
+  priority: NotificationFormData['priority'];
+  isPopup: boolean;
+  audienceType: NotificationFormData['audienceType'];
+  audienceFilter: NotificationFormData['audienceFilter'];
+  publishAt?: string;
 }
 
 const priorityConfig = {
@@ -97,7 +107,7 @@ export const NotificationComposer: React.FC = () => {
     publishAt: '',
   });
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = useCallback(async () => {
     try {
       const response = await fetch('/api/admin/notifications', {
         credentials: 'include',
@@ -111,11 +121,11 @@ export const NotificationComposer: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchNotifications();
-  }, []);
+  }, [fetchNotifications]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -128,7 +138,7 @@ export const NotificationComposer: React.FC = () => {
     setError(null);
 
     try {
-      const payload: any = {
+      const payload: NotificationPayload = {
         title: form.title,
         body: form.body,
         priority: form.priority,
@@ -165,8 +175,10 @@ export const NotificationComposer: React.FC = () => {
       });
 
       await fetchNotifications();
-    } catch (err: any) {
-      setError(err.message || 'Failed to send notification');
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Failed to send notification';
+      setError(message);
     } finally {
       setSubmitting(false);
     }
@@ -264,10 +276,14 @@ export const NotificationComposer: React.FC = () => {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
+            <label
+              htmlFor="notification-title"
+              className="block text-sm font-medium text-slate-700 mb-1"
+            >
               Title <span className="text-red-500">*</span>
             </label>
             <input
+              id="notification-title"
               type="text"
               value={form.title}
               onChange={(e) =>
@@ -284,10 +300,14 @@ export const NotificationComposer: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
+            <label
+              htmlFor="notification-body"
+              className="block text-sm font-medium text-slate-700 mb-1"
+            >
               Body
             </label>
             <textarea
+              id="notification-body"
               value={form.body}
               onChange={(e) => setForm({ ...form, body: e.target.value })}
               placeholder="Notification content..."
@@ -298,14 +318,21 @@ export const NotificationComposer: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
+              <label
+                htmlFor="notification-priority"
+                className="block text-sm font-medium text-slate-700 mb-1"
+              >
                 Priority
               </label>
               <select
+                id="notification-priority"
                 value={form.priority}
-                onChange={(e) =>
-                  setForm({ ...form, priority: e.target.value as any })
-                }
+                onChange={(e) => {
+                  const { value } = e.target;
+                  const nextPriority =
+                    value as NotificationFormData['priority'];
+                  setForm({ ...form, priority: nextPriority });
+                }}
                 className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               >
                 <option value="low">Low</option>
@@ -316,13 +343,18 @@ export const NotificationComposer: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
+              <label
+                htmlFor="notification-audience"
+                className="block text-sm font-medium text-slate-700 mb-1"
+              >
                 Audience
               </label>
               <select
+                id="notification-audience"
                 value={form.audienceType}
                 onChange={(e) => {
-                  const newType = e.target.value as any;
+                  const { value } = e.target;
+                  const newType = value as NotificationFormData['audienceType'];
                   setForm({
                     ...form,
                     audienceType: newType,
@@ -339,10 +371,10 @@ export const NotificationComposer: React.FC = () => {
           </div>
 
           {form.audienceType === 'plan' && (
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
+            <fieldset>
+              <legend className="block text-sm font-medium text-slate-700 mb-1">
                 Select Plans
-              </label>
+              </legend>
               <div className="flex flex-wrap gap-2">
                 {planOptions.map((plan) => (
                   <label key={plan} className="inline-flex items-center">
@@ -373,14 +405,14 @@ export const NotificationComposer: React.FC = () => {
                   </label>
                 ))}
               </div>
-            </div>
+            </fieldset>
           )}
 
           {form.audienceType === 'role' && (
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
+            <fieldset>
+              <legend className="block text-sm font-medium text-slate-700 mb-1">
                 Select Roles
-              </label>
+              </legend>
               <div className="flex flex-wrap gap-2">
                 {roleOptions.map((role) => (
                   <label key={role} className="inline-flex items-center">
@@ -411,7 +443,7 @@ export const NotificationComposer: React.FC = () => {
                   </label>
                 ))}
               </div>
-            </div>
+            </fieldset>
           )}
 
           <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
@@ -630,8 +662,10 @@ export const NotificationComposer: React.FC = () => {
                   key={notification.id}
                   className="border border-slate-200 rounded-lg overflow-hidden"
                 >
-                  <div
-                    className="p-4 flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-colors"
+                  <button
+                    type="button"
+                    className="w-full p-4 flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-colors text-left"
+                    aria-expanded={isExpanded}
                     onClick={() =>
                       setExpandedId(isExpanded ? null : notification.id)
                     }
@@ -670,7 +704,7 @@ export const NotificationComposer: React.FC = () => {
                         <ChevronDown size={20} className="text-slate-400" />
                       )}
                     </div>
-                  </div>
+                  </button>
 
                   {isExpanded && (
                     <div className="px-4 pb-4 border-t border-slate-100 bg-slate-50">

@@ -45,10 +45,10 @@ import { ArticlePage } from './components/Landing/pages/ArticlePage';
 import { BlogPage } from './components/Landing/pages/BlogPage';
 import { CareersPage } from './components/Landing/pages/CareersPage';
 import { ContactPage } from './components/Landing/pages/ContactPage';
-import { FeaturesPage } from './components/Landing/pages/FeaturesPage';
-import { FaqPage } from './components/Landing/pages/FaqPage';
-import { PricingPage } from './components/Landing/pages/PricingPage';
 import { DemoPage } from './components/Landing/pages/DemoPage';
+import { FaqPage } from './components/Landing/pages/FaqPage';
+import { FeaturesPage } from './components/Landing/pages/FeaturesPage';
+import { PricingPage } from './components/Landing/pages/PricingPage';
 import { PrivacyPage } from './components/Landing/pages/PrivacyPage';
 import { LandingPageBuilder } from './components/LandingPages/LandingPageBuilder';
 import { Sidebar } from './components/Layout/Sidebar';
@@ -95,6 +95,19 @@ const PLATFORM_HOST = 'platform.buildmybot.app';
 const LOGIN_HOST = 'login.buildmybot.app';
 const PLATFORM_URL = `https://${PLATFORM_HOST}`;
 const LOGIN_URL = `https://${LOGIN_HOST}/?auth=login`;
+
+type PartnerSignupData = {
+  name: string;
+  email: string;
+  password: string;
+  companyName: string;
+};
+
+type MarketplaceTemplate = {
+  name: string;
+  category?: string | null;
+  description?: string | null;
+};
 
 function App() {
   const {
@@ -432,11 +445,11 @@ function App() {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  const handlePartnerSignup = async (data: any) => {
+  const handlePartnerSignup = async (data: PartnerSignupData) => {
     const resellerCode =
       data.companyName.substring(0, 3).toUpperCase() +
       Date.now().toString().slice(-4);
-    const newPartner = {
+    const newPartner: Omit<User, 'id'> = {
       email: data.email,
       name: data.name,
       role: UserRole.OWNER,
@@ -444,14 +457,15 @@ function App() {
       companyName: data.companyName,
       resellerCode: resellerCode,
       status: 'Pending' as const,
+      createdAt: new Date().toISOString(),
     };
 
-    const savedPartner = await dbService.createUser(newPartner as any);
+    const savedPartner = await dbService.createUser(newPartner);
 
     if (savedPartner) {
-      setUser(savedPartner as any);
+      setUser(savedPartner);
       setIsLoggedIn(true);
-      dbService.setAuthContext({ userId: (savedPartner as any).id });
+      dbService.setAuthContext({ userId: savedPartner.id });
       setShowPartnerSignup(false);
       setShowPartnerPage(false);
       setCurrentView('dashboard');
@@ -467,12 +481,14 @@ function App() {
     }
   };
 
-  const handleInstallTemplate = (template: any) => {
+  const handleInstallTemplate = (template: MarketplaceTemplate) => {
+    const category = template.category || 'Custom';
+    const description = template.description || 'Provide expert guidance.';
     const newBot: BotType = {
       id: 'new',
       name: template.name,
-      type: template.category === 'All' ? 'Custom' : template.category,
-      systemPrompt: `You are a helpful assistant specialized in ${template.category}. ${template.description}. Act professionally and help the user achieve their goals.`,
+      type: category === 'All' ? 'Custom' : category,
+      systemPrompt: `You are a helpful assistant specialized in ${category}. ${description}. Act professionally and help the user achieve their goals.`,
       model: 'gpt-5o-mini',
       temperature: 0.7,
       knowledgeBase: [],
@@ -691,7 +707,7 @@ function App() {
 
             {/* Phase 2: Admin Dashboard with DashboardShell */}
             {currentView === 'admin' && (
-              <RouteGuard role="admin">
+              <RouteGuard requiredRole="admin">
                 <DashboardShell
                   currentPath={`/admin${adminActiveTab === 'metrics' ? '' : `/${adminActiveTab}`}`}
                   onNavigate={(path) => {
@@ -729,7 +745,7 @@ function App() {
 
             {/* Phase 2: Partner Dashboard with DashboardShell */}
             {currentView === 'reseller' && (
-              <RouteGuard role="reseller">
+              <RouteGuard requiredRole="reseller">
                 <DashboardShell
                   currentPath={`/partner/${partnerActiveTab}`}
                   onNavigate={(path) => {
@@ -764,7 +780,7 @@ function App() {
 
             {/* Phase 2: Owner Dashboard with DashboardShell (regular business owners) */}
             {currentView === 'dashboard' && (
-              <RouteGuard role="owner">
+              <RouteGuard requiredRole="owner">
                 <DashboardShell
                   currentPath="/app"
                   onNavigate={(path) => {
@@ -787,7 +803,7 @@ function App() {
 
             {/* Phase 2: Client Dashboard with DashboardShell (CLIENT role - managed by resellers) */}
             {currentView === 'client' && (
-              <RouteGuard role="client">
+              <RouteGuard requiredRole="client">
                 <DashboardShell
                   currentPath="/app"
                   onNavigate={(path) => {
@@ -831,7 +847,7 @@ function App() {
             {currentView === 'marketplace' && (
               <ErrorBoundary>
                 <TemplateMarketplace
-                  onInstall={handleInstallTemplate as any}
+                  onInstall={handleInstallTemplate}
                   userId={activeUser?.id}
                   organizationId={activeUser?.id}
                 />

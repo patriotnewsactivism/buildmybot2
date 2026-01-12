@@ -8,13 +8,13 @@ import { useDashboardContext } from '../../hooks/useDashboardContext';
 import { UserRole } from '../../types';
 
 interface RouteGuardProps {
-  role: 'admin' | 'partner' | 'reseller' | 'client' | 'owner';
+  requiredRole: 'admin' | 'partner' | 'reseller' | 'client' | 'owner';
   children: React.ReactNode;
   requireOrganization?: boolean;
 }
 
 export const RouteGuard: React.FC<RouteGuardProps> = ({
-  role,
+  requiredRole,
   children,
   requireOrganization = false,
 }) => {
@@ -66,8 +66,8 @@ export const RouteGuard: React.FC<RouteGuardProps> = ({
     owner: [UserRole.OWNER, UserRole.CLIENT],
   };
 
-  const allowedRoles = roleMap[role];
-  if (!allowedRoles.includes(user.role)) {
+  const allowedRoles = roleMap[requiredRole];
+  if (!allowedRoles || !allowedRoles.includes(user.role)) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
@@ -75,7 +75,8 @@ export const RouteGuard: React.FC<RouteGuardProps> = ({
             Access Denied
           </h2>
           <p className="text-slate-600">
-            You don't have permission to access this page. Required role: {role}
+            You don't have permission to access this page. Required role:{' '}
+            {requiredRole}
           </p>
         </div>
       </div>

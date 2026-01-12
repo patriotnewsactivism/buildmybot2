@@ -25,7 +25,7 @@ const faqs = [
     a: 'No. We use advanced models and optional voice synthesis so the experience feels natural and human.',
   },
   {
-    q: "What happens if the AI cannot answer a question?",
+    q: 'What happens if the AI cannot answer a question?',
     a: 'The bot captures contact info and escalates the lead to your team with full context so nothing is lost.',
   },
   {
@@ -134,8 +134,8 @@ export const FaqPage: React.FC<FaqPageProps> = ({ onLogin }) => {
               coverage
             </span>
             <span className="flex items-center gap-2">
-              <CheckCircle size={16} className="text-emerald-400" /> Secure
-              by design
+              <CheckCircle size={16} className="text-emerald-400" /> Secure by
+              design
             </span>
           </div>
         </section>

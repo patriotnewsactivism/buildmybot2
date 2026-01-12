@@ -1,8 +1,8 @@
 import { ArrowRight, CheckCircle, Sparkles } from 'lucide-react';
 import type React from 'react';
-import { PageLayout } from './PageLayout';
 import { PLANS } from '../../../constants';
 import { PlanType } from '../../../types';
+import { PageLayout } from './PageLayout';
 
 interface PricingPageProps {
   onLogin?: () => void;
@@ -107,9 +107,9 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onLogin }) => {
                   {botsLabel} · {conversationsLabel}
                 </div>
                 <ul className="space-y-2 mb-6">
-                  {plan.features.map((feature, index) => (
+                  {plan.features.map((feature) => (
                     <li
-                      key={index}
+                      key={feature}
                       className="flex items-start gap-2 text-sm text-slate-600"
                     >
                       <CheckCircle

@@ -86,10 +86,10 @@ export const BlogPage: React.FC = () => {
           </h2>
           <div className="grid md:grid-cols-2 gap-8">
             {featuredPosts.map((post) => (
-              <article
+              <a
                 key={post.id}
-                onClick={() => (window.location.href = `/blog/${post.id}`)}
-                className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-xl transition-shadow group cursor-pointer"
+                href={`/blog/${post.id}`}
+                className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-xl transition-shadow group"
               >
                 <div className="h-48 bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center">
                   <span className="text-6xl font-bold text-white/20">
@@ -123,7 +123,7 @@ export const BlogPage: React.FC = () => {
                     </span>
                   </div>
                 </div>
-              </article>
+              </a>
             ))}
           </div>
         </section>
@@ -151,10 +151,10 @@ export const BlogPage: React.FC = () => {
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredPosts.map((post) => (
-              <article
+              <a
                 key={post.id}
-                onClick={() => (window.location.href = `/blog/${post.id}`)}
-                className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm hover:shadow-lg transition-shadow group cursor-pointer"
+                href={`/blog/${post.id}`}
+                className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm hover:shadow-lg transition-shadow group"
               >
                 <div className="flex items-center gap-2 mb-3 text-sm">
                   <Tag size={14} className="text-blue-600" />
@@ -179,7 +179,7 @@ export const BlogPage: React.FC = () => {
                     <Clock size={14} /> {post.readTime}
                   </span>
                 </div>
-              </article>
+              </a>
             ))}
           </div>
         </section>

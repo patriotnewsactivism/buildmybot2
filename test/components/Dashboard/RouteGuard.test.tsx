@@ -44,7 +44,7 @@ describe('RouteGuard', () => {
   it('allows admin users to access admin routes', async () => {
     render(
       <DashboardProvider initialUser={mockAdminUser}>
-        <RouteGuard>
+        <RouteGuard requiredRole="admin">
           <div>Admin Content</div>
         </RouteGuard>
       </DashboardProvider>,
@@ -60,7 +60,7 @@ describe('RouteGuard', () => {
   it('blocks non-admin users from admin routes', async () => {
     render(
       <DashboardProvider initialUser={mockClientUser}>
-        <RouteGuard>
+        <RouteGuard requiredRole="admin">
           <div>Admin Content</div>
         </RouteGuard>
       </DashboardProvider>,
@@ -73,7 +73,7 @@ describe('RouteGuard', () => {
   it('blocks unauthenticated users', () => {
     render(
       <DashboardProvider initialUser={null}>
-        <RouteGuard>
+        <RouteGuard requiredRole="admin">
           <div>Admin Content</div>
         </RouteGuard>
       </DashboardProvider>,
@@ -88,7 +88,7 @@ describe('RouteGuard', () => {
 
     render(
       <DashboardProvider initialUser={userWithoutOrg}>
-        <RouteGuard requireOrganization={true}>
+        <RouteGuard requiredRole="owner" requireOrganization={true}>
           <div>Client Content</div>
         </RouteGuard>
       </DashboardProvider>,
@@ -103,7 +103,7 @@ describe('RouteGuard', () => {
 
     render(
       <DashboardProvider initialUser={userWithoutOrg}>
-        <RouteGuard requireOrganization={false}>
+        <RouteGuard requiredRole="owner" requireOrganization={false}>
           <div>Client Content</div>
         </RouteGuard>
       </DashboardProvider>,

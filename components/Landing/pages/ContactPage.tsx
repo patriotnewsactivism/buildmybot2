@@ -76,10 +76,14 @@ export const ContactPage: React.FC = () => {
                 <form onSubmit={handleSubmit} className="space-y-6">
                   <div className="grid md:grid-cols-2 gap-6">
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">
+                      <label
+                        htmlFor="contact-name"
+                        className="block text-sm font-medium text-slate-700 mb-2"
+                      >
                         Your Name
                       </label>
                       <input
+                        id="contact-name"
                         type="text"
                         required
                         value={formData.name}
@@ -91,10 +95,14 @@ export const ContactPage: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">
+                      <label
+                        htmlFor="contact-email"
+                        className="block text-sm font-medium text-slate-700 mb-2"
+                      >
                         Email Address
                       </label>
                       <input
+                        id="contact-email"
                         type="email"
                         required
                         value={formData.email}
@@ -107,10 +115,14 @@ export const ContactPage: React.FC = () => {
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                    <label
+                      htmlFor="contact-subject"
+                      className="block text-sm font-medium text-slate-700 mb-2"
+                    >
                       Subject
                     </label>
                     <input
+                      id="contact-subject"
                       type="text"
                       required
                       value={formData.subject}
@@ -122,10 +134,14 @@ export const ContactPage: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                    <label
+                      htmlFor="contact-message"
+                      className="block text-sm font-medium text-slate-700 mb-2"
+                    >
                       Message
                     </label>
                     <textarea
+                      id="contact-message"
                       required
                       rows={5}
                       value={formData.message}

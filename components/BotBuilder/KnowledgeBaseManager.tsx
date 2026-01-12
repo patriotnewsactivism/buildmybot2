@@ -315,12 +315,16 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
         </div>
 
         <div className="bg-white rounded-lg p-4 border border-blue-100">
-          <label className="block text-sm font-medium text-slate-700 mb-2">
+          <label
+            htmlFor="knowledge-base-url"
+            className="block text-sm font-medium text-slate-700 mb-2"
+          >
             <Globe size={16} className="inline mr-2" />
             Add Website URL
           </label>
           <div className="flex gap-3">
             <input
+              id="knowledge-base-url"
               type="url"
               value={urlInput}
               onChange={(e) => setUrlInput(e.target.value)}
@@ -360,26 +364,7 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
         </div>
       </div>
 
-      <div
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        onClick={() =>
-          !uploading && botId !== 'new' && fileInputRef.current?.click()
-        }
-        className={`
-          border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all
-          ${
-            isDragging
-              ? 'border-blue-500 bg-blue-50'
-              : uploading
-                ? 'border-slate-200 bg-slate-50 cursor-wait'
-                : botId === 'new'
-                  ? 'border-slate-200 bg-slate-50 cursor-not-allowed opacity-50'
-                  : 'border-slate-300 hover:border-blue-400 hover:bg-blue-50'
-          }
-        `}
-      >
+      <div>
         <input
           ref={fileInputRef}
           type="file"
@@ -389,41 +374,66 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
           className="hidden"
           disabled={uploading || botId === 'new'}
         />
-
-        {uploading ? (
-          <div className="space-y-4">
-            <Loader className="animate-spin text-blue-600 mx-auto" size={32} />
-            <div>
-              <p className="font-medium text-slate-900">
-                Uploading {currentFile}...
-              </p>
-              <div className="mt-3 w-full bg-slate-200 h-2 rounded-full overflow-hidden max-w-md mx-auto">
-                <div
-                  className="bg-blue-600 h-full transition-all duration-300"
-                  style={{ width: `${uploadProgress}%` }}
-                />
+        <button
+          type="button"
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          onClick={() =>
+            !uploading && botId !== 'new' && fileInputRef.current?.click()
+          }
+          disabled={uploading || botId === 'new'}
+          className={`
+            w-full border-2 border-dashed rounded-xl p-8 text-center transition-all
+            ${
+              isDragging
+                ? 'border-blue-500 bg-blue-50'
+                : uploading
+                  ? 'border-slate-200 bg-slate-50 cursor-wait'
+                  : botId === 'new'
+                    ? 'border-slate-200 bg-slate-50 cursor-not-allowed opacity-50'
+                    : 'border-slate-300 hover:border-blue-400 hover:bg-blue-50'
+            }
+          `}
+        >
+          {uploading ? (
+            <div className="space-y-4">
+              <Loader
+                className="animate-spin text-blue-600 mx-auto"
+                size={32}
+              />
+              <div>
+                <p className="font-medium text-slate-900">
+                  Uploading {currentFile}...
+                </p>
+                <div className="mt-3 w-full bg-slate-200 h-2 rounded-full overflow-hidden max-w-md mx-auto">
+                  <div
+                    className="bg-blue-600 h-full transition-all duration-300"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+                <p className="text-xs text-slate-500 mt-2">
+                  {Math.round(uploadProgress)}%
+                </p>
               </div>
-              <p className="text-xs text-slate-500 mt-2">
-                {Math.round(uploadProgress)}%
-              </p>
             </div>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            <Upload className="mx-auto text-slate-400" size={40} />
-            <div>
-              <p className="font-medium text-slate-900">
-                {botId === 'new'
-                  ? 'Save your bot first to upload documents'
-                  : 'Drop files here or click to upload'}
-              </p>
-              <p className="text-sm text-slate-500 mt-1">
-                PDF, Word, Text, Markdown, or Images (OCR supported) - max 20MB
-                each
-              </p>
+          ) : (
+            <div className="space-y-3">
+              <Upload className="mx-auto text-slate-400" size={40} />
+              <div>
+                <p className="font-medium text-slate-900">
+                  {botId === 'new'
+                    ? 'Save your bot first to upload documents'
+                    : 'Drop files here or click to upload'}
+                </p>
+                <p className="text-sm text-slate-500 mt-1">
+                  PDF, Word, Text, Markdown, or Images (OCR supported) - max
+                  20MB each
+                </p>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </button>
       </div>
 
       {(error || success) && (
@@ -527,7 +537,10 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
       )}
 
       {botId && botId !== 'new' && (
-        <PrebuiltKnowledgeSelector botId={botId} onInstallComplete={fetchSources} />
+        <PrebuiltKnowledgeSelector
+          botId={botId}
+          onInstallComplete={fetchSources}
+        />
       )}
 
       <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">

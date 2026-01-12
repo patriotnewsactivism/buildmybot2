@@ -97,10 +97,11 @@ export const ChatLogs: React.FC<ChatLogsProps> = ({ conversations }) => {
 
         <div className="flex-1 overflow-y-auto">
           {filteredConversations.map((conv) => (
-            <div
+            <button
               key={conv.id}
+              type="button"
               onClick={() => handleSelectConversation(conv.id)}
-              className={`p-4 border-b border-slate-50 cursor-pointer hover:bg-slate-50 active:bg-slate-100 transition min-h-[72px] ${
+              className={`w-full text-left p-4 border-b border-slate-50 cursor-pointer hover:bg-slate-50 active:bg-slate-100 transition min-h-[72px] ${
                 selectedConversationId === conv.id
                   ? 'bg-blue-50 border-l-4 border-l-blue-900'
                   : ''
@@ -128,7 +129,7 @@ export const ChatLogs: React.FC<ChatLogsProps> = ({ conversations }) => {
                   {conv.messages.length} msgs
                 </div>
               </div>
-            </div>
+            </button>
           ))}
           {filteredConversations.length === 0 && (
             <div className="p-8 text-center text-slate-400 text-sm">
@@ -202,9 +203,9 @@ export const ChatLogs: React.FC<ChatLogsProps> = ({ conversations }) => {
 
           {/* Messages */}
           <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 md:space-y-6 bg-slate-50/50">
-            {activeConversation.messages.map((msg, idx) => (
+            {activeConversation.messages.map((msg) => (
               <div
-                key={idx}
+                key={`${msg.timestamp}-${msg.role}`}
                 className={`flex ${msg.role === 'user' ? 'justify-start' : 'justify-end'}`}
               >
                 <div
