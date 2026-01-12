@@ -125,7 +125,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
                 <img
                   src="/logo.jpg"
                   alt="BuildMyBot"
-                  className="h-7 sm:h-8 w-auto rounded-md object-contain shadow-sm"
+                  className="h-5 sm:h-6 w-auto rounded-md object-contain shadow-sm"
                 />
                 <h1 className="text-base sm:text-lg md:text-xl font-bold text-slate-900 hidden sm:block">
                   BuildMyBot

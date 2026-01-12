@@ -607,51 +607,59 @@ export const LandingPage: React.FC<LandingProps> = ({
       </div>
 
       {/* Navbar */}
-      <nav className="h-14 sm:h-16 md:h-20 border-b border-slate-200/60 bg-white/95 backdrop-blur-lg px-4 sm:px-6 lg:px-12 flex items-center justify-between sticky top-0 z-40 shadow-sm">
-        <div className="flex items-center gap-2 sm:gap-3">
-          <img
-            src="/logo.jpg"
-            alt="BuildMyBot"
-            className="h-7 sm:h-8 md:h-9 lg:h-10 w-auto rounded-md object-contain shadow-sm"
-          />
-          <span className="font-bold text-base sm:text-lg md:text-xl text-slate-900 hidden sm:block">
-            BuildMyBot
-          </span>
-        </div>
-        <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-600">
-          <a href="/features" className="hover:text-blue-700 transition-colors">
-            Features
-          </a>
-          <a href="/pricing" className="hover:text-blue-700 transition-colors">
-            Pricing
-          </a>
-          <a href="/faq" className="hover:text-blue-700 transition-colors">
-            FAQ
-          </a>
-          <a
-            href="/partner-program"
-            onClick={() => onNavigateToPartner?.()}
-            className="hover:text-blue-700 transition-colors text-emerald-600 font-semibold"
-          >
-            Partners
-          </a>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onLogin}
-            className="bg-blue-700 text-white px-4 sm:px-6 py-2 sm:py-2.5 rounded-xl font-semibold text-sm sm:text-base hover:bg-blue-800 transition-all shadow-lg shadow-blue-700/25 hover:shadow-xl hover:shadow-blue-700/30"
-          >
-            Get Started
-          </button>
-          <button
-            type="button"
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="md:hidden p-2 text-slate-600 hover:text-slate-900"
-            aria-label="Toggle menu"
-          >
-            {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-          </button>
+      <nav className="border-b border-slate-200/60 bg-white/95 backdrop-blur-lg sticky top-0 z-40 shadow-sm">
+        <div className="mx-auto flex h-14 sm:h-16 w-full max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <img
+              src="/logo.jpg"
+              alt="BuildMyBot"
+              className="h-4 sm:h-5 md:h-6 w-auto rounded-md object-contain shadow-sm"
+            />
+            <span className="font-bold text-sm sm:text-base md:text-lg text-slate-900 hidden sm:block">
+              BuildMyBot
+            </span>
+          </div>
+          <div className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-600">
+            <a
+              href="/features"
+              className="hover:text-blue-700 transition-colors"
+            >
+              Features
+            </a>
+            <a
+              href="/pricing"
+              className="hover:text-blue-700 transition-colors"
+            >
+              Pricing
+            </a>
+            <a href="/faq" className="hover:text-blue-700 transition-colors">
+              FAQ
+            </a>
+            <a
+              href="/partner-program"
+              onClick={() => onNavigateToPartner?.()}
+              className="hover:text-blue-700 transition-colors text-emerald-600 font-semibold"
+            >
+              Partners
+            </a>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onLogin}
+              className="bg-blue-700 text-white px-4 sm:px-5 py-2 rounded-xl font-semibold text-sm sm:text-base hover:bg-blue-800 transition-all shadow-lg shadow-blue-700/25 hover:shadow-xl hover:shadow-blue-700/30"
+            >
+              Get Started
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="md:hidden p-2 text-slate-600 hover:text-slate-900"
+              aria-label="Toggle menu"
+            >
+              {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+            </button>
+          </div>
         </div>
       </nav>
 
@@ -704,21 +712,21 @@ export const LandingPage: React.FC<LandingProps> = ({
         </div>
       )}
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 py-12 sm:py-16 md:py-24 space-y-16 sm:space-y-24 md:space-y-40">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14 md:py-20 space-y-12 sm:space-y-16 md:space-y-24">
         {/* 1. Hero Section */}
-        <section className="text-center space-y-10 pt-8">
-          <div className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 px-5 py-2.5 rounded-full text-sm font-semibold border border-blue-100 shadow-sm">
+        <section className="text-center space-y-8 pt-6">
+          <div className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 px-4 py-2 rounded-full text-xs sm:text-sm font-semibold border border-blue-100 shadow-sm">
             <Sparkles size={16} className="text-blue-500" /> AI That Never
             Sleeps, Never Misses a Lead
           </div>
-          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-extrabold text-slate-900 leading-[1.1] tracking-tight px-2">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-slate-900 leading-[1.1] tracking-tight px-2">
             Stop Losing Leads to
             <br className="hidden sm:block" /> Slow Response
           </h1>
-          <p className="text-xl sm:text-2xl font-semibold text-blue-700 -mt-4">
+          <p className="text-lg sm:text-xl font-semibold text-blue-700 mt-2">
             Close 3x More Deals on Autopilot
           </p>
-          <p className="text-lg sm:text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed">
+          <p className="text-base sm:text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed">
             Your AI sales agent works 24/7, responds in seconds, and never takes
             a day off. Convert website visitors into paying customers while you
             sleep.
@@ -727,13 +735,13 @@ export const LandingPage: React.FC<LandingProps> = ({
             <button
               type="button"
               onClick={onLogin}
-              className="w-full sm:w-auto bg-blue-700 text-white px-10 py-4 rounded-2xl font-bold text-lg hover:bg-blue-800 transition-all shadow-xl shadow-blue-700/30 hover:shadow-2xl hover:shadow-blue-700/40 hover:-translate-y-0.5 flex items-center justify-center gap-3"
+              className="w-full sm:w-auto bg-blue-700 text-white px-8 py-3 rounded-xl font-bold text-base sm:text-lg hover:bg-blue-800 transition-all shadow-xl shadow-blue-700/30 hover:shadow-2xl hover:shadow-blue-700/40 hover:-translate-y-0.5 flex items-center justify-center gap-3"
             >
               Start Free <ArrowRight size={20} />
             </button>
             <a
               href="/demo"
-              className="w-full sm:w-auto bg-white text-slate-700 border-2 border-slate-200 px-10 py-4 rounded-2xl font-bold text-lg hover:border-blue-300 hover:text-blue-700 transition-all flex items-center justify-center gap-3 shadow-sm"
+              className="w-full sm:w-auto bg-white text-slate-700 border-2 border-slate-200 px-8 py-3 rounded-xl font-bold text-base sm:text-lg hover:border-blue-300 hover:text-blue-700 transition-all flex items-center justify-center gap-3 shadow-sm"
             >
               <Play size={20} /> See It In Action
             </a>
@@ -781,7 +789,7 @@ export const LandingPage: React.FC<LandingProps> = ({
         </section>
 
         {/* 2. Dashboard Mockup */}
-        <section className="bg-gradient-to-br from-slate-900 via-slate-800 to-blue-900 rounded-2xl sm:rounded-3xl p-6 sm:p-10 md:p-16 text-white shadow-2xl">
+        <section className="bg-gradient-to-br from-slate-900 via-slate-800 to-blue-900 rounded-2xl sm:rounded-3xl p-5 sm:p-8 md:p-12 text-white shadow-2xl">
           <div className="text-center mb-8 sm:mb-12">
             <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3">
               Your Command Center
@@ -841,7 +849,7 @@ export const LandingPage: React.FC<LandingProps> = ({
         </section>
 
         {/* 5. ROI Calculator */}
-        <section className="bg-white rounded-2xl sm:rounded-3xl shadow-xl p-5 sm:p-8 md:p-12 border border-slate-200">
+        <section className="bg-white rounded-2xl sm:rounded-3xl shadow-xl p-5 sm:p-8 md:p-10 border border-slate-200">
           <div className="text-center mb-6 sm:mb-10">
             <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4">
               Calculate Your ROI
@@ -1535,7 +1543,7 @@ export const LandingPage: React.FC<LandingProps> = ({
       </main>
 
       <footer className="bg-slate-900 text-slate-400 py-12 sm:py-20 px-4 sm:px-6">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8 sm:gap-12">
+        <div className="max-w-6xl mx-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8 sm:gap-12">
           <div>
             <div className="flex items-center gap-2 text-white font-bold text-xl mb-4">
               <Bot size={24} /> BuildMyBot
