@@ -28,6 +28,7 @@ import {
   Upload,
   X,
   Zap,
+  type LucideIcon,
 } from 'lucide-react';
 import type React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -74,7 +75,7 @@ type EditorTabId = 'basic' | 'hero' | 'cta' | 'form' | 'thankyou' | 'bot';
 type EditorTab = {
   id: EditorTabId;
   label: string;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
+  icon: LucideIcon | React.ComponentType<{ size?: number; className?: string }>;
 };
 
 const PremiumCard: React.FC<{

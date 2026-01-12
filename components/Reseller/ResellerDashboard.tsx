@@ -21,7 +21,7 @@ import {
   Users,
 } from 'lucide-react';
 import type React from 'react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Bar,
   BarChart,
@@ -44,6 +44,13 @@ interface ResellerProps {
   user: User;
   stats: ResellerStats;
 }
+
+type MarketingSection =
+  | 'playbook'
+  | 'emails'
+  | 'objections'
+  | 'industries'
+  | 'downloads';
 
 const mockEarnings = [
   { month: 'Jan', amount: 1200 },
@@ -95,7 +102,7 @@ export const ResellerDashboard: React.FC<ResellerProps> = ({
     );
   }
 
-  const computeFallbackStats = (usersList: User[]): ResellerStats => {
+  const computeFallbackStats = useCallback((usersList: User[]): ResellerStats => {
     const clientCount = usersList.length;
     const totalRev = usersList.reduce((acc, u) => {
       const plan = PLANS[u.plan as keyof typeof PLANS];
@@ -130,7 +137,7 @@ export const ResellerDashboard: React.FC<ResellerProps> = ({
         ? paidThrough.toISOString()
         : undefined,
     };
-  };
+  }, [user.whitelabelEnabled, user.whitelabelPaidThrough]);
 
   useEffect(() => {
     if (user.resellerCode) {
