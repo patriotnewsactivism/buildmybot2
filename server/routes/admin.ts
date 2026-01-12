@@ -36,11 +36,13 @@ import { auditSensitiveAction } from '../middleware';
 import { systemMetricsService } from '../services/SystemMetricsService';
 import { getUncachableStripeClient } from '../stripeClient';
 import { stripeService } from '../stripeService';
+import logger from '../utils/logger';
 
 const router = Router();
 
 router.get('/metrics', async (req: any, res) => {
   try {
+    logger.info('Fetching admin metrics');
     const metrics = systemMetricsService.getSnapshot();
     const activeThreshold = new Date(Date.now() - 15 * 60 * 1000);
     const [{ count: totalUsers }] = await db
@@ -312,6 +314,7 @@ router.post(
 
 router.get('/partners', async (_req, res) => {
   try {
+    logger.info('Fetching admin partners');
     const partners = await db
       .select()
       .from(users)
@@ -350,7 +353,7 @@ router.get('/partners', async (_req, res) => {
 
     res.json(partnerMetrics);
   } catch (error) {
-    console.error('Partner list error:', error);
+    logger.error('Partner list error:', { error });
     res.status(500).json({ error: 'Failed to fetch partners' });
   }
 });
@@ -371,6 +374,7 @@ router.get('/clients', async (_req, res) => {
 
 router.get('/partners/leaderboard', async (_req, res) => {
   try {
+    logger.info('Fetching partner leaderboard');
     const partners = await db
       .select()
       .from(users)

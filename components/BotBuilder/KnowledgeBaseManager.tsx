@@ -2,6 +2,7 @@ import {
   AlertCircle,
   CheckCircle,
   Database,
+  Eye,
   FileText,
   Globe,
   Link,
@@ -66,7 +67,10 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
     chunks: 0,
     totalTokens: 0,
   });
-  const [loadingSources, setLoadingSources] = useState(false);
+  
+  const [previewContent, setPreviewContent] = useState<string | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
+  const [loadingPreview, setLoadingPreview] = useState(false);
 
   const fetchSources = useCallback(async () => {
     if (!botId || botId === 'new') return;
@@ -263,10 +267,24 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
     }
   };
 
-  const formatFileSize = (bytes: number): string => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  const handlePreview = async (sourceId: string) => {
+    setLoadingPreview(true);
+    setShowPreview(true);
+    try {
+      const response = await fetch(buildApiUrl(`/knowledge/preview/${sourceId}`), {
+        credentials: 'include',
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setPreviewContent(data.content);
+      } else {
+        setPreviewContent('Failed to load preview content.');
+      }
+    } catch (err) {
+      setPreviewContent('Failed to load preview content.');
+    } finally {
+      setLoadingPreview(false);
+    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -510,6 +528,14 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
                   {getStatusBadge(source.status)}
                 </div>
                 <div className="flex items-center gap-2 ml-4">
+                  <button
+                    type="button"
+                    onClick={() => handlePreview(source.id)}
+                    className="p-2 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                    title="Preview"
+                  >
+                    <Eye size={18} />
+                  </button>
                   {source.sourceType === 'url' &&
                     source.status === 'completed' && (
                       <button
@@ -565,6 +591,30 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
           </li>
         </ul>
       </div>
+
+      {showPreview && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[80vh] flex flex-col">
+            <div className="p-4 border-b border-slate-200 flex justify-between items-center">
+              <h3 className="font-semibold text-lg text-slate-900">Document Preview</h3>
+              <button onClick={() => setShowPreview(false)} className="text-slate-500 hover:text-slate-700">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto flex-1 bg-slate-50">
+              {loadingPreview ? (
+                <div className="flex justify-center py-12">
+                  <Loader className="animate-spin text-blue-600" size={32} />
+                </div>
+              ) : (
+                <pre className="whitespace-pre-wrap font-mono text-sm text-slate-700 bg-white p-4 rounded border border-slate-200">
+                  {previewContent || 'No text content available.'}
+                </pre>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
