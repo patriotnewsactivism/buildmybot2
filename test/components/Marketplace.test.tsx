@@ -2,15 +2,19 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Marketplace } from '../../components/Marketplace/Marketplace';
 
+const fetchMock = vi.fn();
+
 describe('Marketplace', () => {
   beforeEach(() => {
     // Reset fetch mock before each test
     vi.resetAllMocks();
+    fetchMock.mockReset();
+    vi.stubGlobal('fetch', fetchMock);
   });
 
   it('renders loading state initially', () => {
     // Mock fetch to never resolve
-    (global.fetch as any).mockImplementation(() => new Promise(() => {}));
+    fetchMock.mockImplementation(() => new Promise(() => {}));
 
     render(<Marketplace />);
     expect(screen.getByText(/loading marketplace/i)).toBeInTheDocument();
@@ -32,7 +36,7 @@ describe('Marketplace', () => {
       },
     ];
 
-    (global.fetch as any).mockResolvedValueOnce({
+    fetchMock.mockResolvedValueOnce({
       ok: true,
       json: async () => mockTemplates,
     });
@@ -48,7 +52,7 @@ describe('Marketplace', () => {
   });
 
   it('renders error state when fetch fails', async () => {
-    (global.fetch as any).mockRejectedValueOnce(new Error('Failed to fetch'));
+    fetchMock.mockRejectedValueOnce(new Error('Failed to fetch'));
 
     render(<Marketplace />);
 
@@ -81,7 +85,7 @@ describe('Marketplace', () => {
       },
     ];
 
-    (global.fetch as any).mockResolvedValueOnce({
+    fetchMock.mockResolvedValueOnce({
       ok: true,
       json: async () => mockTemplates,
     });

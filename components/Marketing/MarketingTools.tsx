@@ -12,15 +12,25 @@ import type React from 'react';
 import { useState } from 'react';
 import { generateMarketingContent } from '../../services/openaiService';
 
+type MarketingContentType = 'email' | 'social' | 'ad' | 'viral-thread' | 'story';
+
+type MarketingTool = {
+  id: MarketingContentType;
+  label: string;
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+  desc: string;
+};
+
 export const MarketingTools: React.FC = () => {
   const [topic, setTopic] = useState('');
   const [tone, setTone] = useState('Professional');
-  const [activeType, setActiveType] = useState<
-    'email' | 'social' | 'ad' | 'viral-thread' | 'story'
-  >('email');
+  const [activeType, setActiveType] = useState<MarketingContentType>('email');
   const [generatedContent, setGeneratedContent] = useState('');
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  const topicInputId = 'marketing-topic';
+  const toneSelectId = 'marketing-tone';
 
   const handleGenerate = async () => {
     if (!topic) return;
@@ -42,7 +52,7 @@ export const MarketingTools: React.FC = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const tools = [
+  const tools: MarketingTool[] = [
     {
       id: 'email',
       label: 'Email Campaign',
@@ -91,7 +101,7 @@ export const MarketingTools: React.FC = () => {
           <button
             type="button"
             key={t.id}
-            onClick={() => setActiveType(t.id as any)}
+            onClick={() => setActiveType(t.id)}
             className={`p-3 rounded-xl border text-left transition flex flex-col justify-between min-h-[100px] ${
               activeType === t.id
                 ? 'border-blue-900 bg-blue-50 ring-1 ring-blue-900'
@@ -118,10 +128,14 @@ export const MarketingTools: React.FC = () => {
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
           <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-slate-700 mb-2">
+            <label
+              htmlFor={topicInputId}
+              className="block text-sm font-medium text-slate-700 mb-2"
+            >
               What is this about?
             </label>
             <input
+              id={topicInputId}
               type="text"
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
@@ -130,10 +144,14 @@ export const MarketingTools: React.FC = () => {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
+            <label
+              htmlFor={toneSelectId}
+              className="block text-sm font-medium text-slate-700 mb-2"
+            >
               Tone of Voice
             </label>
             <select
+              id={toneSelectId}
               value={tone}
               onChange={(e) => setTone(e.target.value)}
               className="w-full rounded-lg border-slate-200 focus:ring-blue-900 focus:border-blue-900"

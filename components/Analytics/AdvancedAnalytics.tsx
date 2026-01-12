@@ -199,7 +199,7 @@ export const AdvancedAnalytics: React.FC<AdvancedAnalyticsProps> = ({
   const [selectedPreset, setSelectedPreset] = useState<string>('30d');
   const [data, setData] = useState<AnalyticsData>(getEmptyData());
 
-  const getDaysFromPreset = (preset: string): number => {
+  const getDaysFromPreset = useCallback((preset: string): number => {
     switch (preset) {
       case '7d':
         return 7;
@@ -212,7 +212,7 @@ export const AdvancedAnalytics: React.FC<AdvancedAnalyticsProps> = ({
       default:
         return 30;
     }
-  };
+  }, []);
 
   const fetchAnalyticsData = useCallback(async (days: number) => {
     try {
@@ -244,7 +244,7 @@ export const AdvancedAnalytics: React.FC<AdvancedAnalyticsProps> = ({
   useEffect(() => {
     const days = getDaysFromPreset(selectedPreset);
     fetchAnalyticsData(days);
-  }, [selectedPreset, organizationId, fetchAnalyticsData]);
+  }, [selectedPreset, fetchAnalyticsData, getDaysFromPreset]);
 
   const handlePresetChange = (preset: string) => {
     setSelectedPreset(preset);
@@ -315,6 +315,7 @@ export const AdvancedAnalytics: React.FC<AdvancedAnalyticsProps> = ({
     month: 'long',
     day: 'numeric',
   });
+  const hours = Array.from({ length: 24 }, (_, hour) => hour);
 
   return (
     <div className="max-w-7xl mx-auto space-y-4 md:space-y-6 animate-fade-in px-2 md:px-0">
@@ -599,8 +600,8 @@ export const AdvancedAnalytics: React.FC<AdvancedAnalyticsProps> = ({
                   dataKey="value"
                   label={({ name, value }) => `${name}: ${value}%`}
                 >
-                  {data.sentimentData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  {data.sentimentData.map((entry) => (
+                    <Cell key={entry.name} fill={entry.color} />
                   ))}
                 </Pie>
                 <Tooltip
@@ -839,7 +840,7 @@ export const AdvancedAnalytics: React.FC<AdvancedAnalyticsProps> = ({
                     ),
                   )}
 
-                  {Array.from({ length: 24 }, (_, hour) => (
+                  {hours.map((hour) => (
                     <React.Fragment key={hour}>
                       <div className="text-xs text-slate-500 text-right pr-2 py-1">
                         {hour === 0
@@ -876,8 +877,8 @@ export const AdvancedAnalytics: React.FC<AdvancedAnalyticsProps> = ({
                     'bg-orange-400',
                     'bg-orange-500',
                     'bg-orange-600',
-                  ].map((color, i) => (
-                    <div key={i} className={`w-4 h-4 rounded ${color}`} />
+                  ].map((color) => (
+                    <div key={color} className={`w-4 h-4 rounded ${color}`} />
                   ))}
                   <span className="text-xs text-slate-500">More</span>
                 </div>

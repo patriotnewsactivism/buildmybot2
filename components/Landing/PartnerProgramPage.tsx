@@ -23,6 +23,16 @@ interface PartnerProps {
   onSignup: () => void;
 }
 
+const PAYOUT_BAR_DATA = [
+  { id: 'payout-1', height: 40 },
+  { id: 'payout-2', height: 60 },
+  { id: 'payout-3', height: 45 },
+  { id: 'payout-4', height: 70 },
+  { id: 'payout-5', height: 85 },
+  { id: 'payout-6', height: 60 },
+  { id: 'payout-7', height: 95 },
+];
+
 export const PartnerProgramPage: React.FC<PartnerProps> = ({
   onBack,
   onLogin,
@@ -45,16 +55,18 @@ export const PartnerProgramPage: React.FC<PartnerProps> = ({
       {/* Nav */}
       <nav className="fixed w-full bg-white/90 backdrop-blur-md z-30 border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div
-            className="flex items-center gap-2 font-bold text-xl text-slate-900 cursor-pointer"
+          <button
+            type="button"
             onClick={onBack}
+            className="flex items-center gap-2 font-bold text-xl text-slate-900"
+            aria-label="Back to Home"
           >
             <ArrowLeft
               size={20}
               className="text-slate-500 hover:text-blue-900"
             />
             <span className="hidden md:inline">Back to Home</span>
-          </div>
+          </button>
           <div className="flex items-center gap-4">
             <button
               type="button"
@@ -146,14 +158,14 @@ export const PartnerProgramPage: React.FC<PartnerProps> = ({
                   Commission Payouts
                 </p>
                 <div className="flex items-end gap-2 h-32">
-                  {[40, 60, 45, 70, 85, 60, 95].map((h, i) => (
+                  {PAYOUT_BAR_DATA.map((bar) => (
                     <div
-                      key={i}
+                      key={bar.id}
                       className="flex-1 bg-emerald-100 rounded-t-sm relative group"
                     >
                       <div
                         className="absolute bottom-0 w-full bg-emerald-500 rounded-t-sm transition-all group-hover:bg-emerald-600"
-                        style={{ height: `${h}%` }}
+                        style={{ height: `${bar.height}%` }}
                       />
                     </div>
                   ))}
@@ -317,8 +329,8 @@ export const PartnerProgramPage: React.FC<PartnerProps> = ({
               </div>
 
               <ul className="space-y-2 text-sm text-blue-100 mb-6">
-                {WHITELABEL_FEE.features.map((feature, idx) => (
-                  <li key={idx} className="flex items-center gap-2">
+                {WHITELABEL_FEE.features.map((feature) => (
+                  <li key={feature} className="flex items-center gap-2">
                     <CheckCircle size={14} className="text-emerald-400" />{' '}
                     {feature}
                   </li>
@@ -342,9 +354,9 @@ export const PartnerProgramPage: React.FC<PartnerProps> = ({
             </h3>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {RESELLER_TIERS.map((tier, idx) => (
+            {RESELLER_TIERS.map((tier) => (
               <div
-                key={idx}
+                key={tier.label}
                 className={`p-6 rounded-xl border text-center ${
                   tier.label === 'Platinum'
                     ? 'bg-slate-900 text-white border-slate-700'
@@ -392,7 +404,10 @@ export const PartnerProgramPage: React.FC<PartnerProps> = ({
               <div className="space-y-8">
                 <div>
                   <div className="flex justify-between mb-2">
-                    <label className="font-bold text-slate-700">
+                    <label
+                      htmlFor="partner-client-count"
+                      className="font-bold text-slate-700"
+                    >
                       Active Clients
                     </label>
                     <span className="text-blue-900 font-bold bg-blue-50 px-3 py-1 rounded-lg">
@@ -400,6 +415,7 @@ export const PartnerProgramPage: React.FC<PartnerProps> = ({
                     </span>
                   </div>
                   <input
+                    id="partner-client-count"
                     type="range"
                     min="1"
                     max="500"
@@ -418,7 +434,10 @@ export const PartnerProgramPage: React.FC<PartnerProps> = ({
 
                 <div>
                   <div className="flex justify-between mb-2">
-                    <label className="font-bold text-slate-700">
+                    <label
+                      htmlFor="partner-avg-price"
+                      className="font-bold text-slate-700"
+                    >
                       Avg. Monthly Price You Charge
                     </label>
                     <span className="text-emerald-700 font-bold bg-emerald-50 px-3 py-1 rounded-lg">
@@ -426,6 +445,7 @@ export const PartnerProgramPage: React.FC<PartnerProps> = ({
                     </span>
                   </div>
                   <input
+                    id="partner-avg-price"
                     type="range"
                     min="49"
                     max="499"

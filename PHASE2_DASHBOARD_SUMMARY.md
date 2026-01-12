@@ -81,21 +81,21 @@ import { DashboardShell } from './components/Dashboard/DashboardShell';
 import { RouteGuard } from './components/Dashboard/RouteGuard';
 
 // For Admin Dashboard:
-<RouteGuard role="admin">
+<RouteGuard requiredRole="admin">
   <DashboardShell currentPath="/admin" onNavigate={handleNavigate}>
     <AdminDashboardV2 />
   </DashboardShell>
 </RouteGuard>
 
 // For Partner Dashboard:
-<RouteGuard role="partner">
+<RouteGuard requiredRole="partner">
   <DashboardShell currentPath="/partner/clients" onNavigate={handleNavigate}>
     <PartnerDashboardV2 user={user} />
   </DashboardShell>
 </RouteGuard>
 
 // For Client Dashboard:
-<RouteGuard role="client">
+<RouteGuard requiredRole="client">
   <DashboardShell currentPath="/app" onNavigate={handleNavigate}>
     <ClientOverview user={user} />
   </DashboardShell>

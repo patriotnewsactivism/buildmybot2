@@ -41,7 +41,7 @@ describe('Dashboard Flow Integration', () => {
     render(
       <DashboardProvider initialUser={mockAdminUser}>
         <DashboardShell currentPath="/admin" onNavigate={onNavigate}>
-          <RouteGuard>
+          <RouteGuard requiredRole="admin">
             <div>Admin Dashboard Content</div>
           </RouteGuard>
         </DashboardShell>
@@ -80,7 +80,7 @@ describe('Dashboard Flow Integration', () => {
     render(
       <DashboardProvider initialUser={mockClientUser}>
         <DashboardShell currentPath="/admin" onNavigate={vi.fn()}>
-          <RouteGuard>
+          <RouteGuard requiredRole="admin">
             <div>Admin Content</div>
           </RouteGuard>
         </DashboardShell>
@@ -120,7 +120,7 @@ describe('Dashboard Flow Integration', () => {
     render(
       <DashboardProvider initialUser={mockAdminUser}>
         <DashboardShell currentPath="/admin" onNavigate={vi.fn()}>
-          <RouteGuard>
+          <RouteGuard requiredRole="admin">
             <div>Admin Content</div>
           </RouteGuard>
         </DashboardShell>

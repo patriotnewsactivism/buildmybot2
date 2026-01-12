@@ -64,7 +64,7 @@ export const LeadsCRM: React.FC<LeadsCRMProps> = ({ leads, onUpdateLead }) => {
     }
   };
 
-  const handleStatusChange = (leadId: string, newStatus: any) => {
+  const handleStatusChange = (leadId: string, newStatus: Lead['status']) => {
     const leadToUpdate = leads.find((l) => l.id === leadId);
     if (leadToUpdate) {
       onUpdateLead({ ...leadToUpdate, status: newStatus });
@@ -246,28 +246,36 @@ export const LeadsCRM: React.FC<LeadsCRMProps> = ({ leads, onUpdateLead }) => {
             ) : (
               <div className="p-4 md:p-6 space-y-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
+                  <p className="block text-xs font-bold text-slate-500 uppercase mb-1">
                     To
-                  </label>
+                  </p>
                   <div className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded text-sm text-slate-700 truncate">
                     {selectedLead.email}
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
+                  <label
+                    htmlFor="lead-email-subject"
+                    className="block text-xs font-bold text-slate-500 uppercase mb-1"
+                  >
                     Subject
                   </label>
                   <input
+                    id="lead-email-subject"
                     value={emailSubject}
                     onChange={(e) => setEmailSubject(e.target.value)}
                     className="w-full px-3 py-3 border border-slate-200 rounded text-base md:text-sm focus:ring-blue-900 focus:border-blue-900"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
+                  <label
+                    htmlFor="lead-email-message"
+                    className="block text-xs font-bold text-slate-500 uppercase mb-1"
+                  >
                     Message
                   </label>
                   <textarea
+                    id="lead-email-message"
                     value={emailBody}
                     onChange={(e) => setEmailBody(e.target.value)}
                     className="w-full h-36 md:h-32 px-3 py-3 border border-slate-200 rounded text-base md:text-sm focus:ring-blue-900 focus:border-blue-900 resize-none"

@@ -12,7 +12,7 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import type React from 'react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { dbService } from '../../services/dbService';
 import type { BotTemplate } from '../../shared/schema';
 
@@ -31,11 +31,7 @@ export const TemplateGallery: React.FC<TemplateGalleryProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [showFeatured, setShowFeatured] = useState(false);
 
-  useEffect(() => {
-    loadTemplates();
-  }, [selectedCategory, showFeatured]);
-
-  const loadTemplates = async () => {
+  const loadTemplates = useCallback(async () => {
     setLoading(true);
     try {
       const params: Record<string, string> = {};
@@ -50,7 +46,11 @@ export const TemplateGallery: React.FC<TemplateGalleryProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedCategory, showFeatured]);
+
+  useEffect(() => {
+    loadTemplates();
+  }, [loadTemplates]);
 
   const categories = [
     'All',
