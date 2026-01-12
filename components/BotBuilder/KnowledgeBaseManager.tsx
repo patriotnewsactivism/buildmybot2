@@ -340,20 +340,20 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
             <Globe size={16} className="inline mr-2" />
             Add Website URL
           </label>
-          <div className="flex gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row">
             <input
               id="knowledge-base-url"
               type="url"
               value={urlInput}
               onChange={(e) => setUrlInput(e.target.value)}
               placeholder="https://example.com"
-              className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:flex-1"
               disabled={scraping || botId === 'new'}
             />
             <select
               value={crawlDepth}
               onChange={(e) => setCrawlDepth(Number(e.target.value))}
-              className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 sm:w-auto"
               disabled={scraping}
             >
               {[1, 2, 3, 5, 10].map((n) => (
@@ -366,7 +366,7 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
               type="button"
               onClick={handleUrlScrape}
               disabled={scraping || !urlInput.trim() || botId === 'new'}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 sm:w-auto"
             >
               {scraping ? (
                 <Loader className="animate-spin" size={16} />
