@@ -355,6 +355,33 @@ function App() {
       </>
     );
   }
+  if (currentPath === '/partner-program') {
+    if (showPartnerSignup) {
+      return (
+        <PartnerSignup
+          onBack={() => setShowPartnerSignup(false)}
+          onComplete={handlePartnerSignup}
+        />
+      );
+    }
+    return (
+      <>
+        <PartnerProgramPage
+          onBack={() => {
+            window.location.href = '/';
+          }}
+          onLogin={() => openAuth('login')}
+          onSignup={() => setShowPartnerSignup(true)}
+        />
+        <AuthModal
+          isOpen={authModalOpen}
+          onClose={() => setAuthModalOpen(false)}
+          defaultMode={authMode}
+          onLoginSuccess={handleManualAuth}
+        />
+      </>
+    );
+  }
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);

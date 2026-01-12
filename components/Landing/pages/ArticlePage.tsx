@@ -1,5 +1,6 @@
 import { ArrowLeft, Calendar, Clock, Tag, User } from 'lucide-react';
 import type React from 'react';
+import { SEO } from '../../SEO/SEO';
 import { PageLayout } from './PageLayout';
 
 const author = {
@@ -15,6 +16,7 @@ const articleContent: Record<
     category: string;
     date: string;
     readTime: string;
+    summary: string;
     content: React.ReactNode;
   }
 > = {
@@ -24,6 +26,8 @@ const articleContent: Record<
     category: 'Product Features',
     date: 'January 2, 2026',
     readTime: '15 min read',
+    summary:
+      'BuildMyBot delivers AI chatbots, voice agents, lead capture, and automation tools that help businesses engage customers around the clock.',
     content: (
       <>
         <p className="text-lg text-slate-600 mb-8 leading-relaxed">
@@ -133,6 +137,8 @@ const articleContent: Record<
     category: 'Industry Insights',
     date: 'December 30, 2025',
     readTime: '12 min read',
+    summary:
+      'AI chatbots are reshaping customer engagement with instant responses, voice-first interfaces, and personalization at scale.',
     content: (
       <>
         <p className="text-lg text-slate-600 mb-8 leading-relaxed">
@@ -242,6 +248,8 @@ const articleContent: Record<
     category: 'Business Strategy',
     date: 'December 22, 2025',
     readTime: '10 min read',
+    summary:
+      'See how BuildMyBot reduces support costs with 24/7 AI availability, scalable automation, and better lead capture.',
     content: (
       <>
         <p className="text-lg text-slate-600 mb-8 leading-relaxed">
@@ -340,6 +348,8 @@ const articleContent: Record<
     category: 'Growth & Revenue',
     date: 'December 15, 2025',
     readTime: '11 min read',
+    summary:
+      'Discover how AI chatbots convert visitors into revenue by answering questions instantly, capturing leads, and building trust.',
     content: (
       <>
         <p className="text-lg text-slate-600 mb-8 leading-relaxed">
@@ -448,6 +458,10 @@ interface ArticlePageProps {
 
 export const ArticlePage: React.FC<ArticlePageProps> = ({ articleId }) => {
   const article = articleContent[articleId];
+  const siteUrl =
+    typeof window !== 'undefined'
+      ? window.location.origin
+      : 'https://buildmybot.app';
 
   const goToBlog = () => {
     window.location.href = '/blog';
@@ -460,6 +474,11 @@ export const ArticlePage: React.FC<ArticlePageProps> = ({ articleId }) => {
   if (!article) {
     return (
       <PageLayout>
+        <SEO
+          title="Article Not Found | BuildMyBot"
+          description="The article you requested could not be found."
+          noindex
+        />
         <div className="max-w-4xl mx-auto px-6 py-16 text-center">
           <h1 className="text-3xl font-bold text-slate-900 mb-4">
             Article Not Found
@@ -476,8 +495,56 @@ export const ArticlePage: React.FC<ArticlePageProps> = ({ articleId }) => {
     );
   }
 
+  const articleUrl = `${siteUrl}/blog/${articleId}`;
+  const parsedDate = new Date(article.date);
+  const publishedTime = Number.isNaN(parsedDate.getTime())
+    ? article.date
+    : parsedDate.toISOString();
+  const articleMeta = [
+    { property: 'article:published_time', content: publishedTime },
+    { property: 'article:modified_time', content: publishedTime },
+    { property: 'article:section', content: article.category },
+    { property: 'article:author', content: author.name },
+  ];
+  const articleStructuredData = {
+    '@context': 'https://schema.org',
+    '@type': 'BlogPosting',
+    headline: article.title,
+    description: article.summary,
+    datePublished: publishedTime,
+    dateModified: publishedTime,
+    author: {
+      '@type': 'Person',
+      name: author.name,
+    },
+    publisher: {
+      '@type': 'Organization',
+      name: 'BuildMyBot',
+      logo: {
+        '@type': 'ImageObject',
+        url: `${siteUrl}/logo.jpg`,
+      },
+    },
+    mainEntityOfPage: {
+      '@type': 'WebPage',
+      '@id': articleUrl,
+    },
+    articleSection: article.category,
+    image: [`${siteUrl}/logo.jpg`],
+  };
+
   return (
     <PageLayout>
+      <SEO
+        title={`${article.title} | BuildMyBot`}
+        description={article.summary}
+        ogType="article"
+        author={author.name}
+        canonical={articleUrl}
+        ogUrl={articleUrl}
+        extraMeta={articleMeta}
+        structuredData={articleStructuredData}
+      />
       <article className="max-w-4xl mx-auto px-6 lg:px-12 py-16">
         <button
           type="button"

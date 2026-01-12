@@ -12,6 +12,7 @@ import {
   Zap,
 } from 'lucide-react';
 import type React from 'react';
+import { SEO, SEOConfig } from '../../SEO/SEO';
 import { PageLayout } from './PageLayout';
 
 const jobOpenings = [
@@ -104,6 +105,11 @@ const perks = [
 export const CareersPage: React.FC = () => {
   return (
     <PageLayout>
+      <SEO
+        title={SEOConfig.careers.title}
+        description={SEOConfig.careers.description}
+        keywords={SEOConfig.careers.keywords}
+      />
       <div className="max-w-7xl mx-auto px-6 lg:px-12 py-16 space-y-24">
         <section className="text-center space-y-6">
           <h1 className="text-4xl md:text-5xl font-extrabold text-slate-900">

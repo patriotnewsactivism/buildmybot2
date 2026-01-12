@@ -1,5 +1,6 @@
 import { Heart, Lightbulb, Shield, Target } from 'lucide-react';
 import type React from 'react';
+import { SEO, SEOConfig } from '../../SEO/SEO';
 import { PageLayout } from './PageLayout';
 
 const values = [
@@ -32,6 +33,11 @@ const values = [
 export const AboutPage: React.FC = () => {
   return (
     <PageLayout>
+      <SEO
+        title={SEOConfig.about.title}
+        description={SEOConfig.about.description}
+        keywords={SEOConfig.about.keywords}
+      />
       <div className="max-w-7xl mx-auto px-6 lg:px-12 py-16 space-y-24">
         <section className="text-center space-y-6">
           <h1 className="text-4xl md:text-5xl font-extrabold text-slate-900">
