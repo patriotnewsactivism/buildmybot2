@@ -3,7 +3,7 @@ import type React from 'react';
 import { useState } from 'react';
 import { buildApiUrl, safeParseJson } from '../../services/apiConfig';
 
-const PLATFORM_URL = 'https://platform.buildmybot.app';
+const PLATFORM_URL = 'https://buildmybot.app';
 const MARKETING_HOSTS = new Set(['www.buildmybot.app', 'buildmybot.app']);
 
 interface AuthModalProps {
@@ -77,15 +77,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         localStorage.removeItem('bmb_ref_code');
       }
 
-      const hostname = window.location.hostname.toLowerCase();
-      const shouldRedirectToPlatform = MARKETING_HOSTS.has(hostname);
-
-      if (shouldRedirectToPlatform) {
-        window.location.replace(`${PLATFORM_URL}/app`);
-      } else {
-        // Refresh the page to reload with session
-        window.location.reload();
-      }
+      // Just reload to refresh session - we're already on the main domain
+      window.location.reload();
     } catch (err) {
       console.error('Auth Error:', err);
       const message =
