@@ -271,6 +271,10 @@ export const SupportTicketSystem: React.FC<SupportTicketSystemProps> = ({
 
   const currentPlan = user?.plan || PlanType.FREE;
   const slaConfig = SLA_CONFIG[currentPlan];
+  const subjectId = 'support-ticket-subject';
+  const priorityId = 'support-ticket-priority';
+  const categoryId = 'support-ticket-category';
+  const messageId = 'support-ticket-message';
 
   useEffect(() => {
     const mockTickets: SupportTicket[] = [
@@ -575,8 +579,9 @@ export const SupportTicketSystem: React.FC<SupportTicketSystemProps> = ({
                         : 'border-slate-200 hover:border-slate-300'
                     }`}
                   >
-                    <div
-                      className="p-4 cursor-pointer"
+                    <button
+                      type="button"
+                      className="w-full text-left p-4 cursor-pointer"
                       onClick={() => {
                         setSelectedTicket(ticket);
                         setExpandedTicketId(
@@ -610,7 +615,7 @@ export const SupportTicketSystem: React.FC<SupportTicketSystemProps> = ({
                           )}
                         </div>
                       </div>
-                    </div>
+                    </button>
 
                     {expandedTicketId === ticket.id && (
                       <div className="border-t border-slate-100 p-4 bg-slate-50/50">
@@ -885,10 +890,14 @@ export const SupportTicketSystem: React.FC<SupportTicketSystemProps> = ({
 
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
+                <label
+                  className="block text-sm font-medium text-slate-700 mb-2"
+                  htmlFor={subjectId}
+                >
                   Subject
                 </label>
                 <input
+                  id={subjectId}
                   type="text"
                   value={newTicket.subject}
                   onChange={(e) =>
@@ -901,10 +910,14 @@ export const SupportTicketSystem: React.FC<SupportTicketSystemProps> = ({
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                  <label
+                    className="block text-sm font-medium text-slate-700 mb-2"
+                    htmlFor={priorityId}
+                  >
                     Priority
                   </label>
                   <select
+                    id={priorityId}
                     value={newTicket.priority}
                     onChange={(e) =>
                       setNewTicket({
@@ -922,10 +935,14 @@ export const SupportTicketSystem: React.FC<SupportTicketSystemProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                  <label
+                    className="block text-sm font-medium text-slate-700 mb-2"
+                    htmlFor={categoryId}
+                  >
                     Category
                   </label>
                   <select
+                    id={categoryId}
                     value={newTicket.category}
                     onChange={(e) =>
                       setNewTicket({
@@ -944,10 +961,14 @@ export const SupportTicketSystem: React.FC<SupportTicketSystemProps> = ({
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
+                <label
+                  className="block text-sm font-medium text-slate-700 mb-2"
+                  htmlFor={messageId}
+                >
                   Message
                 </label>
                 <textarea
+                  id={messageId}
                   value={newTicket.message}
                   onChange={(e) =>
                     setNewTicket({ ...newTicket, message: e.target.value })

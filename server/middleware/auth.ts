@@ -7,17 +7,21 @@ import { db } from '../db';
 // EXTENDED REQUEST INTERFACE
 // ========================================
 
+type DbUser = typeof users.$inferSelect;
+type DbOrganization = typeof organizations.$inferSelect;
+type AuthUser = DbUser & { claims?: { sub?: string } };
+
 export interface AuthRequest extends Request {
-  user?: any;
-  actor?: any;
+  user?: AuthUser;
+  actor?: DbUser;
   impersonation?: {
     sessionId: string;
     targetUserId: string;
     actorUserId: string;
   };
-  organization?: any;
+  organization?: DbOrganization;
   permissions?: string[];
-  session?: any;
+  session?: { userId?: string };
 }
 
 // ========================================
@@ -25,7 +29,7 @@ export interface AuthRequest extends Request {
 // ========================================
 
 export const authenticate: RequestHandler = async (
-  req: Request,
+  req: AuthRequest,
   res: Response,
   next: NextFunction,
 ) => {
@@ -35,8 +39,8 @@ export const authenticate: RequestHandler = async (
     const headerUserId = Array.isArray(rawHeaderUserId)
       ? rawHeaderUserId[0]
       : rawHeaderUserId;
-    const sessionUserId = (req as any).user?.claims?.sub;
-    const cookieSessionUserId = (req as any).session?.userId;
+    const sessionUserId = req.user?.claims?.sub;
+    const cookieSessionUserId = req.session?.userId;
     const userId = sessionUserId || cookieSessionUserId || headerUserId;
 
     if (!userId) {
@@ -69,8 +73,8 @@ export const authenticate: RequestHandler = async (
       .set({ lastLoginAt: new Date() })
       .where(eq(users.id, user.id));
 
-    (req as any).user = user;
-    (req as any).actor = user;
+    req.user = user;
+    req.actor = user;
     next();
   } catch (error) {
     console.error('Authentication error:', error);
@@ -83,8 +87,8 @@ export const authenticate: RequestHandler = async (
 // ========================================
 
 export function authorize(allowedRoles: string[]): RequestHandler {
-  return async (req: Request, res: Response, next: NextFunction) => {
-    const actor = (req as any).actor || (req as any).user;
+  return async (req: AuthRequest, res: Response, next: NextFunction) => {
+    const actor = req.actor || req.user;
     if (!actor) {
       return res.status(401).json({ error: 'Authentication required' });
     }
@@ -92,7 +96,7 @@ export function authorize(allowedRoles: string[]): RequestHandler {
     // Check if user has one of the allowed roles
     if (
       allowedRoles.includes(actor.role) ||
-      ((req as any).user && allowedRoles.includes((req as any).user.role))
+      (req.user && allowedRoles.includes(req.user.role))
     ) {
       return next();
     }
@@ -106,12 +110,12 @@ export function authorize(allowedRoles: string[]): RequestHandler {
 // ========================================
 
 export const loadOrganizationContext: RequestHandler = async (
-  req: Request,
+  req: AuthRequest,
   res: Response,
   next: NextFunction,
 ) => {
   try {
-    const user = (req as any).user;
+    const user = req.user;
     if (!user) {
       return res.status(401).json({ error: 'Authentication required' });
     }
@@ -129,7 +133,7 @@ export const loadOrganizationContext: RequestHandler = async (
         );
 
       if (org) {
-        (req as any).organization = org;
+        req.organization = org;
       }
     }
 
@@ -140,7 +144,7 @@ export const loadOrganizationContext: RequestHandler = async (
       .where(eq(organizationMembers.userId, user.id));
 
     if (membership) {
-      (req as any).permissions = (membership.permissions as string[]) || [];
+      req.permissions = (membership.permissions as string[]) || [];
     }
 
     next();
@@ -155,8 +159,8 @@ export const loadOrganizationContext: RequestHandler = async (
 // ========================================
 
 export function requirePermission(permission: string): RequestHandler {
-  return async (req: Request, res: Response, next: NextFunction) => {
-    const actor = (req as any).actor || (req as any).user;
+  return async (req: AuthRequest, res: Response, next: NextFunction) => {
+    const actor = req.actor || req.user;
     if (!actor) {
       return res.status(401).json({ error: 'Authentication required' });
     }
@@ -171,7 +175,7 @@ export function requirePermission(permission: string): RequestHandler {
     }
 
     // Check if user has the required permission
-    const permissions = (req as any).permissions;
+    const permissions = req.permissions;
     if (permissions?.includes(permission)) {
       return next();
     }

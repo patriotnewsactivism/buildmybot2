@@ -3,6 +3,7 @@
  * Controls feature rollout and A/B testing
  */
 
+import type { NextFunction, Request, Response } from 'express';
 import { env } from './env';
 
 export interface FeatureFlags {
@@ -33,31 +34,19 @@ const parseEnvBool = (
 export const FEATURES: FeatureFlags = {
   // Core features - enabled by default
   MULTI_TENANT: parseEnvBool(env.FEATURE_MULTI_TENANT, true),
-  PARTNER_IMPERSONATION: parseEnvBool(
-    env.FEATURE_PARTNER_IMPERSONATION,
-    true,
-  ),
+  PARTNER_IMPERSONATION: parseEnvBool(env.FEATURE_PARTNER_IMPERSONATION, true),
 
   // Voice and communication
   VOICE_AGENT: parseEnvBool(env.FEATURE_VOICE_AGENT, true),
   MULTI_CHANNEL: parseEnvBool(env.FEATURE_MULTI_CHANNEL, false),
 
   // Analytics and metrics
-  ADVANCED_ANALYTICS: parseEnvBool(
-    env.FEATURE_ADVANCED_ANALYTICS,
-    true,
-  ),
+  ADVANCED_ANALYTICS: parseEnvBool(env.FEATURE_ADVANCED_ANALYTICS, true),
   REAL_TIME_METRICS: parseEnvBool(env.FEATURE_REAL_TIME_METRICS, false),
 
   // Bot building experience
-  BOT_TEMPLATES_MARKETPLACE: parseEnvBool(
-    env.FEATURE_BOT_TEMPLATES,
-    true,
-  ),
-  SIMPLIFIED_BOT_WIZARD: parseEnvBool(
-    env.FEATURE_SIMPLIFIED_WIZARD,
-    true,
-  ),
+  BOT_TEMPLATES_MARKETPLACE: parseEnvBool(env.FEATURE_BOT_TEMPLATES, true),
+  SIMPLIFIED_BOT_WIZARD: parseEnvBool(env.FEATURE_SIMPLIFIED_WIZARD, true),
   AB_TESTING: parseEnvBool(env.FEATURE_AB_TESTING, false),
 
   // Dashboard features
@@ -121,7 +110,7 @@ export function getClientFeatureFlags(): Partial<FeatureFlags> {
  * Feature flag middleware for Express
  */
 export function requireFeature(feature: keyof FeatureFlags) {
-  return (req: any, res: any, next: any) => {
+  return (_req: Request, res: Response, next: NextFunction) => {
     if (!isFeatureEnabled(feature)) {
       return res.status(404).json({
         error: 'Feature not available',

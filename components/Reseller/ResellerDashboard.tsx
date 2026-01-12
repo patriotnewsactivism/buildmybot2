@@ -102,42 +102,46 @@ export const ResellerDashboard: React.FC<ResellerProps> = ({
     );
   }
 
-  const computeFallbackStats = useCallback((usersList: User[]): ResellerStats => {
-    const clientCount = usersList.length;
-    const totalRev = usersList.reduce((acc, u) => {
-      const plan = PLANS[u.plan as keyof typeof PLANS];
-      return acc + (plan?.price || 0);
-    }, 0);
+  const computeFallbackStats = useCallback(
+    (usersList: User[]): ResellerStats => {
+      const clientCount = usersList.length;
+      const totalRev = usersList.reduce((acc, u) => {
+        const plan = PLANS[u.plan as keyof typeof PLANS];
+        return acc + (plan?.price || 0);
+      }, 0);
 
-    const currentTier =
-      RESELLER_TIERS.find(
-        (t) => clientCount >= t.min && clientCount <= t.max,
-      ) || RESELLER_TIERS[0];
-    const whitelabelEnabled = Boolean(user.whitelabelEnabled);
-    const commissionRate = whitelabelEnabled
-      ? WHITELABEL_FEE.commission
-      : currentTier.commission;
-    const paidThrough = user.whitelabelPaidThrough
-      ? new Date(user.whitelabelPaidThrough)
-      : null;
-    const whitelabelFeeDue =
-      whitelabelEnabled && (!paidThrough || paidThrough.getTime() < Date.now());
-    const grossCommission = totalRev * commissionRate;
-    const whitelabelFeeAmount = whitelabelFeeDue ? WHITELABEL_FEE.price : 0;
+      const currentTier =
+        RESELLER_TIERS.find(
+          (t) => clientCount >= t.min && clientCount <= t.max,
+        ) || RESELLER_TIERS[0];
+      const whitelabelEnabled = Boolean(user.whitelabelEnabled);
+      const commissionRate = whitelabelEnabled
+        ? WHITELABEL_FEE.commission
+        : currentTier.commission;
+      const paidThrough = user.whitelabelPaidThrough
+        ? new Date(user.whitelabelPaidThrough)
+        : null;
+      const whitelabelFeeDue =
+        whitelabelEnabled &&
+        (!paidThrough || paidThrough.getTime() < Date.now());
+      const grossCommission = totalRev * commissionRate;
+      const whitelabelFeeAmount = whitelabelFeeDue ? WHITELABEL_FEE.price : 0;
 
-    return {
-      totalClients: clientCount,
-      totalRevenue: totalRev,
-      commissionRate,
-      grossCommission,
-      pendingPayout: Math.max(grossCommission - whitelabelFeeAmount, 0),
-      whitelabelFeeDue,
-      whitelabelFeeAmount,
-      whitelabelPaidThrough: paidThrough
-        ? paidThrough.toISOString()
-        : undefined,
-    };
-  }, [user.whitelabelEnabled, user.whitelabelPaidThrough]);
+      return {
+        totalClients: clientCount,
+        totalRevenue: totalRev,
+        commissionRate,
+        grossCommission,
+        pendingPayout: Math.max(grossCommission - whitelabelFeeAmount, 0),
+        whitelabelFeeDue,
+        whitelabelFeeAmount,
+        whitelabelPaidThrough: paidThrough
+          ? paidThrough.toISOString()
+          : undefined,
+      };
+    },
+    [user.whitelabelEnabled, user.whitelabelPaidThrough],
+  );
 
   useEffect(() => {
     if (user.resellerCode) {

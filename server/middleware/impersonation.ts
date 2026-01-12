@@ -3,8 +3,20 @@ import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import { impersonationSessions, users } from '../../shared/schema';
 import { db } from '../db';
 
+type DbUser = typeof users.$inferSelect;
+
+interface ImpersonationRequest extends Request {
+  user?: DbUser;
+  actor?: DbUser;
+  impersonation?: {
+    sessionId: string;
+    targetUserId: string;
+    actorUserId: string;
+  };
+}
+
 export const applyImpersonation: RequestHandler = async (
-  req: Request,
+  req: ImpersonationRequest,
   res: Response,
   next: NextFunction,
 ) => {
@@ -14,7 +26,7 @@ export const applyImpersonation: RequestHandler = async (
       return next();
     }
 
-    const user = (req as any).user;
+    const user = req.user;
     if (!user) {
       return res.status(401).json({ error: 'Authentication required' });
     }
@@ -47,9 +59,9 @@ export const applyImpersonation: RequestHandler = async (
       return res.status(404).json({ error: 'Impersonation target not found' });
     }
 
-    (req as any).actor = user;
-    (req as any).user = targetUser;
-    (req as any).impersonation = {
+    req.actor = user;
+    req.user = targetUser;
+    req.impersonation = {
       sessionId: session.id,
       targetUserId: session.targetUserId,
       actorUserId: session.actorUserId,
