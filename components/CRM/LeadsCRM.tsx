@@ -352,7 +352,9 @@ export const LeadsCRM: React.FC<LeadsCRMProps> = ({ leads, onUpdateLead }) => {
             />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 pb-4">
-            {['New', 'Contacted', 'Qualified', 'Closed'].map((status) => (
+            {(
+              ['New', 'Contacted', 'Qualified', 'Closed'] as Lead['status'][]
+            ).map((status) => (
               <KanbanColumn
                 key={status}
                 status={status}
