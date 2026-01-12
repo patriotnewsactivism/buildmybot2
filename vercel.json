@@ -4,11 +4,13 @@
   "devCommand": "npm run dev",
   "installCommand": "npm install",
   "outputDirectory": "dist",
-  "headers": [
+  "rewrites": [
     {
-      "source": "/api/(.*)",
-      "destination": "/api/$1"
-    },
+      "source": "/api/:path*",
+      "destination": "https://buildmybot2-production.up.railway.app/api/:path*"
+    }
+  ],
+  "headers": [
     {
       "source": "/(.*)",
       "headers": [

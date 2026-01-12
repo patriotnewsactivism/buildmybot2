@@ -22,5 +22,5 @@
     }
   },
   "include": ["**/*.ts", "**/*.tsx", "vite-env.d.ts"],
-  "exclude": ["node_modules", "app", "lib", "test", "vitest.config.ts", "server", "scripts", "drizzle.config.ts"]
+  "exclude": ["node_modules", "app", "lib", "test", "vitest.config.ts", "server", "scripts", "drizzle.config.ts", "api"]
 }
