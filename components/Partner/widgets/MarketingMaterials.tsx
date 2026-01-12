@@ -19,6 +19,18 @@ export const MarketingMaterials: React.FC = () => {
   const [materials, setMaterials] = useState<MarketingMaterial[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const featuredDownloads = [
+    {
+      title: 'Partner Playbook',
+      description: 'Positioning, pricing, and sales motion',
+      downloadUrl: '/marketing/partner-playbook.pdf',
+    },
+    {
+      title: 'Partner Course',
+      description: 'Enablement modules and scaling plan',
+      downloadUrl: '/marketing/partner-course.pdf',
+    },
+  ];
 
   const fetchMaterials = useCallback(async () => {
     try {
@@ -173,6 +185,38 @@ export const MarketingMaterials: React.FC = () => {
           <RefreshCw size={16} />
           <span>Refresh</span>
         </button>
+      </div>
+
+      <div className="bg-white rounded-xl border border-slate-200 p-4 md:p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm md:text-base font-semibold text-slate-800">
+            Featured downloads
+          </h3>
+          <span className="text-xs text-slate-400">PDF</span>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+          {featuredDownloads.map((item) => (
+            <div
+              key={item.title}
+              className="flex items-center justify-between gap-3 bg-slate-50 border border-slate-200 rounded-lg p-3 md:p-4"
+            >
+              <div>
+                <div className="font-medium text-slate-900">{item.title}</div>
+                <div className="text-xs text-slate-500 mt-1">
+                  {item.description}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => window.open(item.downloadUrl, '_blank')}
+                className="text-blue-700 hover:text-blue-800 text-xs flex items-center gap-1"
+              >
+                <Download size={14} />
+                Download
+              </button>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Summary Cards */}

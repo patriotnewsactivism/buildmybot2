@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /chat/
+Sitemap: https://buildmybot.app/sitemap.xml

@@ -119,6 +119,7 @@
     "concurrently": "^9.2.1",
     "dotenv": "^16.6.1",
     "jsdom": "^23.0.1",
+    "md-to-pdf": "^5.2.5",
     "typescript": "^5.4.2",
     "vite": "^5.1.5",
     "vitest": "^1.0.4"

@@ -791,47 +791,36 @@ Thanks for being a great partner!
 
     const materials = [
       {
-        title: 'Partner Sales Deck',
-        description:
-          'Professional presentation for pitching to local businesses',
-        icon: Presentation,
-        type: 'PDF',
-        size: '2.4 MB',
-      },
-      {
-        title: 'ROI Calculator Spreadsheet',
-        description: 'Customizable calculator to show prospect value',
-        icon: FileText,
-        type: 'XLSX',
-        size: '89 KB',
-      },
-      {
-        title: 'Social Media Graphics Pack',
-        description: 'Ready-to-post graphics for all platforms',
-        icon: Image,
-        type: 'ZIP',
-        size: '8.2 MB',
-      },
-      {
-        title: 'Case Study Templates',
-        description: 'Document your client success stories',
-        icon: FileText,
-        type: 'DOC',
-        size: '245 KB',
-      },
-      {
-        title: 'White-Label Brand Guide',
-        description: 'Guidelines for using BuildMyBot under your brand',
+        title: 'Agent Playbook',
+        description: 'Full sales playbook for independent reps',
         icon: FileText,
         type: 'PDF',
-        size: '1.1 MB',
+        size: 'Updated',
+        downloadUrl: '/marketing/agent-playbook.pdf',
       },
       {
-        title: 'Demo Script & Checklist',
-        description: 'Step-by-step guide for running killer demos',
+        title: 'Agent Start Free Course',
+        description: 'Step-by-step training for launching pilots',
         icon: FileText,
         type: 'PDF',
-        size: '156 KB',
+        size: 'Updated',
+        downloadUrl: '/marketing/agent-start-free-course.pdf',
+      },
+      {
+        title: 'Partner Playbook',
+        description: 'Partner positioning, pricing, and sales motion',
+        icon: FileText,
+        type: 'PDF',
+        size: 'Updated',
+        downloadUrl: '/marketing/partner-playbook.pdf',
+      },
+      {
+        title: 'Partner Course',
+        description: 'Partner enablement program and scaling playbook',
+        icon: FileText,
+        type: 'PDF',
+        size: 'Updated',
+        downloadUrl: '/marketing/partner-course.pdf',
       },
     ];
 
@@ -1097,6 +1086,11 @@ Thanks for being a great partner!
                     <span className="text-xs text-slate-400">{item.size}</span>
                     <button
                       type="button"
+                      onClick={() => {
+                        if (item.downloadUrl) {
+                          window.open(item.downloadUrl, '_blank');
+                        }
+                      }}
                       className="flex items-center gap-2 text-sm font-medium text-blue-900 hover:text-blue-700 transition"
                     >
                       <Download size={16} /> Download
