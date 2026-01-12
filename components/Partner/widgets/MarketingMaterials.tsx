@@ -36,6 +36,21 @@ export const MarketingMaterials: React.FC = () => {
       downloadUrl: '/marketing/revenue-recovery-handbook.pdf',
     },
     {
+      title: 'Field Operations Manual',
+      description: 'Execution-first desk guide for reps',
+      downloadUrl: '/marketing/field-operations-manual.pdf',
+    },
+    {
+      title: 'Ghost Shopper Audit Template',
+      description: 'Lethality index for response-time failures',
+      downloadUrl: '/marketing/ghost-shopper-audit-template.pdf',
+    },
+    {
+      title: 'Ghost Shopper Audit Template (CSV)',
+      description: 'Import-ready audit log spreadsheet',
+      downloadUrl: '/marketing/ghost-shopper-audit-template.csv',
+    },
+    {
       title: 'Sales Deck',
       description: 'Slide deck for prospect presentations',
       downloadUrl: '/marketing/sales-deck.pdf',
