@@ -186,6 +186,7 @@ function App() {
           (authUser.status as 'Active' | 'Suspended' | 'Pending' | undefined) ??
           undefined,
         createdAt: authUser.createdAt?.toString() || new Date().toISOString(),
+        organizationId: authUser.organizationId ?? undefined,
       };
 
       setUser(mappedUser);
@@ -811,7 +812,7 @@ function App() {
                 <TemplateMarketplace
                   onInstall={handleInstallTemplate}
                   userId={activeUser?.id}
-                  organizationId={activeUser?.id}
+                  organizationId={activeUser?.organizationId || ''}
                 />
               </ErrorBoundary>
             )}
@@ -852,17 +853,22 @@ function App() {
 
             {currentView === 'analytics' && (
               <ErrorBoundary>
-                <AdvancedAnalytics organizationId={activeUser?.id || ''} />
+                <AdvancedAnalytics
+                  organizationId={activeUser?.organizationId || ''}
+                />
               </ErrorBoundary>
             )}
 
             {currentView === 'landing-pages' && (
-              <LandingPageBuilder bots={bots} organizationId={activeUser?.id} />
+              <LandingPageBuilder
+                bots={bots}
+                organizationId={activeUser?.organizationId}
+              />
             )}
 
             {currentView === 'services' && (
               <ServiceCatalog
-                organizationId={activeUser?.id || ''}
+                organizationId={activeUser?.organizationId || ''}
                 userId={activeUser?.id}
               />
             )}
