@@ -1,13 +1,10 @@
 import {
   ArrowRight,
   Clock,
-  Coffee,
   DollarSign,
   GraduationCap,
   Heart,
-  Laptop,
   MapPin,
-  Plane,
   Users,
   Zap,
 } from 'lucide-react';
@@ -18,87 +15,19 @@ import { PageLayout } from './PageLayout';
 const jobOpenings = [
   {
     id: 1,
-    title: 'Senior AI Engineer',
-    department: 'Engineering',
-    location: 'San Francisco, CA (Hybrid)',
-    type: 'Full-time',
-    salary: '$180,000 - $250,000',
+    title: 'Sales Agent',
+    department: 'Sales',
+    location: 'Remote',
+    type: 'Commission-only',
+    compensation: 'Uncapped commission + residuals',
     description:
-      "Join our core AI team to build and improve our conversational AI models. You'll work on natural language understanding, dialogue systems, and voice synthesis.",
+      'We are hiring sales agents with an excellent uncapped commission and residual structure. Make one sale and get paid on that sale over and over and over on a product that sells itself.',
     requirements: [
-      '5+ years of experience in ML/AI engineering',
-      'Strong Python skills and experience with PyTorch or TensorFlow',
-      'Experience with LLMs and prompt engineering',
-      'MS or PhD in Computer Science, AI, or related field preferred',
+      'Self-starter with a consultative sales mindset',
+      'Comfortable owning the full sales cycle',
+      'Clear communication and follow-up discipline',
+      'Experience selling SaaS or digital services is a plus',
     ],
-  },
-  {
-    id: 2,
-    title: 'Customer Success Manager',
-    department: 'Customer Success',
-    location: 'Remote (US)',
-    type: 'Full-time',
-    salary: '$90,000 - $130,000',
-    description:
-      "Help our customers succeed with BuildMyBot. You'll onboard new clients, provide strategic guidance, and ensure they're getting maximum value from our platform.",
-    requirements: [
-      '3+ years in customer success or account management',
-      'Experience with SaaS products and technical concepts',
-      'Excellent communication and presentation skills',
-      'Track record of improving customer retention and satisfaction',
-    ],
-  },
-  {
-    id: 3,
-    title: 'Product Designer',
-    department: 'Design',
-    location: 'San Francisco, CA or Remote',
-    type: 'Full-time',
-    salary: '$140,000 - $180,000',
-    description:
-      "Shape the future of our product experience. You'll design intuitive interfaces for both our dashboard and the chatbot builder, working closely with engineering and product teams.",
-    requirements: [
-      '4+ years of product design experience',
-      'Strong portfolio demonstrating SaaS/B2B design work',
-      'Proficiency in Figma and prototyping tools',
-      'Experience with design systems and accessibility',
-    ],
-  },
-];
-
-const perks = [
-  {
-    icon: Heart,
-    title: 'Health & Wellness',
-    description:
-      'Comprehensive health, dental, and vision insurance for you and your family',
-  },
-  {
-    icon: DollarSign,
-    title: 'Competitive Pay',
-    description: 'Top-of-market salaries plus equity in a fast-growing company',
-  },
-  {
-    icon: Laptop,
-    title: 'Remote Flexible',
-    description: 'Work from anywhere with flexible hours that fit your life',
-  },
-  {
-    icon: Plane,
-    title: 'Unlimited PTO',
-    description:
-      'Take the time you need to recharge. We trust you to manage your schedule',
-  },
-  {
-    icon: GraduationCap,
-    title: 'Learning Budget',
-    description:
-      '$2,000 annual budget for courses, conferences, and professional development',
-  },
-  {
-    icon: Coffee,
-    title: 'Team Events',
-    description: 'Quarterly team retreats and monthly virtual social events',
   },
 ];
 
@@ -116,9 +45,10 @@ export const CareersPage: React.FC = () => {
             Join Our Team
           </h1>
           <p className="text-xl text-slate-600 max-w-3xl mx-auto leading-relaxed">
-            We're building the future of AI-powered business communication. If
-            you're passionate about AI and want to make a real impact, we'd love
-            to hear from you.
+            We&apos;re building the future of AI-powered business communication.
+            We are not currently hiring salaried or in-office positions. Our
+            focus is on commission-based sales agents who want to earn residual
+            income with a product that sells itself.
           </p>
         </section>
 
@@ -129,8 +59,8 @@ export const CareersPage: React.FC = () => {
             </h2>
             <div className="space-y-4 text-slate-600 leading-relaxed">
               <p>
-                At BuildMyBot, we're not just building another software
-                product—we're revolutionizing how businesses connect with their
+                At BuildMyBot, we&apos;re not just building another software
+                product—we&apos;re revolutionizing how businesses connect with their
                 customers. Our AI handles millions of conversations every month,
                 helping companies of all sizes grow.
               </p>
@@ -188,39 +118,11 @@ export const CareersPage: React.FC = () => {
         <section className="space-y-12">
           <div className="text-center">
             <h2 className="text-3xl font-bold text-slate-900 mb-4">
-              Perks & Benefits
+              Sales Opportunities
             </h2>
             <p className="text-slate-600 max-w-2xl mx-auto">
-              We take care of our team so they can focus on doing their best
-              work.
-            </p>
-          </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {perks.map((perk) => (
-              <div
-                key={perk.title}
-                className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm hover:shadow-lg transition-shadow"
-              >
-                <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center text-blue-700 mb-4">
-                  <perk.icon size={24} />
-                </div>
-                <h3 className="font-bold text-lg text-slate-900 mb-2">
-                  {perk.title}
-                </h3>
-                <p className="text-slate-600 text-sm">{perk.description}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="space-y-12">
-          <div className="text-center">
-            <h2 className="text-3xl font-bold text-slate-900 mb-4">
-              Open Positions
-            </h2>
-            <p className="text-slate-600 max-w-2xl mx-auto">
-              Find your next opportunity. We're always looking for talented
-              people to join our team.
+              We&apos;re focused on commission-based sales roles with uncapped
+              earnings and recurring residuals.
             </p>
           </div>
           <div className="space-y-6">
@@ -248,7 +150,7 @@ export const CareersPage: React.FC = () => {
                     <p className="text-slate-600 mb-4">{job.description}</p>
                     <div className="flex items-center gap-2 text-emerald-600 font-medium">
                       <DollarSign size={18} />
-                      {job.salary}
+                      {job.compensation}
                     </div>
                   </div>
                   <div className="lg:w-64 shrink-0">
@@ -280,17 +182,17 @@ export const CareersPage: React.FC = () => {
 
         <section className="bg-slate-100 rounded-3xl p-12 text-center">
           <h2 className="text-2xl font-bold text-slate-900 mb-4">
-            Don't See Your Role?
+            Ready to Earn Residuals?
           </h2>
           <p className="text-slate-600 mb-6 max-w-xl mx-auto">
-            We're always looking for exceptional talent. Send us your resume and
-            tell us why you'd be a great fit for BuildMyBot.
+            Tell us about your sales experience and the markets you plan to
+            target. We&apos;ll follow up with details on onboarding and compensation.
           </p>
           <a
             href="mailto:careers@buildmybot.app"
             className="inline-flex items-center gap-2 bg-slate-900 text-white px-6 py-3 rounded-xl font-bold hover:bg-slate-800 transition"
           >
-            Send Your Resume
+            Contact Sales Careers
           </a>
         </section>
       </div>
