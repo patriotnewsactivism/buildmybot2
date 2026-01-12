@@ -1105,10 +1105,14 @@ export const LandingPageBuilder: React.FC<LandingPageBuilderProps> = ({
                       </h3>
                       <div className="space-y-4">
                         <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-2">
+                          <label
+                            htmlFor="landing-page-thankyou-message"
+                            className="block text-sm font-medium text-slate-700 mb-2"
+                          >
                             Message after form submission
                           </label>
                           <textarea
+                            id="landing-page-thankyou-message"
                             value={selectedPage.thankYouMessage || ''}
                             onChange={(e) =>
                               updateSelectedPage(
@@ -1144,10 +1148,14 @@ export const LandingPageBuilder: React.FC<LandingPageBuilderProps> = ({
                       </h3>
                       <div className="space-y-4">
                         <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-2">
+                          <label
+                            htmlFor="landing-page-bot"
+                            className="block text-sm font-medium text-slate-700 mb-2"
+                          >
                             Select Bot
                           </label>
                           <select
+                            id="landing-page-bot"
                             value={selectedPage.botId || ''}
                             onChange={(e) =>
                               updateSelectedPage(
@@ -1268,12 +1276,12 @@ export const LandingPageBuilder: React.FC<LandingPageBuilderProps> = ({
                         <div className="bg-slate-50 rounded-xl p-6 border border-slate-200 space-y-4">
                           {selectedPage.formFields.map((field) => (
                             <div key={field.id}>
-                              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                              <p className="block text-sm font-medium text-gray-700 mb-1.5">
                                 {field.label}
                                 {field.required && (
                                   <span className="text-red-500 ml-1">*</span>
                                 )}
-                              </label>
+                              </p>
                               {field.type === 'textarea' ? (
                                 <textarea
                                   placeholder={field.placeholder}

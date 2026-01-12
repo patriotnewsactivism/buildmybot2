@@ -3,7 +3,7 @@
  * Tests for multi-tenant data isolation and organization context
  */
 
-import { describe, expect, it, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 describe('Tenant Isolation Middleware', () => {
   describe('Organization Context Loading', () => {
@@ -59,10 +59,10 @@ describe('Tenant Isolation Middleware', () => {
       ];
 
       expect(userMemberships).toHaveLength(3);
-      userMemberships.forEach((membership) => {
+      for (const membership of userMemberships) {
         expect(membership.organizationId).toBeDefined();
         expect(membership.role).toBeDefined();
-      });
+      }
     });
   });
 
@@ -180,9 +180,9 @@ describe('Tenant Isolation Middleware', () => {
         organizationId: userOrgId,
       }));
 
-      enrichedItems.forEach((item) => {
+      for (const item of enrichedItems) {
         expect(item.organizationId).toBe(userOrgId);
-      });
+      }
     });
   });
 
@@ -253,7 +253,9 @@ describe('Tenant Isolation Middleware', () => {
 
       // User must be member of target org
       const userOrganizations = ['org-1', 'org-2', 'org-3'];
-      const canSwitch = userOrganizations.includes(switchRequest.toOrganizationId);
+      const canSwitch = userOrganizations.includes(
+        switchRequest.toOrganizationId,
+      );
 
       expect(canSwitch).toBe(true);
     });
@@ -265,7 +267,9 @@ describe('Tenant Isolation Middleware', () => {
       };
 
       const userOrganizations = ['org-1', 'org-2'];
-      const canSwitch = userOrganizations.includes(switchRequest.toOrganizationId);
+      const canSwitch = userOrganizations.includes(
+        switchRequest.toOrganizationId,
+      );
 
       expect(canSwitch).toBe(false);
     });
@@ -442,7 +446,8 @@ describe('Tenant Isolation Middleware', () => {
         organizationId: '',
       };
 
-      const isValid = resource.organizationId && resource.organizationId.length > 0;
+      const isValid =
+        resource.organizationId && resource.organizationId.length > 0;
       expect(isValid).toBe(false);
     });
 

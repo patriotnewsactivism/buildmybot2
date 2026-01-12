@@ -100,12 +100,14 @@ const GREETING_TEMPLATES = [
   },
 ];
 
+type WizardStep = 1 | 2 | 3 | 4 | 5;
+
 export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
   user,
   onComplete,
   onCancel,
 }) => {
-  const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
+  const [step, setStep] = useState<WizardStep>(1);
   const [config, setConfig] = useState<VoiceConfig>({
     enabled: true,
     voiceId:
@@ -218,11 +220,17 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
       alert('Please enter your Cartesia API key to continue');
       return;
     }
-    if (step < 5) setStep((step + 1) as any);
+    if (step < 5) {
+      const nextStep = Math.min(step + 1, 5) as WizardStep;
+      setStep(nextStep);
+    }
   };
 
   const handleBack = () => {
-    if (step > 1) setStep((step - 1) as any);
+    if (step > 1) {
+      const prevStep = Math.max(step - 1, 1) as WizardStep;
+      setStep(prevStep);
+    }
   };
 
   const handleFinish = () => {
@@ -303,10 +311,14 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
+                <label
+                  htmlFor="voice-setup-api-key"
+                  className="block text-sm font-medium text-slate-700 mb-2"
+                >
                   Cartesia API Key
                 </label>
                 <input
+                  id="voice-setup-api-key"
                   type="password"
                   value={config.cartesiaApiKey}
                   onChange={(e) =>
@@ -449,9 +461,9 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
+                <p className="block text-sm font-medium text-slate-700 mb-2">
                   Quick Templates
-                </label>
+                </p>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
                   {GREETING_TEMPLATES.map((template) => (
                     <button
@@ -472,10 +484,14 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
+                <label
+                  htmlFor="voice-setup-greeting"
+                  className="block text-sm font-medium text-slate-700 mb-2"
+                >
                   Greeting Message
                 </label>
                 <textarea
+                  id="voice-setup-greeting"
                   value={config.introMessage}
                   onChange={(e) =>
                     setConfig({ ...config, introMessage: e.target.value })
@@ -547,10 +563,14 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
+                <label
+                  htmlFor="voice-setup-phone-number"
+                  className="block text-sm font-medium text-slate-700 mb-2"
+                >
                   Phone Number (Optional)
                 </label>
                 <input
+                  id="voice-setup-phone-number"
                   type="tel"
                   value={config.phoneNumber || ''}
                   onChange={(e) =>
@@ -565,10 +585,14 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
+                <label
+                  htmlFor="voice-setup-delegation-link"
+                  className="block text-sm font-medium text-slate-700 mb-2"
+                >
                   Call Delegation URL (Optional)
                 </label>
                 <input
+                  id="voice-setup-delegation-link"
                   type="url"
                   value={config.delegationLink || ''}
                   onChange={(e) =>
