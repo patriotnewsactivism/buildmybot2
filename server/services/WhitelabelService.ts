@@ -6,6 +6,7 @@ import {
 } from '../../shared/billing-schema';
 import { db } from '../db';
 import { billingService } from './BillingService';
+import nodemailer from 'nodemailer';
 
 export class WhitelabelService {
   async getBranding(organizationId: string) {
@@ -92,6 +93,13 @@ export class WhitelabelService {
     return this.createOrUpdateBranding(organizationId, { customCss });
   }
 
+  async updateSmtpConfig(
+    organizationId: string,
+    smtpConfig: any // Should ideally type this
+  ) {
+    return this.createOrUpdateBranding(organizationId, { smtpConfig });
+  }
+
   async toggleBuiltWithBadge(organizationId: string, hide: boolean) {
     return this.createOrUpdateBranding(organizationId, {
       hideBuiltWithBadge: hide,
@@ -102,6 +110,46 @@ export class WhitelabelService {
     await db
       .delete(organizationBranding)
       .where(eq(organizationBranding.organizationId, organizationId));
+  }
+
+  async sendWhitelabeledEmail(organizationId: string, to: string, subject: string, html: string) {
+    const branding = await this.getBranding(organizationId);
+    
+    // Default transport (system)
+    let transporter = nodemailer.createTransport({
+      // Configure default system transport here from env vars
+      host: process.env.SMTP_HOST,
+      port: Number(process.env.SMTP_PORT),
+      secure: process.env.SMTP_SECURE === 'true',
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
+    });
+
+    let from = process.env.SMTP_FROM || 'noreply@buildmybot.app';
+
+    // Use whitelabel SMTP if configured
+    if (branding?.smtpConfig) {
+      const config = branding.smtpConfig as any;
+      transporter = nodemailer.createTransport({
+        host: config.host,
+        port: config.port,
+        secure: config.secure,
+        auth: {
+          user: config.user,
+          pass: config.pass,
+        },
+      });
+      from = config.from || from;
+    }
+
+    await transporter.sendMail({
+      from,
+      to,
+      subject,
+      html,
+    });
   }
 }
 
