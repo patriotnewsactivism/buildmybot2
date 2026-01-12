@@ -8,7 +8,7 @@ interface PricingPageProps {
   onLogin?: () => void;
 }
 
-const LOGIN_FALLBACK_URL = 'https://login.buildmybot.app/?auth=signup';
+const LOGIN_FALLBACK_URL = '/?auth=signup';
 
 export const PricingPage: React.FC<PricingPageProps> = ({ onLogin }) => {
   const handleLogin = () => {

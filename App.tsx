@@ -92,9 +92,7 @@ const INITIAL_RESELLER_STATS: ResellerStats = {
 // MASTER ADMIN CONFIGURATION - Only MasterAdmin role users should be in this list
 const MASTER_ADMINS = ['mreardon@wtpnews.org', 'jadj19@gmail.com'];
 const PLATFORM_HOST = 'platform.buildmybot.app';
-const LOGIN_HOST = 'login.buildmybot.app';
 const PLATFORM_URL = `https://${PLATFORM_HOST}`;
-const LOGIN_URL = `https://${LOGIN_HOST}/?auth=login`;
 
 type PartnerSignupData = {
   name: string;
@@ -143,14 +141,8 @@ function App() {
   const isBuildMyBotHost =
     hostname === 'buildmybot.app' || hostname.endsWith('.buildmybot.app');
   const isPlatformHost = hostname === PLATFORM_HOST;
-  const isLoginHost = hostname === LOGIN_HOST;
 
   const openAuth = (mode: 'login' | 'signup') => {
-    if (isBuildMyBotHost && !isLoginHost) {
-      window.location.href = `https://${LOGIN_HOST}/?auth=${mode}`;
-      return;
-    }
-
     setAuthMode(mode);
     setAuthModalOpen(true);
   };
@@ -228,8 +220,6 @@ function App() {
     }
 
     if (isPlatformHost) {
-      window.location.replace(LOGIN_URL);
-    } else if (isLoginHost) {
       setAuthMode('login');
       setAuthModalOpen(true);
     }
@@ -238,7 +228,6 @@ function App() {
     isAuthenticated,
     isBuildMyBotHost,
     isPlatformHost,
-    isLoginHost,
   ]);
 
   useEffect(() => {
@@ -251,11 +240,8 @@ function App() {
     if (authParam === 'login' || authParam === 'signup') {
       setAuthMode(authParam);
       setAuthModalOpen(true);
-    } else if (isLoginHost) {
-      setAuthMode('login');
-      setAuthModalOpen(true);
     }
-  }, [isBuildMyBotHost, isLoginHost]);
+  }, [isBuildMyBotHost]);
 
   useEffect(() => {
     if (!user) {
