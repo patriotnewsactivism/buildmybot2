@@ -1,6 +1,6 @@
 import { Download, FileText, Image, RefreshCw, Video } from 'lucide-react';
 import type React from 'react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { dbService } from '../../../services/dbService';
 import { type Column, DataTable } from '../../UI/DataTable';
 
@@ -20,7 +20,7 @@ export const MarketingMaterials: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchMaterials = async () => {
+  const fetchMaterials = useCallback(async () => {
     try {
       const data = await dbService.getPartnerMarketingMaterials();
       setMaterials(data);
@@ -31,11 +31,11 @@ export const MarketingMaterials: React.FC = () => {
       setError('Failed to load marketing materials');
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchMaterials();
-  }, []);
+  }, [fetchMaterials]);
 
   const getTypeIcon = (type: string) => {
     switch (type.toLowerCase()) {
