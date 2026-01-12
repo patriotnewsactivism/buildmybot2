@@ -48,6 +48,7 @@ import {
   clientsRouter,
   healthRouter,
   impersonationRouter,
+  integrationsRouter,
   knowledgeRouter,
   landingPagesRouter,
   leadsRouter,
