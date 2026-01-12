@@ -1,28 +1,39 @@
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 
+const isProduction = process.env.NODE_ENV === 'production';
+const isDevelopment = process.env.NODE_ENV === 'development' || !process.env.NODE_ENV;
+
+// General API rate limiter - more permissive in development
 export const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: isDevelopment ? 1000 : 500, // Much higher limit: 1000 in dev, 500 in prod
   message: 'Too many requests from this IP, please try again later',
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => {
+    // Skip rate limiting for health checks
+    return req.path === '/api/health' || req.path === '/health';
+  },
 });
 
+// Strict limiter for sensitive operations (billing, admin actions)
 export const strictLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 20,
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: isDevelopment ? 100 : 50,
   message: 'Rate limit exceeded for this endpoint',
   standardHeaders: true,
   legacyHeaders: false,
 });
 
+// Auth-specific limiter - more permissive for legitimate login attempts
 export const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 5,
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: isDevelopment ? 100 : 20, // Allow more attempts in dev
   message: 'Too many authentication attempts, please try again later',
   standardHeaders: true,
   legacyHeaders: false,
+  skipSuccessfulRequests: true, // Don't count successful logins against the limit
 });
 
 export const securityHeaders = helmet({
