@@ -223,12 +223,7 @@ function App() {
       setAuthMode('login');
       setAuthModalOpen(true);
     }
-  }, [
-    authLoading,
-    isAuthenticated,
-    isBuildMyBotHost,
-    isPlatformHost,
-  ]);
+  }, [authLoading, isAuthenticated, isBuildMyBotHost, isPlatformHost]);
 
   useEffect(() => {
     if (!isBuildMyBotHost) {

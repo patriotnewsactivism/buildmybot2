@@ -1,9 +1,9 @@
 import { type Response, Router } from 'express';
 import {
+  type AuthRequest,
   authenticate,
   authorize,
   loadOrganizationContext,
-  type AuthRequest,
 } from '../middleware';
 import { AuditService } from '../services';
 

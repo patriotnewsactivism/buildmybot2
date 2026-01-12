@@ -120,7 +120,8 @@ describe('E2E: User Signup & Onboarding Flow', () => {
     expect(canCreateBot).toBe(false);
 
     // User is within conversation limit
-    const canHaveConversations = currentUsage.conversations < freePlan.limits.conversations;
+    const canHaveConversations =
+      currentUsage.conversations < freePlan.limits.conversations;
     expect(canHaveConversations).toBe(true);
   });
 });
@@ -367,7 +368,9 @@ describe('E2E: Lead Capture & CRM Flow', () => {
       { role: 'user', content: 'How much does it cost?' },
     );
 
-    const messageCount = conversation.messages.filter((m) => m.role === 'user').length;
+    const messageCount = conversation.messages.filter(
+      (m) => m.role === 'user',
+    ).length;
     const shouldShowLeadForm = messageCount >= 3;
 
     expect(shouldShowLeadForm).toBe(true);
@@ -390,7 +393,9 @@ describe('E2E: Lead Capture & CRM Flow', () => {
       source: 'chatbot',
       status: 'new',
       score: 0,
-      conversationContext: conversation.messages.map((m) => m.content).join('\n'),
+      conversationContext: conversation.messages
+        .map((m) => m.content)
+        .join('\n'),
       createdAt: new Date(),
     };
 
@@ -493,7 +498,9 @@ describe('E2E: Analytics & Reporting Flow', () => {
     };
 
     expect(analytics.totalConversations).toBeGreaterThan(0);
-    expect(analytics.conversionRate).toBe((analytics.totalLeads / analytics.totalConversations) * 100);
+    expect(analytics.conversionRate).toBe(
+      (analytics.totalLeads / analytics.totalConversations) * 100,
+    );
 
     // Step 2: View conversation trends
     const trends = [
