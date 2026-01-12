@@ -1,0 +1,4 @@
+Date/Time,Business Name,URL,Audit Method,Response Time,Delay (The Pain),Est. Deal Value,Status
+1/12/26 9:00 AM,Smith Family Law,smithlaw.com,Web Form,1/12/26 1:30 PM,"=IF(E2=""No Reply"",""LOST LEAD"",E2-A2)",$2,500,Pitch Sent
+1/12/26 9:15 AM,Apex Roofing,apexroof.com,Chat Widget,No Reply,"=IF(E3=""No Reply"",""LOST LEAD"",E3-A3)",$8,000,Call Scheduled
+1/12/26 9:30 AM,Elite MedSpa,elitespa.com,Phone Call,Voicemail,"=IF(E4=""No Reply"",""LOST LEAD"",E4-A4)",$450,Pending
