@@ -230,7 +230,7 @@ WHERE whitelabel_enabled = true;
 
 | Component | URL |
 |-----------|-----|
-| **Frontend** | https://buildmybotapp-inky.vercel.app |
+| **Frontend** | https://www.buildmybot.app |
 | **Backend** | https://buildmybot2-production.up.railway.app |
 | **Webhook** | https://buildmybot2-production.up.railway.app/api/stripe/webhook |
 | **Stripe Dashboard** | https://dashboard.stripe.com |
