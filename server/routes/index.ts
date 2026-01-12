@@ -12,6 +12,7 @@ import chatRouter from './chat';
 import clientsRouter from './clients';
 import healthRouter from './health';
 import impersonationRouter from './impersonation';
+import integrationsRouter from './integrations';
 import knowledgeRouter from './knowledge';
 import landingPagesRouter from './landingPages';
 import leadsRouter from './leads';
@@ -39,4 +40,5 @@ export {
   notificationsRouter,
   authRouter,
   healthRouter,
+  integrationsRouter,
 };

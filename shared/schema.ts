@@ -416,6 +416,23 @@ export const knowledgeChunks = pgTable('knowledge_chunks', {
   createdAt: timestamp('created_at').defaultNow(),
 });
 
+
+// ========================================
+// INTEGRATIONS
+// ========================================
+
+export const integrations = pgTable('integrations', {
+  id: text('id').primaryKey(),
+  organizationId: text('organization_id').references(() => organizations.id, {
+    onDelete: 'cascade',
+  }),
+  provider: varchar('provider', { length: 50 }).notNull(),
+  config: json('config').default({}),
+  isActive: boolean('is_active').default(true),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
 // ========================================
 // RELATIONS
 // ========================================
@@ -434,6 +451,7 @@ export const organizationsRelations = relations(
     conversations: many(conversations),
     analyticsEvents: many(analyticsEvents),
     partnerRelationships: many(partnerClients),
+    integrations: many(integrations),
   }),
 );
 
@@ -544,6 +562,13 @@ export const analyticsEventsRelations = relations(
     }),
   }),
 );
+
+export const integrationsRelations = relations(integrations, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [integrations.organizationId],
+    references: [organizations.id],
+  }),
+}));
 
 export const botTemplatesRelations = relations(botTemplates, ({ one }) => ({
   creator: one(users, {
@@ -884,6 +909,8 @@ export type SystemSetting = typeof systemSettings.$inferSelect;
 export type InsertSystemSetting = typeof systemSettings.$inferInsert;
 export type SupportTicket = typeof supportTickets.$inferSelect;
 export type InsertSupportTicket = typeof supportTickets.$inferInsert;
+export type Integration = typeof integrations.$inferSelect;
+export type InsertIntegration = typeof integrations.$inferInsert;
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
