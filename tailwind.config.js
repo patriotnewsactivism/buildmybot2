@@ -3,6 +3,18 @@ export default {
   content: ['./index.html', './**/*.{js,ts,jsx,tsx}'],
   theme: {
     extend: {
+      colors: {
+        midnight: '#121212',
+        'deep-indigo': '#1A1B2F',
+        'electric-violet': '#8A2BE2',
+        'luminous-teal': '#00F5D4',
+        'soft-gray': '#B0B3B8',
+        'warm-coral': '#FF6B6B',
+      },
+      fontFamily: {
+        spaceGrotesk: ['Space Grotesk', 'Inter', 'sans-serif'],
+        inter: ['Inter', 'sans-serif'],
+      },
       animation: {
         'fade-in': 'fadeIn 0.5s ease-out forwards',
         blob: 'blob 7s infinite',
