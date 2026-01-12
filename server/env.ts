@@ -15,6 +15,7 @@ if (fs.existsSync(envLocalPath)) {
 
 export const env = {
   NODE_ENV: process.env.NODE_ENV ?? 'development',
+  PORT: process.env.PORT,
   API_PORT: process.env.API_PORT,
   APP_BASE_URL: process.env.APP_BASE_URL,
   DATABASE_URL: process.env.DATABASE_URL,
