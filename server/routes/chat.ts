@@ -214,6 +214,25 @@ router.post(
         return res.status(403).json({ error: 'Bot is currently inactive' });
       }
 
+      let useModel = model || bot.model || 'gpt-5o-mini';
+      let baseSystemPrompt = bot.systemPrompt || 'You are a helpful assistant.';
+
+      // Phase 5: A/B Testing Logic
+      if (bot.abTestConfig && (bot.abTestConfig as any).enabled && Array.isArray((bot.abTestConfig as any).variants)) {
+        const variants = (bot.abTestConfig as any).variants;
+        const totalWeight = variants.reduce((sum: number, v: any) => sum + (v.weight || 0), 0);
+        let random = Math.random() * totalWeight;
+        
+        for (const variant of variants) {
+          random -= (variant.weight || 0);
+          if (random <= 0) {
+            if (variant.systemPrompt) baseSystemPrompt = variant.systemPrompt;
+            if (variant.model) useModel = variant.model;
+            break;
+          }
+        }
+      }
+
       const lastUserMessage = messages.filter((m) => m.role === 'user').pop();
       const userQuery = lastUserMessage?.text || '';
 
@@ -226,8 +245,6 @@ router.post(
         );
       }
 
-      const baseSystemPrompt =
-        bot.systemPrompt || 'You are a helpful assistant.';
       let systemContent = baseSystemPrompt;
 
       if (ragContext) {
@@ -243,8 +260,6 @@ router.post(
           content: msg.text,
         });
       });
-
-      const useModel = model || bot.model || 'gpt-5o-mini';
 
       const response = await openai.chat.completions.create({
         model: useModel,
