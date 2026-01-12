@@ -1115,6 +1115,9 @@ app.use('/api/chat', chatRouter);
 // Leads CRM API (includes public capture endpoint)
 app.use('/api/leads', leadsRouter);
 
+// Integrations API (HubSpot, etc.)
+app.use('/api/integrations', integrationsRouter);
+
 // Landing pages builder API
 app.use('/api/landing-pages', landingPagesRouter);
 
