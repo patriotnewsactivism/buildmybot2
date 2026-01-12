@@ -12,6 +12,8 @@ import {
 
 export * from './models/auth';
 export * from './billing-schema';
+export * from './schema-migrations';
+export * from './schema-monitoring';
 
 // ========================================
 // ORGANIZATIONS & MULTI-TENANCY

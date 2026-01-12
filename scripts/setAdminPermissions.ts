@@ -1,5 +1,6 @@
 import postgres from 'postgres';
 import { env } from '../server/env';
+import { ADMIN_USERS } from '../server/config/admins';
 
 async function setAdminPermissions() {
   console.log('Setting admin permissions...\n');
@@ -18,26 +19,8 @@ async function setAdminPermissions() {
   });
 
   try {
-    // Define the users and their roles
-    const masterAdminEmail =
-      env.MASTER_ADMIN_EMAIL || 'mreardon@wtpnews.org';
-    const adminEmail = env.ADMIN_EMAIL || 'jadj19@gmail.com';
-    const masterAdminPlan = env.MASTER_ADMIN_PLAN || 'ENTERPRISE';
-    const adminPlan = env.ADMIN_PLAN || 'ENTERPRISE';
-    const adminUsers = [
-      {
-        email: masterAdminEmail,
-        role: 'MasterAdmin',
-        description: 'Master Admin',
-        plan: masterAdminPlan,
-      },
-      {
-        email: adminEmail,
-        role: 'ADMIN',
-        description: 'Admin',
-        plan: adminPlan,
-      },
-    ];
+    // Use centralized admin configuration from server/config/admins.ts
+    const adminUsers = ADMIN_USERS;
 
     console.log('Updating admin permissions for users:\n');
 

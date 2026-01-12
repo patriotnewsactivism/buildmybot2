@@ -551,11 +551,125 @@ export function formatKnowledgeBaseAsText(kb: IndustryKnowledgeBase): string {
   let content = `# ${kb.name}\n\n`;
   content += `${kb.description}\n\n`;
   content += '## Frequently Asked Questions\n\n';
-  
+
   for (const faq of kb.faqs) {
     content += `### ${faq.question}\n\n`;
     content += `${faq.answer}\n\n`;
   }
-  
+
   return content;
+}
+
+// Database seeding function
+import { fileURLToPath } from 'node:url';
+import { eq } from 'drizzle-orm';
+import { v4 as uuidv4 } from 'uuid';
+import { knowledgeSources, knowledgeChunks } from '../../shared/schema';
+import { db } from '../db';
+
+export async function seedIndustryKnowledgeBases() {
+  console.log('🌱 Seeding industry knowledge bases...\n');
+
+  try {
+    let inserted = 0;
+    let skipped = 0;
+    let totalChunks = 0;
+
+    for (const kb of INDUSTRY_KNOWLEDGE_BASES) {
+      console.log(`Processing: ${kb.name} (${kb.industry})`);
+
+      // Check if this knowledge base already exists
+      const existingSources = await db
+        .select()
+        .from(knowledgeSources)
+        .where(eq(knowledgeSources.sourceName, kb.name))
+        .limit(1);
+
+      if (existingSources.length > 0) {
+        console.log(`  ⏭️  Skipping ${kb.name} (already exists)\n`);
+        skipped++;
+        continue;
+      }
+
+      // Create knowledge source record
+      const sourceId = uuidv4();
+      await db.insert(knowledgeSources).values({
+        id: sourceId,
+        sourceType: 'manual',
+        sourceName: kb.name,
+        sourceUrl: null,
+        status: 'completed',
+        organizationId: null, // System-wide knowledge base
+        botId: null, // Available to all bots
+        pagesCrawled: kb.faqs.length,
+        lastCrawledAt: new Date(),
+        metadata: {
+          industry: kb.industry,
+          description: kb.description,
+          knowledgeBaseId: kb.id,
+        },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      console.log(`  ✅ Created knowledge source: ${kb.name}`);
+
+      // Insert chunks for each FAQ
+      const chunks = kb.faqs.map((faq, index) => ({
+        id: uuidv4(),
+        sourceId: sourceId,
+        botId: null, // Available to all bots
+        content: `Q: ${faq.question}\n\nA: ${faq.answer}`,
+        contentHash: null,
+        metadata: {
+          industry: kb.industry,
+          question: faq.question,
+          answer: faq.answer,
+          faqIndex: index,
+        },
+        chunkIndex: index,
+        tokenCount: Math.ceil((faq.question.length + faq.answer.length) / 4), // Rough estimate
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }));
+
+      await db.insert(knowledgeChunks).values(chunks);
+
+      console.log(`  📝 Inserted ${chunks.length} FAQ chunks`);
+      console.log('');
+
+      inserted++;
+      totalChunks += chunks.length;
+    }
+
+    console.log('═'.repeat(60));
+    console.log('📊 SEEDING SUMMARY');
+    console.log('═'.repeat(60));
+    console.log(`✅ Knowledge bases inserted: ${inserted}`);
+    console.log(`⏭️  Knowledge bases skipped: ${skipped}`);
+    console.log(`📝 Total FAQ chunks created: ${totalChunks}`);
+    console.log('═'.repeat(60));
+
+    console.log('\n✅ Industry knowledge bases seeded successfully!');
+
+    return { success: true, inserted, skipped, totalChunks };
+  } catch (error) {
+    console.error('\n❌ Failed to seed industry knowledge bases:');
+    console.error('Error:', error);
+    throw error;
+  }
+}
+
+// CLI execution support
+const isMainModule = process.argv[1] === fileURLToPath(import.meta.url);
+if (isMainModule) {
+  seedIndustryKnowledgeBases()
+    .then(() => {
+      console.log('\n✅ Seeding complete!');
+      process.exit(0);
+    })
+    .catch((error) => {
+      console.error('\n❌ Seeding failed:', error);
+      process.exit(1);
+    });
 }

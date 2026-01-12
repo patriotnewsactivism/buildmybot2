@@ -1,10 +1,14 @@
 /**
  * Database Performance Indexes Migration
  *
+ * ⚠️  DEPRECATED - This file has been replaced by 002_consolidated_indexes.ts
+ *
  * This script adds indexes to improve query performance across the application.
  * Run this after the initial schema is set up.
  *
  * Usage: npx tsx server/migrations/addPerformanceIndexes.ts
+ *
+ * @deprecated Use scripts/migrate.ts with migration 002_consolidated_indexes.ts instead
  */
 
 import { sql } from 'drizzle-orm';
