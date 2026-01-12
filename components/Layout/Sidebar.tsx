@@ -116,7 +116,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <img
               src="/logo.jpg"
               alt="BuildMyBot"
-              className="h-8 w-auto rounded-md object-contain shadow-lg"
+              className="h-6 w-auto rounded-md object-contain shadow-lg"
             />
             <span className="text-slate-100">BuildMyBot</span>
           </div>
