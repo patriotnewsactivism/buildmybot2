@@ -1,6 +1,13 @@
 # Vercel Deployment Guide
 
-This project is ready for deployment to Vercel. All Replit dependencies have been removed.
+This project is deployed to Vercel using the **buildmybot20** project.
+
+## Current Production Setup
+
+- **Project**: buildmybot20
+- **Domain**: https://www.buildmybot.app
+- **Backend**: https://buildmybot2-production.up.railway.app
+- **Database**: Supabase (PostgreSQL pooler)
 
 ## What Was Changed
 
@@ -19,7 +26,7 @@ This is a full-stack application with:
 - **Backend**: Express.js API server (deploy separately)
 - **Database**: PostgreSQL on Supabase
 
-## Step 1: Deploy Frontend to Vercel
+## Step 1: Deploy Frontend to Vercel (buildmybot20)
 
 1. **Install Vercel CLI** (if not already installed):
    ```bash
@@ -31,29 +38,25 @@ This is a full-stack application with:
    vercel login
    ```
 
-3. **Deploy**:
+3. **Link to buildmybot20 project**:
+   ```bash
+   rm -rf .vercel
+   vercel link --project buildmybot20 --yes
+   ```
+
+4. **Deploy**:
    ```bash
    vercel --prod
    ```
 
-4. **Set Environment Variables in Vercel Dashboard**:
-   - Go to your project settings in Vercel
-   - Add these environment variables:
-     - `VITE_API_URL` - Your backend API URL (set this after deploying backend)
-     - `VITE_STRIPE_PUBLISHABLE_KEY` - Your Stripe publishable key
-     - `VITE_CARTESIA_API_KEY` - (Optional) Cartesia API key
-
-5. **Update vercel.json**:
-   - Open `vercel.json`
-   - Update the `rewrites` section with your actual backend URL:
-     ```json
-     "rewrites": [
-       {
-         "source": "/api/:path*",
-         "destination": "https://your-actual-backend-url.com/api/:path*"
-       }
-     ]
-     ```
+5. **Environment Variables** (already configured in buildmybot20):
+   - `VITE_API_URL` = `https://buildmybot2-production.up.railway.app`
+   - `VITE_STRIPE_PUBLISHABLE_KEY` = Your Stripe publishable key
+   - `VITE_SUPABASE_URL` = Your Supabase project URL
+   - `VITE_SUPABASE_ANON_KEY` = Your Supabase anon key
+   - `DATABASE_URL` = Supabase pooler connection string
+   - `TWILIO_*` = Twilio credentials (for phone agent)
+   - `CARTESIA_API_KEY` = Cartesia voice API key
 
 ## Step 2: Deploy Backend
 
