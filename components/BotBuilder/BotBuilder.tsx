@@ -37,6 +37,7 @@ import {
   X,
   Zap,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AVAILABLE_MODELS } from '../../constants';
@@ -62,7 +63,7 @@ type TabConfig = {
   id: BotBuilderTab;
   label: string;
   fullLabel: string;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
+  icon: LucideIcon;
 };
 
 const HUMAN_NAMES = [
@@ -1051,9 +1052,9 @@ export const BotBuilder: React.FC<BotBuilderProps> = ({
                       No knowledge added yet.
                     </div>
                   )}
-                  {activeBot.knowledgeBase.map((item) => (
+                  {activeBot.knowledgeBase.map((item, index) => (
                     <div
-                      key={item}
+                      key={`${item}-${index}`}
                       className="flex items-start justify-between bg-slate-50 p-3 rounded-lg border border-slate-100 text-sm"
                     >
                       <p className="text-slate-700 whitespace-pre-wrap">
@@ -1063,7 +1064,7 @@ export const BotBuilder: React.FC<BotBuilderProps> = ({
                         type="button"
                         onClick={() => {
                           const newKb = [...activeBot.knowledgeBase];
-                          newKb.splice(i, 1);
+                          newKb.splice(index, 1);
                           setActiveBot({ ...activeBot, knowledgeBase: newKb });
                         }}
                         className="text-slate-400 hover:text-red-500 ml-2"
