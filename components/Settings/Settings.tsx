@@ -257,7 +257,7 @@ export const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser }) => {
                   'Weekly analytics report',
                   'System updates and maintenance',
                   'Reseller commission alerts',
-                ].map((item) => (
+                ].map((item, i) => (
                   <div
                     key={item}
                     className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0"
