@@ -46,6 +46,9 @@ import { BlogPage } from './components/Landing/pages/BlogPage';
 import { CareersPage } from './components/Landing/pages/CareersPage';
 import { ContactPage } from './components/Landing/pages/ContactPage';
 import { FeaturesPage } from './components/Landing/pages/FeaturesPage';
+import { FaqPage } from './components/Landing/pages/FaqPage';
+import { PricingPage } from './components/Landing/pages/PricingPage';
+import { DemoPage } from './components/Landing/pages/DemoPage';
 import { PrivacyPage } from './components/Landing/pages/PrivacyPage';
 import { LandingPageBuilder } from './components/LandingPages/LandingPageBuilder';
 import { Sidebar } from './components/Layout/Sidebar';
@@ -88,6 +91,10 @@ const INITIAL_RESELLER_STATS: ResellerStats = {
 
 // MASTER ADMIN CONFIGURATION - Only MasterAdmin role users should be in this list
 const MASTER_ADMINS = ['mreardon@wtpnews.org', 'jadj19@gmail.com'];
+const PLATFORM_HOST = 'platform.buildmybot.app';
+const LOGIN_HOST = 'login.buildmybot.app';
+const PLATFORM_URL = `https://${PLATFORM_HOST}`;
+const LOGIN_URL = `https://${LOGIN_HOST}/?auth=login`;
 
 function App() {
   const {
@@ -118,6 +125,22 @@ function App() {
     expiresAt: string;
   } | null>(null);
   const [impersonatedUser, setImpersonatedUser] = useState<User | null>(null);
+  const hostname =
+    typeof window !== 'undefined' ? window.location.hostname.toLowerCase() : '';
+  const isBuildMyBotHost =
+    hostname === 'buildmybot.app' || hostname.endsWith('.buildmybot.app');
+  const isPlatformHost = hostname === PLATFORM_HOST;
+  const isLoginHost = hostname === LOGIN_HOST;
+
+  const openAuth = (mode: 'login' | 'signup') => {
+    if (isBuildMyBotHost && !isLoginHost) {
+      window.location.href = `https://${LOGIN_HOST}/?auth=${mode}`;
+      return;
+    }
+
+    setAuthMode(mode);
+    setAuthModalOpen(true);
+  };
 
   // Dashboard tab state for controlled navigation
   const [adminActiveTab, setAdminActiveTab] = useState<
@@ -180,6 +203,48 @@ function App() {
   }, [authLoading, isAuthenticated, authUser]);
 
   useEffect(() => {
+    if (!isBuildMyBotHost || authLoading) {
+      return;
+    }
+
+    if (isAuthenticated) {
+      if (!isPlatformHost) {
+        window.location.replace(`${PLATFORM_URL}/app`);
+      }
+      return;
+    }
+
+    if (isPlatformHost) {
+      window.location.replace(LOGIN_URL);
+    } else if (isLoginHost) {
+      setAuthMode('login');
+      setAuthModalOpen(true);
+    }
+  }, [
+    authLoading,
+    isAuthenticated,
+    isBuildMyBotHost,
+    isPlatformHost,
+    isLoginHost,
+  ]);
+
+  useEffect(() => {
+    if (!isBuildMyBotHost) {
+      return;
+    }
+    const params = new URLSearchParams(window.location.search);
+    const authParam = params.get('auth');
+
+    if (authParam === 'login' || authParam === 'signup') {
+      setAuthMode(authParam);
+      setAuthModalOpen(true);
+    } else if (isLoginHost) {
+      setAuthMode('login');
+      setAuthModalOpen(true);
+    }
+  }, [isBuildMyBotHost, isLoginHost]);
+
+  useEffect(() => {
     if (!user) {
       return;
     }
@@ -235,6 +300,45 @@ function App() {
   }
   if (currentPath === '/features') {
     return <FeaturesPage />;
+  }
+  if (currentPath === '/pricing') {
+    return (
+      <>
+        <PricingPage onLogin={() => openAuth('login')} />
+        <AuthModal
+          isOpen={authModalOpen}
+          onClose={() => setAuthModalOpen(false)}
+          defaultMode={authMode}
+          onLoginSuccess={handleManualAuth}
+        />
+      </>
+    );
+  }
+  if (currentPath === '/faq') {
+    return (
+      <>
+        <FaqPage onLogin={() => openAuth('login')} />
+        <AuthModal
+          isOpen={authModalOpen}
+          onClose={() => setAuthModalOpen(false)}
+          defaultMode={authMode}
+          onLoginSuccess={handleManualAuth}
+        />
+      </>
+    );
+  }
+  if (currentPath === '/demo') {
+    return (
+      <>
+        <DemoPage onLogin={() => openAuth('login')} />
+        <AuthModal
+          isOpen={authModalOpen}
+          onClose={() => setAuthModalOpen(false)}
+          defaultMode={authMode}
+          onLoginSuccess={handleManualAuth}
+        />
+      </>
+    );
   }
 
   useEffect(() => {
@@ -427,11 +531,6 @@ function App() {
       setNotification('Failed to save bot. Please try again.');
     }
     setTimeout(() => setNotification(null), 2000);
-  };
-
-  const openAuth = (mode: 'login' | 'signup') => {
-    setAuthMode(mode);
-    setAuthModalOpen(true);
   };
 
   const handleStartImpersonation = async (
