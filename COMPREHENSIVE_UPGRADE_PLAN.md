@@ -2251,9 +2251,11 @@ Allow users to choose their preferred model based on:
 | Phase 5: Features | 3 weeks | Week 14 |
 | Phase 6: Landing | 1 week | Week 15 |
 | Phase 7: Testing | 1 week | Week 16 |
-| Phase 8: Monitoring | Ongoing | - |
+| Phase 8: Monitoring | Ongoing | Week 16+ |
+| Phase 9: Integration | 2 weeks | Week 18 |
+| Phase 10: Scaling | 2 weeks | Week 20 |
 
-**Total Project Duration:** 16 weeks (4 months)
+**Total Project Duration:** 20 weeks (5 months)
 
 ---
 
@@ -2422,6 +2424,24 @@ The phased approach allows for iterative delivery, early feedback, and risk miti
 - [ ] Create status page
 - [ ] Establish maintenance procedures
 - [ ] Set up automated backup verification
+
+### Phase 9: Integration & Automation
+- [ ] Build Outbound Webhook triggering system
+- [ ] Implement Inbound Webhook listeners
+- [ ] Create Webhook Management UI
+- [ ] Design and index platform-wide Search assets
+- [ ] Implement semantic search for Knowledge Base
+- [ ] Generate OpenAPI documentation (Swagger)
+- [ ] Build API Key management portal
+
+### Phase 10: Enterprise Scaling & Globalization
+- [ ] Integrate i18next for dashboard localization
+- [ ] Implement bot language detection and routing
+- [ ] Build Agency subdomain provisioning system
+- [ ] Integrate SMTP settings for white-label emails
+- [ ] Implement CSS injection for chat widgets
+- [ ] Build team invitation and seats management
+- [ ] Implement granular RBAC for bot/lead access
 
 ---
 

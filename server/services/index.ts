@@ -11,6 +11,7 @@ export { ChannelService } from './ChannelService';
 export { WebScraperService } from './WebScraperService';
 export { DocumentProcessorService } from './DocumentProcessorService';
 export { KnowledgeService } from './KnowledgeService';
+export { WebhookService, webhookService } from './WebhookService';
 
 // Export types from AnalyticsService
 export type {

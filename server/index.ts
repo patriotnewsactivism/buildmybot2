@@ -55,6 +55,8 @@ import {
   partnersRouter,
   revenueRouter,
   templatesRouter,
+  webhooksRouter,
+  searchRouter,
 } from './routes';
 import { getStripePublishableKey } from './stripeClient';
 import { stripeService } from './stripeService';
@@ -1110,6 +1112,12 @@ app.use(
 
 // Multi-channel deployment
 app.use('/api/channels', channelsRouter);
+
+// Webhook management
+app.use('/api/webhooks', webhooksRouter);
+
+// Unified Search
+app.use('/api/search', searchRouter);
 
 // Knowledge base management
 app.use('/api/knowledge', knowledgeRouter);
