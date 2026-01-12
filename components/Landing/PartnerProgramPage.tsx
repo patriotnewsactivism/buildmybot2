@@ -120,8 +120,8 @@ export const PartnerProgramPage: React.FC<PartnerProps> = ({
             </span>
           </h1>
           <p className="text-xl text-slate-300 mb-10 max-w-2xl mx-auto">
-            White-label our technology. You sell the solution to local
-            businesses, we handle the AI infrastructure. Zero coding required.
+            Sell as BuildMyBot.App or white-label under your own brand. You
+            handle the relationships, we handle the AI infrastructure.
           </p>
           <button
             type="button"
@@ -218,10 +218,11 @@ export const PartnerProgramPage: React.FC<PartnerProps> = ({
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-3xl font-bold text-slate-900 mb-4">
-              Choose Your Path to 50% Commission
+              Choose Your Path: Sales Agent or Partner Access
             </h2>
             <p className="text-lg text-slate-600">
-              Two ways to build your AI agency - pick what works for you.
+              Start free on tiered commissions or unlock partner access
+              immediately.
             </p>
           </div>
 
@@ -235,7 +236,7 @@ export const PartnerProgramPage: React.FC<PartnerProps> = ({
                 </div>
                 <div>
                   <h3 className="text-xl font-bold text-slate-900">
-                    Growth Path
+                    Sales Agent Path
                   </h3>
                   <p className="text-slate-500 text-sm">
                     Free to start, earn your way up
@@ -251,7 +252,7 @@ export const PartnerProgramPage: React.FC<PartnerProps> = ({
               </div>
               <p className="text-slate-600 mb-6">
                 Start earning 20% immediately. Grow your client base to unlock
-                higher commission tiers—up to 50%.
+                higher commission tiers up to 50%.
               </p>
 
               <div className="space-y-3 mb-6">
@@ -305,7 +306,7 @@ export const PartnerProgramPage: React.FC<PartnerProps> = ({
               </button>
             </div>
 
-            {/* Whitelabel Path - Instant 50% */}
+            {/* Partner Access - Immediate 50% on new accounts */}
             <div className="bg-gradient-to-br from-blue-900 to-slate-900 rounded-2xl p-8 border border-blue-700 relative overflow-hidden">
               <div className="absolute top-4 right-4 bg-amber-400 text-amber-900 text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
                 <Crown size={12} /> BEST VALUE
@@ -317,10 +318,10 @@ export const PartnerProgramPage: React.FC<PartnerProps> = ({
                 </div>
                 <div>
                   <h3 className="text-xl font-bold text-white">
-                    Whitelabel Partner
+                    Partner Access
                   </h3>
                   <p className="text-blue-300 text-sm">
-                    Skip the tiers, 50% split while current
+                    Immediate 50% on new accounts
                   </p>
                 </div>
               </div>
@@ -328,12 +329,14 @@ export const PartnerProgramPage: React.FC<PartnerProps> = ({
               <div className="text-3xl font-extrabold text-white mb-2">
                 ${WHITELABEL_FEE.price}{' '}
                 <span className="text-lg font-normal text-blue-300">
-                  / 30 days
+                  / month
                 </span>
               </div>
               <p className="text-blue-200 mb-6">
-                Billed every 30 days (net 30). Keep a 50% split while the fee is
-                current. If unpaid, $499 is deducted from payouts.
+                Billed monthly (net 30). Partner access gives you a 50% split on
+                new accounts created after enrollment. Existing accounts keep
+                their current tier rate. If unpaid, the $499 fee is deducted
+                from payouts.
               </p>
 
               <div className="bg-white/10 rounded-xl p-4 mb-6">
@@ -344,7 +347,7 @@ export const PartnerProgramPage: React.FC<PartnerProps> = ({
                   </span>
                 </div>
                 <p className="text-blue-300 text-sm mt-1">
-                  From day one, on every client
+                  From day one, on new clients
                 </p>
               </div>
 
@@ -362,7 +365,7 @@ export const PartnerProgramPage: React.FC<PartnerProps> = ({
                 onClick={onSignup}
                 className="w-full py-3 bg-white text-slate-900 rounded-xl font-bold hover:bg-blue-50 transition flex items-center justify-center gap-2"
               >
-                Unlock Whitelabel <ArrowRight size={16} />
+                Activate Partner Access <ArrowRight size={16} />
               </button>
             </div>
           </div>
@@ -370,7 +373,7 @@ export const PartnerProgramPage: React.FC<PartnerProps> = ({
           {/* Tier Detail Cards (smaller, below) */}
           <div className="text-center mb-8">
             <h3 className="text-xl font-bold text-slate-700">
-              Growth Path Tier Details
+              Sales Agent Tier Details
             </h3>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

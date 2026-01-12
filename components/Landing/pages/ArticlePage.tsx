@@ -98,14 +98,15 @@ const articleContent: Record<
         </p>
 
         <h2 className="text-2xl font-bold text-slate-900 mt-12 mb-4">
-          White-Label Partner Program
+          Partner Access and White-Label
         </h2>
         <p className="text-slate-700 mb-6 leading-relaxed">
-          For agencies and resellers, BuildMyBot offers comprehensive
-          white-label capabilities. Set up your own custom domain, apply your
-          branding, and offer BuildMyBot's technology to your clients under your
-          own brand. Our tiered partner program offers commissions from 20% to
-          50% based on your client volume.
+          For agencies and resellers, BuildMyBot supports optional white-label
+          branding and custom domains so you can sell under your own brand or
+          keep the BuildMyBot name. Start as a sales agent with tiered
+          commissions from 20% to 50%, or unlock partner access for $499/mo to
+          earn 50% on new accounts immediately. When you reach 251+ active
+          accounts, you earn 50% across all accounts.
         </p>
 
         <h2 className="text-2xl font-bold text-slate-900 mt-12 mb-4">
@@ -116,7 +117,7 @@ const articleContent: Record<
           supports multiple embed types including hover widgets that appear in
           the corner of your website, fixed chat windows, and full-page chat
           experiences. Simply copy the provided embed code and paste it into
-          your website—it's that easy.
+          your website - it's that easy.
         </p>
 
         <h2 className="text-2xl font-bold text-slate-900 mt-12 mb-4">
