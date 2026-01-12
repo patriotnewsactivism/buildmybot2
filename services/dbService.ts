@@ -56,6 +56,8 @@ export const dbService = {
     authContext = { ...authContext, impersonationToken: undefined };
   },
 
+  getAuthHeaders: (includeJson = false) => buildHeaders(includeJson),
+
   subscribeToBots: (onUpdate: (bots: Bot[]) => void) => {
     const fetchBots = async () => {
       try {

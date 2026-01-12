@@ -67,10 +67,21 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
     chunks: 0,
     totalTokens: 0,
   });
-  
+
   const [previewContent, setPreviewContent] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
   const [loadingPreview, setLoadingPreview] = useState(false);
+  const maxUploadSize = 20 * 1024 * 1024;
+  const supportedExtensions = [
+    '.pdf',
+    '.docx',
+    '.txt',
+    '.md',
+    '.png',
+    '.jpg',
+    '.jpeg',
+    '.webp',
+  ];
 
   const fetchSources = useCallback(async () => {
     if (!botId || botId === 'new') return;
@@ -78,6 +89,7 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
     try {
       const response = await fetch(buildApiUrl(`/knowledge/sources/${botId}`), {
         credentials: 'include',
+        headers: dbService.getAuthHeaders(),
       });
       if (response.ok) {
         const data = await response.json();
@@ -118,7 +130,7 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
     try {
       const response = await fetch(buildApiUrl(`/knowledge/scrape/${botId}`), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: dbService.getAuthHeaders(true),
         credentials: 'include',
         body: JSON.stringify({ url: urlInput, crawlDepth }),
       });
@@ -181,8 +193,16 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
       const file = files[i];
       setCurrentFile(file.name);
 
-      if (file.size > 20 * 1024 * 1024) {
+      if (file.size > maxUploadSize) {
         setError(`${file.name} exceeds 20MB limit`);
+        continue;
+      }
+
+      const extension = file.name
+        .toLowerCase()
+        .slice(file.name.lastIndexOf('.'));
+      if (!supportedExtensions.includes(extension)) {
+        setError(`${file.name} is not a supported format.`);
         continue;
       }
 
@@ -195,6 +215,7 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
           {
             method: 'POST',
             credentials: 'include',
+            headers: dbService.getAuthHeaders(),
             body: formData,
           },
         );
@@ -230,6 +251,7 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
         {
           method: 'DELETE',
           credentials: 'include',
+          headers: dbService.getAuthHeaders(),
         },
       );
 
@@ -252,6 +274,7 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
         {
           method: 'POST',
           credentials: 'include',
+          headers: dbService.getAuthHeaders(),
         },
       );
 
@@ -271,9 +294,13 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
     setLoadingPreview(true);
     setShowPreview(true);
     try {
-      const response = await fetch(buildApiUrl(`/knowledge/preview/${sourceId}`), {
-        credentials: 'include',
-      });
+      const response = await fetch(
+        buildApiUrl(`/knowledge/preview/${sourceId}`),
+        {
+          credentials: 'include',
+          headers: dbService.getAuthHeaders(),
+        },
+      );
       if (response.ok) {
         const data = await response.json();
         setPreviewContent(data.content);
