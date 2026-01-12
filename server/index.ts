@@ -35,6 +35,7 @@ import {
   metricsMiddleware,
   requestLogger,
   securityHeaders,
+  subdomainResolution,
   tenantIsolation,
 } from './middleware';
 import {
@@ -57,6 +58,7 @@ import {
   templatesRouter,
   webhooksRouter,
   searchRouter,
+  teamRouter,
 } from './routes';
 import { getStripePublishableKey } from './stripeClient';
 import { stripeService } from './stripeService';
@@ -199,17 +201,20 @@ app.post(
 
 app.use(express.json());
 
-// Phase 1: Apply security headers
-app.use(securityHeaders);
-
 // Phase 8: Structured Request Logging
 app.use(requestLogger);
 
-// Phase 1: Apply rate limiting to API routes
-app.use('/api', apiLimiter);
+// Subdomain Resolution (Phase 10)
+app.use(subdomainResolution());
 
 // Metrics collection
 app.use(metricsMiddleware);
+
+// Phase 1: Apply security headers
+app.use(securityHeaders);
+
+// Phase 1: Apply rate limiting to API routes
+app.use('/api', apiLimiter);
 
 // Cache control helper middleware
 const cacheControl = (maxAge: number, isPublic = true) => {
@@ -1118,6 +1123,9 @@ app.use('/api/webhooks', webhooksRouter);
 
 // Unified Search
 app.use('/api/search', searchRouter);
+
+// Team management
+app.use('/api/teams', teamRouter);
 
 // Knowledge base management
 app.use('/api/knowledge', knowledgeRouter);
