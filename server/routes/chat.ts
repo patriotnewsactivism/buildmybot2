@@ -129,12 +129,32 @@ async function handleChatCompletion(req: Request, res: Response) {
       });
     });
 
-    const response = await openai.chat.completions.create({
-      model: finalModel,
-      messages: openAIMessages,
-      temperature,
-      max_tokens: 500,
-    });
+    let response;
+    try {
+      response = await openai.chat.completions.create({
+        model: finalModel,
+        messages: openAIMessages,
+        temperature,
+        max_tokens: 500,
+      });
+    } catch (error: any) {
+      const isModelNotFound =
+        error?.code === 'model_not_found' ||
+        error?.status === 404 ||
+        (error?.status === 400 &&
+          String(error?.message || '').toLowerCase().includes('model'));
+      if (finalModel === 'gpt-5o-mini' && isModelNotFound) {
+        finalModel = 'gpt-4o-mini';
+        response = await openai.chat.completions.create({
+          model: finalModel,
+          messages: openAIMessages,
+          temperature,
+          max_tokens: 500,
+        });
+      } else {
+        throw error;
+      }
+    }
 
     const responseText = response.choices[0]?.message?.content || '';
 
@@ -261,12 +281,32 @@ router.post(
         });
       });
 
-      const response = await openai.chat.completions.create({
-        model: useModel,
-        messages: openAIMessages,
-        temperature: bot.temperature || 0.7,
-        max_tokens: 500,
-      });
+      let response;
+      try {
+        response = await openai.chat.completions.create({
+          model: useModel,
+          messages: openAIMessages,
+          temperature: bot.temperature || 0.7,
+          max_tokens: 500,
+        });
+      } catch (error: any) {
+        const isModelNotFound =
+          error?.code === 'model_not_found' ||
+          error?.status === 404 ||
+          (error?.status === 400 &&
+            String(error?.message || '').toLowerCase().includes('model'));
+        if (useModel === 'gpt-5o-mini' && isModelNotFound) {
+          useModel = 'gpt-4o-mini';
+          response = await openai.chat.completions.create({
+            model: useModel,
+            messages: openAIMessages,
+            temperature: bot.temperature || 0.7,
+            max_tokens: 500,
+          });
+        } else {
+          throw error;
+        }
+      }
 
       const responseText = response.choices[0]?.message?.content || '';
 
