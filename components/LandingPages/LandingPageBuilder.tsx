@@ -69,6 +69,14 @@ interface LandingPageBuilderProps {
   organizationId?: string;
 }
 
+type EditorTabId = 'basic' | 'hero' | 'cta' | 'form' | 'thankyou' | 'bot';
+
+type EditorTab = {
+  id: EditorTabId;
+  label: string;
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+};
+
 const PremiumCard: React.FC<{
   children: React.ReactNode;
   className?: string;
@@ -121,9 +129,7 @@ export const LandingPageBuilder: React.FC<LandingPageBuilderProps> = ({
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<'list' | 'editor'>('list');
   const [selectedPage, setSelectedPage] = useState<LandingPage | null>(null);
-  const [activeEditorTab, setActiveEditorTab] = useState<
-    'basic' | 'hero' | 'cta' | 'form' | 'thankyou' | 'bot'
-  >('basic');
+  const [activeEditorTab, setActiveEditorTab] = useState<EditorTabId>('basic');
   const [previewMode, setPreviewMode] = useState<'desktop' | 'mobile'>(
     'desktop',
   );
@@ -143,9 +149,9 @@ export const LandingPageBuilder: React.FC<LandingPageBuilderProps> = ({
         credentials: 'include',
       });
       if (response.ok) {
-        const data = await response.json();
+        const data = (await response.json()) as LandingPage[];
         setPages(
-          data.map((page: any) => ({
+          data.map((page) => ({
             ...page,
             formFields: page.formFields || [],
             createdAt: page.createdAt || new Date().toISOString(),
@@ -391,7 +397,7 @@ export const LandingPageBuilder: React.FC<LandingPageBuilderProps> = ({
     day: 'numeric',
   });
 
-  const editorTabs = [
+  const editorTabs: EditorTab[] = [
     { id: 'basic', label: 'Basic Info', icon: FileText },
     { id: 'hero', label: 'Hero Section', icon: ImageIcon },
     { id: 'cta', label: 'CTA Button', icon: MousePointer },
@@ -659,7 +665,7 @@ export const LandingPageBuilder: React.FC<LandingPageBuilderProps> = ({
                     <button
                       type="button"
                       key={tab.id}
-                      onClick={() => setActiveEditorTab(tab.id as any)}
+                      onClick={() => setActiveEditorTab(tab.id)}
                       className={`py-3 px-3 text-xs md:text-sm font-medium flex items-center gap-1.5 border-b-2 transition whitespace-nowrap ${
                         isActive
                           ? 'border-orange-500 text-orange-600'

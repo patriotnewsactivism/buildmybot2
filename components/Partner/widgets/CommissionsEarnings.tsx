@@ -6,7 +6,7 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import type React from 'react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { dbService } from '../../../services/dbService';
 import { type Column, DataTable } from '../../UI/DataTable';
 import { MetricCard } from '../../UI/MetricCard';
@@ -61,7 +61,7 @@ export const CommissionsEarnings: React.FC = () => {
   const [payouts, setPayouts] = useState<Payout[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchCommissions = async () => {
+  const fetchCommissions = useCallback(async () => {
     setLoading(true);
     try {
       const data = await dbService.getPartnerCommissions();
@@ -76,11 +76,11 @@ export const CommissionsEarnings: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchCommissions();
-  }, []);
+  }, [fetchCommissions]);
 
   const payoutColumns: Column<Payout>[] = [
     {
