@@ -91,7 +91,7 @@ const INITIAL_RESELLER_STATS: ResellerStats = {
 
 // MASTER ADMIN CONFIGURATION - Only MasterAdmin role users should be in this list
 const MASTER_ADMINS = ['mreardon@wtpnews.org', 'jadj19@gmail.com'];
-const PLATFORM_HOST = 'platform.buildmybot.app';
+const PLATFORM_HOST = 'buildmybot.app';
 const PLATFORM_URL = `https://${PLATFORM_HOST}`;
 
 type PartnerSignupData = {
@@ -140,7 +140,6 @@ function App() {
     typeof window !== 'undefined' ? window.location.hostname.toLowerCase() : '';
   const isBuildMyBotHost =
     hostname === 'buildmybot.app' || hostname.endsWith('.buildmybot.app');
-  const isPlatformHost = hostname === PLATFORM_HOST;
 
   const openAuth = (mode: 'login' | 'signup') => {
     setAuthMode(mode);
@@ -206,24 +205,6 @@ function App() {
       }
     }
   }, [authLoading, isAuthenticated, authUser]);
-
-  useEffect(() => {
-    if (!isBuildMyBotHost || authLoading) {
-      return;
-    }
-
-    if (isAuthenticated) {
-      if (!isPlatformHost) {
-        window.location.replace(`${PLATFORM_URL}/app`);
-      }
-      return;
-    }
-
-    if (isPlatformHost) {
-      setAuthMode('login');
-      setAuthModalOpen(true);
-    }
-  }, [authLoading, isAuthenticated, isBuildMyBotHost, isPlatformHost]);
 
   useEffect(() => {
     if (!isBuildMyBotHost) {
