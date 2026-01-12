@@ -38,9 +38,9 @@ export class DocumentProcessorService {
         content = pdfResult.text;
         pageCount = pdfResult.pageCount;
         if (content.trim().length < 100) {
-          content = await DocumentProcessorService.extractTextWithOCR(
+          content = await DocumentProcessorService.extractTextFromPdfWithOCR(
             buffer,
-            mimeType,
+            fileName,
           );
           ocrUsed = true;
         }
@@ -189,6 +189,156 @@ export class DocumentProcessorService {
       console.error('OCR extraction failed:', error);
       throw new Error(`OCR failed: ${error.message}`);
     }
+  }
+
+  static async extractTextFromPdfWithOCR(
+    buffer: Buffer,
+    fileName: string,
+  ): Promise<string> {
+    const apiKey =
+      process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+    const baseURL =
+      process.env.AI_INTEGRATIONS_OPENAI_BASE_URL ||
+      'https://api.openai.com/v1';
+
+    if (!apiKey) {
+      throw new Error('OpenAI API key required for OCR');
+    }
+
+    const fileId = await DocumentProcessorService.uploadOpenAIFile(
+      buffer,
+      fileName,
+      'application/pdf',
+      apiKey,
+      baseURL,
+    );
+
+    try {
+      const response = await fetch(`${baseURL}/responses`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          input: [
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'input_text',
+                  text: 'Extract all text content from this PDF. Return only the extracted text, preserving the original structure and formatting as much as possible. Do not add any commentary or explanations.',
+                },
+                {
+                  type: 'input_file',
+                  file_id: fileId,
+                },
+              ],
+            },
+          ],
+          max_output_tokens: 4000,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(`OpenAI API error: ${error}`);
+      }
+
+      const data = await response.json();
+      return (
+        data.output_text ||
+        data.output?.[0]?.content?.[0]?.text ||
+        ''
+      );
+    } finally {
+      await DocumentProcessorService.deleteOpenAIFile(
+        fileId,
+        apiKey,
+        baseURL,
+      );
+    }
+  }
+
+  private static async uploadOpenAIFile(
+    buffer: Buffer,
+    fileName: string,
+    mimeType: string,
+    apiKey: string,
+    baseURL: string,
+  ): Promise<string> {
+    const formData = new FormData();
+    formData.append('file', new Blob([buffer], { type: mimeType }), fileName);
+    formData.append('purpose', 'vision');
+
+    const response = await fetch(`${baseURL}/files`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      if (error.includes('Invalid purpose')) {
+        return DocumentProcessorService.uploadOpenAIFileWithPurpose(
+          buffer,
+          fileName,
+          mimeType,
+          apiKey,
+          baseURL,
+          'assistants',
+        );
+      }
+      throw new Error(`OpenAI file upload error: ${error}`);
+    }
+
+    const data = await response.json();
+    return data.id;
+  }
+
+  private static async uploadOpenAIFileWithPurpose(
+    buffer: Buffer,
+    fileName: string,
+    mimeType: string,
+    apiKey: string,
+    baseURL: string,
+    purpose: string,
+  ): Promise<string> {
+    const formData = new FormData();
+    formData.append('file', new Blob([buffer], { type: mimeType }), fileName);
+    formData.append('purpose', purpose);
+
+    const response = await fetch(`${baseURL}/files`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`OpenAI file upload error: ${error}`);
+    }
+
+    const data = await response.json();
+    return data.id;
+  }
+
+  private static async deleteOpenAIFile(
+    fileId: string,
+    apiKey: string,
+    baseURL: string,
+  ): Promise<void> {
+    await fetch(`${baseURL}/files/${fileId}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+      },
+    });
   }
 
   static chunkDocument(text: string, maxTokens = 500): string[] {
