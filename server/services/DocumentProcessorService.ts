@@ -38,11 +38,22 @@ export class DocumentProcessorService {
         content = pdfResult.text;
         pageCount = pdfResult.pageCount;
         if (content.trim().length < 100) {
-          content = await DocumentProcessorService.extractTextFromPdfWithOCR(
-            buffer,
-            fileName,
-          );
-          ocrUsed = true;
+          try {
+            const ocrContent =
+              await DocumentProcessorService.extractTextFromPdfWithOCR(
+                buffer,
+                fileName,
+              );
+            if (ocrContent.trim()) {
+              content = ocrContent;
+              ocrUsed = true;
+            }
+          } catch (error: any) {
+            console.warn(
+              'PDF OCR failed, proceeding with parsed text:',
+              error?.message || error,
+            );
+          }
         }
       } else if (mimeType.includes('image/')) {
         content = await DocumentProcessorService.extractTextWithOCR(
