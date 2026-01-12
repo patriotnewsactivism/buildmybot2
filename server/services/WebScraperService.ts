@@ -15,6 +15,13 @@ export interface ScrapedContent {
 export class WebScraperService {
   private static readonly MAX_CONTENT_LENGTH = 50000;
   private static readonly RATE_LIMIT_MS = 1000;
+  private static readonly MIN_CONTENT_LENGTH = 200;
+  private static readonly USER_AGENTS = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 13_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',
+  ];
   private static lastRequestTime = 0;
 
   static async scrapeUrl(url: string): Promise<ScrapedContent> {
@@ -23,11 +30,18 @@ export class WebScraperService {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000);
+      const userAgent =
+        WebScraperService.USER_AGENTS[
+          Math.floor(Math.random() * WebScraperService.USER_AGENTS.length)
+        ];
 
       const response = await fetch(url, {
         headers: {
-          'User-Agent': 'BuildMyBot/1.0 Knowledge Scraper',
-          Accept: 'text/html,application/xhtml+xml',
+          'User-Agent': userAgent,
+          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Cache-Control': 'no-cache',
+          Pragma: 'no-cache',
         },
         signal: controller.signal,
       });
@@ -39,10 +53,20 @@ export class WebScraperService {
       }
 
       const html = await response.text();
-      const title = WebScraperService.extractTitle(html);
+      const rawTitle = WebScraperService.extractTitle(html);
+      const title =
+        rawTitle === 'Untitled' ? new URL(url).hostname : rawTitle;
       const description = WebScraperService.extractMetaDescription(html);
-      const content = WebScraperService.extractText(html);
-      const links = WebScraperService.extractLinks(html, url);
+      let content = WebScraperService.extractText(html);
+      let links = WebScraperService.extractLinks(html, url);
+
+      if (content.length < WebScraperService.MIN_CONTENT_LENGTH) {
+        const readerText = await WebScraperService.fetchReaderText(url);
+        if (readerText) {
+          content = readerText;
+          links = WebScraperService.extractLinksFromText(readerText);
+        }
+      }
 
       return {
         url,
@@ -65,9 +89,21 @@ export class WebScraperService {
     organizationId?: string,
   ): Promise<ScrapedContent[]> {
     const visited = new Set<string>();
-    const toVisit = [startUrl];
+    const toVisit = [WebScraperService.normalizeUrl(startUrl)];
     const results: ScrapedContent[] = [];
     const baseUrl = new URL(startUrl);
+
+    try {
+      const sitemapLinks = await WebScraperService.fetchSitemapLinks(baseUrl);
+      for (const link of sitemapLinks) {
+        const normalized = WebScraperService.normalizeUrl(link);
+        if (!visited.has(normalized)) {
+          toVisit.push(normalized);
+        }
+      }
+    } catch (error: any) {
+      console.warn('Sitemap discovery failed:', error.message);
+    }
 
     while (toVisit.length > 0 && results.length < maxPages) {
       const currentUrl = toVisit.shift()!;
@@ -104,7 +140,7 @@ export class WebScraperService {
               linkUrl.hostname === baseUrl.hostname &&
               !visited.has(linkUrl.href)
             ) {
-              toVisit.push(linkUrl.href);
+              toVisit.push(WebScraperService.normalizeUrl(linkUrl.href));
             }
           } catch {}
         }
@@ -147,9 +183,18 @@ export class WebScraperService {
   }
 
   static extractText(html: string): string {
-    const text = html
+    const mainContentMatch =
+      html.match(/<main\b[^>]*>([\s\S]*?)<\/main>/i) ||
+      html.match(/<article\b[^>]*>([\s\S]*?)<\/article>/i) ||
+      html.match(/<body\b[^>]*>([\s\S]*?)<\/body>/i);
+
+    const targetHtml = mainContentMatch ? mainContentMatch[1] : html;
+
+    const text = targetHtml
       .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, ' ')
       .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, ' ')
+      .replace(/<noscript\b[^<]*(?:(?!<\/noscript>)<[^<]*)*<\/noscript>/gi, ' ')
+      .replace(/<svg\b[^<]*(?:(?!<\/svg>)<[^<]*)*<\/svg>/gi, ' ')
       .replace(/<nav\b[^<]*(?:(?!<\/nav>)<[^<]*)*<\/nav>/gi, ' ')
       .replace(/<header\b[^<]*(?:(?!<\/header>)<[^<]*)*<\/header>/gi, ' ')
       .replace(/<footer\b[^<]*(?:(?!<\/footer>)<[^<]*)*<\/footer>/gi, ' ')
@@ -181,6 +226,98 @@ export class WebScraperService {
     }
 
     return [...new Set(links)].slice(0, 100);
+  }
+
+  static extractLinksFromText(text: string): string[] {
+    const links = new Set<string>();
+    const urlPattern = /https?:\/\/[^\s)]+/gi;
+    const markdownPattern = /\((https?:\/\/[^)\s]+)\)/gi;
+
+    for (const match of text.matchAll(urlPattern)) {
+      links.add(match[0]);
+    }
+
+    for (const match of text.matchAll(markdownPattern)) {
+      links.add(match[1]);
+    }
+
+    return Array.from(links).slice(0, 100);
+  }
+
+  static parseSitemapLinks(xml: string): string[] {
+    const links = new Set<string>();
+    const locPattern = /<loc>\s*([^<\s]+)\s*<\/loc>/gi;
+    let match;
+
+    while ((match = locPattern.exec(xml)) !== null) {
+      links.add(match[1]);
+    }
+
+    return Array.from(links);
+  }
+
+  static normalizeUrl(url: string): string {
+    try {
+      const parsed = new URL(url);
+      parsed.hash = '';
+      if (parsed.pathname.length > 1) {
+        parsed.pathname = parsed.pathname.replace(/\/+$/, '');
+      }
+      return parsed.toString();
+    } catch {
+      return url;
+    }
+  }
+
+  static async fetchReaderText(url: string): Promise<string> {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 20000);
+      const readerUrl = `https://r.jina.ai/${url}`;
+
+      const response = await fetch(readerUrl, {
+        headers: {
+          Accept: 'text/plain',
+          'User-Agent': 'BuildMyBot/1.0 Knowledge Scraper',
+        },
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        return '';
+      }
+
+      const text = await response.text();
+      return text.replace(/\s+/g, ' ').trim();
+    } catch {
+      return '';
+    }
+  }
+
+  static async fetchSitemapLinks(baseUrl: URL): Promise<string[]> {
+    const sitemapUrl = `${baseUrl.origin}/sitemap.xml`;
+    const response = await fetch(sitemapUrl, {
+      headers: {
+        Accept: 'application/xml,text/xml',
+        'User-Agent': 'BuildMyBot/1.0 Knowledge Scraper',
+      },
+    });
+
+    if (!response.ok) {
+      return [];
+    }
+
+    const xml = await response.text();
+    return WebScraperService.parseSitemapLinks(xml).filter((link) => {
+      try {
+        const parsed = new URL(link);
+        return parsed.hostname === baseUrl.hostname;
+      } catch {
+        return false;
+      }
+    });
   }
 
   static chunkContent(text: string, maxTokens = 500): string[] {

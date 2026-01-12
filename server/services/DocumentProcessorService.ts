@@ -1,12 +1,9 @@
-import { createRequire } from 'node:module';
 import { eq } from 'drizzle-orm';
 import mammoth from 'mammoth';
+import OpenAI from 'openai';
 import { v4 as uuidv4 } from 'uuid';
 import { knowledgeChunks, knowledgeSources } from '../../shared/schema';
 import { db } from '../db';
-import { env } from '../env';
-const require = createRequire(import.meta.url);
-const pdfParse = require('pdf-parse');
 
 export interface ProcessedDocument {
   fileName: string;
@@ -41,6 +38,7 @@ export class DocumentProcessorService {
           content = await DocumentProcessorService.extractTextWithOCR(
             buffer,
             mimeType,
+            fileName,
           );
           ocrUsed = true;
         }
@@ -48,6 +46,7 @@ export class DocumentProcessorService {
         content = await DocumentProcessorService.extractTextWithOCR(
           buffer,
           mimeType,
+          fileName,
         );
         ocrUsed = true;
       } else if (mimeType === 'text/plain' || mimeType === 'text/markdown') {
@@ -109,6 +108,8 @@ export class DocumentProcessorService {
   static async extractTextFromPdf(
     buffer: Buffer,
   ): Promise<{ text: string; pageCount: number }> {
+    const { default: pdfParse } = await import('pdf-parse');
+
     try {
       const data = await pdfParse(buffer);
       return {
@@ -134,12 +135,22 @@ export class DocumentProcessorService {
   static async extractTextWithOCR(
     buffer: Buffer,
     mimeType: string,
+    fileName = 'document',
   ): Promise<string> {
     const apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
     const baseURL = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || 'https://api.openai.com/v1';
     
     if (!apiKey) {
       throw new Error('OpenAI API key required for OCR');
+    }
+
+    if (mimeType === 'application/pdf') {
+      return DocumentProcessorService.extractTextFromPdfWithOCR(
+        buffer,
+        fileName,
+        apiKey,
+        baseURL,
+      );
     }
 
     const base64 = buffer.toString('base64');
@@ -187,6 +198,49 @@ export class DocumentProcessorService {
       return data.choices?.[0]?.message?.content || '';
     } catch (error: any) {
       console.error('OCR extraction failed:', error);
+      throw new Error(`OCR failed: ${error.message}`);
+    }
+  }
+
+  static async extractTextFromPdfWithOCR(
+    buffer: Buffer,
+    fileName: string,
+    apiKey: string,
+    baseURL: string,
+  ): Promise<string> {
+    const openai = new OpenAI({ apiKey, baseURL });
+    const base64 = buffer.toString('base64');
+
+    try {
+      const response = await openai.responses.create({
+        model: 'gpt-4o',
+        input: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'input_text',
+                text: 'Extract all text content from this PDF. Return only the extracted text, preserving the original structure and formatting as much as possible. Do not add any commentary or explanations.',
+              },
+              {
+                type: 'input_file',
+                file_data: base64,
+                filename: fileName,
+              },
+            ],
+          },
+        ],
+        max_output_tokens: 4000,
+      });
+
+      const outputText = response.output_text?.trim() || '';
+      if (!outputText) {
+        throw new Error('OCR returned empty text.');
+      }
+
+      return outputText;
+    } catch (error: any) {
+      console.error('PDF OCR extraction failed:', error);
       throw new Error(`OCR failed: ${error.message}`);
     }
   }
