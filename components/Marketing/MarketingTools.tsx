@@ -12,7 +12,12 @@ import type React from 'react';
 import { useState } from 'react';
 import { generateMarketingContent } from '../../services/openaiService';
 
-type MarketingContentType = 'email' | 'social' | 'ad' | 'viral-thread' | 'story';
+type MarketingContentType =
+  | 'email'
+  | 'social'
+  | 'ad'
+  | 'viral-thread'
+  | 'story';
 
 type MarketingTool = {
   id: MarketingContentType;
