@@ -16,6 +16,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { buildApiUrl } from '../../services/apiConfig';
 import { dbService } from '../../services/dbService';
 import type { BotDocument } from '../../types';
+import { PrebuiltKnowledgeSelector } from '../Knowledge/PrebuiltKnowledgeSelector';
 
 interface KnowledgeSource {
   id: string;
@@ -71,7 +72,9 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
     if (!botId || botId === 'new') return;
 
     try {
-      const response = await fetch(buildApiUrl(`/knowledge/sources/${botId}`));
+      const response = await fetch(buildApiUrl(`/knowledge/sources/${botId}`), {
+        credentials: 'include',
+      });
       if (response.ok) {
         const data = await response.json();
         setSources(data.sources || []);
@@ -112,6 +115,7 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
       const response = await fetch(buildApiUrl(`/knowledge/scrape/${botId}`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ url: urlInput, crawlDepth }),
       });
 
@@ -186,6 +190,7 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
           buildApiUrl(`/knowledge/upload/${botId}`),
           {
             method: 'POST',
+            credentials: 'include',
             body: formData,
           },
         );
@@ -220,6 +225,7 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
         buildApiUrl(`/knowledge/sources/${sourceId}`),
         {
           method: 'DELETE',
+          credentials: 'include',
         },
       );
 
@@ -241,6 +247,7 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
         buildApiUrl(`/knowledge/refresh/${sourceId}`),
         {
           method: 'POST',
+          credentials: 'include',
         },
       );
 
@@ -517,6 +524,10 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
             ))}
           </div>
         </div>
+      )}
+
+      {botId && botId !== 'new' && (
+        <PrebuiltKnowledgeSelector botId={botId} onInstallComplete={fetchSources} />
       )}
 
       <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">

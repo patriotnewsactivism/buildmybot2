@@ -90,7 +90,7 @@ npx supabase db diff    # Show diff between local and remote schemas
 
 ### Project Structure
 ```
-buildmybotv2/
+buildmybotapp/
 ├── components/          # React components organized by feature
 │   ├── Admin/          # Admin dashboard & widgets
 │   ├── Analytics/      # Analytics dashboards
@@ -246,8 +246,9 @@ Required variables (see `.env.example`):
 - **Linter**: Biome (NOT ESLint/Prettier)
 - **Formatting**: Run `npm run lint` before committing
 - **TypeScript**: Strict mode enabled, fix all type errors
+- **Quotes**: Single quotes, semicolons required, 2-space indent
 - **Imports**: Use `@/` alias for root imports, `@shared/` for shared
-- **Test Imports**: Additional aliases available in tests: `@components/`, `@server/`
+- **Test Imports**: Vitest config adds `@components/` and `@server/` aliases
 
 ## Common Patterns
 
@@ -267,13 +268,65 @@ Required variables (see `.env.example`):
 2. Use `authorize(['MasterAdmin', 'Partner'])` middleware for route protection
 3. Add custom permissions to `roles` table for fine-grained control
 
-## Deployment Notes
+## Deployment
 
-- **Production Server**: Runs on port 5000 (Vite build + Express)
-- **Database**: Requires PostgreSQL 12+ (Neon or Supabase recommended)
-- **Build Process**: `npm run build` creates production bundle in `dist/`
-- **Session Store**: Uses PostgreSQL via `connect-pg-simple`
-- **Static Files**: Served by Express in production mode
+### Vercel Deployment (Frontend)
+
+The frontend can be deployed to Vercel with the following steps:
+
+1. **Install Vercel CLI**:
+   ```bash
+   npm i -g vercel
+   ```
+
+2. **Deploy**:
+   ```bash
+   vercel --prod
+   ```
+
+3. **Environment Variables** (set in Vercel dashboard):
+   - `VITE_API_URL` - Backend API URL (e.g., https://api.yourdomain.com)
+   - `VITE_STRIPE_PUBLISHABLE_KEY` - Stripe publishable key
+   - Other VITE_* variables as needed
+
+4. **vercel.json Configuration**:
+   - Frontend build outputs to `dist/`
+   - API routes are proxied to backend URL (configure in vercel.json)
+   - Security headers are automatically applied
+
+### Backend Deployment
+
+The Express backend should be deployed separately to:
+- **Railway** (recommended for ease of use)
+- **Render** (free tier available)
+- **Fly.io** (global edge deployment)
+- **Vercel Pro** (serverless functions with longer execution time)
+
+**Backend Environment Variables**:
+- `DATABASE_URL` - PostgreSQL connection string (Supabase pooler recommended)
+- `SESSION_SECRET` - Random secret for session encryption
+- `OPENAI_API_KEY` - OpenAI API key
+- `STRIPE_SECRET_KEY` - Stripe secret key
+- `STRIPE_WEBHOOK_SECRET` - Stripe webhook signing secret
+- `APP_BASE_URL` - Frontend URL for redirects
+- `CARTESIA_API_KEY` - (Optional) Voice synthesis
+
+### Database
+
+- **Recommended**: Supabase (connection pooler for reliability)
+- **Alternative**: Neon, Railway Postgres
+- **Connection**: Use pooler URL for production: `postgresql://postgres.[ref]:[password]@aws-0-[region].pooler.supabase.com:5432/postgres`
+
+### Production Checklist
+
+1. Run migrations: `npm run migrate:schema`
+2. Seed templates: `npm run db:seed`
+3. Seed user roles: `npm run seed:roles`
+4. Update `MASTER_ADMINS` in `App.tsx` with production admin emails
+5. Set all environment variables in deployment platform
+6. Configure Stripe webhook URL in Stripe dashboard
+7. Test authentication flow
+8. Verify API connectivity between frontend and backend
 
 ## Known Issues & Gotchas
 

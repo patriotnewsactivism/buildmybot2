@@ -135,7 +135,9 @@ export class DocumentProcessorService {
     buffer: Buffer,
     mimeType: string,
   ): Promise<string> {
-    const apiKey = env.OPENAI_API_KEY;
+    const apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+    const baseURL = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || 'https://api.openai.com/v1';
+    
     if (!apiKey) {
       throw new Error('OpenAI API key required for OCR');
     }
@@ -145,7 +147,7 @@ export class DocumentProcessorService {
 
     try {
       const response = await fetch(
-        'https://api.openai.com/v1/chat/completions',
+        `${baseURL}/chat/completions`,
         {
           method: 'POST',
           headers: {
@@ -171,7 +173,7 @@ export class DocumentProcessorService {
                 ],
               },
             ],
-            max_tokens: 4000,
+            max_completion_tokens: 4000,
           }),
         },
       );
