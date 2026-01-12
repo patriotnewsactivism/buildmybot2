@@ -20,7 +20,7 @@ interface DemoPageProps {
   onLogin?: () => void;
 }
 
-const LOGIN_FALLBACK_URL = 'https://login.buildmybot.app/?auth=signup';
+const LOGIN_FALLBACK_URL = '/?auth=signup';
 
 export const DemoPage: React.FC<DemoPageProps> = ({ onLogin }) => {
   const [demoUrl, setDemoUrl] = useState('');

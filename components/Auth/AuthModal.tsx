@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { buildApiUrl, safeParseJson } from '../../services/apiConfig';
 
 const PLATFORM_URL = 'https://platform.buildmybot.app';
-const LOGIN_HOST = 'login.buildmybot.app';
 const MARKETING_HOSTS = new Set(['www.buildmybot.app', 'buildmybot.app']);
 
 interface AuthModalProps {
@@ -79,8 +78,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       }
 
       const hostname = window.location.hostname.toLowerCase();
-      const shouldRedirectToPlatform =
-        hostname === LOGIN_HOST || MARKETING_HOSTS.has(hostname);
+      const shouldRedirectToPlatform = MARKETING_HOSTS.has(hostname);
 
       if (shouldRedirectToPlatform) {
         window.location.replace(`${PLATFORM_URL}/app`);
