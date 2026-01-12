@@ -14,7 +14,9 @@ describe('Validation Middleware', () => {
       };
 
       const requiredFields = ['name', 'systemPrompt'];
-      const missingFields = requiredFields.filter((field) => !input[field as keyof typeof input]);
+      const missingFields = requiredFields.filter(
+        (field) => !input[field as keyof typeof input],
+      );
 
       expect(missingFields).toHaveLength(0);
     });
@@ -26,7 +28,9 @@ describe('Validation Middleware', () => {
       };
 
       const requiredFields = ['name', 'systemPrompt'];
-      const missingFields = requiredFields.filter((field) => !input[field as keyof typeof input]);
+      const missingFields = requiredFields.filter(
+        (field) => !input[field as keyof typeof input],
+      );
 
       expect(missingFields).toContain('systemPrompt');
     });
@@ -65,7 +69,8 @@ describe('Validation Middleware', () => {
       const permissions = ['read', 'write'];
       const maxLength = 10;
 
-      const isValid = Array.isArray(permissions) && permissions.length <= maxLength;
+      const isValid =
+        Array.isArray(permissions) && permissions.length <= maxLength;
 
       expect(isValid).toBe(true);
     });
@@ -85,7 +90,10 @@ describe('Validation Middleware', () => {
   describe('Data Sanitization', () => {
     it('sanitizes HTML input', () => {
       const maliciousInput = '<script>alert("XSS")</script>';
-      const sanitized = maliciousInput.replace(/<script[^>]*>.*?<\/script>/gi, '');
+      const sanitized = maliciousInput.replace(
+        /<script[^>]*>.*?<\/script>/gi,
+        '',
+      );
 
       expect(sanitized).not.toContain('<script>');
     });
@@ -249,7 +257,9 @@ describe('Validation Middleware', () => {
       };
 
       expect(preflightRequest.method).toBe('OPTIONS');
-      expect(preflightRequest.headers['Access-Control-Request-Method']).toBe('POST');
+      expect(preflightRequest.headers['Access-Control-Request-Method']).toBe(
+        'POST',
+      );
     });
   });
 
@@ -500,7 +510,8 @@ describe('Security Middleware', () => {
       const minLevel = 0;
       const maxLevel = 9;
 
-      const isValid = compressionLevel >= minLevel && compressionLevel <= maxLevel;
+      const isValid =
+        compressionLevel >= minLevel && compressionLevel <= maxLevel;
 
       expect(isValid).toBe(true);
     });
