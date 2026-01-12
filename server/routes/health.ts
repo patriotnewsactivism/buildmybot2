@@ -42,6 +42,12 @@ async function checkDatabase(): Promise<ServiceStatus> {
 }
 
 async function checkStripe(): Promise<ServiceStatus> {
+  if (!process.env.STRIPE_SECRET_KEY && !process.env.REPLIT_CONNECTORS_HOSTNAME) {
+    return {
+      status: 'unknown',
+      error: 'Stripe not configured',
+    };
+  }
   const start = Date.now();
   try {
     const stripe = await getUncachableStripeClient();
@@ -94,8 +100,12 @@ router.get('/', async (req: Request, res: Response) => {
     checkCartesia(),
   ]);
 
-  const allUp = database.status === 'up' && openai.status !== 'down' && cartesia.status !== 'down';
-  const anyDown = database.status === 'down' || stripe.status === 'down';
+  const allUp =
+    database.status === 'up' &&
+    stripe.status !== 'down' &&
+    openai.status !== 'down' &&
+    cartesia.status !== 'down';
+  const anyDown = database.status === 'down';
 
   const health: HealthStatus = {
     status: anyDown ? 'unhealthy' : allUp ? 'healthy' : 'degraded',
