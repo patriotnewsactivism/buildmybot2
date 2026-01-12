@@ -17,6 +17,7 @@ export const ContactPage: React.FC = () => {
     email: '',
     subject: '',
     message: '',
+    priority: false,
   });
   const [submitted, setSubmitted] = useState(false);
 
@@ -71,6 +72,7 @@ export const ContactPage: React.FC = () => {
                         email: '',
                         subject: '',
                         message: '',
+                        priority: false,
                       });
                     }}
                     className="text-blue-700 font-medium hover:underline"
@@ -158,6 +160,32 @@ export const ContactPage: React.FC = () => {
                       placeholder="Tell us more about your inquiry..."
                     />
                   </div>
+                  <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <input
+                      id="contact-priority"
+                      type="checkbox"
+                      checked={formData.priority}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          priority: e.target.checked,
+                        })
+                      }
+                      className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-700 focus:ring-blue-600"
+                    />
+                    <div>
+                      <label
+                        htmlFor="contact-priority"
+                        className="text-sm font-semibold text-slate-900"
+                      >
+                        Mark as priority for immediate admin review
+                      </label>
+                      <p className="text-xs text-slate-600">
+                        Vetted urgent issues are flagged in the support inbox
+                        for you and Joey Davenport to triage ASAP.
+                      </p>
+                    </div>
+                  </div>
                   <button
                     type="submit"
                     className="w-full bg-blue-700 text-white py-4 rounded-xl font-bold hover:bg-blue-800 transition flex items-center justify-center gap-2"
@@ -170,7 +198,53 @@ export const ContactPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="space-y-6">
+          <div className="space-y-6 lg:sticky lg:top-24 h-fit">
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+              <div className="flex items-center gap-3 mb-4">
+                <MessageSquare size={20} className="text-blue-700" />
+                <h3 className="font-bold text-lg text-slate-900">
+                  Embedded Support Chat
+                </h3>
+              </div>
+              <p className="text-slate-600 text-sm mb-4">
+                Get instant answers from our AI assistant. Priority requests are
+                flagged for the support inbox so admins can respond ASAP.
+              </p>
+              <div className="h-[420px] rounded-2xl overflow-hidden border border-slate-200 bg-slate-50">
+                <iframe
+                  title="BuildMyBot Support Chat"
+                  src="/chat/support?mode=embed"
+                  className="h-full w-full"
+                  loading="lazy"
+                />
+              </div>
+              <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
+                <span>Need a full view?</span>
+                <a
+                  href="/chat/support"
+                  className="text-blue-700 font-semibold hover:underline"
+                >
+                  Open chat
+                </a>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+              <h3 className="font-bold text-lg text-slate-900 mb-4">
+                Support Inbox Routing
+              </h3>
+              <div className="space-y-3 text-sm text-slate-600">
+                <p>
+                  Vetted urgent issues are automatically marked for the support
+                  inbox so you and other admins can triage them quickly.
+                </p>
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-700">
+                  Priority messages are labeled &quot;ASAP&quot; for immediate
+                  attention.
+                </div>
+              </div>
+            </div>
+
             <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
               <h3 className="font-bold text-lg text-slate-900 mb-4">
                 Contact Information
@@ -226,23 +300,6 @@ export const ContactPage: React.FC = () => {
                   <Linkedin size={20} />
                 </a>
               </div>
-            </div>
-
-            <div className="bg-gradient-to-br from-blue-900 to-blue-700 rounded-2xl p-6 text-white">
-              <div className="flex items-center gap-3 mb-3">
-                <MessageSquare size={24} />
-                <h3 className="font-bold text-lg">Live Chat</h3>
-              </div>
-              <p className="text-blue-200 text-sm mb-4">
-                Need immediate help? Chat with our AI assistant 24/7 or connect
-                with a team member during business hours.
-              </p>
-              <button
-                type="button"
-                className="w-full bg-white text-blue-900 py-3 rounded-xl font-bold hover:bg-blue-50 transition"
-              >
-                Start Chat
-              </button>
             </div>
 
             <div className="bg-slate-100 rounded-2xl p-6">
