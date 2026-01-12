@@ -7,38 +7,23 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { KnowledgeBaseManager } from '../../../components/BotBuilder/KnowledgeBaseManager';
-import type { BotDocument } from '../../../types';
-
 // Mock dbService
 vi.mock('../../../services/dbService', () => ({
   dbService: {
-    uploadBotDocument: vi.fn(),
-    deleteBotDocument: vi.fn().mockResolvedValue(true),
+    getAuthHeaders: vi.fn().mockReturnValue({ 'x-user-id': 'user-1' }),
   },
 }));
-
-const mockDocuments: BotDocument[] = [
-  {
-    id: 'doc-1',
-    botId: 'bot-1',
-    fileName: 'test.pdf',
-    fileType: 'pdf',
-    fileSize: 1024 * 1024, // 1MB
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'doc-2',
-    botId: 'bot-1',
-    fileName: 'manual.docx',
-    fileType: 'docx',
-    fileSize: 512 * 1024, // 512KB
-    createdAt: new Date().toISOString(),
-  },
-];
 
 describe('KnowledgeBaseManager', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        sources: [],
+        stats: { sources: 0, chunks: 0, totalTokens: 0 },
+      }),
+    });
   });
 
   it('renders upload zone for existing bot', () => {
@@ -70,40 +55,55 @@ describe('KnowledgeBaseManager', () => {
     expect(screen.getByText(/save your bot first/i)).toBeInTheDocument();
   });
 
-  it('displays uploaded documents', () => {
+  it('displays knowledge sources', async () => {
     const onDocumentsChange = vi.fn();
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        sources: [
+          {
+            id: 'source-1',
+            sourceType: 'document',
+            sourceName: 'test.pdf',
+            status: 'completed',
+            chunkCount: 3,
+            createdAt: new Date().toISOString(),
+          },
+        ],
+        stats: { sources: 1, chunks: 3, totalTokens: 1200 },
+      }),
+    });
 
     render(
       <KnowledgeBaseManager
         botId="bot-1"
-        documents={mockDocuments}
+        documents={[]}
         onDocumentsChange={onDocumentsChange}
       />,
     );
 
-    expect(screen.getByText('test.pdf')).toBeInTheDocument();
-    expect(screen.getByText('manual.docx')).toBeInTheDocument();
-    expect(screen.getByText(/uploaded documents \(2\)/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('test.pdf')).toBeInTheDocument();
+    });
+    expect(screen.getByText(/knowledge sources/i)).toBeInTheDocument();
   });
 
   it('handles file upload', async () => {
-    const { dbService } = await import('../../../services/dbService');
     const onDocumentsChange = vi.fn();
     const user = userEvent.setup();
 
     const mockFile = new File(['test content'], 'test.pdf', {
       type: 'application/pdf',
     });
-    const mockUploadedDoc: BotDocument = {
-      id: 'doc-3',
-      botId: 'bot-1',
-      fileName: 'test.pdf',
-      fileType: 'pdf',
-      fileSize: 1024,
-      createdAt: new Date().toISOString(),
-    };
 
-    vi.mocked(dbService.uploadBotDocument).mockResolvedValue(mockUploadedDoc);
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        sources: [],
+        stats: { sources: 0, chunks: 0, totalTokens: 0 },
+      }),
+    });
 
     render(
       <KnowledgeBaseManager
@@ -121,12 +121,10 @@ describe('KnowledgeBaseManager', () => {
       await user.upload(fileInput, mockFile);
 
       await waitFor(() => {
-        expect(dbService.uploadBotDocument).toHaveBeenCalled();
-      });
-
-      // Wait for callback
-      await waitFor(() => {
-        expect(onDocumentsChange).toHaveBeenCalled();
+        expect(global.fetch).toHaveBeenCalledWith(
+          expect.stringContaining('/api/knowledge/upload/bot-1'),
+          expect.objectContaining({ method: 'POST' }),
+        );
       });
     }
   });
@@ -153,23 +151,25 @@ describe('KnowledgeBaseManager', () => {
       await user.upload(fileInput, invalidFile);
 
       await waitFor(() => {
-        expect(screen.getByText(/not a supported format/i)).toBeInTheDocument();
+        expect(
+          screen.getByText(/not a supported format/i),
+        ).toBeInTheDocument();
       });
     }
   });
 
-  it('validates file size (10MB limit)', async () => {
+  it('validates file size (20MB limit)', async () => {
     const onDocumentsChange = vi.fn();
     const user = userEvent.setup();
 
-    // Create a file larger than 10MB
-    const largeFile = new File(['x'.repeat(11 * 1024 * 1024)], 'large.pdf', {
+    // Create a file larger than 20MB
+    const largeFile = new File(['x'.repeat(21 * 1024 * 1024)], 'large.pdf', {
       type: 'application/pdf',
     });
 
     // Mock File.size property
     Object.defineProperty(largeFile, 'size', {
-      value: 11 * 1024 * 1024,
+      value: 21 * 1024 * 1024,
       writable: false,
     });
 
@@ -187,34 +187,55 @@ describe('KnowledgeBaseManager', () => {
       await user.upload(fileInput, largeFile);
 
       await waitFor(() => {
-        expect(screen.getByText(/exceeds 10mb limit/i)).toBeInTheDocument();
+        expect(screen.getByText(/exceeds 20mb limit/i)).toBeInTheDocument();
       });
     }
   });
 
-  it('handles document deletion', async () => {
-    const { dbService } = await import('../../../services/dbService');
+  it('handles source deletion', async () => {
     const onDocumentsChange = vi.fn();
     const user = userEvent.setup();
 
-    // Mock fetch for delete
-    global.fetch = vi.fn().mockResolvedValue({ ok: true });
+    global.fetch = vi.fn((url, options) => {
+      if (typeof url === 'string' && url.includes('/knowledge/sources/')) {
+        if (options?.method === 'DELETE') {
+          return Promise.resolve({ ok: true });
+        }
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            sources: [
+              {
+                id: 'source-1',
+                sourceType: 'document',
+                sourceName: 'test.pdf',
+                status: 'completed',
+                chunkCount: 1,
+                createdAt: new Date().toISOString(),
+              },
+            ],
+            stats: { sources: 1, chunks: 1, totalTokens: 120 },
+          }),
+        });
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) });
+    });
 
     render(
       <KnowledgeBaseManager
         botId="bot-1"
-        documents={mockDocuments}
+        documents={[]}
         onDocumentsChange={onDocumentsChange}
       />,
     );
 
-    const deleteButtons = screen.getAllByTitle(/delete/i);
+    const deleteButtons = await screen.findAllByTitle(/delete/i);
     if (deleteButtons[0]) {
       await user.click(deleteButtons[0]);
 
       await waitFor(() => {
         expect(global.fetch).toHaveBeenCalledWith(
-          expect.stringContaining('/api/bots/bot-1/documents/doc-1'),
+          expect.stringContaining('/api/knowledge/sources/source-1'),
           expect.objectContaining({ method: 'DELETE' }),
         );
       });
