@@ -113,11 +113,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       >
         <div className="p-6 flex items-center justify-between">
           <div className="flex items-center gap-2 text-white font-bold text-lg tracking-tight">
-            <img
-              src="/logo.jpg"
-              alt="BuildMyBot"
-              className="h-6 w-auto rounded-md object-contain shadow-lg"
-            />
+            <Bot className="w-6 h-6 text-white" />
             <span className="text-slate-100">BuildMyBot</span>
           </div>
           <button
