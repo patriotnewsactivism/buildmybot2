@@ -10,14 +10,24 @@ import type React from 'react';
 import { useState } from 'react';
 import { generateWebsiteStructure } from '../../services/openaiService';
 
+interface WebsiteData {
+  headline: string;
+  subheadline: string;
+  features: string[];
+  ctaText: string;
+  [key: string]: unknown;
+}
+
 export const WebsiteBuilder: React.FC = () => {
   const [businessName, setBusinessName] = useState('');
   const [description, setDescription] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [siteData, setSiteData] = useState<any>(null);
+  const [siteData, setSiteData] = useState<WebsiteData | null>(null);
   const [previewMode, setPreviewMode] = useState<'desktop' | 'mobile'>(
     'desktop',
   );
+  const businessNameId = 'website-builder-business-name';
+  const descriptionId = 'website-builder-description';
 
   const handleGenerate = async () => {
     if (!businessName || !description) return;
@@ -27,7 +37,7 @@ export const WebsiteBuilder: React.FC = () => {
         businessName,
         description,
       );
-      setSiteData(JSON.parse(resultJson));
+      setSiteData(JSON.parse(resultJson) as WebsiteData);
     } catch (error) {
       console.error('Failed to parse website JSON', error);
       // Fallback
@@ -57,10 +67,14 @@ export const WebsiteBuilder: React.FC = () => {
 
         <div className="p-6 space-y-6 flex-1">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
+            <label
+              className="block text-sm font-medium text-slate-700 mb-2"
+              htmlFor={businessNameId}
+            >
               Business Name
             </label>
             <input
+              id={businessNameId}
               type="text"
               value={businessName}
               onChange={(e) => setBusinessName(e.target.value)}
@@ -69,10 +83,14 @@ export const WebsiteBuilder: React.FC = () => {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
+            <label
+              className="block text-sm font-medium text-slate-700 mb-2"
+              htmlFor={descriptionId}
+            >
               What do you do?
             </label>
             <textarea
+              id={descriptionId}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               className="w-full h-32 rounded-lg border-slate-200 focus:ring-blue-900 focus:border-blue-900 p-3 text-sm"
@@ -168,9 +186,9 @@ export const WebsiteBuilder: React.FC = () => {
                 </header>
                 <section className="py-12 px-6 bg-white">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {siteData.features?.map((feat: string, i: number) => (
+                    {siteData.features?.map((feat: string) => (
                       <div
-                        key={i}
+                        key={feat}
                         className="p-6 bg-gray-50 rounded-xl border border-gray-100"
                       >
                         <div className="w-10 h-10 bg-blue-100 text-blue-900 rounded-lg flex items-center justify-center mb-3">
@@ -195,6 +213,7 @@ export const WebsiteBuilder: React.FC = () => {
                       strokeLinecap="round"
                       strokeLinejoin="round"
                     >
+                      <title>Chat bubble</title>
                       <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                     </svg>
                   </div>

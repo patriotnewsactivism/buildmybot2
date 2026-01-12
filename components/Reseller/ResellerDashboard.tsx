@@ -158,7 +158,7 @@ export const ResellerDashboard: React.FC<ResellerProps> = ({
       return () => unsubscribe();
     }
     setIsLoading(false);
-  }, [user.resellerCode, user.whitelabelEnabled, user.whitelabelPaidThrough]);
+  }, [user.resellerCode, computeFallbackStats]);
 
   useEffect(() => {
     const fetchCredits = async () => {
@@ -331,8 +331,8 @@ export const ResellerDashboard: React.FC<ResellerProps> = ({
               How it works:
             </p>
             <ul className="text-xs text-slate-500 space-y-1">
-              {REFERRAL_REWARDS.howItWorks.slice(0, 3).map((step, i) => (
-                <li key={i} className="flex items-start gap-1">
+              {REFERRAL_REWARDS.howItWorks.slice(0, 3).map((step) => (
+                <li key={step} className="flex items-start gap-1">
                   <span className="text-amber-500">•</span>
                   {step}
                 </li>
@@ -465,12 +465,12 @@ export const ResellerDashboard: React.FC<ResellerProps> = ({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-sm">
-            {referredUsers.map((client, i) => {
+            {referredUsers.map((client) => {
               const price = PLANS[client.plan]?.price || 0;
               const commission = price * realStats.commissionRate;
 
               return (
-                <tr key={i} className="hover:bg-slate-50 transition">
+                <tr key={client.id} className="hover:bg-slate-50 transition">
                   <td className="px-6 py-4 font-medium text-slate-800">
                     {client.companyName}
                   </td>
@@ -525,9 +525,8 @@ export const ResellerDashboard: React.FC<ResellerProps> = ({
   );
 
   const MarketingTab = () => {
-    const [activeSection, setActiveSection] = useState<
-      'playbook' | 'emails' | 'objections' | 'industries' | 'downloads'
-    >('playbook');
+    const [activeSection, setActiveSection] =
+      useState<MarketingSection>('playbook');
 
     const salesProcess = [
       {
@@ -846,17 +845,19 @@ Thanks for being a great partner!
         </div>
 
         <div className="flex flex-wrap gap-2 bg-white p-2 rounded-xl border border-slate-200">
-          {[
-            { id: 'playbook', label: 'Sales Playbook' },
-            { id: 'emails', label: 'Email Templates' },
-            { id: 'objections', label: 'Objection Handling' },
-            { id: 'industries', label: 'Industry Pitches' },
-            { id: 'downloads', label: 'Downloads' },
-          ].map((tab) => (
+          {(
+            [
+              { id: 'playbook', label: 'Sales Playbook' },
+              { id: 'emails', label: 'Email Templates' },
+              { id: 'objections', label: 'Objection Handling' },
+              { id: 'industries', label: 'Industry Pitches' },
+              { id: 'downloads', label: 'Downloads' },
+            ] as { id: MarketingSection; label: string }[]
+          ).map((tab) => (
             <button
               type="button"
               key={tab.id}
-              onClick={() => setActiveSection(tab.id as any)}
+              onClick={() => setActiveSection(tab.id)}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
                 activeSection === tab.id
                   ? 'bg-blue-900 text-white'
@@ -904,8 +905,11 @@ Thanks for being a great partner!
                 Use these questions to uncover pain points and build value.
               </p>
               <div className="space-y-4">
-                {discoveryQuestions.map((item, i) => (
-                  <div key={i} className="border-l-4 border-blue-600 pl-4 py-2">
+                {discoveryQuestions.map((item) => (
+                  <div
+                    key={item.question}
+                    className="border-l-4 border-blue-600 pl-4 py-2"
+                  >
                     <p className="font-medium text-slate-800">
                       "{item.question}"
                     </p>
@@ -940,9 +944,9 @@ Thanks for being a great partner!
                 news, their website). Generic emails get ignored.
               </p>
             </div>
-            {emailTemplates.map((template, i) => (
+            {emailTemplates.map((template) => (
               <div
-                key={i}
+                key={template.name}
                 className="bg-white rounded-xl border border-slate-200 p-6"
               >
                 <div className="flex items-start justify-between mb-4">
@@ -984,9 +988,9 @@ Thanks for being a great partner!
                 them forward.
               </p>
             </div>
-            {objectionHandling.map((item, i) => (
+            {objectionHandling.map((item) => (
               <div
-                key={i}
+                key={item.objection}
                 className="bg-white rounded-xl border border-slate-200 p-6"
               >
                 <div className="flex items-start gap-4">
@@ -1019,9 +1023,9 @@ Thanks for being a great partner!
                 directly to what matters most to each prospect.
               </p>
             </div>
-            {industryPitches.map((industry, i) => (
+            {industryPitches.map((industry) => (
               <div
-                key={i}
+                key={industry.industry}
                 className="bg-white rounded-xl border border-slate-200 overflow-hidden"
               >
                 <div className="bg-slate-800 text-white p-4">
@@ -1033,8 +1037,8 @@ Thanks for being a great partner!
                       Pain Points to Mention
                     </h6>
                     <ul className="list-disc list-inside text-slate-600 text-sm space-y-1">
-                      {industry.painPoints.map((point, j) => (
-                        <li key={j}>{point}</li>
+                      {industry.painPoints.map((point) => (
+                        <li key={point}>{point}</li>
                       ))}
                     </ul>
                   </div>
@@ -1063,9 +1067,9 @@ Thanks for being a great partner!
         {activeSection === 'downloads' && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {materials.map((item, i) => (
+              {materials.map((item) => (
                 <div
-                  key={i}
+                  key={item.title}
                   className="bg-white rounded-xl border border-slate-200 p-6 hover:shadow-lg transition-all group"
                 >
                   <div className="flex items-start justify-between mb-4">
@@ -1151,17 +1155,24 @@ Thanks for being a great partner!
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-slate-700 mb-2">
+            <label
+              htmlFor="reseller-bank-name"
+              className="block text-sm font-medium text-slate-700 mb-2"
+            >
               Bank Name
             </label>
             <input
+              id="reseller-bank-name"
               type="text"
               className="w-full rounded-lg border-slate-200 focus:ring-blue-900 focus:border-blue-900"
               placeholder="e.g. Chase, Bank of America"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
+            <label
+              htmlFor="reseller-routing-number"
+              className="block text-sm font-medium text-slate-700 mb-2"
+            >
               Routing Number
             </label>
             <div className="relative">
@@ -1170,6 +1181,7 @@ Thanks for being a great partner!
                 size={14}
               />
               <input
+                id="reseller-routing-number"
                 type="text"
                 className="w-full pl-9 rounded-lg border-slate-200 focus:ring-blue-900 focus:border-blue-900"
                 placeholder="•••••••••"
@@ -1177,7 +1189,10 @@ Thanks for being a great partner!
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
+            <label
+              htmlFor="reseller-account-number"
+              className="block text-sm font-medium text-slate-700 mb-2"
+            >
               Account Number
             </label>
             <div className="relative">
@@ -1186,6 +1201,7 @@ Thanks for being a great partner!
                 size={14}
               />
               <input
+                id="reseller-account-number"
                 type="text"
                 className="w-full pl-9 rounded-lg border-slate-200 focus:ring-blue-900 focus:border-blue-900"
                 placeholder="••••••••••••"
@@ -1201,17 +1217,26 @@ Thanks for being a great partner!
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
+            <label
+              htmlFor="reseller-tax-classification"
+              className="block text-sm font-medium text-slate-700 mb-2"
+            >
               Tax Classification
             </label>
-            <select className="w-full rounded-lg border-slate-200 focus:ring-blue-900 focus:border-blue-900">
+            <select
+              id="reseller-tax-classification"
+              className="w-full rounded-lg border-slate-200 focus:ring-blue-900 focus:border-blue-900"
+            >
               <option>Individual / Sole Proprietor</option>
               <option>LLC</option>
               <option>Corporation</option>
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
+            <label
+              htmlFor="reseller-tax-id"
+              className="block text-sm font-medium text-slate-700 mb-2"
+            >
               Tax ID / SSN / EIN
             </label>
             <div className="relative">
@@ -1220,6 +1245,7 @@ Thanks for being a great partner!
                 size={14}
               />
               <input
+                id="reseller-tax-id"
                 type="text"
                 className="w-full pl-9 rounded-lg border-slate-200 focus:ring-blue-900 focus:border-blue-900"
                 placeholder="XX-XXXXXXX"

@@ -3,8 +3,8 @@
  * Tests for session-based authentication and authorization
  */
 
-import { describe, expect, it, beforeEach, vi } from 'vitest';
-import type { Request, Response, NextFunction } from 'express';
+import type { NextFunction, Request, Response } from 'express';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock request/response helpers
 const createMockRequest = (overrides = {}): Partial<Request> => ({
@@ -262,7 +262,8 @@ describe('Authentication Middleware', () => {
       const refreshThreshold = 5 * 24 * 60 * 60 * 1000; // 5 days
 
       const sessionAge = Date.now() - sessionCreated;
-      const shouldRefresh = sessionAge > refreshThreshold && sessionAge < sessionMaxAge;
+      const shouldRefresh =
+        sessionAge > refreshThreshold && sessionAge < sessionMaxAge;
 
       expect(shouldRefresh).toBe(false);
     });

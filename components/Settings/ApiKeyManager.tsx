@@ -23,7 +23,7 @@ import {
   Zap,
 } from 'lucide-react';
 import type React from 'react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { buildApiUrl } from '../../services/apiConfig';
 
 interface ApiKey {
@@ -173,18 +173,10 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
   const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
   const [showScopes, setShowScopes] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchData();
-  }, [organizationId]);
+  const newKeyNameId = 'api-key-name';
+  const newKeyExpirationId = 'api-key-expiration';
 
-  useEffect(() => {
-    if (notification) {
-      const timer = setTimeout(() => setNotification(null), 4000);
-      return () => clearTimeout(timer);
-    }
-  }, [notification]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const [keysRes, statsRes, logsRes] = await Promise.all([
@@ -212,7 +204,18 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [organizationId]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  useEffect(() => {
+    if (notification) {
+      const timer = setTimeout(() => setNotification(null), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [notification]);
 
   const createApiKey = async () => {
     if (!newKeyName.trim()) {
@@ -852,9 +855,9 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
                   </div>
 
                   <div className="space-y-2">
-                    <label className="block text-sm font-medium text-slate-700">
+                    <p className="block text-sm font-medium text-slate-700">
                       Your API Key
-                    </label>
+                    </p>
                     <div className="flex items-center gap-2 p-3 bg-slate-900 rounded-lg">
                       <code className="flex-1 text-sm font-mono text-emerald-400 break-all">
                         {createdKey}
@@ -880,10 +883,14 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
               ) : (
                 <div className="space-y-5">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                    <label
+                      className="block text-sm font-medium text-slate-700 mb-2"
+                      htmlFor={newKeyNameId}
+                    >
                       Key Name *
                     </label>
                     <input
+                      id={newKeyNameId}
                       type="text"
                       value={newKeyName}
                       onChange={(e) => setNewKeyName(e.target.value)}
@@ -893,9 +900,9 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                    <p className="block text-sm font-medium text-slate-700 mb-2">
                       Permissions
-                    </label>
+                    </p>
                     <div className="space-y-2 max-h-48 overflow-y-auto p-3 bg-slate-50 rounded-lg border border-slate-200">
                       {AVAILABLE_SCOPES.map((scope) => (
                         <label
@@ -938,13 +945,17 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                    <label
+                      className="block text-sm font-medium text-slate-700 mb-2"
+                      htmlFor={newKeyExpirationId}
+                    >
                       <span className="flex items-center gap-2">
                         <Calendar size={16} />
                         Expiration Date (Optional)
                       </span>
                     </label>
                     <input
+                      id={newKeyExpirationId}
                       type="date"
                       value={newKeyExpiration}
                       onChange={(e) => setNewKeyExpiration(e.target.value)}

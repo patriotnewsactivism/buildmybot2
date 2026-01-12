@@ -12,6 +12,7 @@ import {
   Image as ImageIcon,
   Link,
   Loader2,
+  type LucideIcon,
   MessageSquare,
   Monitor,
   MousePointer,
@@ -28,7 +29,6 @@ import {
   Upload,
   X,
   Zap,
-  type LucideIcon,
 } from 'lucide-react';
 import type React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
