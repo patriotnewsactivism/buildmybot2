@@ -5,6 +5,19 @@ import {
   type Response,
 } from 'express';
 import { z } from 'zod';
+import { fromZodError } from 'zod-validation-error';
+
+declare global {
+  namespace Express {
+    interface Request {
+      validated?: {
+        body?: unknown;
+        query?: unknown;
+        params?: unknown;
+      };
+    }
+  }
+}
 
 // ========================================
 // VALIDATION SCHEMAS
@@ -109,19 +122,101 @@ export function validateRequest(schema: z.ZodSchema) {
   };
 }
 
-export function validateQuery(schema: z.ZodSchema) {
+export function validateQuery<T extends z.ZodSchema>(schema: T) {
   return (req: Request, res: Response, next: NextFunction) => {
     try {
-      schema.parse(req.query);
+      const parsed = schema.parse(req.query);
+      req.validated = req.validated || {};
+      req.validated.query = parsed;
       next();
     } catch (error) {
       if (error instanceof z.ZodError) {
+        const validationError = fromZodError(error);
         return res.status(400).json({
           error: 'Query validation failed',
-          details: error.issues,
+          code: 'VALIDATION_ERROR',
+          details: validationError.message,
         });
       }
       next(error);
     }
   };
 }
+
+export function validateParams<T extends z.ZodSchema>(schema: T) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const parsed = schema.parse(req.params);
+      req.validated = req.validated || {};
+      req.validated.params = parsed;
+      next();
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const validationError = fromZodError(error);
+        return res.status(400).json({
+          error: 'Invalid parameters',
+          code: 'VALIDATION_ERROR',
+          details: validationError.message,
+        });
+      }
+      next(error);
+    }
+  };
+}
+
+export function validateBody<T extends z.ZodSchema>(schema: T) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const parsed = schema.parse(req.body);
+      req.validated = req.validated || {};
+      req.validated.body = parsed;
+      req.body = parsed;
+      next();
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const validationError = fromZodError(error);
+        return res.status(400).json({
+          error: 'Validation failed',
+          code: 'VALIDATION_ERROR',
+          details: validationError.message,
+        });
+      }
+      next(error);
+    }
+  };
+}
+
+export const KnowledgeSchemas = {
+  scrape: z.object({
+    url: z.string().url('Invalid URL format'),
+    crawlDepth: z.coerce.number().int().min(1).max(10).default(1),
+  }),
+  installPrebuilt: z.object({
+    knowledgeBaseId: z.string().min(1, 'Knowledge base ID is required'),
+  }),
+  search: z.object({
+    q: z.string().min(1, 'Search query is required').max(500),
+  }),
+};
+
+export const AuthSchemas = {
+  login: z.object({
+    email: z.string().email('Invalid email format'),
+    password: z.string().min(1, 'Password is required'),
+  }),
+  register: z.object({
+    email: z.string().email('Invalid email format'),
+    password: z.string().min(8, 'Password must be at least 8 characters'),
+    name: z.string().min(1, 'Name is required').max(200),
+    companyName: z.string().max(200).optional(),
+    referredBy: z.string().optional(),
+  }),
+};
+
+export const ChatSchemas = {
+  message: z.object({
+    message: z.string().min(1, 'Message is required').max(10000),
+    botId: z.string().min(1, 'Bot ID is required'),
+    conversationId: z.string().optional(),
+  }),
+};

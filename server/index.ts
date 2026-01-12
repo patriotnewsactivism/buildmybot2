@@ -40,6 +40,7 @@ import {
   channelsRouter,
   chatRouter,
   clientsRouter,
+  healthRouter,
   impersonationRouter,
   knowledgeRouter,
   landingPagesRouter,
@@ -107,9 +108,8 @@ const app = express();
 app.set('trust proxy', 1);
 
 const isProduction = env.NODE_ENV === 'production';
-const PORT = isProduction
-  ? 5000
-  : Number.parseInt(env.API_PORT || '3001', 10);
+const defaultPort = isProduction ? '5000' : env.API_PORT || '3001';
+const PORT = Number.parseInt(env.PORT || defaultPort, 10);
 
 function getBaseUrl() {
   const appBaseUrl = env.APP_BASE_URL?.trim();
@@ -218,10 +218,6 @@ const cacheControl = (maxAge: number, isPublic = true) => {
 
 // ETag support for efficient caching
 app.set('etag', 'strong');
-
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok' });
-});
 
 app.get('/api/stripe/publishable-key', async (req, res) => {
   try {
@@ -484,7 +480,7 @@ app.post('/api/bots', ...apiAuthStack, async (req, res) => {
       },
       userId: user?.id || req.body.userId,
       organizationId: user?.organizationId || req.body.organizationId,
-      isPublic: req.body.isPublic ?? false,
+      isPublic: req.body.isPublic ?? true,
       analytics: req.body.analytics || {},
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -991,6 +987,11 @@ app.delete('/api/documents/:docId', ...apiAuthStack, async (req, res) => {
     res.status(500).json({ error: 'Failed to delete document' });
   }
 });
+
+// ========================================
+// HEALTH CHECK ROUTES (no auth required)
+// ========================================
+app.use('/api/health', healthRouter);
 
 // ========================================
 // AUTHENTICATION ROUTES (no auth required)

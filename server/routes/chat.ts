@@ -33,9 +33,9 @@ const botChatLimiter = rateLimit({
 });
 
 const openai = new OpenAI({
-  apiKey: env.AI_INTEGRATIONS_OPENAI_API_KEY || env.OPENAI_API_KEY,
+  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY,
   baseURL:
-    env.AI_INTEGRATIONS_OPENAI_BASE_URL || 'https://api.openai.com/v1',
+    process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || 'https://api.openai.com/v1',
 });
 
 interface ChatMessage {

@@ -2,8 +2,7 @@ import { eq } from 'drizzle-orm';
 import Stripe from 'stripe';
 import { users } from '../shared/schema';
 import { db } from './db';
-import { env } from './env';
-import { getStripeSecretKey } from './stripeClient';
+import { getStripeSync, getStripeSecretKey } from './stripeClient';
 
 export class WebhookHandlers {
   static async processWebhook(
@@ -16,26 +15,54 @@ export class WebhookHandlers {
       );
     }
 
-    const webhookSecret = env.STRIPE_WEBHOOK_SECRET;
-    if (!webhookSecret) {
-      console.log('STRIPE_WEBHOOK_SECRET not set, skipping webhook processing');
-      return;
-    }
-
-    const secretKey = await getStripeSecretKey();
-    const stripe = new Stripe(secretKey, {
-      apiVersion: '2025-08-27.basil' as any,
-    });
-
-    let event: Stripe.Event;
     try {
-      event = stripe.webhooks.constructEvent(payload, signature, webhookSecret);
+      const sync = await getStripeSync();
+      await sync.processWebhook(payload, signature);
     } catch (error) {
-      console.error('Stripe webhook signature verification failed:', error);
-      throw error;
+      console.error('Stripe webhook processing error:', error);
     }
 
-    await WebhookHandlers.processStripeEvent(event);
+    // Also process custom business logic
+    await WebhookHandlers.processBusinessLogic(payload, signature);
+  }
+
+  private static async processBusinessLogic(
+    payload: Buffer,
+    signature: string,
+  ): Promise<void> {
+    try {
+      const secretKey = await getStripeSecretKey();
+      const stripe = new Stripe(secretKey, {
+        apiVersion: '2025-08-27.basil' as any,
+      });
+
+      // Get webhook secret from the managed webhook or fallback
+      const sync = await getStripeSync();
+      let webhookSecret: string | undefined;
+      
+      try {
+        const webhookInfo = await sync.getManagedWebhook();
+        webhookSecret = webhookInfo?.webhook?.secret;
+      } catch {
+        // Webhook not yet configured
+      }
+
+      if (!webhookSecret) {
+        return;
+      }
+
+      let event: Stripe.Event;
+      try {
+        event = stripe.webhooks.constructEvent(payload, signature, webhookSecret);
+      } catch (error) {
+        console.error('Stripe webhook signature verification failed:', error);
+        return;
+      }
+
+      await WebhookHandlers.processStripeEvent(event);
+    } catch (error) {
+      console.error('Business logic webhook error:', error);
+    }
   }
 
   private static async processStripeEvent(event: Stripe.Event): Promise<void> {

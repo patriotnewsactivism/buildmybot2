@@ -1,0 +1,14 @@
+node_modules
+.env
+.env.local
+*.log
+test
+server
+scripts
+drizzle
+attached_assets
+*.md
+!README.md
+!CLAUDE.md
+.git
+.github

@@ -95,11 +95,13 @@ export const TemplateMarketplace: React.FC<TemplateMarketplaceProps> = ({
   const fetchTemplates = async () => {
     try {
       setLoading(true);
-      const response = await fetch(buildApiUrl('/templates'));
+      const response = await fetch(buildApiUrl('/templates'), {
+        credentials: 'include',
+      });
       if (!response.ok) throw new Error('Failed to fetch templates');
       const data = await response.json();
-      setTemplates(data);
-      const installed = data.filter((t: Template) => t.installCount > 0);
+      setTemplates(Array.isArray(data) ? data : []);
+      const installed = (Array.isArray(data) ? data : []).filter((t: Template) => t.installCount > 0);
       setMyTemplates(installed.slice(0, 3));
     } catch (err) {
       console.error('Error fetching templates:', err);

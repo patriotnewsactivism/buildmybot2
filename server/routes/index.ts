@@ -10,6 +10,7 @@ import { authRouter } from './auth';
 import channelsRouter from './channels';
 import chatRouter from './chat';
 import clientsRouter from './clients';
+import healthRouter from './health';
 import impersonationRouter from './impersonation';
 import knowledgeRouter from './knowledge';
 import landingPagesRouter from './landingPages';
@@ -37,4 +38,5 @@ export {
   landingPagesRouter,
   notificationsRouter,
   authRouter,
+  healthRouter,
 };
