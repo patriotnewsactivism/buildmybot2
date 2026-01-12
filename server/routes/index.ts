@@ -21,6 +21,8 @@ import organizationsRouter from './organizations';
 import partnersRouter from './partners';
 import revenueRouter from './revenue';
 import templatesRouter from './templates';
+import webhooksRouter from './webhooks';
+import searchRouter from './search';
 
 export {
   organizationsRouter,
@@ -31,7 +33,9 @@ export {
   clientsRouter,
   impersonationRouter,
   templatesRouter,
+  webhooksRouter,
   channelsRouter,
+  searchRouter,
   knowledgeRouter,
   revenueRouter,
   chatRouter,

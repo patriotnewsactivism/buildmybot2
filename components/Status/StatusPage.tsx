@@ -1,5 +1,4 @@
-import type React from 'react';
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   AlertCircle, 
   CheckCircle, 
@@ -35,7 +34,7 @@ export const StatusPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchHealth = React.useCallback(async () => {
+  const fetchHealth = useCallback(async () => {
     try {
       const response = await fetch('/api/health');
       const data = await response.json();
