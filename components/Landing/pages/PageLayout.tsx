@@ -13,7 +13,7 @@ export const PageLayout: React.FC<PageLayoutProps> = ({ children }) => {
           <img
             src="/logo.jpg"
             alt="BuildMyBot"
-            className="h-7 sm:h-8 md:h-9 lg:h-10 w-auto rounded-md object-contain shadow-sm"
+            className="h-4 sm:h-5 md:h-6 w-auto rounded-md object-contain shadow-sm"
           />
           <span className="font-bold text-base sm:text-lg md:text-xl text-slate-900 hidden sm:block">
             BuildMyBot
