@@ -81,7 +81,7 @@ export const LandingPage: React.FC<LandingProps> = ({
         keywords={SEOConfig.home.keywords}
       />
 
-      <div className="bg-midnight text-white min-h-screen">
+      <div className="bg-midnight text-white min-h-screen overflow-x-hidden">
         <main className="relative overflow-hidden">
           <div
             className="pointer-events-none absolute inset-0 opacity-60"
@@ -91,10 +91,24 @@ export const LandingPage: React.FC<LandingProps> = ({
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/90" />
           </div>
 
-          <section className="relative z-10 px-6 pt-12 pb-20 lg:pb-32">
+          <section className="relative z-10 px-4 sm:px-6 lg:px-8 pt-10 pb-16 lg:pb-24">
             <div className="mx-auto max-w-6xl">
-              <div className="flex flex-wrap items-center justify-between gap-4 text-xs uppercase tracking-[0.3em] text-soft-gray">
-                <span className="text-luminous-teal">Neon Horizon release</span>
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <img
+                    src="/logo.jpg"
+                    alt="BuildMyBot.App"
+                    className="h-8 sm:h-9 w-auto rounded-md object-contain shadow-sm"
+                  />
+                  <div className="flex flex-col">
+                    <span className="text-sm sm:text-base font-semibold tracking-[0.1em] text-white">
+                      BuildMyBot.App
+                    </span>
+                    <span className="text-xs uppercase tracking-[0.3em] text-luminous-teal">
+                      Neon Horizon release
+                    </span>
+                  </div>
+                </div>
                 <div className="flex flex-wrap gap-3">
                   {onNavigateToPartner && (
                     <button
@@ -122,11 +136,11 @@ export const LandingPage: React.FC<LandingProps> = ({
                   <p className="text-sm uppercase tracking-[0.4em] text-luminous-teal">
                     Democratizing AI automation
                   </p>
-                  <h1 className="font-spaceGrotesk text-4xl leading-tight text-white sm:text-5xl lg:text-6xl">
+                  <h1 className="font-spaceGrotesk text-3xl leading-tight text-white sm:text-4xl lg:text-5xl">
                     Build smart. Chat simply. Launch a bot that feels like part of
                     your team.
                   </h1>
-                  <p className="text-soft-gray text-lg leading-relaxed sm:text-xl">
+                  <p className="text-soft-gray text-base leading-relaxed sm:text-lg">
                     BuildMyBot.App now shines with a neon horizon aesthetic that
                     celebrates the joy of creation. Spin up intelligent
                     assistants, guide every conversation, and deliver delight in
@@ -154,7 +168,7 @@ export const LandingPage: React.FC<LandingProps> = ({
                   <div className="mt-8 flex flex-wrap items-center gap-6 text-sm sm:text-base">
                     {HERO_STATS.map((stat) => (
                       <div key={stat.label}>
-                        <p className="text-3xl font-semibold text-white">
+                        <p className="text-2xl sm:text-3xl font-semibold text-white">
                           {stat.value}
                         </p>
                         <p className="text-soft-gray">{stat.label}</p>
@@ -212,12 +226,12 @@ export const LandingPage: React.FC<LandingProps> = ({
             </div>
           </section>
 
-          <section className="relative z-10 px-6 pb-20 lg:pb-28">
+          <section className="relative z-10 px-4 sm:px-6 lg:px-8 pb-16 lg:pb-24">
             <div className="mx-auto max-w-6xl space-y-6 text-center">
               <p className="text-sm uppercase tracking-[0.4em] text-luminous-teal">
                 What makes BuildMyBot exciting
               </p>
-              <h2 className="font-spaceGrotesk text-3xl sm:text-4xl lg:text-5xl">
+              <h2 className="font-spaceGrotesk text-2xl sm:text-3xl lg:text-4xl">
                 A neon toolkit for confident creators.
               </h2>
               <p className="text-soft-gray sm:text-lg">
@@ -226,7 +240,7 @@ export const LandingPage: React.FC<LandingProps> = ({
               </p>
             </div>
 
-            <div className="mt-12 grid gap-6 md:grid-cols-2">
+            <div className="mx-auto mt-12 grid max-w-6xl gap-6 md:grid-cols-2">
               {FEATURE_CARDS.map((feature) => {
                 const Icon = feature.icon;
                 return (
@@ -248,13 +262,13 @@ export const LandingPage: React.FC<LandingProps> = ({
             </div>
           </section>
 
-          <section className="relative z-10 px-6 pb-24 lg:pb-32">
+          <section className="relative z-10 px-4 sm:px-6 lg:px-8 pb-20 lg:pb-28">
             <div className="mx-auto max-w-6xl">
               <div className="text-center">
                 <p className="text-sm uppercase tracking-[0.4em] text-luminous-teal">
                   How it works
                 </p>
-                <h2 className="mt-4 font-spaceGrotesk text-3xl sm:text-4xl lg:text-5xl">
+                <h2 className="mt-4 font-spaceGrotesk text-2xl sm:text-3xl lg:text-4xl">
                   Every step glows with guidance.
                 </h2>
                 <p className="mt-3 text-soft-gray">
@@ -296,9 +310,9 @@ export const LandingPage: React.FC<LandingProps> = ({
             </div>
           </section>
 
-          <section className="relative z-10 px-6 pb-24">
+          <section className="relative z-10 px-4 sm:px-6 lg:px-8 pb-20">
             <div className="mx-auto max-w-4xl text-center">
-              <h2 className="font-spaceGrotesk text-3xl sm:text-4xl lg:text-5xl">
+              <h2 className="font-spaceGrotesk text-2xl sm:text-3xl lg:text-4xl">
                 From idea to intelligent bot in minutes.
               </h2>
               <p className="mt-4 text-soft-gray">

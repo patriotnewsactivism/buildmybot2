@@ -8,26 +8,28 @@ interface PageLayoutProps {
 export const PageLayout: React.FC<PageLayoutProps> = ({ children }) => {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
-      <nav className="h-14 sm:h-16 md:h-20 border-b border-slate-200/60 bg-white/95 backdrop-blur-lg px-4 sm:px-6 lg:px-12 flex items-center justify-between sticky top-0 z-40 shadow-sm">
-        <a href="/" className="flex items-center gap-2">
-          <Bot className="w-6 h-6 text-blue-700" />
-          <span className="font-bold text-lg text-slate-900">
-            BuildMyBot
-          </span>
-        </a>
-        <a
-          href="/"
-          className="flex items-center gap-2 text-slate-600 hover:text-blue-700 transition-colors font-medium"
-        >
-          <ArrowLeft size={18} />
-          <span className="hidden sm:inline">Back to Home</span>
-        </a>
+      <nav className="h-14 sm:h-16 border-b border-slate-200/60 bg-white/95 backdrop-blur-lg sticky top-0 z-40 shadow-sm">
+        <div className="mx-auto flex h-full w-full max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
+          <a href="/" className="flex items-center gap-2">
+            <Bot className="w-5 h-5 sm:w-6 sm:h-6 text-blue-700" />
+            <span className="font-bold text-base sm:text-lg text-slate-900">
+              BuildMyBot
+            </span>
+          </a>
+          <a
+            href="/"
+            className="flex items-center gap-2 text-slate-600 hover:text-blue-700 transition-colors font-medium text-sm sm:text-base"
+          >
+            <ArrowLeft size={18} />
+            <span className="hidden sm:inline">Back to Home</span>
+          </a>
+        </div>
       </nav>
 
       <main className="flex-1">{children}</main>
 
       <footer className="bg-slate-900 text-slate-400 py-12 sm:py-20 px-4 sm:px-6">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8 sm:gap-12">
+        <div className="max-w-6xl mx-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8 sm:gap-12">
           <div>
             <div className="flex items-center gap-2 text-white font-bold text-xl mb-4">
               <Bot size={24} /> BuildMyBot
@@ -98,8 +100,8 @@ export const PageLayout: React.FC<PageLayoutProps> = ({ children }) => {
             </ul>
           </div>
         </div>
-        <div className="max-w-7xl mx-auto mt-12 pt-8 border-t border-slate-800 text-center text-sm">
-          © 2026 BuildMyBot AI. All rights reserved.
+        <div className="max-w-6xl mx-auto mt-12 pt-8 border-t border-slate-800 text-center text-sm">
+          (c) 2026 BuildMyBot AI. All rights reserved.
         </div>
       </footer>
     </div>
