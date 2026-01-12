@@ -718,27 +718,61 @@ app.get('/api/resellers/:code/summary', ...apiAuthStack, async (req, res) => {
       .where(eq(users.referredBy, req.params.code));
 
     const clientCount = referrals.length;
-    const totalRevenue = referrals.reduce((acc, user) => {
-      const plan = PLANS[user.plan as keyof typeof PLANS];
-      return acc + (plan?.price || 0);
-    }, 0);
-
-    const whitelabelEnabled = Boolean(reseller.whitelabelEnabled);
-    const paidThrough = reseller.whitelabelPaidThrough
-      ? new Date(reseller.whitelabelPaidThrough)
-      : null;
-    const whitelabelFeeDue =
-      whitelabelEnabled && (!paidThrough || paidThrough.getTime() < Date.now());
 
     const currentTier =
       RESELLER_TIERS.find(
         (tier) => clientCount >= tier.min && clientCount <= tier.max,
       ) || RESELLER_TIERS[0];
 
-    const commissionRate = whitelabelEnabled
-      ? WHITELABEL_FEE.commission
-      : currentTier.commission;
-    const grossCommission = totalRevenue * commissionRate;
+    const whitelabelEnabled = Boolean(reseller.whitelabelEnabled);
+    const partnerAccessStart = reseller.whitelabelEnabledAt
+      ? new Date(reseller.whitelabelEnabledAt)
+      : null;
+    const partnerAccessAppliesToAll =
+      currentTier.commission >= WHITELABEL_FEE.commission ||
+      (whitelabelEnabled && !partnerAccessStart);
+
+    let legacyRevenue = 0;
+    let partnerAccessRevenue = 0;
+    let partnerAccessEligibleClients = 0;
+    let partnerAccessLegacyClients = 0;
+
+    for (const client of referrals) {
+      const plan = PLANS[client.plan as keyof typeof PLANS];
+      const price = plan?.price || 0;
+      const createdAt = client.createdAt ? new Date(client.createdAt) : null;
+      const eligibleForPartnerRate =
+        partnerAccessAppliesToAll ||
+        (whitelabelEnabled &&
+          partnerAccessStart &&
+          createdAt &&
+          createdAt.getTime() >= partnerAccessStart.getTime());
+
+      if (eligibleForPartnerRate) {
+        partnerAccessRevenue += price;
+        partnerAccessEligibleClients += 1;
+      } else {
+        legacyRevenue += price;
+        partnerAccessLegacyClients += 1;
+      }
+    }
+
+    const totalRevenue = legacyRevenue + partnerAccessRevenue;
+    const grossCommission =
+      legacyRevenue * currentTier.commission +
+      partnerAccessRevenue * WHITELABEL_FEE.commission;
+    const commissionRate =
+      totalRevenue > 0
+        ? grossCommission / totalRevenue
+        : whitelabelEnabled || partnerAccessAppliesToAll
+          ? WHITELABEL_FEE.commission
+          : currentTier.commission;
+
+    const paidThrough = reseller.whitelabelPaidThrough
+      ? new Date(reseller.whitelabelPaidThrough)
+      : null;
+    const whitelabelFeeDue =
+      whitelabelEnabled && (!paidThrough || paidThrough.getTime() < Date.now());
     const whitelabelFeeAmount = whitelabelFeeDue ? WHITELABEL_FEE.price : 0;
     const pendingPayout = Math.max(grossCommission - whitelabelFeeAmount, 0);
 
@@ -753,6 +787,13 @@ app.get('/api/resellers/:code/summary', ...apiAuthStack, async (req, res) => {
         whitelabelFeeDue,
         whitelabelFeeAmount,
         whitelabelPaidThrough: paidThrough ? paidThrough.toISOString() : null,
+        partnerAccessActive: whitelabelEnabled,
+        partnerAccessAppliesToAll,
+        partnerAccessStart: partnerAccessStart
+          ? partnerAccessStart.toISOString()
+          : null,
+        partnerAccessEligibleClients,
+        partnerAccessLegacyClients,
       },
     });
   } catch (error) {

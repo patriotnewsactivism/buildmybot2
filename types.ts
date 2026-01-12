@@ -40,6 +40,7 @@ export interface User {
   status?: 'Active' | 'Suspended' | 'Pending'; // For admin management
   createdAt?: string; // ISO date string
   whitelabelEnabled?: boolean;
+  whitelabelEnabledAt?: string;
   whitelabelPaidThrough?: string;
   whitelabelSubscriptionId?: string;
   organizationId?: string;
@@ -115,6 +116,11 @@ export interface ResellerStats {
   whitelabelFeeDue?: boolean;
   whitelabelFeeAmount?: number;
   whitelabelPaidThrough?: string;
+  partnerAccessActive?: boolean;
+  partnerAccessAppliesToAll?: boolean;
+  partnerAccessStart?: string | null;
+  partnerAccessEligibleClients?: number;
+  partnerAccessLegacyClients?: number;
 }
 
 export interface BotDocument {

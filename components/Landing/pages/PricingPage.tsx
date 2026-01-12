@@ -1,6 +1,11 @@
 import { ArrowRight, CheckCircle, Sparkles } from 'lucide-react';
 import type React from 'react';
-import { PLANS } from '../../../constants';
+import {
+  EXPERT_SETUP_SERVICES,
+  PLANS,
+  TEMPLATE_MARKETPLACE_PRICING,
+  VOICE_AGENT_PRICING,
+} from '../../../constants';
 import { PlanType } from '../../../types';
 import { SEO, SEOConfig } from '../../SEO/SEO';
 import { PageLayout } from './PageLayout';
@@ -145,7 +150,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onLogin }) => {
                   )}
                 </div>
                 <div className="text-sm text-slate-600 mb-4">
-                  {botsLabel} · {conversationsLabel}
+                  {botsLabel} / {conversationsLabel}
                 </div>
                 <ul className="space-y-2 mb-6">
                   {plan.features.map((feature) => (
@@ -180,6 +185,81 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onLogin }) => {
               </div>
             );
           })}
+        </section>
+
+        <section className="space-y-8">
+          <div className="text-center space-y-3">
+            <h2 className="text-3xl font-bold text-slate-900">
+              Add-ons & Launch Services
+            </h2>
+            <p className="text-lg text-slate-600 max-w-3xl mx-auto">
+              Voice minutes, expert setup, and template packs to scale your
+              rollout.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+              <h3 className="font-bold text-lg text-slate-900 mb-4">
+                Voice Agent Pricing
+              </h3>
+              <ul className="space-y-2 text-sm text-slate-600">
+                {VOICE_AGENT_PRICING.map((plan) => (
+                  <li
+                    key={plan.id}
+                    className="flex items-center justify-between gap-3"
+                  >
+                    <span>{plan.name}</span>
+                    <span className="font-semibold text-slate-900">
+                      ${plan.price}/mo
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+              <h3 className="font-bold text-lg text-slate-900 mb-4">
+                Expert Setup Services
+              </h3>
+              <ul className="space-y-2 text-sm text-slate-600">
+                {EXPERT_SETUP_SERVICES.map((service) => (
+                  <li
+                    key={service.id}
+                    className="flex items-center justify-between gap-3"
+                  >
+                    <span>{service.name}</span>
+                    <span className="font-semibold text-slate-900">
+                      ${service.price}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-xs text-slate-500 mt-3">
+                Delivery ranges from 3 to 14 days.
+              </p>
+            </div>
+            <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+              <h3 className="font-bold text-lg text-slate-900 mb-4">
+                Template Marketplace
+              </h3>
+              <ul className="space-y-2 text-sm text-slate-600">
+                {TEMPLATE_MARKETPLACE_PRICING.map((tier) => (
+                  <li
+                    key={tier.id}
+                    className="flex items-center justify-between gap-3"
+                  >
+                    <span>{tier.name}</span>
+                    <span className="font-semibold text-slate-900">
+                      {tier.price === 0 ? 'Free' : `$${tier.price}`}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+          <p className="text-sm text-slate-500 text-center">
+            Voice plans are billed monthly. Setup services and template packs
+            are one-time purchases.
+          </p>
         </section>
 
         <section className="bg-slate-900 text-white rounded-2xl p-8 md:p-12 flex flex-col md:flex-row items-center justify-between gap-6">
