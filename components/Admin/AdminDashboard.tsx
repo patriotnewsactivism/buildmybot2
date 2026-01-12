@@ -320,8 +320,7 @@ export const AdminDashboard: React.FC = () => {
       setInviteSent(true);
       setInviteEmail('');
       setTimeout(() => setInviteSent(false), 3000);
-      if (inviteRole === 'RESELLER')
-        setPartners((prev) => [...prev, result]);
+      if (inviteRole === 'RESELLER') setPartners((prev) => [...prev, result]);
     } else {
       setInviteError(true);
       setTimeout(() => setInviteError(false), 4000);
@@ -763,33 +762,27 @@ export const AdminDashboard: React.FC = () => {
             <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
               {plansData?.plans &&
                 Object.entries(plansData.plans).map(([key, plan]) => (
-                    <div
-                      key={key}
-                      className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm"
-                    >
-                      <h4 className="font-bold text-slate-800 text-lg">
-                        {plan.name}
-                      </h4>
-                      <p className="text-2xl font-bold text-blue-900 my-2">
-                        ${plan.price}
-                        <span className="text-sm text-slate-500">/mo</span>
-                      </p>
-                      <ul className="text-sm text-slate-600 space-y-1">
-                        {plan.features
-                          .slice(0, 4)
-                          .map((f: string) => (
-                            <li key={f} className="flex items-center gap-1">
-                              <CheckCircle
-                                size={12}
-                                className="text-emerald-500"
-                              />{' '}
-                              {f}
-                            </li>
-                          ))}
-                      </ul>
-                    </div>
-                  ),
-                )}
+                  <div
+                    key={key}
+                    className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm"
+                  >
+                    <h4 className="font-bold text-slate-800 text-lg">
+                      {plan.name}
+                    </h4>
+                    <p className="text-2xl font-bold text-blue-900 my-2">
+                      ${plan.price}
+                      <span className="text-sm text-slate-500">/mo</span>
+                    </p>
+                    <ul className="text-sm text-slate-600 space-y-1">
+                      {plan.features.slice(0, 4).map((f: string) => (
+                        <li key={f} className="flex items-center gap-1">
+                          <CheckCircle size={12} className="text-emerald-500" />{' '}
+                          {f}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
             </div>
           </div>
         )}
