@@ -1,6 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { env } from './env';
+import { initSentry } from './utils/sentry';
+
+// Initialize Sentry before any other imports
+initSentry();
 
 import { fileURLToPath } from 'node:url';
 import compression from 'compression';
@@ -29,6 +33,7 @@ import {
   authorize,
   loadOrganizationContext,
   metricsMiddleware,
+  requestLogger,
   securityHeaders,
   tenantIsolation,
 } from './middleware';
@@ -194,6 +199,9 @@ app.use(express.json());
 
 // Phase 1: Apply security headers
 app.use(securityHeaders);
+
+// Phase 8: Structured Request Logging
+app.use(requestLogger);
 
 // Phase 1: Apply rate limiting to API routes
 app.use('/api', apiLimiter);

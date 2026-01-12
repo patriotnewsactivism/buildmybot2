@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from 'express';
 import { sql } from 'drizzle-orm';
 import { db } from '../db';
 import { getUncachableStripeClient } from '../stripeClient';
+import logger from '../utils/logger';
 
 const router = Router();
 
@@ -14,6 +15,7 @@ interface HealthStatus {
     database: ServiceStatus;
     stripe: ServiceStatus;
     openai: ServiceStatus;
+    cartesia: ServiceStatus;
   };
 }
 
@@ -69,16 +71,30 @@ async function checkOpenAI(): Promise<ServiceStatus> {
   };
 }
 
+async function checkCartesia(): Promise<ServiceStatus> {
+  const apiKey = process.env.CARTESIA_API_KEY || process.env.VITE_CARTESIA_API_KEY;
+  if (!apiKey) {
+    return {
+      status: 'unknown',
+      error: 'Cartesia API key not configured',
+    };
+  }
+  return {
+    status: 'up',
+  };
+}
+
 router.get('/', async (req: Request, res: Response) => {
   const startTime = process.hrtime();
 
-  const [database, stripe, openai] = await Promise.all([
+  const [database, stripe, openai, cartesia] = await Promise.all([
     checkDatabase(),
     checkStripe(),
     checkOpenAI(),
+    checkCartesia(),
   ]);
 
-  const allUp = database.status === 'up' && openai.status !== 'down';
+  const allUp = database.status === 'up' && openai.status !== 'down' && cartesia.status !== 'down';
   const anyDown = database.status === 'down' || stripe.status === 'down';
 
   const health: HealthStatus = {
@@ -90,8 +106,13 @@ router.get('/', async (req: Request, res: Response) => {
       database,
       stripe,
       openai,
+      cartesia,
     },
   };
+
+  if (health.status !== 'healthy') {
+    logger.warn('System health check degraded or unhealthy', { health });
+  }
 
   const statusCode = health.status === 'healthy' ? 200 : health.status === 'degraded' ? 200 : 503;
   res.status(statusCode).json(health);

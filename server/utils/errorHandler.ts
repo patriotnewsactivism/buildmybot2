@@ -1,4 +1,6 @@
 import type { Response } from 'express';
+import logger from './logger';
+import { Sentry } from './sentry';
 
 export interface AppError {
   statusCode: number;
@@ -41,7 +43,20 @@ export function createError(
 }
 
 export function handleError(res: Response, error: unknown, context?: string): void {
-  console.error(`Error${context ? ` in ${context}` : ''}:`, error);
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  logger.error(`Error${context ? ` in ${context}` : ''}: ${errorMessage}`, { error });
+
+  // Log to Sentry
+  if (error instanceof Error) {
+    Sentry.captureException(error, {
+      extra: { context },
+    });
+  } else {
+    Sentry.captureMessage(String(error), {
+      level: 'error',
+      extra: { context },
+    });
+  }
 
   if (isAppError(error)) {
     res.status(error.statusCode).json({

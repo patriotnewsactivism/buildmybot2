@@ -63,6 +63,7 @@ import { PhoneAgent } from './components/PhoneAgent/PhoneAgent';
 import { ResellerDashboard } from './components/Reseller/ResellerDashboard';
 import { ServiceCatalog } from './components/Services/ServiceCatalog';
 import { Settings } from './components/Settings/Settings';
+import { StatusPage } from './components/Status/StatusPage';
 import { SupportTicketSystem } from './components/Support/SupportTicketSystem';
 import { ErrorBoundary } from './components/UI/ErrorBoundary';
 import { WebsiteBuilder } from './components/WebsiteBuilder/WebsiteBuilder';
@@ -286,6 +287,9 @@ function App() {
   };
 
   const currentPath = window.location.pathname;
+  if (currentPath === '/status') {
+    return <StatusPage />;
+  }
   if (currentPath.startsWith('/chat/')) {
     const botId = currentPath.split('/')[2];
     return <FullPageChat botId={botId} />;
