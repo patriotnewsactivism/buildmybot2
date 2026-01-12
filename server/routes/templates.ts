@@ -98,9 +98,9 @@ router.post('/:id/install', async (req, res) => {
       .where(eq(botTemplates.id, template.id));
 
     res.json(newBot);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Template install error:', error);
-    res.status(500).json({ error: 'Failed to install template' });
+    res.status(500).json({ error: `Failed to install template: ${error.message}` });
   }
 });
 
