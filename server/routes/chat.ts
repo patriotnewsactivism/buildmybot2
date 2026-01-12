@@ -12,6 +12,7 @@ import {
   strictLimiter,
   tenantIsolation,
 } from '../middleware';
+import { chatService } from '../services/ChatService';
 import { KnowledgeService } from '../services/KnowledgeService';
 
 const router = Router();
@@ -49,6 +50,7 @@ interface ChatRequest {
   model?: string;
   context?: string;
   botId?: string;
+  sessionId?: string;
 }
 
 async function handleChatCompletion(req: Request, res: Response) {
@@ -59,6 +61,7 @@ async function handleChatCompletion(req: Request, res: Response) {
       model = 'gpt-5o-mini',
       context,
       botId,
+      sessionId,
     } = req.body as ChatRequest;
 
     if (!messages || !Array.isArray(messages)) {
@@ -69,6 +72,7 @@ async function handleChatCompletion(req: Request, res: Response) {
     let finalContext = context || '';
     let finalModel = model;
     let temperature = 0.7;
+    let currentBot: any = null;
 
     if (botId) {
       const [bot] = await db
@@ -78,6 +82,7 @@ async function handleChatCompletion(req: Request, res: Response) {
         .limit(1);
 
       if (bot) {
+        currentBot = bot;
         const user = (req as any).user;
         if (
           bot.userId === user?.id ||
@@ -133,6 +138,28 @@ async function handleChatCompletion(req: Request, res: Response) {
 
     const responseText = response.choices[0]?.message?.content || '';
 
+    // Save conversation and analyze sentiment
+    if (sessionId && botId && currentBot) {
+      const updatedMessages = [
+        ...messages,
+        { role: 'model', text: responseText },
+      ];
+      const user = (req as any).user;
+
+      await chatService.saveConversation(
+        sessionId,
+        botId,
+        updatedMessages,
+        user?.id,
+        user?.organizationId || currentBot.organizationId,
+      );
+
+      const lastUserMessage = messages.filter((m) => m.role === 'user').pop();
+      if (lastUserMessage) {
+        chatService.updateSentiment(sessionId, lastUserMessage.text);
+      }
+    }
+
     res.json({ response: responseText });
   } catch (error: any) {
     console.error('Chat API Error:', error);
@@ -163,7 +190,7 @@ router.post(
   async (req: Request, res: Response) => {
     try {
       const { botId } = req.params;
-      const { messages, model } = req.body as ChatRequest;
+      const { messages, model, sessionId } = req.body as ChatRequest;
 
       if (!messages || !Array.isArray(messages)) {
         return res.status(400).json({ error: 'Messages array is required' });
@@ -227,6 +254,27 @@ router.post(
       });
 
       const responseText = response.choices[0]?.message?.content || '';
+
+      // Save conversation and analyze sentiment
+      if (sessionId) {
+        const updatedMessages = [
+          ...messages,
+          { role: 'model', text: responseText },
+        ];
+        // For public bot chat, we might not have a logged-in user, so userId/orgId might be null
+        // However, we should attribute it to the bot's organization
+        await chatService.saveConversation(
+          sessionId,
+          botId,
+          updatedMessages,
+          undefined, // userId (anonymous)
+          bot.organizationId || undefined,
+        );
+
+        if (userQuery) {
+          chatService.updateSentiment(sessionId, userQuery);
+        }
+      }
 
       res.json({
         response: responseText,

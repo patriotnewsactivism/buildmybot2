@@ -1,5 +1,15 @@
 import { buildApiUrl } from './apiConfig';
 
+const getSessionId = (): string => {
+  if (typeof window === 'undefined') return '';
+  let sessionId = localStorage.getItem('chat_session_id');
+  if (!sessionId) {
+    sessionId = crypto.randomUUID();
+    localStorage.setItem('chat_session_id', sessionId);
+  }
+  return sessionId;
+};
+
 export const generateBotResponse = async (
   systemPrompt: string,
   history: { role: 'user' | 'model'; text: string }[],
@@ -21,6 +31,7 @@ export const generateBotResponse = async (
         systemPrompt,
         model: modelName,
         context,
+        sessionId: getSessionId(),
       }),
     });
 
@@ -65,6 +76,7 @@ export const generateBotResponseWithKnowledge = async (
       body: JSON.stringify({
         messages,
         model: modelName,
+        sessionId: getSessionId(),
       }),
     });
 
@@ -115,6 +127,7 @@ export const generateBotResponseDemo = async (
         systemPrompt,
         model: modelName,
         context,
+        sessionId: getSessionId(),
       }),
     });
 
