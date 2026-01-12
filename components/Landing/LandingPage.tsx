@@ -53,7 +53,12 @@ import {
 } from 'lucide-react';
 import type React from 'react';
 import { useEffect, useRef, useState } from 'react';
-import { PLANS } from '../../constants';
+import {
+  EXPERT_SETUP_SERVICES,
+  PLANS,
+  TEMPLATE_MARKETPLACE_PRICING,
+  VOICE_AGENT_PRICING,
+} from '../../constants';
 import {
   generateBotResponseDemo,
   generateMarketingContent,
@@ -99,6 +104,24 @@ export const LandingPage: React.FC<LandingProps> = ({
   const [monthlyLeads, setMonthlyLeads] = useState(100);
   const [avgDealValue, setAvgDealValue] = useState(5000);
   const [currentConversion, setCurrentConversion] = useState(10);
+
+  const clampNumber = (value: number, min: number, max: number) =>
+    Math.min(Math.max(value, min), max);
+
+  const handleMonthlyLeadsChange = (value: string) => {
+    const next = Number.parseInt(value, 10);
+    setMonthlyLeads(Number.isNaN(next) ? 1 : clampNumber(next, 1, 1000));
+  };
+
+  const handleAvgDealValueChange = (value: string) => {
+    const next = Number.parseInt(value, 10);
+    setAvgDealValue(Number.isNaN(next) ? 100 : clampNumber(next, 100, 50000));
+  };
+
+  const handleCurrentConversionChange = (value: string) => {
+    const next = Number.parseInt(value, 10);
+    setCurrentConversion(Number.isNaN(next) ? 1 : clampNumber(next, 1, 50));
+  };
 
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
@@ -834,61 +857,86 @@ export const LandingPage: React.FC<LandingProps> = ({
                   htmlFor="roi-monthly-leads"
                   className="block text-sm font-medium text-slate-700 mb-2"
                 >
-                  Monthly Website Leads:{' '}
-                  <span className="text-blue-900 font-bold">
-                    {monthlyLeads}
-                  </span>
+                  Monthly Website Leads
                 </label>
-                <input
-                  id="roi-monthly-leads"
-                  type="range"
-                  min="1"
-                  max="1000"
-                  value={monthlyLeads}
-                  onChange={(e) => setMonthlyLeads(Number(e.target.value))}
-                  className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-900"
-                />
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                  <input
+                    id="roi-monthly-leads"
+                    type="number"
+                    inputMode="numeric"
+                    min="1"
+                    max="1000"
+                    step="1"
+                    value={monthlyLeads}
+                    onChange={(e) => handleMonthlyLeadsChange(e.target.value)}
+                    className="w-full sm:w-40 border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <span className="text-xs text-slate-400">
+                    Min 1, max 1,000 leads
+                  </span>
+                </div>
               </div>
               <div>
                 <label
                   htmlFor="roi-avg-deal"
                   className="block text-sm font-medium text-slate-700 mb-2"
                 >
-                  Average Deal Value:{' '}
-                  <span className="text-blue-900 font-bold">
-                    ${avgDealValue.toLocaleString()}
-                  </span>
+                  Average Deal Value
                 </label>
-                <input
-                  id="roi-avg-deal"
-                  type="range"
-                  min="100"
-                  max="50000"
-                  step="100"
-                  value={avgDealValue}
-                  onChange={(e) => setAvgDealValue(Number(e.target.value))}
-                  className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-900"
-                />
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                  <div className="relative w-full sm:w-44">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                      $
+                    </span>
+                    <input
+                      id="roi-avg-deal"
+                      type="number"
+                      inputMode="numeric"
+                      min="100"
+                      max="50000"
+                      step="100"
+                      value={avgDealValue}
+                      onChange={(e) =>
+                        handleAvgDealValueChange(e.target.value)
+                      }
+                      className="w-full border border-slate-200 rounded-lg pl-7 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <span className="text-xs text-slate-400">
+                    Min $100, max $50,000
+                  </span>
+                </div>
               </div>
               <div>
                 <label
                   htmlFor="roi-current-conversion"
                   className="block text-sm font-medium text-slate-700 mb-2"
                 >
-                  Current Conversion Rate:{' '}
-                  <span className="text-blue-900 font-bold">
-                    {currentConversion}%
-                  </span>
+                  Current Conversion Rate
                 </label>
-                <input
-                  id="roi-current-conversion"
-                  type="range"
-                  min="1"
-                  max="50"
-                  value={currentConversion}
-                  onChange={(e) => setCurrentConversion(Number(e.target.value))}
-                  className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-900"
-                />
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                  <div className="relative w-full sm:w-32">
+                    <input
+                      id="roi-current-conversion"
+                      type="number"
+                      inputMode="numeric"
+                      min="1"
+                      max="50"
+                      step="1"
+                      value={currentConversion}
+                      onChange={(e) =>
+                        handleCurrentConversionChange(e.target.value)
+                      }
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+                      %
+                    </span>
+                  </div>
+                  <span className="text-xs text-slate-400">
+                    Min 1%, max 50%
+                  </span>
+                </div>
               </div>
             </div>
             <div className="bg-gradient-to-br from-blue-900 to-blue-800 rounded-2xl p-8 text-white">
@@ -1058,7 +1106,7 @@ export const LandingPage: React.FC<LandingProps> = ({
           <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
             <div>
               <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-sm font-bold mb-6">
-                <Briefcase size={16} /> Partner/Reseller Program
+                <Briefcase size={16} /> Sales Agent + Partner Program
               </div>
               <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold mb-4 sm:mb-6 leading-tight">
                 Start Your Own AI Agency.
@@ -1068,24 +1116,34 @@ export const LandingPage: React.FC<LandingProps> = ({
                 </span>
               </h2>
               <p className="text-slate-300 text-lg mb-8 leading-relaxed">
-                White-label our technology under your brand. Sell AI chatbots to
-                local businesses while we handle all the infrastructure. Zero
-                coding required.
+                Start as a sales agent or unlock partner access immediately.
+                Partners can white-label under their own branding and domain or
+                keep operating as BuildMyBot.App while we handle the
+                infrastructure.
               </p>
               <ul className="space-y-3 mb-8">
                 <li className="flex items-center gap-3 text-slate-200">
-                  <CheckCircle size={20} className="text-emerald-400" /> Earn
-                  20%-50% recurring commissions (grow your way up)
+                  <CheckCircle size={20} className="text-emerald-400" /> Sales
+                  agents earn 20%-50% recurring commissions as they grow
                 </li>
                 <li className="flex items-center gap-3 text-slate-200">
-                  <CheckCircle size={20} className="text-emerald-400" /> Or pay
-                  $499 once for instant 50% Whitelabel access
+                  <CheckCircle size={20} className="text-emerald-400" /> Partner
+                  access is $499/mo for immediate 50% on new accounts
                 </li>
                 <li className="flex items-center gap-3 text-slate-200">
                   <CheckCircle size={20} className="text-emerald-400" /> Your
-                  brand, your pricing, your clients
+                  Partner status at 251+ active accounts or with the $499/mo
+                  plan
+                </li>
+                <li className="flex items-center gap-3 text-slate-200">
+                  <CheckCircle size={20} className="text-emerald-400" /> Optional
+                  white-label branding or stay BuildMyBot.App
                 </li>
               </ul>
+              <p className="text-xs text-emerald-200/80">
+                50% partner split applies to new accounts created after
+                enrollment. Existing accounts keep their current rate.
+              </p>
               <a
                 href="/partner-program"
                 className="bg-emerald-500 text-white px-8 py-4 rounded-xl font-bold text-lg hover:bg-emerald-600 transition-all shadow-xl shadow-emerald-500/30 flex items-center gap-3"
@@ -1141,10 +1199,10 @@ export const LandingPage: React.FC<LandingProps> = ({
                     50%
                   </div>
                   <div className="text-[10px] sm:text-xs text-amber-300">
-                    Whitelabel
+                    Partner Access
                   </div>
                   <div className="text-[8px] sm:text-[10px] text-amber-400/70">
-                    $499 instant
+                    $499/mo new accounts
                   </div>
                 </div>
               </div>
@@ -1330,6 +1388,72 @@ export const LandingPage: React.FC<LandingProps> = ({
               );
             })}
           </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+            <div className="bg-slate-50 rounded-xl border border-slate-200 p-5">
+              <h3 className="font-bold text-slate-900 mb-3">
+                Voice Agent Pricing
+              </h3>
+              <ul className="space-y-2 text-sm text-slate-600">
+                {VOICE_AGENT_PRICING.map((tier) => (
+                  <li
+                    key={tier.id}
+                    className="flex items-center justify-between gap-3"
+                  >
+                    <span>{tier.name}</span>
+                    <span className="font-semibold text-slate-900">
+                      ${tier.price}/mo ·{' '}
+                      {tier.minutesIncluded.toLocaleString()} min
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="bg-slate-50 rounded-xl border border-slate-200 p-5">
+              <h3 className="font-bold text-slate-900 mb-3">
+                Expert Setup Services
+              </h3>
+              <ul className="space-y-3 text-sm text-slate-600">
+                {EXPERT_SETUP_SERVICES.map((service) => (
+                  <li key={service.id}>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-medium text-slate-800">
+                        {service.name}
+                      </span>
+                      <span className="font-semibold text-slate-900">
+                        ${service.price}
+                      </span>
+                    </div>
+                    <div className="text-xs text-slate-500 mt-1">
+                      {service.deliveryDays} days ·{' '}
+                      {service.highlights.join(' • ')}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="bg-slate-50 rounded-xl border border-slate-200 p-5">
+              <h3 className="font-bold text-slate-900 mb-3">
+                Template Marketplace
+              </h3>
+              <ul className="space-y-2 text-sm text-slate-600">
+                {TEMPLATE_MARKETPLACE_PRICING.map((tier) => (
+                  <li
+                    key={tier.id}
+                    className="flex items-center justify-between gap-3"
+                  >
+                    <span>{tier.name}</span>
+                    <span className="font-semibold text-slate-900">
+                      {tier.price === 0 ? 'Free' : `$${tier.price}`}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+          <p className="text-xs text-slate-500 text-center">
+            Voice plans are billed monthly. Setup services and template packs are
+            one-time purchases.
+          </p>
         </section>
 
         {/* 11. FAQ Section */}
