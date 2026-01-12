@@ -6,13 +6,13 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { DashboardShell } from '../../../components/Dashboard/DashboardShell';
-import { RouteGuard } from '../../../components/Dashboard/RouteGuard';
-import { DashboardProvider } from '../../../hooks/useDashboardContext';
-import { type User, UserRole } from '../../../types';
+import { DashboardShell } from '../../components/Dashboard/DashboardShell';
+import { RouteGuard } from '../../components/Dashboard/RouteGuard';
+import { DashboardProvider } from '../../hooks/useDashboardContext';
+import { type User, UserRole } from '../../types';
 
 // Mock dbService
-vi.mock('../../../services/dbService', () => ({
+vi.mock('../../services/dbService', () => ({
   dbService: {
     getActiveImpersonations: vi.fn().mockResolvedValue([]),
     getUser: vi.fn(),
@@ -94,7 +94,7 @@ describe('Dashboard Flow Integration', () => {
   });
 
   it('handles impersonation flow', async () => {
-    const { dbService } = await import('../../../services/dbService');
+    const { dbService } = await import('../../services/dbService');
     const user = userEvent.setup();
 
     const mockImpersonatedUser: User = {
