@@ -1,8 +1,9 @@
-import { type Request, type Response, Router } from 'express';
+import { type Response, Router } from 'express';
 import {
   authenticate,
   authorize,
   loadOrganizationContext,
+  type AuthRequest,
 } from '../middleware';
 import { AuditService } from '../services';
 
@@ -20,12 +21,16 @@ router.use(loadOrganizationContext);
 router.get(
   '/organization/:orgId',
   authorize(['MasterAdmin', 'Admin', 'ADMIN', 'Partner']),
-  async (req: Request, res: Response) => {
+  async (req: AuthRequest, res: Response) => {
     try {
       const { orgId } = req.params;
       const limit = Number.parseInt(req.query.limit as string) || 100;
-      const user = (req as any).user;
-      const organization = (req as any).organization;
+      const user = req.user;
+      const organization = req.organization;
+
+      if (!user) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
 
       // Check if user has access to this organization
       if (
@@ -54,7 +59,7 @@ router.get(
 router.get(
   '/user/:userId',
   authorize(['MasterAdmin', 'Admin', 'ADMIN']),
-  async (req: Request, res: Response) => {
+  async (req: AuthRequest, res: Response) => {
     try {
       const { userId } = req.params;
       const limit = Number.parseInt(req.query.limit as string) || 100;
@@ -74,7 +79,7 @@ router.get(
 // ========================================
 router.get(
   '/resource/:resourceType/:resourceId',
-  async (req: Request, res: Response) => {
+  async (req: AuthRequest, res: Response) => {
     try {
       const { resourceType, resourceId } = req.params;
       const limit = Number.parseInt(req.query.limit as string) || 50;

@@ -1,20 +1,21 @@
-import type { NextFunction, Request, RequestHandler, Response } from 'express';
+import type { NextFunction, RequestHandler, Response } from 'express';
+import type { AuthRequest } from './auth';
 
 // ========================================
 // TENANT ISOLATION MIDDLEWARE
 // ========================================
 
 export function tenantIsolation(): RequestHandler {
-  return async (req: Request, res: Response, next: NextFunction) => {
+  return async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-      const user = (req as any).user;
+      const user = req.user;
       if (!user) {
         return res
           .status(401)
           .json({ error: 'Authentication required for tenant isolation' });
       }
 
-      const organization = (req as any).organization;
+      const organization = req.organization;
       if (!organization) {
         // User doesn't belong to an organization yet
         // This is okay for initial setup
@@ -38,9 +39,9 @@ export function tenantIsolation(): RequestHandler {
 // ========================================
 
 export function verifyResourceOwnership(resourceType: string): RequestHandler {
-  return async (req: Request, res: Response, next: NextFunction) => {
+  return async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-      const user = (req as any).user;
+      const user = req.user;
       if (!user) {
         return res.status(401).json({ error: 'Authentication required' });
       }

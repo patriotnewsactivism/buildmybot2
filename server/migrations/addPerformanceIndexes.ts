@@ -307,7 +307,9 @@ export async function addPerformanceIndexes(): Promise<IndexResult> {
 
   if (result.errors.length > 0) {
     console.log('\n⚠️  Errors encountered:');
-    result.errors.forEach((error) => console.log(`   - ${error}`));
+    for (const error of result.errors) {
+      console.log(`   - ${error}`);
+    }
   }
 
   console.log('\n✅ Performance indexes migration complete!');
@@ -316,7 +318,8 @@ export async function addPerformanceIndexes(): Promise<IndexResult> {
 }
 
 // Run if executed directly (ES module compatible)
-const isMainModule = import.meta.url === `file://${process.argv[1].replace(/\\/g, '/')}`;
+const isMainModule =
+  import.meta.url === `file://${process.argv[1].replace(/\\/g, '/')}`;
 if (isMainModule) {
   addPerformanceIndexes()
     .then((result) => {
