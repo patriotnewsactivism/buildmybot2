@@ -1346,7 +1346,7 @@ export const LandingPage: React.FC<LandingProps> = ({
               return (
                 <div
                   key={key}
-                  className={`relative bg-white rounded-2xl p-6 border-2 ${isPopular ? 'border-blue-900 shadow-xl' : 'border-slate-200'}`}
+                  className={`relative rounded-2xl p-6 border-2 bg-white shadow-[0_18px_40px_rgba(15,23,42,0.12)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_55px_rgba(15,23,42,0.18)] ${isPopular ? 'border-blue-900 ring-2 ring-blue-900/20' : 'border-slate-200 ring-1 ring-slate-200/60'}`}
                 >
                   {isPopular && (
                     <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-blue-900 text-white text-xs font-bold px-3 py-1 rounded-full">
@@ -1354,24 +1354,32 @@ export const LandingPage: React.FC<LandingProps> = ({
                     </div>
                   )}
                   <h3 className="font-bold text-lg mb-1">{plan.name}</h3>
-                  <div className="flex items-baseline gap-1 mb-4">
-                    <span className="text-3xl font-extrabold">
-                      ${plan.price}
-                    </span>
-                    {plan.price > 0 && (
-                      <span className="text-slate-500">/mo</span>
-                    )}
+                  <div className="mb-4">
+                    <div
+                      className={`inline-flex items-baseline gap-2 rounded-xl border-2 px-4 py-3 ${isPopular ? 'border-blue-900 bg-blue-50 text-blue-900 shadow-[0_12px_25px_rgba(15,23,42,0.18)]' : 'border-slate-200 bg-slate-50 text-slate-900 shadow-sm'}`}
+                    >
+                      <span className="text-4xl font-extrabold tracking-tight">
+                        ${plan.price}
+                      </span>
+                      {plan.price > 0 && (
+                        <span
+                          className={`text-sm font-semibold ${isPopular ? 'text-blue-900/70' : 'text-slate-600'}`}
+                        >
+                          /mo
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="text-sm text-slate-600 mb-4">
                     {plan.bots >= 9999 ? 'Unlimited' : plan.bots} bot
-                    {plan.bots !== 1 ? 's' : ''} ·{' '}
+                    {plan.bots !== 1 ? 's' : ''} -{' '}
                     {plan.conversations.toLocaleString()} convos
                   </div>
                   <ul className="space-y-2 mb-6">
                     {plan.features.slice(0, 4).map((f) => (
                       <li
                         key={f}
-                        className="flex items-start gap-2 text-sm text-slate-600"
+                        className="flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                       >
                         <CheckCircle
                           size={16}
@@ -1393,7 +1401,7 @@ export const LandingPage: React.FC<LandingProps> = ({
             })}
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
-            <div className="bg-slate-50 rounded-xl border border-slate-200 p-5">
+            <div className="bg-white rounded-2xl border-2 border-slate-200 p-6 shadow-[0_15px_30px_rgba(15,23,42,0.12)] transition hover:-translate-y-1 hover:shadow-[0_20px_40px_rgba(15,23,42,0.16)]">
               <h3 className="font-bold text-slate-900 mb-3">
                 Voice Agent Pricing
               </h3>
@@ -1401,24 +1409,27 @@ export const LandingPage: React.FC<LandingProps> = ({
                 {VOICE_AGENT_PRICING.map((tier) => (
                   <li
                     key={tier.id}
-                    className="flex items-center justify-between gap-3"
+                    className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 shadow-sm"
                   >
                     <span>{tier.name}</span>
                     <span className="font-semibold text-slate-900">
-                      ${tier.price}/mo ·{' '}
+                      ${tier.price}/mo -{' '}
                       {tier.minutesIncluded.toLocaleString()} min
                     </span>
                   </li>
                 ))}
               </ul>
             </div>
-            <div className="bg-slate-50 rounded-xl border border-slate-200 p-5">
+            <div className="bg-white rounded-2xl border-2 border-slate-200 p-6 shadow-[0_15px_30px_rgba(15,23,42,0.12)] transition hover:-translate-y-1 hover:shadow-[0_20px_40px_rgba(15,23,42,0.16)]">
               <h3 className="font-bold text-slate-900 mb-3">
                 Expert Setup Services
               </h3>
               <ul className="space-y-3 text-sm text-slate-600">
                 {EXPERT_SETUP_SERVICES.map((service) => (
-                  <li key={service.id}>
+                  <li
+                    key={service.id}
+                    className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 shadow-sm"
+                  >
                     <div className="flex items-center justify-between gap-3">
                       <span className="font-medium text-slate-800">
                         {service.name}
@@ -1428,14 +1439,14 @@ export const LandingPage: React.FC<LandingProps> = ({
                       </span>
                     </div>
                     <div className="text-xs text-slate-500 mt-1">
-                      {service.deliveryDays} days ·{' '}
-                      {service.highlights.join(' • ')}
+                      {service.deliveryDays} days -{' '}
+                      {service.highlights.join(' - ')}
                     </div>
                   </li>
                 ))}
               </ul>
             </div>
-            <div className="bg-slate-50 rounded-xl border border-slate-200 p-5">
+            <div className="bg-white rounded-2xl border-2 border-slate-200 p-6 shadow-[0_15px_30px_rgba(15,23,42,0.12)] transition hover:-translate-y-1 hover:shadow-[0_20px_40px_rgba(15,23,42,0.16)]">
               <h3 className="font-bold text-slate-900 mb-3">
                 Template Marketplace
               </h3>
@@ -1443,7 +1454,7 @@ export const LandingPage: React.FC<LandingProps> = ({
                 {TEMPLATE_MARKETPLACE_PRICING.map((tier) => (
                   <li
                     key={tier.id}
-                    className="flex items-center justify-between gap-3"
+                    className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 shadow-sm"
                   >
                     <span>{tier.name}</span>
                     <span className="font-semibold text-slate-900">
@@ -1507,7 +1518,7 @@ export const LandingPage: React.FC<LandingProps> = ({
           </h2>
           <p className="text-xl text-blue-200 mb-8 max-w-2xl mx-auto">
             Start using BuildMyBot today to capture, qualify, and convert leads
-            24/7. Start free today — no credit card required.
+            24/7. Start free today - no credit card required.
           </p>
           <div className="flex flex-col sm:flex-row justify-center gap-4">
             <button
