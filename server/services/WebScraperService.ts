@@ -16,29 +16,32 @@ export class WebScraperService {
   private static readonly MAX_CONTENT_LENGTH = 50000;
   private static readonly RATE_LIMIT_MS = 1000;
   private static lastRequestTime = 0;
+  private static readonly USER_AGENTS = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 13_6_1) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+  ];
+  private static readonly SKIP_EXTENSIONS = new Set([
+    '.jpg',
+    '.jpeg',
+    '.png',
+    '.gif',
+    '.webp',
+    '.svg',
+    '.pdf',
+    '.zip',
+    '.rar',
+    '.7z',
+    '.mp4',
+    '.mp3',
+    '.avi',
+  ]);
 
   static async scrapeUrl(url: string): Promise<ScrapedContent> {
     await WebScraperService.rateLimit();
 
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000);
-
-      const response = await fetch(url, {
-        headers: {
-          'User-Agent': 'BuildMyBot/1.0 Knowledge Scraper',
-          Accept: 'text/html,application/xhtml+xml',
-        },
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const html = await response.text();
+      const html = await WebScraperService.fetchHtml(url);
       const title = WebScraperService.extractTitle(html);
       const description = WebScraperService.extractMetaDescription(html);
       const content = WebScraperService.extractText(html);
@@ -65,9 +68,10 @@ export class WebScraperService {
     organizationId?: string,
   ): Promise<ScrapedContent[]> {
     const visited = new Set<string>();
-    const toVisit = [startUrl];
+    const normalizedStartUrl = WebScraperService.normalizeUrl(startUrl);
+    const toVisit = [normalizedStartUrl];
     const results: ScrapedContent[] = [];
-    const baseUrl = new URL(startUrl);
+    const baseUrl = new URL(normalizedStartUrl);
 
     while (toVisit.length > 0 && results.length < maxPages) {
       const currentUrl = toVisit.shift()!;
@@ -100,11 +104,12 @@ export class WebScraperService {
         for (const link of scraped.links) {
           try {
             const linkUrl = new URL(link, currentUrl);
+            const normalizedLink = WebScraperService.normalizeUrl(linkUrl.href);
             if (
-              linkUrl.hostname === baseUrl.hostname &&
-              !visited.has(linkUrl.href)
+              WebScraperService.shouldVisitUrl(linkUrl, baseUrl) &&
+              !visited.has(normalizedLink)
             ) {
-              toVisit.push(linkUrl.href);
+              toVisit.push(normalizedLink);
             }
           } catch {}
         }
@@ -154,6 +159,10 @@ export class WebScraperService {
       .replace(/<header\b[^<]*(?:(?!<\/header>)<[^<]*)*<\/header>/gi, ' ')
       .replace(/<footer\b[^<]*(?:(?!<\/footer>)<[^<]*)*<\/footer>/gi, ' ')
       .replace(/<aside\b[^<]*(?:(?!<\/aside>)<[^<]*)*<\/aside>/gi, ' ')
+      .replace(/<noscript\b[^<]*(?:(?!<\/noscript>)<[^<]*)*<\/noscript>/gi, ' ')
+      .replace(/<svg\b[^<]*(?:(?!<\/svg>)<[^<]*)*<\/svg>/gi, ' ')
+      .replace(/<form\b[^<]*(?:(?!<\/form>)<[^<]*)*<\/form>/gi, ' ')
+      .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, ' ')
       .replace(/<!--[\s\S]*?-->/g, ' ')
       .replace(/<[^>]+>/g, ' ')
       .replace(/&nbsp;/g, ' ')
@@ -170,14 +179,19 @@ export class WebScraperService {
 
   static extractLinks(html: string, baseUrl: string): string[] {
     const links: string[] = [];
-    const linkPattern = /<a[^>]+href=["']([^"'#]+)["']/gi;
+    const linkPattern = /<a[^>]+href=["']([^"'#\s]+)["']/gi;
     let match;
 
     while ((match = linkPattern.exec(html)) !== null) {
-      const href = match[1];
-      if (!href.startsWith('javascript:') && !href.startsWith('mailto:')) {
-        links.push(href);
+      const href = match[1].trim();
+      if (
+        href.startsWith('javascript:') ||
+        href.startsWith('mailto:') ||
+        href.startsWith('tel:')
+      ) {
+        continue;
       }
+      links.push(href);
     }
 
     return [...new Set(links)].slice(0, 100);
@@ -217,6 +231,59 @@ export class WebScraperService {
       hash = hash & hash;
     }
     return Math.abs(hash).toString(16);
+  }
+
+  private static async fetchHtml(url: string): Promise<string> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    const headers = {
+      'User-Agent': WebScraperService.pickUserAgent(),
+      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'en-US,en;q=0.9',
+      'Cache-Control': 'no-cache',
+    };
+
+    try {
+      const response = await fetch(url, {
+        headers,
+        redirect: 'follow',
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType && !contentType.includes('text/html')) {
+        throw new Error(`Unsupported content type: ${contentType}`);
+      }
+
+      return await response.text();
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  private static pickUserAgent(): string {
+    const agents = WebScraperService.USER_AGENTS;
+    return agents[Math.floor(Math.random() * agents.length)];
+  }
+
+  private static normalizeUrl(url: string): string {
+    const normalized = new URL(url);
+    normalized.hash = '';
+    return normalized.toString().replace(/\/$/, '');
+  }
+
+  private static shouldVisitUrl(linkUrl: URL, baseUrl: URL): boolean {
+    if (linkUrl.hostname !== baseUrl.hostname) return false;
+    const lastDot = linkUrl.pathname.lastIndexOf('.');
+    if (lastDot !== -1) {
+      const extension = linkUrl.pathname.slice(lastDot).toLowerCase();
+      if (WebScraperService.SKIP_EXTENSIONS.has(extension)) return false;
+    }
+    return true;
   }
 
   private static async rateLimit(): Promise<void> {
