@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import compression from 'compression';
 import connectPgSimple from 'connect-pg-simple';
 import cors from 'cors';
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import express from 'express';
 import session from 'express-session';
 import multer from 'multer';
@@ -22,9 +22,11 @@ import {
   botTemplates,
   bots,
   conversations,
+  knowledgeSources,
   leads,
   users,
 } from '../shared/schema';
+import { WebScraperService } from './services/WebScraperService';
 import { db, pool } from './db';
 import {
   apiLimiter,
@@ -435,11 +437,42 @@ const apiAuthStack = [
 app.get('/api/bots', ...apiAuthStack, async (req, res) => {
   try {
     const userId = req.query.userId as string;
-    let allBots;
+    const organizationId =
+      (req as any).organization?.id || (req.query.organizationId as string);
+
+    let conditions = [];
+
     if (userId) {
-      allBots = await db.select().from(bots).where(eq(bots.userId, userId));
+      conditions.push(eq(bots.userId, userId));
+    }
+    if (organizationId) {
+      conditions.push(eq(bots.organizationId, organizationId));
+    }
+
+    let allBots;
+    if (conditions.length > 0) {
+      allBots = await db
+        .select()
+        .from(bots)
+        .where(and(...conditions));
     } else {
-      allBots = await db.select().from(bots);
+      // Fallback: If no filters, return empty array for safety instead of all bots
+      // or check if user is admin
+      const user = (req as any).user;
+      if (
+        user?.role === 'ADMIN' ||
+        user?.role === 'Admin' ||
+        user?.role === 'MasterAdmin'
+      ) {
+        allBots = await db.select().from(bots);
+      } else {
+        // If regular user/no context, only show their own bots if user exists
+        if (user?.id) {
+          allBots = await db.select().from(bots).where(eq(bots.userId, user.id));
+        } else {
+          allBots = [];
+        }
+      }
     }
     res.json(allBots);
   } catch (error) {
@@ -501,7 +534,16 @@ app.get('/api/public/bots/:id', async (req, res) => {
 app.post('/api/bots', ...apiAuthStack, async (req, res) => {
   try {
     const user = (req as any).user;
+    console.log('Creating bot for user:', user?.id, 'Org:', user?.organizationId);
+    
     const botId = uuidv4();
+    const targetUserId = user?.id || req.body.userId;
+    const targetOrgId = user?.organizationId || req.body.organizationId;
+
+    if (!targetUserId) {
+       console.warn('Attempted to create bot without User ID');
+       // We might allow it if it's a system bot, but for now warning is good.
+    }
 
     // Only include valid bot fields to prevent column mismatch errors
     const botData = {
@@ -528,8 +570,8 @@ app.post('/api/bots', ...apiAuthStack, async (req, res) => {
         nameRequired: false,
         phoneRequired: false,
       },
-      userId: user?.id || req.body.userId,
-      organizationId: user?.organizationId || req.body.organizationId,
+      userId: targetUserId,
+      organizationId: targetOrgId,
       isPublic: req.body.isPublic ?? true,
       analytics: req.body.analytics || {},
       createdAt: new Date(),
@@ -562,6 +604,48 @@ app.post('/api/bots', ...apiAuthStack, async (req, res) => {
     }
 
     const [newBot] = await db.insert(bots).values(botData).returning();
+
+    // Process knowledge base URLs
+    if (
+      Array.isArray(botData.knowledgeBase) &&
+      botData.knowledgeBase.length > 0
+    ) {
+      for (const item of botData.knowledgeBase) {
+        if (typeof item === 'string' && item.startsWith('http')) {
+          try {
+            const sourceId = uuidv4();
+            await db.insert(knowledgeSources).values({
+              id: sourceId,
+              botId: newBot.id,
+              organizationId: newBot.organizationId,
+              sourceType: 'url',
+              sourceName: new URL(item).hostname,
+              sourceUrl: item,
+              status: 'processing',
+              pagesCrawled: 0,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            });
+
+            // Trigger scraper asynchronously
+            WebScraperService.crawlWebsite(
+              item,
+              1, // Default depth
+              sourceId,
+              newBot.id,
+              newBot.organizationId,
+            ).catch((err) =>
+              console.error(`Failed to scrape ${item} for bot ${newBot.id}:`, err),
+            );
+          } catch (err) {
+            console.error(
+              `Failed to create knowledge source for ${item}:`,
+              err,
+            );
+          }
+        }
+      }
+    }
 
     // Ensure audit log for reliability
     try {
@@ -882,18 +966,47 @@ app.post('/api/users/:id/apply-credits', ...apiAuthStack, async (req, res) => {
 app.get('/api/conversations', ...apiAuthStack, async (req, res) => {
   try {
     const userId = req.query.userId as string;
-    let allConversations;
+    const botId = req.query.botId as string;
+    const organizationId =
+      (req as any).organization?.id || (req.query.organizationId as string);
+
+    let conditions = [];
+
     if (userId) {
+      conditions.push(eq(conversations.userId, userId));
+    }
+    if (botId) {
+      conditions.push(eq(conversations.botId, botId));
+    }
+    if (organizationId) {
+      conditions.push(eq(conversations.organizationId, organizationId));
+    }
+
+    let allConversations;
+    if (conditions.length > 0) {
       allConversations = await db
         .select()
         .from(conversations)
-        .where(eq(conversations.userId, userId))
+        .where(and(...conditions))
         .orderBy(desc(conversations.timestamp));
     } else {
-      allConversations = await db
+      // If no filters, return empty or limit to user's org context
+       const user = (req as any).user;
+        if (
+        user?.role === 'ADMIN' ||
+        user?.role === 'Admin' ||
+        user?.role === 'MasterAdmin'
+      ) {
+         allConversations = await db
         .select()
         .from(conversations)
         .orderBy(desc(conversations.timestamp));
+      } else {
+         // Default to user's context if available, otherwise empty
+         // Note: Conversations might not always have userId if anonymous, so we rely on organizationId usually.
+         // But if we are here, organizationId was undefined.
+         allConversations = [];
+      }
     }
     res.json(allConversations);
   } catch (error) {
