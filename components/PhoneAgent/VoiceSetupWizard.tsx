@@ -9,7 +9,9 @@ import {
   Phone,
   Play,
   Save,
+  Search,
   Shield,
+  ShoppingBag,
   Sparkles,
   Volume2,
 } from 'lucide-react';
@@ -30,6 +32,7 @@ interface VoiceConfig {
   cartesiaApiKey: string;
   delegationLink?: string;
   phoneNumber?: string;
+  twilioSid?: string;
 }
 
 const VOICE_OPTIONS = [
@@ -116,11 +119,19 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
     cartesiaApiKey: user.phoneConfig?.cartesiaApiKey || '',
     delegationLink: user.phoneConfig?.delegationLink || '',
     phoneNumber: user.phoneConfig?.phoneNumber || '',
+    twilioSid: user.phoneConfig?.twilioSid || '',
   });
   const [isPlayingPreview, setIsPlayingPreview] = useState<string | null>(null);
   const [testCallStatus, setTestCallStatus] = useState<
     'idle' | 'calling' | 'success'
   >('idle');
+
+  // Phone number purchase state
+  const [searchAreaCode, setSearchAreaCode] = useState('');
+  const [availableNumbers, setAvailableNumbers] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [isPurchasing, setIsPurchasing] = useState(false);
+  const [purchaseError, setPurchaseError] = useState<string | null>(null);
 
   const selectedVoice =
     VOICE_OPTIONS.find((v) => v.id === config.voiceId) || VOICE_OPTIONS[0];
@@ -212,6 +223,77 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
       console.error(err);
       alert('Test call failed. Please verify your configuration.');
       setTestCallStatus('idle');
+    }
+  };
+
+  const handleSearchNumbers = async () => {
+    if (!searchAreaCode && searchAreaCode.length < 3) {
+      alert('Please enter a valid 3-digit area code');
+      return;
+    }
+    
+    setIsSearching(true);
+    setAvailableNumbers([]);
+    setPurchaseError(null);
+
+    try {
+      const response = await fetch(`/api/phone/available?countryCode=US&areaCode=${searchAreaCode}`);
+      if (!response.ok) throw new Error('Failed to search numbers');
+      const data = await response.json();
+      setAvailableNumbers(data);
+    } catch (err: any) {
+      setPurchaseError(err.message || 'Error searching for numbers');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handlePurchaseNumber = async (phoneNumber: string) => {
+    if (!confirm(`Are you sure you want to purchase ${phoneNumber}? This will be billed to your account.`)) {
+      return;
+    }
+
+    setIsPurchasing(true);
+    setPurchaseError(null);
+
+    try {
+      const response = await fetch('/api/phone/purchase', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phoneNumber, friendlyName: `Voice Agent - ${user.companyName || 'Bot'}` }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'Failed to purchase number');
+      }
+
+      const data = await response.json();
+      setConfig({
+        ...config,
+        phoneNumber: data.phoneNumber,
+        twilioSid: data.sid
+      });
+      alert('Phone number purchased successfully!');
+    } catch (err: any) {
+      setPurchaseError(err.message || 'Error purchasing number');
+    } finally {
+      setIsPurchasing(false);
+    }
+  };
+
+  const handleReleaseNumber = async () => {
+     if (!confirm('Are you sure you want to release this phone number? You will lose access to it.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/phone/release', { method: 'POST' });
+      if (!response.ok) throw new Error('Failed to release number');
+      setConfig({ ...config, phoneNumber: '', twilioSid: '' });
+      setAvailableNumbers([]);
+    } catch (err: any) {
+      alert(err.message);
     }
   };
 
@@ -554,37 +636,85 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
                 </p>
               </div>
 
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="text-sm text-blue-900">
-                  <strong>Coming Soon:</strong> We're integrating with Twilio
-                  and Vapi to provide phone numbers. For now, you can test with
-                  the web interface.
-                </p>
-              </div>
+              {purchaseError && (
+                 <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm border border-red-200">
+                   {purchaseError}
+                 </div>
+              )}
 
-              <div>
-                <label
-                  htmlFor="voice-setup-phone-number"
-                  className="block text-sm font-medium text-slate-700 mb-2"
-                >
-                  Phone Number (Optional)
-                </label>
-                <input
-                  id="voice-setup-phone-number"
-                  type="tel"
-                  value={config.phoneNumber || ''}
-                  onChange={(e) =>
-                    setConfig({ ...config, phoneNumber: e.target.value })
-                  }
-                  placeholder="+1 (555) 123-4567"
-                  className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-600 focus:border-transparent"
-                />
-                <p className="text-xs text-slate-500 mt-1">
-                  Leave blank to use web-based calling only
-                </p>
-              </div>
+              {config.phoneNumber ? (
+                 <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-center">
+                   <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                     <CheckCircle className="text-green-600" size={24} />
+                   </div>
+                   <h4 className="text-lg font-bold text-slate-900 mb-1">
+                     {config.phoneNumber}
+                   </h4>
+                   <p className="text-sm text-slate-600 mb-4">
+                     Active and routed to your voice agent
+                   </p>
+                   <button
+                     type="button"
+                     onClick={handleReleaseNumber}
+                     className="text-red-600 hover:text-red-700 text-sm font-medium"
+                   >
+                     Release Number
+                   </button>
+                 </div>
+              ) : (
+                <>
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <label htmlFor="area-code" className="sr-only">Area Code</label>
+                      <input
+                        id="area-code"
+                        type="text"
+                        value={searchAreaCode}
+                        onChange={(e) => setSearchAreaCode(e.target.value.replace(/\D/g, '').slice(0, 3))}
+                        placeholder="Area Code (e.g. 415)"
+                        className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleSearchNumbers}
+                      disabled={isSearching || searchAreaCode.length < 3}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+                    >
+                      {isSearching ? <Loader size={16} className="animate-spin" /> : <Search size={16} />}
+                      Search
+                    </button>
+                  </div>
 
-              <div>
+                  {availableNumbers.length > 0 && (
+                    <div className="border border-slate-200 rounded-lg overflow-hidden max-h-60 overflow-y-auto">
+                      {availableNumbers.map((num) => (
+                        <div key={num.phoneNumber} className="flex items-center justify-between p-3 border-b border-slate-100 last:border-0 hover:bg-slate-50">
+                           <div>
+                             <p className="font-medium text-slate-900">{num.friendlyName}</p>
+                             <p className="text-xs text-slate-500">{num.locality}, {num.region}</p>
+                           </div>
+                           <button
+                             type="button"
+                             onClick={() => handlePurchaseNumber(num.phoneNumber)}
+                             disabled={isPurchasing}
+                             className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 disabled:opacity-50 flex items-center gap-1"
+                           >
+                             <ShoppingBag size={14} />
+                             Buy
+                           </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  <div className="text-xs text-slate-500 mt-2 text-center">
+                    Phone numbers are provided via Twilio. Standard rates apply.
+                  </div>
+                </>
+              )}
+
+              <div className="border-t border-slate-200 pt-4 mt-4">
                 <label
                   htmlFor="voice-setup-delegation-link"
                   className="block text-sm font-medium text-slate-700 mb-2"
