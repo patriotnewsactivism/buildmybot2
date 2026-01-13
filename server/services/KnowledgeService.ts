@@ -59,7 +59,30 @@ export class KnowledgeService {
       .where(eq(knowledgeChunks.botId, botId))
       .limit(200);
 
-    const scoredChunks = chunks.map((chunk) => {
+    // Fetch manual knowledge base from bot definition
+    const [bot] = await db
+      .select({ knowledgeBase: bots.knowledgeBase })
+      .from(bots)
+      .where(eq(bots.id, botId))
+      .limit(1);
+
+    const manualChunks: any[] = [];
+    if (bot && Array.isArray(bot.knowledgeBase)) {
+      bot.knowledgeBase.forEach((item: any, index: number) => {
+        if (typeof item === 'string' && item.trim().length > 0 && !item.startsWith('http')) {
+             manualChunks.push({
+            id: `manual-${index}`,
+            content: item,
+            metadata: { title: 'Manual Entry' },
+            sourceId: 'manual',
+          });
+        }
+      });
+    }
+
+    const allChunks = [...chunks, ...manualChunks];
+
+    const scoredChunks = allChunks.map((chunk) => {
       const content = chunk.content.toLowerCase();
       let score = 0;
 
