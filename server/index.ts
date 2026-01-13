@@ -57,6 +57,7 @@ import {
   notificationsRouter,
   organizationsRouter,
   partnersRouter,
+  phoneRouter,
   revenueRouter,
   templatesRouter,
   webhooksRouter,
@@ -1306,6 +1307,9 @@ app.use(
 
 // Multi-channel deployment
 app.use('/api/channels', channelsRouter);
+
+// Phone number management (Twilio)
+app.use('/api/phone', phoneRouter);
 
 // Webhook management
 app.use('/api/webhooks', webhooksRouter);
