@@ -37,6 +37,7 @@
     "set-admin-permissions": "echo 'DEPRECATED: Admin permissions are now set via db:seed --only=user-roles' && tsx scripts/setAdminPermissions.ts"
   },
   "dependencies": {
+    "@mozilla/readability": "^0.6.0",
     "@sentry/node": "^10.32.1",
     "@sentry/profiling-node": "^10.32.1",
     "@tailwindcss/postcss": "^4.1.18",
@@ -118,7 +119,7 @@
     "@vitest/ui": "^1.0.4",
     "concurrently": "^9.2.1",
     "dotenv": "^16.6.1",
-    "jsdom": "^23.0.1",
+    "jsdom": "^23.2.0",
     "md-to-pdf": "^5.2.5",
     "typescript": "^5.4.2",
     "vite": "^5.1.5",

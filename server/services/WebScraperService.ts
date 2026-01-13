@@ -1,4 +1,6 @@
+import { Readability } from '@mozilla/readability';
 import { eq } from 'drizzle-orm';
+import { JSDOM } from 'jsdom';
 import { v4 as uuidv4 } from 'uuid';
 import { knowledgeChunks, knowledgeSources } from '../../shared/schema';
 import { db } from '../db';
@@ -41,10 +43,10 @@ export class WebScraperService {
     await WebScraperService.rateLimit();
 
     try {
-      const html = await WebScraperService.fetchHtml(url);
+      const html = await WebScraperService.fetchHtmlWithRetry(url);
       const title = WebScraperService.extractTitle(html);
       const description = WebScraperService.extractMetaDescription(html);
-      const content = WebScraperService.extractText(html);
+      const content = WebScraperService.extractMainContent(html, url);
       const links = WebScraperService.extractLinks(html, url);
 
       return {
@@ -151,6 +153,24 @@ export class WebScraperService {
     return metaMatch ? metaMatch[1].trim() : undefined;
   }
 
+  static extractMainContent(html: string, url: string): string {
+    try {
+      // Use Mozilla's Readability for better content extraction
+      const dom = new JSDOM(html, { url });
+      const reader = new Readability(dom.window.document);
+      const article = reader.parse();
+
+      if (article && article.textContent) {
+        return article.textContent.replace(/\s+/g, ' ').trim();
+      }
+    } catch (error) {
+      console.warn('Readability extraction failed, falling back to regex:', error);
+    }
+
+    // Fallback to regex-based extraction
+    return WebScraperService.extractText(html);
+  }
+
   static extractText(html: string): string {
     const text = html
       .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, ' ')
@@ -231,6 +251,28 @@ export class WebScraperService {
       hash = hash & hash;
     }
     return Math.abs(hash).toString(16);
+  }
+
+  private static async fetchHtmlWithRetry(
+    url: string,
+    retries = 3,
+  ): Promise<string> {
+    for (let i = 0; i < retries; i++) {
+      try {
+        return await WebScraperService.fetchHtml(url);
+      } catch (error: any) {
+        const isLastAttempt = i === retries - 1;
+        if (isLastAttempt) {
+          throw error;
+        }
+
+        // Exponential backoff: 1s, 2s, 4s
+        const delay = 1000 * Math.pow(2, i);
+        console.log(`Retry ${i + 1}/${retries} for ${url} after ${delay}ms`);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
+    throw new Error('Failed after retries');
   }
 
   private static async fetchHtml(url: string): Promise<string> {
