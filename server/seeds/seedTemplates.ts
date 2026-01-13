@@ -990,6 +990,112 @@ Foster community and help businesses thrive in the space.`,
     rating: 4.7,
     installCount: 350,
   },
+
+  {
+    name: 'Industry Packs',
+    category: 'Template Packs',
+    industry: 'Multi-Industry',
+    description:
+      'Bundle-ready intake template for common local service industries.',
+    systemPrompt: `You are a multi-industry intake assistant for local businesses. Your role is to:
+- Ask what service the customer needs
+- Capture contact details, location, and timeline
+- Determine urgency and budget range
+- Offer to schedule a call or appointment
+Keep responses friendly, concise, and focused on booking the next step.`,
+    configuration: {
+      tags: ['Pack', 'Multi-Industry', 'Lead Capture'],
+      features: [
+        'Industry selection',
+        'Lead qualification',
+        'Appointment request',
+      ],
+    },
+    isPublic: true,
+    isPremium: true,
+    priceCents: 4900,
+    rating: 4.8,
+    installCount: 180,
+  },
+  {
+    name: 'Advanced Workflows',
+    category: 'Template Packs',
+    industry: 'Cross-Industry',
+    description:
+      'Conditional routing template with structured data capture and follow-ups.',
+    systemPrompt: `You are an advanced workflow assistant. Your responsibilities:
+- Capture structured details for the request
+- Route urgent issues to a callback and non-urgent to a follow-up
+- Ask for preferred contact time and method
+- Confirm the next step clearly
+Be concise, professional, and consistent in your data capture.`,
+    configuration: {
+      tags: ['Workflow', 'Automation', 'Routing'],
+      features: [
+        'Conditional routing',
+        'Follow-up sequences',
+        'CRM-ready fields',
+      ],
+    },
+    isPublic: true,
+    isPremium: true,
+    priceCents: 9900,
+    rating: 4.9,
+    installCount: 120,
+  },
+  {
+    name: 'Voice Agent Templates',
+    category: 'Template Packs',
+    industry: 'Multi-Industry',
+    description:
+      'Voice-first receptionist flow for inbound calls and call backs.',
+    systemPrompt: `You are a friendly voice receptionist for inbound calls. Your role is to:
+- Greet the caller and confirm their name
+- Ask what they need and capture key details
+- Offer to schedule an appointment or callback
+- Confirm the best phone number and time
+Keep responses short, clear, and easy to follow.`,
+    configuration: {
+      tags: ['Voice', 'Phone', 'Reception'],
+      features: [
+        'Call intake',
+        'Appointment scheduling',
+        'Escalation routing',
+      ],
+    },
+    isPublic: true,
+    isPremium: true,
+    priceCents: 14900,
+    rating: 4.7,
+    installCount: 95,
+  },
+  {
+    name: 'Enterprise Suite',
+    category: 'Template Packs',
+    industry: 'Enterprise',
+    description:
+      'Enterprise concierge with department routing and priority handling.',
+    systemPrompt: `You are an enterprise concierge. Your responsibilities:
+- Identify the department (sales, support, billing, or partnerships)
+- Capture contact details and account context
+- Route the request to the correct team
+- Set clear expectations on response time
+Be professional, precise, and consistent.`,
+    configuration: {
+      tags: ['Enterprise', 'Routing', 'Compliance'],
+      features: [
+        'Department routing',
+        'Priority handling',
+        'Audit-ready notes',
+      ],
+    },
+    isPublic: true,
+    isPremium: true,
+    priceCents: 29900,
+    rating: 4.9,
+    installCount: 60,
+  },
+
 ];
 
 export async function seedTemplates() {
@@ -997,15 +1103,23 @@ export async function seedTemplates() {
 
   try {
     // Check if templates already exist
-    const existingTemplates = await db.select().from(botTemplates).limit(1);
+    const existingTemplates = await db
+      .select({ name: botTemplates.name })
+      .from(botTemplates);
+    const existingNames = new Set(
+      existingTemplates.map((template) => template.name),
+    );
+    const templatesToInsert = INITIAL_TEMPLATES.filter(
+      (template) => !existingNames.has(template.name),
+    );
 
-    if (existingTemplates.length > 0) {
-      console.log('✅ Templates already seeded. Skipping...');
+    if (templatesToInsert.length === 0) {
+      console.log('? Templates already seeded. Skipping...');
       return;
     }
 
     // Insert templates
-    for (const template of INITIAL_TEMPLATES) {
+    for (const template of templatesToInsert) {
       await db.insert(botTemplates).values({
         id: uuidv4(),
         ...template,
@@ -1014,7 +1128,7 @@ export async function seedTemplates() {
     }
 
     console.log(
-      `✅ Successfully seeded ${INITIAL_TEMPLATES.length} templates!`,
+      `? Successfully seeded ${templatesToInsert.length} templates!`,
     );
   } catch (error) {
     console.error('❌ Error seeding templates:', error);
