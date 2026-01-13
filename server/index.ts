@@ -464,6 +464,40 @@ app.get('/api/bots/:id', ...apiAuthStack, async (req, res) => {
   }
 });
 
+app.get('/api/public/bots/:id', async (req, res) => {
+  try {
+    const [bot] = await db
+      .select()
+      .from(bots)
+      .where(eq(bots.id, req.params.id));
+    if (!bot || !bot.isPublic || !bot.active) {
+      return res.status(404).json({ error: 'Bot not found' });
+    }
+    res.json({
+      id: bot.id,
+      name: bot.name,
+      type: bot.type,
+      systemPrompt: bot.systemPrompt,
+      model: bot.model,
+      temperature: bot.temperature,
+      knowledgeBase: bot.knowledgeBase,
+      active: bot.active,
+      themeColor: bot.themeColor,
+      websiteUrl: bot.websiteUrl,
+      maxMessages: bot.maxMessages,
+      randomizeIdentity: bot.randomizeIdentity,
+      avatar: bot.avatar,
+      responseDelay: bot.responseDelay,
+      embedType: bot.embedType,
+      leadCapture: bot.leadCapture,
+      isPublic: bot.isPublic,
+    });
+  } catch (error) {
+    console.error('Error fetching public bot:', error);
+    res.status(500).json({ error: 'Failed to fetch bot' });
+  }
+});
+
 app.post('/api/bots', ...apiAuthStack, async (req, res) => {
   try {
     const user = (req as any).user;
