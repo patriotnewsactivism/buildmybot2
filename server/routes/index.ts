@@ -19,6 +19,7 @@ import leadsRouter from './leads';
 import notificationsRouter from './notifications';
 import organizationsRouter from './organizations';
 import partnersRouter from './partners';
+import { phoneRouter } from './phone';
 import revenueRouter from './revenue';
 import templatesRouter from './templates';
 import webhooksRouter from './webhooks';
@@ -47,4 +48,5 @@ export {
   authRouter,
   healthRouter,
   integrationsRouter,
+  phoneRouter,
 };
