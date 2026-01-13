@@ -18,6 +18,7 @@ import type React from 'react';
 import { useEffect, useState } from 'react';
 import type { User } from '../../types';
 import { VoiceSetupWizard } from './VoiceSetupWizard';
+import { AudioWaveform } from './AudioWaveform';
 
 const cartesiaVoices = [
   {
@@ -552,6 +553,10 @@ export const PhoneAgent: React.FC<PhoneAgentProps> = ({ user, onUpdate }) => {
                     <PlayCircle size={32} />
                   )}
                 </button>
+
+                <div className="h-[60px] mb-4 flex items-center justify-center">
+                  <AudioWaveform isActive={isSimulating} color="#ffffff" />
+                </div>
 
                 <p className="text-sm font-medium">{simulationStatus}</p>
                 <p className="text-xs text-slate-400 mt-2">
