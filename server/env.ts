@@ -1,17 +1,26 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { config } from 'dotenv';
+
+// Helper to manually load env vars since dotenv package might be unstable in this environment
+function loadEnv(filePath: string, override = false) {
+  if (fs.existsSync(filePath)) {
+    const content = fs.readFileSync(filePath, 'utf-8');
+    content.split('\n').forEach(line => {
+      const match = line.match(/^([^=]+)=(.*)$/);
+      if (match) {
+        const key = match[1].trim();
+        const value = match[2].trim().replace(/^['"]|['"]$/g, '');
+        if (override || !process.env[key]) {
+          process.env[key] = value;
+        }
+      }
+    });
+  }
+}
 
 // Load .env and .env.local once for server-side code.
-const envPath = path.resolve(process.cwd(), '.env');
-if (fs.existsSync(envPath)) {
-  config({ path: envPath });
-}
-
-const envLocalPath = path.resolve(process.cwd(), '.env.local');
-if (fs.existsSync(envLocalPath)) {
-  config({ path: envLocalPath, override: true });
-}
+loadEnv(path.resolve(process.cwd(), '.env'));
+loadEnv(path.resolve(process.cwd(), '.env.local'), true);
 
 export const env = {
   NODE_ENV: process.env.NODE_ENV ?? 'development',
