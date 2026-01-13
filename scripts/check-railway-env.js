@@ -55,7 +55,7 @@ async function checkAuthEndpoint() {
   log('=================================================', 'cyan');
 
   try {
-    const response = await fetch(`${API_BASE}/api/user`, {
+    const response = await fetch(`${API_BASE}/api/auth/user`, {
       method: 'GET',
       credentials: 'include',
       headers: {
@@ -66,11 +66,11 @@ async function checkAuthEndpoint() {
     const status = response.status;
     const data = await response.json();
 
-    log(`\nEndpoint: ${API_BASE}/api/user`, 'blue');
+    log(`\nEndpoint: ${API_BASE}/api/auth/user`, 'blue');
     log(`Status: ${status}`, 'yellow');
     log(`Response: ${JSON.stringify(data, null, 2)}`, 'yellow');
 
-    if (status === 401 && data.error === 'Authentication required') {
+    if (status === 401 && data.error === 'Not authenticated') {
       log('\n✓ Auth endpoint working correctly (401 expected without login)', 'green');
       return true;
     } else if (status === 200) {
@@ -94,7 +94,7 @@ async function checkCookieHeaders() {
 
   try {
     // Attempt to login (will fail but we can check headers)
-    const response = await fetch(`${API_BASE}/api/login`, {
+    const response = await fetch(`${API_BASE}/api/auth/login`, {
       method: 'POST',
       credentials: 'include',
       headers: {
