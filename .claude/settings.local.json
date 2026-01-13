@@ -69,7 +69,8 @@
       "Bash(npm run test:run:*)",
       "Bash(npm run test:coverage:*)",
       "Bash(npm run db:migrate:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(grep:*)"
     ]
   }
 }
