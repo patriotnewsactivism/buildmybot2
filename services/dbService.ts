@@ -112,6 +112,21 @@ export const dbService = {
     }
   },
 
+  getPublicBotById: async (id: string): Promise<Bot | undefined> => {
+    try {
+      const response = await request(
+        `/public/bots/${id}`,
+        { method: 'GET' },
+        false,
+      );
+      if (!response.ok) return undefined;
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching public bot:', error);
+      return undefined;
+    }
+  },
+
   subscribeToLeads: (onUpdate: (leads: Lead[]) => void) => {
     const fetchLeads = async () => {
       try {

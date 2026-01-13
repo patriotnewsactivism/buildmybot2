@@ -134,7 +134,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 required
                 value={companyName}
                 onChange={(e) => setCompanyName(e.target.value)}
-                className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:ring-blue-900 focus:border-blue-900"
+                className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:ring-blue-900 focus:border-blue-900 text-slate-900 bg-white"
                 placeholder="Acme Inc."
               />
             </div>
@@ -158,7 +158,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 rounded-lg border border-slate-200 focus:ring-blue-900 focus:border-blue-900"
+                className="w-full pl-10 pr-4 py-3 rounded-lg border border-slate-200 focus:ring-blue-900 focus:border-blue-900 text-slate-900 bg-white"
                 placeholder="you@company.com"
               />
             </div>
@@ -183,7 +183,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 minLength={6}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 rounded-lg border border-slate-200 focus:ring-blue-900 focus:border-blue-900"
+                className="w-full pl-10 pr-4 py-3 rounded-lg border border-slate-200 focus:ring-blue-900 focus:border-blue-900 text-slate-900 bg-white"
                 placeholder="••••••••"
               />
             </div>
