@@ -70,7 +70,9 @@
       "Bash(npm run test:coverage:*)",
       "Bash(npm run db:migrate:*)",
       "Bash(node:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "WebSearch",
+      "WebFetch(domain:www.firecrawl.dev)"
     ]
   }
 }
