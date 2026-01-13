@@ -15,7 +15,7 @@ import {
   Volume2,
 } from 'lucide-react';
 import type React from 'react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { User } from '../../types';
 import { VoiceSetupWizard } from './VoiceSetupWizard';
 
@@ -82,6 +82,16 @@ export const PhoneAgent: React.FC<PhoneAgentProps> = ({ user, onUpdate }) => {
   const [activeTab, setActiveTab] = useState<'setup' | 'config'>(
     cartesiaApiKey ? 'config' : 'setup',
   );
+
+  useEffect(() => {
+    if (user?.phoneConfig) {
+      setEnabled(user.phoneConfig.enabled);
+      if (user.phoneConfig.voiceId) setVoice(user.phoneConfig.voiceId);
+      if (user.phoneConfig.introMessage) setIntroMessage(user.phoneConfig.introMessage);
+      if (user.phoneConfig.cartesiaApiKey) setCartesiaApiKey(user.phoneConfig.cartesiaApiKey);
+      if (user.phoneConfig.delegationLink) setDelegationLink(user.phoneConfig.delegationLink);
+    }
+  }, [user?.phoneConfig]);
 
   const getApiKey = () => {
     return cartesiaApiKey;
