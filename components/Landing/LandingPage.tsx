@@ -1492,13 +1492,13 @@ export const LandingPage: React.FC<LandingProps> = ({
                   onClick={() => setOpenFaq(openFaq === i ? null : i)}
                   className="w-full flex items-center justify-between p-4 sm:p-6 text-left hover:bg-slate-50 transition gap-4"
                 >
-                  <span className="font-bold text-base sm:text-lg">
+                  <span className="font-bold text-base sm:text-lg text-slate-900">
                     {faq.q}
                   </span>
                   {openFaq === i ? (
-                    <ChevronUp size={20} className="shrink-0" />
+                    <ChevronUp size={20} className="shrink-0 text-slate-700" />
                   ) : (
-                    <ChevronDown size={20} className="shrink-0" />
+                    <ChevronDown size={20} className="shrink-0 text-slate-700" />
                   )}
                 </button>
                 {openFaq === i && (
