@@ -1,4 +1,5 @@
 import {
+  BarChart3,
   Calendar,
   DollarSign,
   RefreshCw,
@@ -267,7 +268,7 @@ export const ProfitAnalytics: React.FC = () => {
         ) : (
           <div className="flex items-center justify-center h-48 text-slate-400">
             <div className="text-center">
-              <BarChart size={48} className="mx-auto mb-2 opacity-20" />
+              <BarChart3 size={48} className="mx-auto mb-2 opacity-20" />
               <p className="text-sm">No event data available yet</p>
             </div>
           </div>

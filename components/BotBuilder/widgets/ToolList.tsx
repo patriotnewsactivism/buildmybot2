@@ -128,11 +128,12 @@ export const ToolList: React.FC<ToolListProps> = ({
             <div className="flex items-center space-x-2">
               <p className="font-medium text-slate-900 truncate">{tool.name}</p>
               {tool.requiresApproval && (
-                <Shield
-                  size={14}
-                  className="text-orange-600 flex-shrink-0"
-                  title="Requires approval"
-                />
+                <span title="Requires approval">
+                  <Shield
+                    size={14}
+                    className="text-orange-600 flex-shrink-0"
+                  />
+                </span>
               )}
             </div>
             <p className="text-xs text-slate-500 mt-1 line-clamp-2">
