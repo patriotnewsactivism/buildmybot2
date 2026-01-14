@@ -27,6 +27,7 @@ import { twilioWebhooksRouter } from './twilioWebhooks';
 import webhooksRouter from './webhooks';
 import searchRouter from './search';
 import teamRouter from './team';
+import toolsRouter from './tools';
 
 export {
   organizationsRouter,
@@ -38,6 +39,7 @@ export {
   clientsRouter,
   impersonationRouter,
   templatesRouter,
+  toolsRouter,
   webhooksRouter,
   channelsRouter,
   searchRouter,
