@@ -15,6 +15,7 @@ export * from './models/auth';
 export * from './billing-schema';
 export * from './schema-migrations';
 export * from './schema-monitoring';
+export * from './schema-agentic-os';
 
 // ========================================
 // ORGANIZATIONS & MULTI-TENANCY
