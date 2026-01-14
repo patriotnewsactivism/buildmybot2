@@ -4,6 +4,7 @@
  */
 
 import adminRouter from './admin';
+import agencyRouter from './agency';
 import analyticsRouter from './analytics';
 import auditRouter from './audit';
 import { authRouter } from './auth';
@@ -32,6 +33,7 @@ export {
   auditRouter,
   analyticsRouter,
   adminRouter,
+  agencyRouter,
   partnersRouter,
   clientsRouter,
   impersonationRouter,
