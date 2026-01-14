@@ -95,6 +95,8 @@ export const NotificationComposer: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const [form, setForm] = useState<NotificationFormData>({
     title: '',
@@ -198,6 +200,52 @@ export const NotificationComposer: React.FC = () => {
     } catch (err) {
       console.error('Error deleting notification:', err);
       setError('Failed to delete notification');
+    }
+  };
+
+  const handleBulkDelete = async (
+    deleteAll: boolean,
+    olderThanDays?: number,
+  ) => {
+    setBulkDeleting(true);
+    setError(null);
+
+    try {
+      const payload: {
+        deleteAll?: boolean;
+        olderThanDays?: number;
+      } = {};
+
+      if (deleteAll) {
+        payload.deleteAll = true;
+      } else if (olderThanDays) {
+        payload.olderThanDays = olderThanDays;
+      }
+
+      const response = await fetch('/api/admin/notifications/bulk-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to delete notifications');
+      }
+
+      const result = await response.json();
+      setShowBulkDeleteModal(false);
+      await fetchNotifications();
+
+      // Show success message briefly
+      setError(null);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Failed to delete notifications';
+      setError(message);
+    } finally {
+      setBulkDeleting(false);
     }
   };
 
@@ -619,14 +667,27 @@ export const NotificationComposer: React.FC = () => {
               Past broadcasts and their engagement stats
             </p>
           </div>
-          <button
-            type="button"
-            onClick={fetchNotifications}
-            className="text-slate-400 hover:text-slate-600 transition-colors"
-            title="Refresh"
-          >
-            <Clock size={20} />
-          </button>
+          <div className="flex items-center gap-2">
+            {notifications.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowBulkDeleteModal(true)}
+                className="flex items-center gap-2 px-3 py-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors text-sm border border-red-200"
+                title="Bulk Delete"
+              >
+                <Trash2 size={16} />
+                Clear Notifications
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={fetchNotifications}
+              className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+              title="Refresh"
+            >
+              <Clock size={20} />
+            </button>
+          </div>
         </div>
 
         {loading ? (
@@ -790,6 +851,121 @@ export const NotificationComposer: React.FC = () => {
           </div>
         )}
       </PremiumCard>
+
+      {showBulkDeleteModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-md w-full p-6 shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="text-lg font-semibold text-slate-900">
+                Bulk Delete Notifications
+              </h4>
+              <button
+                type="button"
+                onClick={() => setShowBulkDeleteModal(false)}
+                disabled={bulkDeleting}
+                className="text-slate-400 hover:text-slate-600 disabled:opacity-50"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle size={20} className="text-amber-600 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-amber-900">
+                      Warning: This action cannot be undone
+                    </p>
+                    <p className="text-xs text-amber-700 mt-1">
+                      Deleted notifications and their receipts will be
+                      permanently removed from the database.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-slate-700">
+                  Choose deletion option:
+                </p>
+
+                <button
+                  type="button"
+                  onClick={() => handleBulkDelete(false, 7)}
+                  disabled={bulkDeleting}
+                  className="w-full px-4 py-3 text-left border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <div className="font-medium text-slate-900">
+                    Delete notifications older than 7 days
+                  </div>
+                  <div className="text-xs text-slate-500 mt-1">
+                    Removes notifications created more than a week ago
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleBulkDelete(false, 30)}
+                  disabled={bulkDeleting}
+                  className="w-full px-4 py-3 text-left border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <div className="font-medium text-slate-900">
+                    Delete notifications older than 30 days
+                  </div>
+                  <div className="text-xs text-slate-500 mt-1">
+                    Removes notifications created more than a month ago
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleBulkDelete(false, 90)}
+                  disabled={bulkDeleting}
+                  className="w-full px-4 py-3 text-left border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <div className="font-medium text-slate-900">
+                    Delete notifications older than 90 days
+                  </div>
+                  <div className="text-xs text-slate-500 mt-1">
+                    Removes notifications created more than 3 months ago
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (
+                      confirm(
+                        'Are you sure you want to delete ALL notifications? This will permanently remove all notifications and cannot be undone.',
+                      )
+                    ) {
+                      handleBulkDelete(true);
+                    }
+                  }}
+                  disabled={bulkDeleting}
+                  className="w-full px-4 py-3 text-left border-2 border-red-300 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <div className="font-medium text-red-700 flex items-center gap-2">
+                    <AlertCircle size={16} />
+                    Delete ALL notifications
+                  </div>
+                  <div className="text-xs text-red-600 mt-1">
+                    Permanently removes every notification from the database
+                  </div>
+                </button>
+              </div>
+
+              {bulkDeleting && (
+                <div className="flex items-center justify-center gap-2 py-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-orange-500" />
+                  <span className="text-sm text-slate-600">Deleting...</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

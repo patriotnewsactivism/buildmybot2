@@ -232,6 +232,64 @@ router.delete(
   },
 );
 
+router.post(
+  '/admin/notifications/bulk-delete',
+  ...adminAuthStack,
+  async (req: any, res) => {
+    try {
+      const { notificationIds, deleteAll, olderThanDays } = req.body;
+
+      let deletedCount = 0;
+
+      if (deleteAll) {
+        // Delete all notifications
+        const result = await db.delete(notifications);
+        deletedCount = result.rowCount || 0;
+      } else if (olderThanDays) {
+        // Delete notifications older than specified days
+        const cutoffDate = new Date();
+        cutoffDate.setDate(cutoffDate.getDate() - olderThanDays);
+
+        const result = await db
+          .delete(notifications)
+          .where(lte(notifications.createdAt, cutoffDate));
+        deletedCount = result.rowCount || 0;
+      } else if (notificationIds && Array.isArray(notificationIds)) {
+        // Delete specific notifications by IDs
+        if (notificationIds.length === 0) {
+          return res
+            .status(400)
+            .json({ error: 'No notification IDs provided' });
+        }
+
+        const result = await db
+          .delete(notifications)
+          .where(
+            sql`${notifications.id} IN (${sql.join(
+              notificationIds.map((id: string) => sql`${id}`),
+              sql`, `,
+            )})`,
+          );
+        deletedCount = result.rowCount || 0;
+      } else {
+        return res.status(400).json({
+          error:
+            'Must provide notificationIds, deleteAll, or olderThanDays parameter',
+        });
+      }
+
+      res.json({
+        success: true,
+        message: `${deletedCount} notification(s) deleted`,
+        deletedCount,
+      });
+    } catch (error) {
+      console.error('Bulk delete notifications error:', error);
+      res.status(500).json({ error: 'Failed to bulk delete notifications' });
+    }
+  },
+);
+
 // ========================================
 // USER ENDPOINTS
 // ========================================
