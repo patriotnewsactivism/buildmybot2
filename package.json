@@ -101,6 +101,7 @@
     "twilio": "^5.11.2",
     "uuid": "^11.1.0",
     "winston": "^3.19.0",
+    "ws": "^8.19.0",
     "zod": "^4.3.5",
     "zod-validation-error": "^5.0.0"
   },
@@ -117,6 +118,7 @@
     "@types/swagger-jsdoc": "^6.0.4",
     "@types/swagger-ui-express": "^4.1.8",
     "@types/twilio": "^3.19.2",
+    "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^4.2.1",
     "@vitest/coverage-v8": "^1.6.1",
     "@vitest/ui": "^1.0.4",
