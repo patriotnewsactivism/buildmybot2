@@ -63,6 +63,7 @@ import {
   phoneRouter,
   revenueRouter,
   templatesRouter,
+  toolsRouter,
   twilioWebhooksRouter,
   webhooksRouter,
   searchRouter,
@@ -1340,6 +1341,15 @@ app.use('/api/teams', teamRouter);
 
 // Knowledge base management
 app.use('/api/knowledge', knowledgeRouter);
+
+// Tool execution and action management
+app.use(
+  '/api/tools',
+  authenticate,
+  loadOrganizationContext,
+  tenantIsolation,
+  toolsRouter
+);
 
 // Revenue and billing features
 app.use('/api/revenue', revenueRouter);
