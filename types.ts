@@ -22,6 +22,7 @@ export interface PhoneAgentConfig {
   introMessage: string;
   cartesiaApiKey?: string;
   delegationLink?: string;
+  twilioSid?: string;
 }
 
 export interface User {
