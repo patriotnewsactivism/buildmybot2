@@ -25,6 +25,7 @@ import {
 import { type Column, DataTable } from '../../UI/DataTable';
 
 interface ClientUsage {
+  id: string;
   clientOrganizationId: string;
   clientName: string;
   voiceMinutes: number;
