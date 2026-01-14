@@ -15,6 +15,8 @@ import express from 'express';
 import session from 'express-session';
 import multer from 'multer';
 import { v4 as uuidv4 } from 'uuid';
+import { createServer } from 'http';
+import { WebSocketServer } from 'ws';
 import { PLANS, RESELLER_TIERS, WHITELABEL_FEE } from '../constants';
 import {
   auditLogs,
@@ -60,6 +62,7 @@ import {
   phoneRouter,
   revenueRouter,
   templatesRouter,
+  twilioWebhooksRouter,
   webhooksRouter,
   searchRouter,
   teamRouter,
@@ -204,6 +207,8 @@ app.post(
 );
 
 app.use(express.json());
+// Handle url encoded for Twilio
+app.use(express.urlencoded({ extended: true }));
 
 // Phase 8: Structured Request Logging
 app.use(requestLogger);
@@ -1311,6 +1316,9 @@ app.use('/api/channels', channelsRouter);
 // Phone number management (Twilio)
 app.use('/api/phone', phoneRouter);
 
+// Twilio Webhooks
+app.use('/api/webhooks', twilioWebhooksRouter);
+
 // Webhook management
 app.use('/api/webhooks', webhooksRouter);
 
@@ -1356,12 +1364,45 @@ if (isProduction) {
   });
 }
 
+// Create HTTP server
+const server = createServer(app);
+
+// Initialize WebSocket server
+const wss = new WebSocketServer({ server, path: '/api/ws/voice' });
+
+wss.on('connection', (ws) => {
+  console.log('New WebSocket connection for voice stream');
+
+  ws.on('message', (message) => {
+    // Handle Twilio Media Streams messages here
+    // { event: "media", streamSid: "...", media: { payload: "base64..." } }
+    try {
+      const msg = JSON.parse(message.toString());
+      if (msg.event === 'start') {
+         console.log('Media stream started', msg.start.streamSid);
+         // Access custom parameters we passed in Twilio webhook: msg.start.customParameters
+      } else if (msg.event === 'media') {
+         // This is the audio data (base64) from the caller
+         // We would forward this to STT (Deepgram/OpenAI) and then to LLM
+      } else if (msg.event === 'stop') {
+         console.log('Media stream stopped');
+      }
+    } catch (e) {
+      console.error('Error parsing WS message', e);
+    }
+  });
+
+  ws.on('close', () => {
+    console.log('Voice stream disconnected');
+  });
+});
+
 if (!isVercel) {
-  app.listen(PORT, '0.0.0.0', () => {
+  server.listen(PORT, '0.0.0.0', () => {
     console.log(
       `Server running on port ${PORT} (${isProduction ? 'production' : 'development'})`,
     );
   });
 }
 
-export { app };
+export { app, server };

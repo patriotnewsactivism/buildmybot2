@@ -659,6 +659,7 @@ export const PhoneAgent: React.FC<PhoneAgentProps> = ({ user, onUpdate }) => {
                   cartesiaApiKey: config.cartesiaApiKey,
                   delegationLink: config.delegationLink,
                   phoneNumber: config.phoneNumber,
+                  twilioSid: config.twilioSid,
                 },
               });
             }
