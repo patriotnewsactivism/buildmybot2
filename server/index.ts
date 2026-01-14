@@ -44,6 +44,7 @@ import {
 } from './middleware';
 import {
   adminRouter,
+  agencyRouter,
   analyticsRouter,
   auditRouter,
   authRouter,
@@ -1245,6 +1246,15 @@ app.use(
   authenticate,
   authorize(['RESELLER', 'Admin', 'ADMIN', 'MasterAdmin']),
   partnersRouter,
+);
+
+// Agency billing APIs (for billing arbitrage features)
+app.use(
+  '/api/agency',
+  authenticate,
+  loadOrganizationContext,
+  tenantIsolation,
+  agencyRouter,
 );
 
 // Client dashboard APIs (supports impersonation)
