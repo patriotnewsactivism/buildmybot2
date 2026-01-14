@@ -22,6 +22,7 @@ import partnersRouter from './partners';
 import { phoneRouter } from './phone';
 import revenueRouter from './revenue';
 import templatesRouter from './templates';
+import { twilioWebhooksRouter } from './twilioWebhooks';
 import webhooksRouter from './webhooks';
 import searchRouter from './search';
 import teamRouter from './team';
@@ -49,4 +50,5 @@ export {
   healthRouter,
   integrationsRouter,
   phoneRouter,
+  twilioWebhooksRouter,
 };
