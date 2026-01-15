@@ -19,8 +19,8 @@ import { organizations } from '../../shared/schema';
 import { db } from '../db';
 
 export interface UsageEvent {
-  eventType: 'voice_minute' | 'premium_tokens' | 'standard_tokens';
-  quantity: number; // minutes or token count
+  eventType: 'voice_minute' | 'premium_tokens' | 'standard_tokens' | 'tool_execution' | 'chat_token';
+  quantity: number; // minutes, token count, or execution count
   agencyOrganizationId: string;
   clientOrganizationId?: string;
   conversationId?: string;
@@ -131,8 +131,14 @@ export class AgencyBillingService {
         retail = (tier.retailPremiumTokensPer1k! * event.quantity) / 1000;
         break;
       case 'standard_tokens':
+      case 'chat_token':
         wholesale = (tier.wholesaleStandardTokensPer1k! * event.quantity) / 1000;
         retail = (tier.retailStandardTokensPer1k! * event.quantity) / 1000;
+        break;
+      case 'tool_execution':
+        // Flat rate per tool execution: $0.01 wholesale, $0.02 retail
+        wholesale = 0.01 * event.quantity;
+        retail = 0.02 * event.quantity;
         break;
     }
 
