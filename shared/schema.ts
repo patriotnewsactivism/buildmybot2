@@ -419,7 +419,7 @@ export const knowledgeChunks = pgTable('knowledge_chunks', {
   metadata: json('metadata').default({}),
   chunkIndex: integer('chunk_index'),
   tokenCount: integer('token_count'),
-  embedding: vector('embedding', { dimensions: 1536 }),
+  // embedding: vector('embedding', { dimensions: 1536 }),
   createdAt: timestamp('created_at').defaultNow(),
 });
 
