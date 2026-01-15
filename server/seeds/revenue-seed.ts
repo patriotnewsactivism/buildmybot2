@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import { v4 as uuid } from 'uuid';
 import {
   billingPlans,
@@ -513,9 +514,12 @@ export async function seedRevenueTables() {
   console.log('Revenue tables seeded successfully!');
 }
 
-seedRevenueTables()
-  .then(() => process.exit(0))
-  .catch((err) => {
-    console.error('Seed failed:', err);
-    process.exit(1);
-  });
+const isMainModule = process.argv[1] === fileURLToPath(import.meta.url);
+if (isMainModule) {
+  seedRevenueTables()
+    .then(() => process.exit(0))
+    .catch((err) => {
+      console.error('Seed failed:', err);
+      process.exit(1);
+    });
+}
