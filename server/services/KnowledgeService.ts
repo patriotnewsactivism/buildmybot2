@@ -1,4 +1,4 @@
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, isNull, or, sql } from 'drizzle-orm';
 import { bots, knowledgeChunks, knowledgeSources } from '../../shared/schema';
 import { db } from '../db';
 
@@ -56,7 +56,12 @@ export class KnowledgeService {
     const chunks = await db
       .select()
       .from(knowledgeChunks)
-      .where(eq(knowledgeChunks.botId, botId))
+      .where(
+        or(
+          eq(knowledgeChunks.botId, botId),
+          isNull(knowledgeChunks.botId)
+        )
+      )
       .limit(200);
 
     // Fetch manual knowledge base from bot definition

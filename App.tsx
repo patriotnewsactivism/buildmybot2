@@ -439,11 +439,19 @@ function App() {
       setLeads(updatedLeads);
     });
 
+    const unsubscribeConversations = dbService.subscribeToConversations(
+      (updatedConversations) => {
+        setChatLogs(updatedConversations);
+      },
+      user?.id,
+    );
+
     return () => {
       unsubscribeBots();
       unsubscribeLeads();
+      unsubscribeConversations();
     };
-  }, []);
+  }, [user?.id]);
 
   const totalConversations = bots.reduce(
     (acc, bot) => acc + bot.conversationsCount,
@@ -888,6 +896,7 @@ function App() {
               <ErrorBoundary>
                 <AdvancedAnalytics
                   organizationId={activeUser?.organizationId || ''}
+                  endpoint="/clients/analytics/dashboard"
                 />
               </ErrorBoundary>
             )}
