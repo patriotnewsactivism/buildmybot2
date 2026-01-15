@@ -34,53 +34,44 @@ describe('VoiceAgentService', () => {
   let mockOpenAIWs: any;
   let mockCartesiaWs: any;
 
-  beforeEach(() => {
-    // Reset mocks
-    vi.clearAllMocks();
+  // Helpers to simulate events on specific sockets
+  let twilioHandlers: Record<string, Function> = {};
+  let openaiHandlers: Record<string, Function> = {};
+  let cartesiaHandlers: Record<string, Function> = {};
 
-    // Setup Mock WebSockets
-    const eventHandlers: Record<string, Function> = {};
-    const createMockWs = () => ({
+  beforeEach(() => {
+    vi.clearAllMocks();
+    twilioHandlers = {};
+    openaiHandlers = {};
+    cartesiaHandlers = {};
+
+    const createMockWs = (handlers: Record<string, Function>) => ({
       on: vi.fn((event, handler) => {
-        eventHandlers[event] = handler;
+        handlers[event] = handler;
       }),
       send: vi.fn(),
       close: vi.fn(),
       readyState: WebSocket.OPEN,
-      emit: (event: string, data: any) => {
-        if (eventHandlers[event]) {
-          eventHandlers[event](data);
-        }
-      },
     });
 
-    mockTwilioWs = createMockWs();
-    mockOpenAIWs = createMockWs();
-    mockCartesiaWs = createMockWs();
+    mockTwilioWs = createMockWs(twilioHandlers);
+    mockOpenAIWs = createMockWs(openaiHandlers);
+    mockCartesiaWs = createMockWs(cartesiaHandlers);
 
-    // Mock WebSocket constructor to return different mocks based on URL
     (WebSocket as unknown as any).mockImplementation((url: string) => {
-      if (url.includes('openai.com')) return mockOpenAIWs;
-      if (url.includes('cartesia.ai')) return mockCartesiaWs;
-      return createMockWs();
+      if (url && url.includes('openai.com')) return mockOpenAIWs;
+      if (url && url.includes('cartesia.ai')) return mockCartesiaWs;
+      return createMockWs({}); // Fallback
     });
 
     service = new VoiceAgentService();
   });
 
-  it('should handle "start" event and initialize connections', async () => {
-    // Mock incoming Twilio connection
-    // We need to capture the 'message' handler attached to Twilio WS
-    const twilioHandlers: Record<string, Function> = {};
-    mockTwilioWs.on.mockImplementation((event: string, handler: Function) => {
-        twilioHandlers[event] = handler;
-    });
-
+  it('should handle full voice flow', async () => {
+    // 1. Connection
     await service.handleConnection(mockTwilioWs);
 
-    expect(mockTwilioWs.on).toHaveBeenCalledWith('message', expect.any(Function));
-
-    // Simulate "start" message from Twilio
+    // 2. Start Event
     const startMsg = JSON.stringify({
       event: 'start',
       start: {
@@ -88,26 +79,52 @@ describe('VoiceAgentService', () => {
         customParameters: {
           userId: 'user-123',
           voiceId: 'voice-abc',
-          introMessage: 'Hello there',
+          introMessage: 'Hello',
         },
       },
     });
-
+    
     await twilioHandlers['message'](startMsg);
 
-    // Verify DB lookup for bot
-    expect(mockDb.select).toHaveBeenCalled();
+    // Assert Connections Opened
+    expect(mockDb.select).toHaveBeenCalled(); // Bot fetch
+    expect(mockDb.insert).toHaveBeenCalled(); // Conversation create
+    
+    // Simulate OpenAI and Cartesia 'open' events to finalize setup
+    if (openaiHandlers['open']) openaiHandlers['open']();
+    if (cartesiaHandlers['open']) cartesiaHandlers['open']();
 
-    // Verify OpenAI WS initialization
-    expect(WebSocket).toHaveBeenCalledWith(
-      expect.stringContaining('api.openai.com'),
-      expect.objectContaining({ headers: expect.any(Object) })
-    );
+    // Verify Session Update sent to OpenAI
+    expect(mockOpenAIWs.send).toHaveBeenCalledWith(expect.stringContaining('session.update'));
 
-    // Verify Cartesia WS initialization
-    expect(WebSocket).toHaveBeenCalledWith(
-      expect.stringContaining('api.cartesia.ai'),
-      undefined
-    );
+    // 3. Media Input (User speaks)
+    const mediaMsg = JSON.stringify({
+      event: 'media',
+      media: { payload: 'base64-audio' }
+    });
+    await twilioHandlers['message'](mediaMsg);
+
+    // Verify audio forwarded to OpenAI
+    expect(mockOpenAIWs.send).toHaveBeenCalledWith(expect.stringContaining('input_audio_buffer.append'));
+
+    // 4. OpenAI generates text (Assistant speaks)
+    const openaiResponse = JSON.stringify({
+      type: 'response.text.delta',
+      delta: 'Hello world'
+    });
+    await openaiHandlers['message'](Buffer.from(openaiResponse));
+
+    // Verify text sent to Cartesia
+    expect(mockCartesiaWs.send).toHaveBeenCalledWith(expect.stringContaining('"transcript":"Hello world"'));
+
+    // 5. Cartesia generates audio
+    const cartesiaResponse = JSON.stringify({
+      type: 'chunk',
+      data: 'base64-tts-audio'
+    });
+    await cartesiaHandlers['message'](Buffer.from(cartesiaResponse));
+
+    // Verify audio forwarded back to Twilio
+    expect(mockTwilioWs.send).toHaveBeenCalledWith(expect.stringContaining('"payload":"base64-tts-audio"'));
   });
 });
