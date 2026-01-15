@@ -39,6 +39,7 @@ import { API_BASE } from '../../services/apiConfig';
 
 interface AdvancedAnalyticsProps {
   organizationId?: string;
+  endpoint?: string;
 }
 
 interface DateRange {
@@ -189,6 +190,7 @@ const MetricCard: React.FC<{
 
 export const AdvancedAnalytics: React.FC<AdvancedAnalyticsProps> = ({
   organizationId,
+  endpoint,
 }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -219,12 +221,13 @@ export const AdvancedAnalytics: React.FC<AdvancedAnalyticsProps> = ({
       setLoading(true);
       setError(null);
 
-      const response = await fetch(
-        `${API_BASE}/admin/analytics/dashboard?days=${days}`,
-        {
-          credentials: 'include',
-        },
-      );
+      const url = endpoint 
+        ? `${API_BASE}${endpoint}?days=${days}`
+        : `${API_BASE}/admin/analytics/dashboard?days=${days}`;
+
+      const response = await fetch(url, {
+        credentials: 'include',
+      });
 
       if (!response.ok) {
         throw new Error('Failed to fetch analytics data');
