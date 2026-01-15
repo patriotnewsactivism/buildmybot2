@@ -14,6 +14,8 @@ import {
 } from '../middleware';
 import { chatService } from '../services/ChatService';
 import { KnowledgeService } from '../services/KnowledgeService';
+import { toolExecutionService } from '../services/ToolExecutionService';
+import { agencyBillingService } from '../services/AgencyBillingService';
 
 const router = Router();
 const isDevelopment = process.env.NODE_ENV !== 'production';
@@ -130,34 +132,163 @@ async function handleChatCompletion(req: Request, res: Response) {
       });
     });
 
+    // Get available tools for function calling
+    let tools: any[] = [];
+    let toolsMap: Map<string, any> = new Map();
+    if (botId && currentBot) {
+      try {
+        const availableTools = await toolExecutionService.getAvailableTools(botId);
+        tools = availableTools.map((t: any) => {
+          toolsMap.set(t.function.name, {
+            id: t._toolId,
+            requiresApproval: t._requiresApproval,
+          });
+          return {
+            type: 'function',
+            function: {
+              name: t.function.name,
+              description: t.function.description,
+              parameters: t.function.parameters,
+            },
+          };
+        });
+      } catch (err) {
+        console.error('Error fetching tools:', err);
+      }
+    }
+
     let response;
-    try {
-      response = await openai.chat.completions.create({
-        model: finalModel,
-        messages: openAIMessages,
-        temperature,
-        max_tokens: 500,
-      });
-    } catch (error: any) {
-      const isModelNotFound =
-        error?.code === 'model_not_found' ||
-        error?.status === 404 ||
-        (error?.status === 400 &&
-          String(error?.message || '').toLowerCase().includes('model'));
-      if (finalModel === 'gpt-5o-mini' && isModelNotFound) {
-        finalModel = 'gpt-4o-mini';
-        response = await openai.chat.completions.create({
+    let responseText = '';
+    let functionCallAttempts = 0;
+    const maxFunctionCalls = 5; // Prevent infinite loops
+
+    // Function calling loop
+    while (functionCallAttempts < maxFunctionCalls) {
+      try {
+        const completionParams: any = {
           model: finalModel,
           messages: openAIMessages,
           temperature,
           max_tokens: 500,
-        });
-      } else {
-        throw error;
+        };
+
+        // Add tools if available
+        if (tools.length > 0) {
+          completionParams.tools = tools;
+          completionParams.tool_choice = 'auto';
+        }
+
+        response = await openai.chat.completions.create(completionParams);
+      } catch (error: any) {
+        const isModelNotFound =
+          error?.code === 'model_not_found' ||
+          error?.status === 404 ||
+          (error?.status === 400 &&
+            String(error?.message || '').toLowerCase().includes('model'));
+        if (finalModel === 'gpt-5o-mini' && isModelNotFound) {
+          finalModel = 'gpt-4o-mini';
+          response = await openai.chat.completions.create({
+            model: finalModel,
+            messages: openAIMessages,
+            temperature,
+            max_tokens: 500,
+            ...(tools.length > 0 ? { tools, tool_choice: 'auto' } : {}),
+          });
+        } else {
+          throw error;
+        }
       }
+
+      const choice = response.choices[0];
+      const message = choice?.message;
+
+      // Check if function call was requested
+      if (message?.tool_calls && message.tool_calls.length > 0) {
+        functionCallAttempts++;
+
+        // Add assistant message with tool calls
+        openAIMessages.push(message as any);
+
+        // Execute each tool call
+        for (const toolCall of message.tool_calls) {
+          const functionName = toolCall.function.name;
+          const functionArgs = JSON.parse(toolCall.function.arguments || '{}');
+          const toolInfo = toolsMap.get(functionName);
+
+          let toolResult: any;
+          try {
+            if (toolInfo) {
+              // Execute the tool
+              const executionResult = await toolExecutionService.executeTool(
+                toolInfo.id,
+                functionArgs,
+                {
+                  botId: botId!,
+                  conversationId: sessionId || 'unknown',
+                  userId: (req as any).user?.id,
+                }
+              );
+
+              if (executionResult.success) {
+                toolResult = {
+                  success: true,
+                  data: executionResult.data,
+                };
+
+                // Record usage for agency billing
+                if (currentBot.organizationId) {
+                  try {
+                    await agencyBillingService.recordUsageEvent({
+                      eventType: 'tool_execution',
+                      quantity: 1,
+                      agencyOrganizationId: currentBot.organizationId,
+                      clientOrganizationId: (req as any).user?.organizationId,
+                    });
+                  } catch (billingErr) {
+                    console.error('Billing record error:', billingErr);
+                  }
+                }
+              } else {
+                toolResult = {
+                  success: false,
+                  error: executionResult.error || 'Tool execution failed',
+                };
+              }
+            } else {
+              toolResult = {
+                success: false,
+                error: 'Tool not found',
+              };
+            }
+          } catch (error: any) {
+            toolResult = {
+              success: false,
+              error: error.message || 'Tool execution error',
+            };
+          }
+
+          // Add tool result to messages
+          openAIMessages.push({
+            role: 'tool',
+            tool_call_id: toolCall.id,
+            content: JSON.stringify(toolResult),
+          } as any);
+        }
+
+        // Continue loop to get next response
+        continue;
+      }
+
+      // No function call, we have the final response
+      responseText = message?.content || '';
+      break;
     }
 
-    const responseText = response.choices[0]?.message?.content || '';
+    // If we hit max function calls, use the last response
+    if (functionCallAttempts >= maxFunctionCalls && !responseText) {
+      responseText =
+        'I apologize, but I encountered an issue while processing your request. Please try again.';
+    }
 
     // Save conversation and analyze sentiment
     if (sessionId && botId && currentBot) {
@@ -282,34 +413,151 @@ router.post(
         });
       });
 
-      let response;
+      // Get available tools for function calling
+      let tools: any[] = [];
+      let toolsMap: Map<string, any> = new Map();
       try {
-        response = await openai.chat.completions.create({
-          model: useModel,
-          messages: openAIMessages,
-          temperature: bot.temperature || 0.7,
-          max_tokens: 500,
+        const availableTools = await toolExecutionService.getAvailableTools(botId);
+        tools = availableTools.map((t: any) => {
+          toolsMap.set(t.function.name, {
+            id: t._toolId,
+            requiresApproval: t._requiresApproval,
+          });
+          return {
+            type: 'function',
+            function: {
+              name: t.function.name,
+              description: t.function.description,
+              parameters: t.function.parameters,
+            },
+          };
         });
-      } catch (error: any) {
-        const isModelNotFound =
-          error?.code === 'model_not_found' ||
-          error?.status === 404 ||
-          (error?.status === 400 &&
-            String(error?.message || '').toLowerCase().includes('model'));
-        if (useModel === 'gpt-5o-mini' && isModelNotFound) {
-          useModel = 'gpt-4o-mini';
-          response = await openai.chat.completions.create({
+      } catch (err) {
+        console.error('Error fetching tools:', err);
+      }
+
+      let response;
+      let responseText = '';
+      let functionCallAttempts = 0;
+      const maxFunctionCalls = 5;
+
+      // Function calling loop
+      while (functionCallAttempts < maxFunctionCalls) {
+        try {
+          const completionParams: any = {
             model: useModel,
             messages: openAIMessages,
             temperature: bot.temperature || 0.7,
             max_tokens: 500,
-          });
-        } else {
-          throw error;
+          };
+
+          if (tools.length > 0) {
+            completionParams.tools = tools;
+            completionParams.tool_choice = 'auto';
+          }
+
+          response = await openai.chat.completions.create(completionParams);
+        } catch (error: any) {
+          const isModelNotFound =
+            error?.code === 'model_not_found' ||
+            error?.status === 404 ||
+            (error?.status === 400 &&
+              String(error?.message || '').toLowerCase().includes('model'));
+          if (useModel === 'gpt-5o-mini' && isModelNotFound) {
+            useModel = 'gpt-4o-mini';
+            response = await openai.chat.completions.create({
+              model: useModel,
+              messages: openAIMessages,
+              temperature: bot.temperature || 0.7,
+              max_tokens: 500,
+              ...(tools.length > 0 ? { tools, tool_choice: 'auto' } : {}),
+            });
+          } else {
+            throw error;
+          }
         }
+
+        const choice = response.choices[0];
+        const message = choice?.message;
+
+        // Check if function call was requested
+        if (message?.tool_calls && message.tool_calls.length > 0) {
+          functionCallAttempts++;
+
+          openAIMessages.push(message as any);
+
+          for (const toolCall of message.tool_calls) {
+            const functionName = toolCall.function.name;
+            const functionArgs = JSON.parse(toolCall.function.arguments || '{}');
+            const toolInfo = toolsMap.get(functionName);
+
+            let toolResult: any;
+            try {
+              if (toolInfo) {
+                const executionResult = await toolExecutionService.executeTool(
+                  toolInfo.id,
+                  functionArgs,
+                  {
+                    botId,
+                    conversationId: sessionId || 'public-chat',
+                  }
+                );
+
+                if (executionResult.success) {
+                  toolResult = {
+                    success: true,
+                    data: executionResult.data,
+                  };
+
+                  // Record usage for agency billing (public bot usage)
+                  if (bot.organizationId) {
+                    try {
+                      await agencyBillingService.recordUsageEvent({
+                        eventType: 'tool_execution',
+                        quantity: 1,
+                        agencyOrganizationId: bot.organizationId,
+                      });
+                    } catch (billingErr) {
+                      console.error('Billing record error:', billingErr);
+                    }
+                  }
+                } else {
+                  toolResult = {
+                    success: false,
+                    error: executionResult.error || 'Tool execution failed',
+                  };
+                }
+              } else {
+                toolResult = {
+                  success: false,
+                  error: 'Tool not found',
+                };
+              }
+            } catch (error: any) {
+              toolResult = {
+                success: false,
+                error: error.message || 'Tool execution error',
+              };
+            }
+
+            openAIMessages.push({
+              role: 'tool',
+              tool_call_id: toolCall.id,
+              content: JSON.stringify(toolResult),
+            } as any);
+          }
+
+          continue;
+        }
+
+        responseText = message?.content || '';
+        break;
       }
 
-      const responseText = response.choices[0]?.message?.content || '';
+      if (functionCallAttempts >= maxFunctionCalls && !responseText) {
+        responseText =
+          'I apologize, but I encountered an issue while processing your request. Please try again.';
+      }
 
       // Save conversation and analyze sentiment
       if (sessionId) {
