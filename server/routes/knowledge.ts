@@ -57,7 +57,7 @@ router.post(
   async (req: Request, res: Response) => {
     try {
       const { botId } = req.params;
-      const { url, crawlDepth = 1 } = req.body;
+      const { url, crawlDepth = 20 } = req.body;
       const user = (req as any).user;
       const organizationId = user?.organizationId || (req as any).organization?.id;
 
@@ -76,7 +76,7 @@ router.post(
       }
 
       const sourceId = uuidv4();
-      const maxPages = Math.min(Math.max(1, Number(crawlDepth) || 1), 10);
+      const maxPages = Math.min(Math.max(1, Number(crawlDepth) || 20), 50);
 
       await db.insert(knowledgeSources).values({
         id: sourceId,
@@ -300,7 +300,7 @@ router.post(
       if (s.sourceType === 'url' && s.sourceUrl) {
         WebScraperService.crawlWebsite(
           s.sourceUrl,
-          s.pagesCrawled || 5,
+          s.pagesCrawled || 20,
           sourceId,
           s.botId!,
         ).catch(console.error);
