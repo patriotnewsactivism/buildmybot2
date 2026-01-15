@@ -639,7 +639,7 @@ app.post('/api/bots', ...apiAuthStack, async (req, res) => {
             // Trigger scraper asynchronously
             WebScraperService.crawlWebsite(
               item,
-              1, // Default depth
+              20, // Increased default depth for deep scrape
               sourceId,
               newBot.id,
               newBot.organizationId,
