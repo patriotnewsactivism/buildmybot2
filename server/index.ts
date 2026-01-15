@@ -72,6 +72,7 @@ import {
 import { getStripePublishableKey } from './stripeClient';
 import { stripeService } from './stripeService';
 import { WebhookHandlers } from './webhookHandlers';
+import { voiceAgentService } from './services/VoiceAgentService';
 
 const isVercel = Boolean(process.env.VERCEL);
 const uploadsDir = isVercel
@@ -1391,30 +1392,7 @@ const server = createServer(app);
 const wss = new WebSocketServer({ server, path: '/api/ws/voice' });
 
 wss.on('connection', (ws) => {
-  console.log('New WebSocket connection for voice stream');
-
-  ws.on('message', (message) => {
-    // Handle Twilio Media Streams messages here
-    // { event: "media", streamSid: "...", media: { payload: "base64..." } }
-    try {
-      const msg = JSON.parse(message.toString());
-      if (msg.event === 'start') {
-         console.log('Media stream started', msg.start.streamSid);
-         // Access custom parameters we passed in Twilio webhook: msg.start.customParameters
-      } else if (msg.event === 'media') {
-         // This is the audio data (base64) from the caller
-         // We would forward this to STT (Deepgram/OpenAI) and then to LLM
-      } else if (msg.event === 'stop') {
-         console.log('Media stream stopped');
-      }
-    } catch (e) {
-      console.error('Error parsing WS message', e);
-    }
-  });
-
-  ws.on('close', () => {
-    console.log('Voice stream disconnected');
-  });
+  voiceAgentService.handleConnection(ws);
 });
 
 if (!isVercel) {
