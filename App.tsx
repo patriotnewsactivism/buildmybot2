@@ -735,7 +735,11 @@ function App() {
             {currentView === 'admin' && (
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
               <RouteGuard requiredRole="admin">
+=======
+              <RouteGuard>
+>>>>>>> Stashed changes
 =======
               <RouteGuard>
 >>>>>>> Stashed changes
@@ -781,7 +785,11 @@ function App() {
             {currentView === 'reseller' && (
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
               <RouteGuard requiredRole="reseller">
+=======
+              <RouteGuard>
+>>>>>>> Stashed changes
 =======
               <RouteGuard>
 >>>>>>> Stashed changes
@@ -824,7 +832,11 @@ function App() {
             {currentView === 'dashboard' && (
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
               <RouteGuard requiredRole="owner">
+=======
+              <RouteGuard>
+>>>>>>> Stashed changes
 =======
               <RouteGuard>
 >>>>>>> Stashed changes
@@ -855,7 +867,11 @@ function App() {
             {currentView === 'client' && (
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
               <RouteGuard requiredRole="client">
+=======
+              <RouteGuard>
+>>>>>>> Stashed changes
 =======
               <RouteGuard>
 >>>>>>> Stashed changes
