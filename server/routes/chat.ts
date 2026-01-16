@@ -16,8 +16,10 @@ import { chatService } from '../services/ChatService';
 import { KnowledgeService } from '../services/KnowledgeService';
 import { toolExecutionService } from '../services/ToolExecutionService';
 import { agencyBillingService } from '../services/AgencyBillingService';
+import { AnalyticsService } from '../services/AnalyticsService';
 
 const router = Router();
+const analyticsService = new AnalyticsService();
 const isDevelopment = process.env.NODE_ENV !== 'production';
 
 const apiAuthStack = [
@@ -102,6 +104,16 @@ async function handleChatCompletion(req: Request, res: Response) {
           const userQuery = lastUserMessage?.text || '';
 
           if (userQuery) {
+            // Track user message
+            analyticsService.trackEvent({
+              organizationId: user?.organizationId || currentBot?.organizationId,
+              botId: botId,
+              userId: user?.id,
+              eventType: 'chat_message',
+              eventData: { role: 'user', length: userQuery.length, sessionId },
+              sessionId
+            }).catch(e => console.error('Analytics error:', e));
+
             const ragContext = await KnowledgeService.buildContext(
               botId,
               userQuery,
@@ -235,10 +247,35 @@ async function handleChatCompletion(req: Request, res: Response) {
                   data: executionResult.data,
                 };
 
-                // Record usage for agency billing
-                if (currentBot.organizationId) {
-                  try {
-                    await agencyBillingService.recordUsageEvent({
+                                  // Track tool usage
+
+                                  analyticsService.trackEvent({
+
+                                    organizationId: (req as any).user?.organizationId || currentBot?.organizationId,
+
+                                    botId: botId,
+
+                                    userId: (req as any).user?.id,
+
+                                    eventType: 'tool_usage',
+
+                                    eventData: { toolName: functionName, success: true, sessionId },
+
+                                    sessionId
+
+                                  }).catch(e => console.error('Analytics error:', e));
+
+                
+
+                                  // Record usage for agency billing
+
+                                  if (currentBot.organizationId) {
+
+                                    try {
+
+                                      await agencyBillingService.recordUsageEvent({
+
+                
                       eventType: 'tool_execution',
                       quantity: 1,
                       agencyOrganizationId: currentBot.organizationId,
@@ -297,6 +334,16 @@ async function handleChatCompletion(req: Request, res: Response) {
         { role: 'model', text: responseText },
       ];
       const user = (req as any).user;
+
+      // Track bot response
+      analyticsService.trackEvent({
+        organizationId: user?.organizationId || currentBot?.organizationId,
+        botId: botId,
+        userId: user?.id,
+        eventType: 'chat_message',
+        eventData: { role: 'bot', length: responseText.length, sessionId },
+        sessionId
+      }).catch(e => console.error('Analytics error:', e));
 
       await chatService.saveConversation(
         sessionId,
@@ -387,6 +434,17 @@ router.post(
 
       const lastUserMessage = messages.filter((m) => m.role === 'user').pop();
       const userQuery = lastUserMessage?.text || '';
+
+      if (userQuery) {
+        analyticsService.trackEvent({
+          organizationId: bot.organizationId,
+          botId: botId,
+          userId: undefined,
+          eventType: 'chat_message',
+          eventData: { role: 'user', length: userQuery.length, sessionId },
+          sessionId: sessionId || 'unknown'
+        }).catch(e => console.error('Analytics error:', e));
+      }
 
       let ragContext = '';
       if (userQuery) {
@@ -509,6 +567,15 @@ router.post(
                     data: executionResult.data,
                   };
 
+                  analyticsService.trackEvent({
+                    organizationId: bot.organizationId,
+                    botId: botId,
+                    userId: undefined,
+                    eventType: 'tool_usage',
+                    eventData: { toolName: functionName, success: true, sessionId },
+                    sessionId: sessionId || 'unknown'
+                  }).catch(e => console.error('Analytics error:', e));
+
                   // Record usage for agency billing (public bot usage)
                   if (bot.organizationId) {
                     try {
@@ -561,6 +628,15 @@ router.post(
 
       // Save conversation and analyze sentiment
       if (sessionId) {
+        analyticsService.trackEvent({
+          organizationId: bot.organizationId,
+          botId: botId,
+          userId: undefined,
+          eventType: 'chat_message',
+          eventData: { role: 'bot', length: responseText.length, sessionId },
+          sessionId
+        }).catch(e => console.error('Analytics error:', e));
+
         const updatedMessages = [
           ...messages,
           { role: 'model', text: responseText },
