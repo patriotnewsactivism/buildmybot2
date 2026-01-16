@@ -352,6 +352,76 @@ router.get('/growth/:orgId', async (req: Request, res: Response) => {
 });
 
 // ========================================
+// GET /api/analytics/conversations/:orgId
+// Get detailed conversation analytics
+// ========================================
+router.get('/conversations/:orgId', async (req: Request, res: Response) => {
+  try {
+    const { orgId } = req.params;
+    const { startDate, endDate } = req.query;
+    const start = startDate ? new Date(startDate as string) : undefined;
+    const end = endDate ? new Date(endDate as string) : undefined;
+    const data = await analyticsService.getConversationAnalytics(orgId, start, end);
+    res.json(data);
+  } catch (error) {
+    console.error('Error fetching conversation analytics:', error);
+    res.status(500).json({ error: 'Failed to fetch conversation analytics' });
+  }
+});
+
+// ========================================
+// GET /api/analytics/leads/:orgId
+// Get detailed lead analytics
+// ========================================
+router.get('/leads/:orgId', async (req: Request, res: Response) => {
+  try {
+    const { orgId } = req.params;
+    const { startDate, endDate } = req.query;
+    const start = startDate ? new Date(startDate as string) : undefined;
+    const end = endDate ? new Date(endDate as string) : undefined;
+    const data = await analyticsService.getLeadAnalytics(orgId, start, end);
+    res.json(data);
+  } catch (error) {
+    console.error('Error fetching lead analytics:', error);
+    res.status(500).json({ error: 'Failed to fetch lead analytics' });
+  }
+});
+
+// ========================================
+// GET /api/analytics/trends/:orgId
+// Get performance trends
+// ========================================
+router.get('/trends/:orgId', async (req: Request, res: Response) => {
+  try {
+    const { orgId } = req.params;
+    const days = Number(req.query.days) || 30;
+    const data = await analyticsService.getPerformanceTrends(orgId, days);
+    res.json(data);
+  } catch (error) {
+    console.error('Error fetching trends:', error);
+    res.status(500).json({ error: 'Failed to fetch trends' });
+  }
+});
+
+// ========================================
+// GET /api/analytics/satisfaction/:orgId
+// Get satisfaction analytics
+// ========================================
+router.get('/satisfaction/:orgId', async (req: Request, res: Response) => {
+  try {
+    const { orgId } = req.params;
+    const { startDate, endDate } = req.query;
+    const start = startDate ? new Date(startDate as string) : undefined;
+    const end = endDate ? new Date(endDate as string) : undefined;
+    const data = await analyticsService.getSatisfactionAnalytics(orgId, start, end);
+    res.json(data);
+  } catch (error) {
+    console.error('Error fetching satisfaction analytics:', error);
+    res.status(500).json({ error: 'Failed to fetch satisfaction analytics' });
+  }
+});
+
+// ========================================
 // GET /api/analytics/global/overview
 // Get global analytics overview for admins
 // ========================================
