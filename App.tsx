@@ -11,7 +11,7 @@ import {
   TrendingUp,
   Users,
 } from 'lucide-react';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Area,
   AreaChart,
@@ -733,7 +733,23 @@ function App() {
 
             {/* Phase 2: Admin Dashboard with DashboardShell */}
             {currentView === 'admin' && (
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
               <RouteGuard requiredRole="admin">
+=======
+              <RouteGuard>
+>>>>>>> Stashed changes
+=======
+              <RouteGuard>
+>>>>>>> Stashed changes
+=======
+              <RouteGuard>
+>>>>>>> Stashed changes
+=======
+              <RouteGuard>
+>>>>>>> Stashed changes
                 <DashboardShell
                   currentPath={`/admin${adminActiveTab === 'metrics' ? '' : `/${adminActiveTab}`}`}
                   onNavigate={(path) => {
@@ -771,7 +787,23 @@ function App() {
 
             {/* Phase 2: Partner Dashboard with DashboardShell */}
             {currentView === 'reseller' && (
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
               <RouteGuard requiredRole="reseller">
+=======
+              <RouteGuard>
+>>>>>>> Stashed changes
+=======
+              <RouteGuard>
+>>>>>>> Stashed changes
+=======
+              <RouteGuard>
+>>>>>>> Stashed changes
+=======
+              <RouteGuard>
+>>>>>>> Stashed changes
                 <DashboardShell
                   currentPath={`/partner/${partnerActiveTab}`}
                   onNavigate={(path) => {
@@ -806,7 +838,23 @@ function App() {
 
             {/* Phase 2: Owner Dashboard with DashboardShell (regular business owners) */}
             {currentView === 'dashboard' && (
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
               <RouteGuard requiredRole="owner">
+=======
+              <RouteGuard>
+>>>>>>> Stashed changes
+=======
+              <RouteGuard>
+>>>>>>> Stashed changes
+=======
+              <RouteGuard>
+>>>>>>> Stashed changes
+=======
+              <RouteGuard>
+>>>>>>> Stashed changes
                 <DashboardShell
                   currentPath="/app"
                   onNavigate={(path) => {
@@ -829,7 +877,23 @@ function App() {
 
             {/* Phase 2: Client Dashboard with DashboardShell (CLIENT role - managed by resellers) */}
             {currentView === 'client' && (
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
               <RouteGuard requiredRole="client">
+=======
+              <RouteGuard>
+>>>>>>> Stashed changes
+=======
+              <RouteGuard>
+>>>>>>> Stashed changes
+=======
+              <RouteGuard>
+>>>>>>> Stashed changes
+=======
+              <RouteGuard>
+>>>>>>> Stashed changes
                 <DashboardShell
                   currentPath="/app"
                   onNavigate={(path) => {
