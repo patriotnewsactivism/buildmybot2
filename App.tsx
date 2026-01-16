@@ -11,7 +11,7 @@ import {
   TrendingUp,
   Users,
 } from 'lucide-react';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Area,
   AreaChart,
@@ -430,28 +430,45 @@ function App() {
     setTimeout(() => setIsBooting(false), 500);
   }, []);
 
-  useEffect(() => {
-    const unsubscribeBots = dbService.subscribeToBots((updatedBots) => {
+  // Manual refresh functions - no polling to avoid race conditions
+  const refreshBots = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const updatedBots = await dbService.getBots();
       setBots(updatedBots);
-    });
-
-    const unsubscribeLeads = dbService.subscribeToLeads((updatedLeads) => {
-      setLeads(updatedLeads);
-    });
-
-    const unsubscribeConversations = dbService.subscribeToConversations(
-      (updatedConversations) => {
-        setChatLogs(updatedConversations);
-      },
-      user?.id,
-    );
-
-    return () => {
-      unsubscribeBots();
-      unsubscribeLeads();
-      unsubscribeConversations();
-    };
+    } catch (error) {
+      console.error('Failed to refresh bots:', error);
+    }
   }, [user?.id]);
+
+  const refreshLeads = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const updatedLeads = await dbService.getLeads();
+      setLeads(updatedLeads);
+    } catch (error) {
+      console.error('Failed to refresh leads:', error);
+    }
+  }, [user?.id]);
+
+  const refreshConversations = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const updatedConversations = await dbService.getConversations(user.id);
+      setChatLogs(updatedConversations);
+    } catch (error) {
+      console.error('Failed to refresh conversations:', error);
+    }
+  }, [user?.id]);
+
+  // Initial load only - no continuous polling
+  useEffect(() => {
+    if (user?.id) {
+      refreshBots();
+      refreshLeads();
+      refreshConversations();
+    }
+  }, [user?.id, refreshBots, refreshLeads, refreshConversations]);
 
   const totalConversations = bots.reduce(
     (acc, bot) => acc + bot.conversationsCount,
@@ -534,7 +551,7 @@ function App() {
   const handleSaveBot = async (bot: BotType) => {
     try {
       const savedBot = await dbService.saveBot(bot);
-      // Update the bots state immediately with the server-generated ID
+      // Optimistic update - immediately update local state
       setBots((prevBots) => {
         const existingIndex = prevBots.findIndex(
           (b) => b.id === bot.id || b.id === savedBot.id,
@@ -547,10 +564,15 @@ function App() {
         return [...prevBots, savedBot];
       });
       setNotification('Bot saved successfully!');
+      setTimeout(() => setNotification(null), 2000);
+
+      // Return saved bot for BotBuilder to update its state
+      return savedBot;
     } catch (error) {
       setNotification('Failed to save bot. Please try again.');
+      setTimeout(() => setNotification(null), 2000);
+      throw error; // Propagate error for BotBuilder to handle
     }
-    setTimeout(() => setNotification(null), 2000);
   };
 
   const handleStartImpersonation = async (
@@ -852,6 +874,7 @@ function App() {
                   onSave={handleSaveBot}
                   customDomain={activeUser?.customDomain}
                   onLeadDetected={handleLeadDetected}
+                  onRefresh={refreshBots}
                 />
               </ErrorBoundary>
             )}
