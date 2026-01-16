@@ -77,6 +77,18 @@ export const dbService = {
     return () => clearInterval(interval);
   },
 
+  // --- FIXED: Added getBots to satisfy App.tsx ---
+  getBots: async (): Promise<Bot[]> => {
+    try {
+      const response = await request('/clients/bots', { method: 'GET' }, false);
+      if (!response.ok) return [];
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching bots:', error);
+      return [];
+    }
+  },
+
   saveBot: async (bot: Bot): Promise<Bot> => {
     try {
       const isNewBot = !bot.id || bot.id === 'new';
@@ -146,6 +158,19 @@ export const dbService = {
     fetchLeads();
     const interval = setInterval(fetchLeads, 5000);
     return () => clearInterval(interval);
+  },
+
+  // --- FIXED: Added getLeads to satisfy App.tsx ---
+  getLeads: async (botId?: string): Promise<Lead[]> => {
+    try {
+      const url = botId ? `/clients/leads?botId=${botId}` : '/clients/leads';
+      const response = await request(url, { method: 'GET' }, false);
+      if (!response.ok) return [];
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching leads:', error);
+      return [];
+    }
   },
 
   saveLead: async (lead: Lead): Promise<Lead> => {
@@ -358,6 +383,19 @@ export const dbService = {
     fetchConversations();
     const interval = setInterval(fetchConversations, 5000);
     return () => clearInterval(interval);
+  },
+
+  // --- FIXED: Added getConversations to satisfy App.tsx ---
+  getConversations: async (userId?: string): Promise<Conversation[]> => {
+    try {
+      const url = userId ? `/conversations?userId=${userId}` : '/conversations';
+      const response = await request(url, { method: 'GET' }, false);
+      if (!response.ok) return [];
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching conversations:', error);
+      return [];
+    }
   },
 
   saveConversation: async (
@@ -1072,8 +1110,8 @@ export const dbService = {
   acknowledgeNotification: async (notificationId: string) => {
     const response = await request(
       `/notifications/${notificationId}/acknowledge`,
-      { method: 'POST' },
-    );
+      { method: 'POST',
+    });
     if (!response.ok) throw new Error('Failed to acknowledge notification');
     return response.json();
   },
