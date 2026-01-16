@@ -117,6 +117,64 @@ export interface SatisfactionAnalytics {
 }
 
 export class AnalyticsService {
+  async updateConversationMetrics(
+    conversationId: string,
+    botId: string,
+    organizationId: string | undefined,
+    messageRole: 'user' | 'model' | 'system',
+    leadId?: string,
+  ) {
+    const [existing] = await db
+      .select()
+      .from(conversationMetrics)
+      .where(eq(conversationMetrics.conversationId, conversationId));
+
+    if (existing) {
+      const now = new Date();
+      const durationSeconds = Math.round(
+        (now.getTime() - existing.startedAt.getTime()) / 1000,
+      );
+
+      const updates: any = {
+        messageCount: (existing.messageCount || 0) + 1,
+        endedAt: now,
+        durationSeconds,
+      };
+
+      if (messageRole === 'user') {
+        updates.userMessageCount = (existing.userMessageCount || 0) + 1;
+      } else if (messageRole === 'model') {
+        updates.botMessageCount = (existing.botMessageCount || 0) + 1;
+      }
+
+      if (leadId) {
+        updates.leadCaptured = true;
+        updates.leadId = leadId;
+      }
+
+      await db
+        .update(conversationMetrics)
+        .set(updates)
+        .where(eq(conversationMetrics.id, existing.id));
+    } else {
+      await db.insert(conversationMetrics).values({
+        id: uuidv4(),
+        conversationId,
+        botId,
+        organizationId: organizationId || null,
+        startedAt: new Date(),
+        endedAt: new Date(),
+        durationSeconds: 0,
+        messageCount: 1,
+        userMessageCount: messageRole === 'user' ? 1 : 0,
+        botMessageCount: messageRole === 'model' ? 1 : 0,
+        leadCaptured: !!leadId,
+        leadId: leadId || null,
+        completed: false,
+      });
+    }
+  }
+
   async trackEvent(
     eventData: Omit<InsertAnalyticsEvent, 'id' | 'createdAt'>,
   ): Promise<AnalyticsEvent> {

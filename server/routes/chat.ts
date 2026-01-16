@@ -16,7 +16,7 @@ import { chatService } from '../services/ChatService';
 import { KnowledgeService } from '../services/KnowledgeService';
 import { toolExecutionService } from '../services/ToolExecutionService';
 import { agencyBillingService } from '../services/AgencyBillingService';
-import { AnalyticsService } from '../services/AnalyticsService';
+import { AnalyticsService } from '../services';
 
 const router = Router();
 const analyticsService = new AnalyticsService();
@@ -365,13 +365,21 @@ async function handleChatCompletion(req: Request, res: Response) {
         sessionId
       }).catch(e => console.error('Analytics error:', e));
 
-      await chatService.saveConversation(
+      const conversationId = await chatService.saveConversation(
         sessionId,
         botId,
         updatedMessages,
         user?.id,
         user?.organizationId || currentBot.organizationId,
       );
+
+      // Update metrics
+      analyticsService.updateConversationMetrics(
+        conversationId,
+        botId,
+        user?.organizationId || currentBot.organizationId,
+        'model'
+      ).catch(e => console.error('Metrics error:', e));
 
       const lastUserMessage = messages.filter((m) => m.role === 'user').pop();
       if (lastUserMessage) {
@@ -663,13 +671,21 @@ router.post(
         ];
         // For public bot chat, we might not have a logged-in user, so userId/orgId might be null
         // However, we should attribute it to the bot's organization
-        await chatService.saveConversation(
+        const conversationId = await chatService.saveConversation(
           sessionId,
           botId,
           updatedMessages,
           undefined, // userId (anonymous)
           bot.organizationId || undefined,
         );
+
+        // Update metrics
+        analyticsService.updateConversationMetrics(
+          conversationId,
+          botId,
+          bot.organizationId || undefined,
+          'model'
+        ).catch(e => console.error('Metrics error:', e));
 
         if (userQuery) {
           chatService.updateSentiment(sessionId, userQuery);
