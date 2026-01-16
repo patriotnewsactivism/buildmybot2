@@ -711,7 +711,11 @@ function App() {
 
             {/* Phase 2: Admin Dashboard with DashboardShell */}
             {currentView === 'admin' && (
+<<<<<<< Updated upstream
               <RouteGuard requiredRole="admin">
+=======
+              <RouteGuard>
+>>>>>>> Stashed changes
                 <DashboardShell
                   currentPath={`/admin${adminActiveTab === 'metrics' ? '' : `/${adminActiveTab}`}`}
                   onNavigate={(path) => {
@@ -749,7 +753,11 @@ function App() {
 
             {/* Phase 2: Partner Dashboard with DashboardShell */}
             {currentView === 'reseller' && (
+<<<<<<< Updated upstream
               <RouteGuard requiredRole="reseller">
+=======
+              <RouteGuard>
+>>>>>>> Stashed changes
                 <DashboardShell
                   currentPath={`/partner/${partnerActiveTab}`}
                   onNavigate={(path) => {
@@ -784,7 +792,11 @@ function App() {
 
             {/* Phase 2: Owner Dashboard with DashboardShell (regular business owners) */}
             {currentView === 'dashboard' && (
+<<<<<<< Updated upstream
               <RouteGuard requiredRole="owner">
+=======
+              <RouteGuard>
+>>>>>>> Stashed changes
                 <DashboardShell
                   currentPath="/app"
                   onNavigate={(path) => {
@@ -807,7 +819,11 @@ function App() {
 
             {/* Phase 2: Client Dashboard with DashboardShell (CLIENT role - managed by resellers) */}
             {currentView === 'client' && (
+<<<<<<< Updated upstream
               <RouteGuard requiredRole="client">
+=======
+              <RouteGuard>
+>>>>>>> Stashed changes
                 <DashboardShell
                   currentPath="/app"
                   onNavigate={(path) => {

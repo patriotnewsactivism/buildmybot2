@@ -127,8 +127,12 @@ const app = express();
 app.set('trust proxy', 1);
 
 const isProduction = env.NODE_ENV === 'production';
+<<<<<<< Updated upstream
 const defaultPort = isProduction ? '5000' : env.API_PORT || '3001';
 const PORT = Number.parseInt(env.PORT || defaultPort, 10);
+=======
+const PORT = isProduction ? 5000 : Number.parseInt(env.API_PORT || '3001', 10);
+>>>>>>> Stashed changes
 
 function getBaseUrl() {
   const appBaseUrl = env.APP_BASE_URL?.trim();
@@ -173,8 +177,7 @@ app.use(
       tableName: 'sessions',
       createTableIfMissing: true,
     }),
-    secret:
-      env.SESSION_SECRET || 'buildmybot-dev-secret-change-in-production',
+    secret: env.SESSION_SECRET || 'buildmybot-dev-secret-change-in-production',
     resave: false,
     saveUninitialized: false,
     cookie: {
