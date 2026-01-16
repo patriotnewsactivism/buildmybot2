@@ -54,6 +54,7 @@
       "Bash(node --experimental-strip-types --no-warnings -e:*)",
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
       "Bash(npx drizzle-kit push:*)",
       "Bash(echo:*)",
       "Bash(npx drizzle-kit:*)",
@@ -75,6 +76,9 @@
       "Bash(grep:*)",
       "WebSearch",
       "WebFetch(domain:www.firecrawl.dev)"
+=======
+      "Bash(echo:*)"
+>>>>>>> Stashed changes
 =======
       "Bash(echo:*)"
 >>>>>>> Stashed changes
