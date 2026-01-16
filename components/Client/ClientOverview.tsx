@@ -14,6 +14,7 @@ import { dbService } from '../../services/dbService';
 import type { User } from '../../types';
 import { type Column, DataTable } from '../UI/DataTable';
 import { MetricCard } from '../UI/MetricCard';
+import { PlayfulMetricCard } from '../UI/PlayfulMetricCard';
 import { QuickMetricsWidget } from '../UI/QuickMetricsWidget';
 import { ReferralBanner } from '../UI/ReferralBanner';
 
@@ -340,67 +341,87 @@ export const ClientOverview: React.FC<ClientOverviewProps> = ({
         </div>
       )}
 
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-xl md:text-2xl font-bold text-slate-900">
-            Dashboard Overview
-          </h2>
-          <p className="text-xs md:text-sm text-slate-600 mt-1">
-            Welcome back! Here's your performance at a glance.
-          </p>
-        </div>
-        <div className="flex items-center space-x-2">
-          <button
-            type="button"
-            onClick={handleCreateBot}
-            className="px-3 md:px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 flex items-center space-x-2 text-sm"
-          >
-            <Plus size={16} />
-            <span>Create Bot</span>
-          </button>
-          <button
-            type="button"
-            onClick={fetchOverview}
-            className="px-3 md:px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 flex items-center space-x-2 text-sm"
-          >
-            <RefreshCw size={16} />
-            <span className="hidden sm:inline">Refresh</span>
-          </button>
+      {/* Playful Gradient Hero Header */}
+      <div className="relative overflow-hidden rounded-3xl p-6 md:p-8 mb-6 bg-gradient-to-br from-violet-600 via-purple-600 to-indigo-600 shadow-2xl">
+        {/* Animated background elements */}
+        <div className="absolute top-0 right-0 w-48 md:w-64 h-48 md:h-64 bg-gradient-to-br from-pink-400/30 to-yellow-400/30 rounded-full blur-3xl animate-pulse" />
+        <div className="absolute bottom-0 left-0 w-32 md:w-48 h-32 md:h-48 bg-gradient-to-tr from-blue-400/30 to-purple-400/30 rounded-full blur-2xl animate-float" />
+
+        {/* Content */}
+        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl md:text-4xl font-black text-white mb-2 flex items-center gap-3">
+              <span className="animate-wiggle">👋</span>
+              Welcome back, {user?.name || 'there'}!
+            </h1>
+            <p className="text-purple-100 text-base md:text-lg">
+              Your AI bots are working hard. Here's what's happening today.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              type="button"
+              onClick={handleCreateBot}
+              className="px-4 py-3 bg-white text-purple-700 rounded-xl hover:bg-purple-50 font-bold flex items-center gap-2 text-sm shadow-lg hover:shadow-xl hover:scale-105 transition-all"
+            >
+              <Plus size={18} />
+              <span>Create Bot</span>
+            </button>
+            <button
+              type="button"
+              onClick={fetchOverview}
+              className="px-4 py-3 bg-white/20 text-white rounded-xl hover:bg-white/30 backdrop-blur-sm font-semibold flex items-center gap-2 text-sm transition-all hover:scale-105"
+            >
+              <RefreshCw size={18} />
+              <span className="hidden sm:inline">Refresh</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Key Metrics */}
+      {/* Key Metrics - Playful Design */}
       {stats && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-          <MetricCard
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+          <PlayfulMetricCard
             icon={Bot}
             label="Active Bots"
             value={stats.botCount}
+            gradient="from-violet-500 to-purple-600"
+            illustration="🤖"
+            trend={stats.botCount > 0 ? `${stats.botCount} total` : undefined}
             loading={loading}
           />
-          <MetricCard
+          <PlayfulMetricCard
             icon={MessageSquare}
             label="Total Leads"
             value={stats.leadCount}
+            gradient="from-pink-500 to-rose-600"
+            illustration="💼"
+            trend={stats.leadCount > 0 ? '+15%' : undefined}
             loading={loading}
+            onClick={onOpenLeads}
           />
-          <MetricCard
+          <PlayfulMetricCard
             icon={TrendingUp}
             label="Conversion Rate"
             value={`${stats.conversionRate.toFixed(1)}%`}
-            status={
+            gradient="from-emerald-500 to-teal-600"
+            illustration="📈"
+            trend={
               stats.conversionRate > 20
-                ? 'healthy'
+                ? '🔥 Hot'
                 : stats.conversionRate > 10
-                  ? 'warning'
-                  : 'critical'
+                  ? '👍 Good'
+                  : '⚠️ Low'
             }
             loading={loading}
           />
-          <MetricCard
+          <PlayfulMetricCard
             icon={Star}
-            label="Avg Lead Score"
+            label="Lead Quality"
             value={`${stats.averageLeadScore.toFixed(0)}%`}
+            gradient="from-amber-500 to-orange-600"
+            illustration="⭐"
             loading={loading}
           />
         </div>
@@ -547,6 +568,25 @@ export const ClientOverview: React.FC<ClientOverviewProps> = ({
             Monitor conversions and leads in a simple weekly summary.
           </p>
         </div>
+      </div>
+
+      {/* Floating Action Button - Playful Design */}
+      <div className="fixed bottom-6 right-6 z-50">
+        <button
+          type="button"
+          onClick={handleCreateBot}
+          className="group relative w-16 h-16 rounded-full bg-gradient-to-br from-violet-600 to-purple-600 shadow-xl shadow-purple-500/50 hover:shadow-2xl hover:shadow-purple-600/60 hover:scale-110 transition-all duration-300 flex items-center justify-center"
+        >
+          <Plus className="text-white" size={28} />
+
+          {/* Tooltip */}
+          <div className="absolute right-full mr-3 px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-semibold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+            Create New Bot
+          </div>
+
+          {/* Pulse ring animation */}
+          <div className="absolute inset-0 rounded-full bg-gradient-to-br from-violet-600 to-purple-600 animate-ping opacity-75" />
+        </button>
       </div>
     </div>
   );
