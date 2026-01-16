@@ -736,7 +736,11 @@ function App() {
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
               <RouteGuard requiredRole="admin">
+=======
+              <RouteGuard>
+>>>>>>> Stashed changes
 =======
               <RouteGuard>
 >>>>>>> Stashed changes
@@ -786,7 +790,11 @@ function App() {
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
               <RouteGuard requiredRole="reseller">
+=======
+              <RouteGuard>
+>>>>>>> Stashed changes
 =======
               <RouteGuard>
 >>>>>>> Stashed changes
@@ -833,7 +841,11 @@ function App() {
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
               <RouteGuard requiredRole="owner">
+=======
+              <RouteGuard>
+>>>>>>> Stashed changes
 =======
               <RouteGuard>
 >>>>>>> Stashed changes
@@ -868,7 +880,11 @@ function App() {
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
               <RouteGuard requiredRole="client">
+=======
+              <RouteGuard>
+>>>>>>> Stashed changes
 =======
               <RouteGuard>
 >>>>>>> Stashed changes
