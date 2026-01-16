@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   User, MessageSquare, BookOpen, Settings, Save, 
   ArrowRight, ArrowLeft, CheckCircle, Upload, Globe 
@@ -33,9 +33,14 @@ const INITIAL_DATA: BotFormData = {
   isPublic: false,
 };
 
-// --- Components ---
+// --- Props Interface (Required for the Build) ---
+interface SimplifiedBotWizardProps {
+  onComplete: (bot: any) => void;
+  onCancel: () => void;
+}
 
-export default function ModernBotWizard() {
+// --- Component ---
+export default function SimplifiedBotWizard({ onComplete, onCancel }: SimplifiedBotWizardProps) {
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState<BotFormData>(INITIAL_DATA);
   const [isSaving, setIsSaving] = useState(false);
@@ -64,16 +69,30 @@ export default function ModernBotWizard() {
             }))
         };
 
+        // Note: We call onComplete to let the parent handle the actual saving/state update
+        // If you still want the fetch here, keep it, but ensure onComplete fires.
+        
+        // Simulating a save delay if not using real fetch immediately
+        await new Promise(resolve => setTimeout(resolve, 800));
+
+        // If you want to use the API fetch:
+        /*
         const response = await fetch('/api/bots', {
-            method: 'POST', // or PUT if editing
+            method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
         });
-
         if (!response.ok) throw new Error('Failed to save');
-        
+        const savedBot = await response.json();
+        */
+
         setSaveStatus('success');
-        setTimeout(() => setSaveStatus('idle'), 3000);
+        
+        // Pass the data back to the parent
+        setTimeout(() => {
+            onComplete(payload); 
+        }, 1000);
+
     } catch (error) {
         console.error("Save error:", error);
         setSaveStatus('error');
@@ -96,8 +115,16 @@ export default function ModernBotWizard() {
       <div className="w-full lg:w-1/2 flex flex-col h-full border-r border-gray-200 bg-white shadow-xl z-10">
         
         {/* Header */}
-        <div className="p-8 border-b border-gray-100">
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+        <div className="p-8 border-b border-gray-100 relative">
+           {/* Back/Cancel Button */}
+           <button 
+             onClick={onCancel}
+             className="absolute top-4 left-4 text-gray-400 hover:text-gray-600"
+           >
+             <ArrowLeft size={20} />
+           </button>
+
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent mt-4">
             BuildMyBot Studio
           </h1>
           <div className="flex items-center mt-6 space-x-4">
@@ -113,10 +140,10 @@ export default function ModernBotWizard() {
                 `}>
                   {step > s.number ? <CheckCircle size={16} /> : s.number}
                 </div>
-                <span className={`text-sm font-medium ${step === s.number ? 'text-blue-600' : 'text-gray-500'}`}>
+                <span className={`text-sm font-medium hidden sm:block ${step === s.number ? 'text-blue-600' : 'text-gray-500'}`}>
                   {s.title}
                 </span>
-                {s.number !== 4 && <div className="w-8 h-px bg-gray-200 ml-2" />}
+                {s.number !== 4 && <div className="w-8 h-px bg-gray-200 ml-2 hidden sm:block" />}
               </div>
             ))}
           </div>
@@ -277,11 +304,10 @@ export default function ModernBotWizard() {
         {/* Footer Actions */}
         <div className="p-8 border-t border-gray-200 bg-gray-50 flex justify-between items-center">
           <button
-            onClick={() => setStep(s => Math.max(1, s - 1))}
-            disabled={step === 1}
-            className="px-6 py-2.5 rounded-lg font-medium text-gray-600 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            onClick={() => step === 1 ? onCancel() : setStep(s => Math.max(1, s - 1))}
+            className="px-6 py-2.5 rounded-lg font-medium text-gray-600 hover:bg-gray-200 transition-colors"
           >
-            Back
+            {step === 1 ? 'Cancel' : 'Back'}
           </button>
 
           {step < 4 ? (
