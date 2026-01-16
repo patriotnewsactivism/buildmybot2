@@ -72,7 +72,8 @@
       "Bash(node:*)",
       "Bash(grep:*)",
       "WebSearch",
-      "WebFetch(domain:www.firecrawl.dev)"
+      "WebFetch(domain:www.firecrawl.dev)",
+      "Bash(find:*)"
     ]
   }
 }
