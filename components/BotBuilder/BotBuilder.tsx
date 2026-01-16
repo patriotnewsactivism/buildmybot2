@@ -49,7 +49,7 @@ import {
 import type { BotDocument, Bot as BotType } from '../../types';
 import { SaveIndicator } from '../UI/SaveIndicator';
 import { KnowledgeBaseManager } from './KnowledgeBaseManager';
-import { SimplifiedBotWizard } from './SimplifiedBotWizard';
+import SimplifiedBotWizard from "./SimplifiedBotWizard";
 
 interface BotBuilderProps {
   bots: BotType[];
