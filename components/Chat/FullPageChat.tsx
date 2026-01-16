@@ -430,7 +430,7 @@ export const FullPageChat: React.FC<FullPageChatProps> = ({ botId }) => {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
               placeholder="Type a message..."
-              className="w-full pl-3 pr-10 py-2 rounded-lg border border-slate-200 focus:ring-blue-900 focus:border-blue-900 text-sm"
+              className="w-full pl-3 pr-10 py-2 rounded-lg border border-slate-200 focus:ring-blue-900 focus:border-blue-900 text-sm text-slate-900"
             />
             <button
               type="button"
@@ -520,7 +520,7 @@ export const FullPageChat: React.FC<FullPageChatProps> = ({ botId }) => {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
               placeholder="Type a message..."
-              className="w-full pl-4 pr-12 py-3 rounded-xl border border-slate-200 focus:ring-blue-900 focus:border-blue-900"
+              className="w-full pl-4 pr-12 py-3 rounded-xl border border-slate-200 focus:ring-blue-900 focus:border-blue-900 text-slate-900"
             />
             <button
               type="button"
