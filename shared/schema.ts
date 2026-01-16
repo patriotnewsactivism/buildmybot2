@@ -180,6 +180,118 @@ export const analyticsEvents = pgTable('analytics_events', {
   createdAt: timestamp('created_at').defaultNow(),
 });
 
+// Conversation metrics tracking
+export const conversationMetrics = pgTable('conversation_metrics', {
+  id: text('id').primaryKey(),
+  conversationId: text('conversation_id').references(() => conversations.id, {
+    onDelete: 'cascade',
+  }),
+  botId: text('bot_id').references(() => bots.id),
+  organizationId: text('organization_id').references(() => organizations.id),
+
+  // Duration tracking
+  startedAt: timestamp('started_at').notNull(),
+  endedAt: timestamp('ended_at'),
+  durationSeconds: integer('duration_seconds'),
+
+  // Engagement metrics
+  messageCount: integer('message_count').default(0),
+  userMessageCount: integer('user_message_count').default(0),
+  botMessageCount: integer('bot_message_count').default(0),
+
+  // Completion tracking
+  completed: boolean('completed').default(false),
+  completionReason: varchar('completion_reason', { length: 100 }), // 'goal_achieved', 'user_left', 'timeout', 'escalated'
+
+  // Sentiment
+  overallSentiment: varchar('overall_sentiment', { length: 50 }).default(
+    'neutral',
+  ),
+  sentimentScore: real('sentiment_score'), // -1 to 1
+
+  // Lead generation
+  leadCaptured: boolean('lead_captured').default(false),
+  leadId: text('lead_id').references(() => leads.id),
+
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+// Lead source tracking
+export const leadSources = pgTable('lead_sources', {
+  id: text('id').primaryKey(),
+  leadId: text('lead_id').references(() => leads.id, { onDelete: 'cascade' }),
+  organizationId: text('organization_id').references(() => organizations.id),
+
+  // Source details
+  source: varchar('source', { length: 100 }), // 'chat', 'form', 'phone', 'email'
+  medium: varchar('medium', { length: 100 }), // 'organic', 'paid', 'referral', 'direct'
+  campaign: varchar('campaign', { length: 255 }),
+
+  // Attribution
+  firstTouchBotId: text('first_touch_bot_id').references(() => bots.id),
+  lastTouchBotId: text('last_touch_bot_id').references(() => bots.id),
+  touchCount: integer('touch_count').default(1),
+
+  // UTM tracking
+  utmSource: varchar('utm_source', { length: 255 }),
+  utmMedium: varchar('utm_medium', { length: 255 }),
+  utmCampaign: varchar('utm_campaign', { length: 255 }),
+  utmContent: varchar('utm_content', { length: 255 }),
+
+  // Quality scoring
+  qualityScore: real('quality_score'), // 0-100
+  qualityFactors: json('quality_factors'), // { email_verified, phone_verified, engagement_score, etc }
+
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+// Bot performance snapshots (daily aggregates)
+export const botPerformanceDaily = pgTable('bot_performance_daily', {
+  id: text('id').primaryKey(),
+  botId: text('bot_id').references(() => bots.id, { onDelete: 'cascade' }),
+  organizationId: text('organization_id').references(() => organizations.id),
+  date: timestamp('date').notNull(),
+
+  // Conversation metrics
+  conversationsStarted: integer('conversations_started').default(0),
+  conversationsCompleted: integer('conversations_completed').default(0),
+  averageDuration: real('average_duration'), // seconds
+  completionRate: real('completion_rate'), // percentage
+
+  // Lead metrics
+  leadsGenerated: integer('leads_generated').default(0),
+  conversionRate: real('conversion_rate'), // percentage
+  averageLeadQuality: real('average_lead_quality'),
+
+  // Sentiment
+  positiveSentiment: integer('positive_sentiment').default(0),
+  neutralSentiment: integer('neutral_sentiment').default(0),
+  negativeSentiment: integer('negative_sentiment').default(0),
+  averageSentiment: real('average_sentiment'),
+
+  // Peak hours (JSON array of hour counts)
+  hourlyDistribution: json('hourly_distribution'), // { "0": 5, "1": 3, ... "23": 12 }
+
+  // Common questions/topics (top 10)
+  topTopics: json('top_topics'), // [{ topic: "pricing", count: 45 }, ...]
+
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+// User satisfaction ratings
+export const satisfactionRatings = pgTable('satisfaction_ratings', {
+  id: text('id').primaryKey(),
+  conversationId: text('conversation_id').references(() => conversations.id),
+  botId: text('bot_id').references(() => bots.id),
+  organizationId: text('organization_id').references(() => organizations.id),
+
+  rating: integer('rating'), // 1-5 stars
+  feedback: text('feedback'),
+  wouldRecommend: boolean('would_recommend'),
+
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
 // ========================================
 // BOT TEMPLATES
 // ========================================
@@ -668,6 +780,79 @@ export const analyticsEventsRelations = relations(
     bot: one(bots, {
       fields: [analyticsEvents.botId],
       references: [bots.id],
+    }),
+  }),
+);
+
+export const conversationMetricsRelations = relations(
+  conversationMetrics,
+  ({ one }) => ({
+    conversation: one(conversations, {
+      fields: [conversationMetrics.conversationId],
+      references: [conversations.id],
+    }),
+    bot: one(bots, {
+      fields: [conversationMetrics.botId],
+      references: [bots.id],
+    }),
+    organization: one(organizations, {
+      fields: [conversationMetrics.organizationId],
+      references: [organizations.id],
+    }),
+    lead: one(leads, {
+      fields: [conversationMetrics.leadId],
+      references: [leads.id],
+    }),
+  }),
+);
+
+export const leadSourcesRelations = relations(leadSources, ({ one }) => ({
+  lead: one(leads, {
+    fields: [leadSources.leadId],
+    references: [leads.id],
+  }),
+  organization: one(organizations, {
+    fields: [leadSources.organizationId],
+    references: [organizations.id],
+  }),
+  firstTouchBot: one(bots, {
+    fields: [leadSources.firstTouchBotId],
+    references: [bots.id],
+  }),
+  lastTouchBot: one(bots, {
+    fields: [leadSources.lastTouchBotId],
+    references: [bots.id],
+  }),
+}));
+
+export const botPerformanceDailyRelations = relations(
+  botPerformanceDaily,
+  ({ one }) => ({
+    bot: one(bots, {
+      fields: [botPerformanceDaily.botId],
+      references: [bots.id],
+    }),
+    organization: one(organizations, {
+      fields: [botPerformanceDaily.organizationId],
+      references: [organizations.id],
+    }),
+  }),
+);
+
+export const satisfactionRatingsRelations = relations(
+  satisfactionRatings,
+  ({ one }) => ({
+    conversation: one(conversations, {
+      fields: [satisfactionRatings.conversationId],
+      references: [conversations.id],
+    }),
+    bot: one(bots, {
+      fields: [satisfactionRatings.botId],
+      references: [bots.id],
+    }),
+    organization: one(organizations, {
+      fields: [satisfactionRatings.organizationId],
+      references: [organizations.id],
     }),
   }),
 );
