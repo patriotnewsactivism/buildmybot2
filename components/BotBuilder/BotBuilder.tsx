@@ -1364,7 +1364,7 @@ export const BotBuilder: React.FC<BotBuilderProps> = ({
                     onChange={(e) => setTestInput(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleTestSend()}
                     placeholder="Type a message..."
-                    className="w-full pl-4 pr-12 py-3 rounded-xl border border-slate-200 focus:ring-blue-900 focus:border-blue-900 shadow-sm"
+                    className="w-full pl-4 pr-12 py-3 rounded-xl border border-slate-200 focus:ring-blue-900 focus:border-blue-900 shadow-sm text-slate-900"
                   />
                   <button
                     type="button"
