@@ -16,6 +16,7 @@ interface MetricCardProps {
   subtext?: string;
   onClick?: () => void;
   loading?: boolean;
+  status?: string;
 }
 
 const variantStyles: Record<MetricVariant, {

@@ -1158,7 +1158,6 @@ export const BotBuilder: React.FC<BotBuilderProps> = ({
             <div className="max-w-4xl mx-auto animate-fade-in">
               <VoiceAgentConfigComponent
                 bot={activeBot}
-                onUpdate={handleBotUpdate}
               />
             </div>
           )}
