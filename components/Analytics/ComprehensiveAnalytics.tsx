@@ -1,418 +1,540 @@
 import {
   Activity,
-  ArrowDownRight,
-  ArrowUpRight,
-  BarChart2,
-  Calendar,
+  BarChart3,
+  CheckCircle,
   Clock,
-  Download,
-  Filter,
-  Globe,
   MessageSquare,
-  MousePointer,
-  PieChart,
-  RefreshCw,
-  Search,
-  Target,
+  Star,
+  ThumbsDown,
+  ThumbsUp,
   TrendingUp,
   Users,
-  Zap,
 } from 'lucide-react';
 import type React from 'react';
 import { useEffect, useState } from 'react';
 import {
-  Area,
-  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
   Cell,
-  Legend,
   Line,
   LineChart,
   Pie,
-  PieChart as RechartsPieChart,
+  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from 'recharts';
+import { PlayfulMetricCard } from '../UI/PlayfulMetricCard';
 
-interface AnalyticsData {
-  metrics: {
-    totalConversations: number;
-    uniqueVisitors: number;
-    leadsGenerated: number;
-    conversionRate: number;
-    conversationGrowth: number;
-    visitorGrowth: number;
-    leadGrowth: number;
-    conversionGrowth: number;
-  };
-  timeSeriesData: any[];
-  leadsBySource: any[];
-  sentimentData: any[];
-  sessionDurationData: any[];
-  topIntents: any[];
-  peakHoursData: any[];
+interface ComprehensiveAnalyticsProps {
+  organizationId: string;
 }
 
-const StatCard: React.FC<{
-  title: string;
-  value: string;
-  change: number;
-  icon: React.ElementType;
-  color: string;
-  loading?: boolean;
-}> = ({ title, value, change, icon: Icon, color, loading }) => {
-  const isPositive = change >= 0;
+type AnalyticsTab = 'conversations' | 'leads' | 'performance' | 'satisfaction';
 
-  if (loading) {
-    return (
-      <div className="bg-white rounded-xl p-6 border border-slate-100 shadow-sm animate-pulse">
-        <div className="flex justify-between items-start mb-4">
-          <div className="w-10 h-10 bg-slate-200 rounded-lg" />
-          <div className="w-16 h-6 bg-slate-200 rounded-full" />
-        </div>
-        <div className="w-24 h-8 bg-slate-200 rounded mb-2" />
-        <div className="w-32 h-4 bg-slate-200 rounded" />
-      </div>
-    );
-  }
+interface ConversationAnalytics {
+  totalConversations: number;
+  avgDuration: number;
+  completionRate: number;
+  activeHours: { hour: number; count: number }[];
+  peakHour: number;
+}
 
-  return (
-    <div className="bg-white rounded-xl p-6 border border-slate-100 shadow-sm hover:shadow-md transition-shadow duration-300 relative overflow-hidden group">
-      <div
-        className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${color} opacity-[0.03] rounded-bl-full -mr-10 -mt-10 transition-transform group-hover:scale-110`}
-      />
-      
-      <div className="flex justify-between items-start mb-4 relative z-10">
-        <div className={`p-3 rounded-lg bg-gradient-to-br ${color} text-white shadow-lg shadow-${color.split(' ')[1]}/30`}>
-          <Icon size={20} />
-        </div>
-        <div
-          className={`flex items-center space-x-1 px-2.5 py-1 rounded-full text-xs font-medium ${
-            isPositive
-              ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
-              : 'bg-rose-50 text-rose-700 border border-rose-100'
-          }`}
-        >
-          {isPositive ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
-          <span>{Math.abs(change)}%</span>
-        </div>
-      </div>
-      
-      <div className="relative z-10">
-        <h3 className="text-3xl font-bold text-slate-900 mb-1 tracking-tight">{value}</h3>
-        <p className="text-sm text-slate-500 font-medium">{title}</p>
-      </div>
-    </div>
-  );
-};
-
-export const ComprehensiveAnalytics: React.FC = () => {
-  const [dateRange, setDateRange] = useState('30d');
-  const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<AnalyticsData | null>(null);
-
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const days = dateRange === '7d' ? 7 : dateRange === '30d' ? 30 : 90;
-      const response = await fetch(`/api/admin/analytics/dashboard?days=${days}`);
-      if (!response.ok) throw new Error('Failed to fetch analytics');
-      const result = await response.json();
-      setData(result);
-    } catch (error) {
-      console.error('Analytics fetch error:', error);
-    } finally {
-      setLoading(false);
-    }
+interface LeadAnalytics {
+  leadsPerBot: { botId: string; botName: string; count: number }[];
+  conversionFunnel: {
+    conversationsStarted: number;
+    conversationsCompleted: number;
+    leadsGenerated: number;
   };
+  qualityScores: {
+    excellent: number;
+    good: number;
+    average: number;
+    poor: number;
+  };
+  sources: { source: string; count: number }[];
+}
+
+interface PerformanceTrends {
+  weekOverWeek: {
+    conversations: { current: number; previous: number; change: number };
+    leads: { current: number; previous: number; change: number };
+    conversionRate: { current: number; previous: number; change: number };
+  };
+  dailyTrend: {
+    date: string;
+    conversations: number;
+    leads: number;
+    conversionRate: number;
+  }[];
+  engagementPattern: {
+    day: string;
+    avgDuration: number;
+    completionRate: number;
+  }[];
+}
+
+interface SatisfactionAnalytics {
+  sentimentBreakdown: {
+    positive: number;
+    neutral: number;
+    negative: number;
+  };
+  averageRating: number;
+  totalRatings: number;
+  topComplaints: string[];
+  commonQuestions: { question: string; count: number }[];
+  escalationRate: number;
+}
+
+export const ComprehensiveAnalytics: React.FC<ComprehensiveAnalyticsProps> = ({
+  organizationId,
+}) => {
+  const [activeTab, setActiveTab] = useState<AnalyticsTab>('conversations');
+  const [dateRange, setDateRange] = useState<'7d' | '30d' | '90d'>('30d');
+  const [loading, setLoading] = useState(true);
+
+  const [conversationData, setConversationData] =
+    useState<ConversationAnalytics | null>(null);
+  const [leadData, setLeadData] = useState<LeadAnalytics | null>(null);
+  const [trendsData, setTrendsData] = useState<PerformanceTrends | null>(null);
+  const [satisfactionData, setSatisfactionData] =
+    useState<SatisfactionAnalytics | null>(null);
 
   useEffect(() => {
-    fetchData();
-  }, [dateRange]);
+    const fetchAnalytics = async () => {
+      setLoading(true);
+      try {
+        const [conversations, leads, trends, satisfaction] = await Promise.all([
+          fetch(`/api/analytics/conversations/${organizationId}`).then((r) =>
+            r.json(),
+          ),
+          fetch(`/api/analytics/leads/${organizationId}`).then((r) => r.json()),
+          fetch(`/api/analytics/trends/${organizationId}?days=30`).then((r) =>
+            r.json(),
+          ),
+          fetch(`/api/analytics/satisfaction/${organizationId}`).then((r) =>
+            r.json(),
+          ),
+        ]);
 
-  const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
+        setConversationData(conversations);
+        setLeadData(leads);
+        setTrendsData(trends);
+        setSatisfactionData(satisfaction);
+      } catch (error) {
+        console.error('Error fetching analytics:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (organizationId) {
+      fetchAnalytics();
+    }
+  }, [organizationId, dateRange]);
+
+  const tabs: { id: AnalyticsTab; label: string; icon: typeof MessageSquare }[] =
+    [
+      { id: 'conversations', label: 'Conversations', icon: MessageSquare },
+      { id: 'leads', label: 'Leads', icon: Users },
+      { id: 'performance', label: 'Performance', icon: TrendingUp },
+      { id: 'satisfaction', label: 'Satisfaction', icon: Star },
+    ];
+
+  const formatDuration = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${minutes}m ${secs}s`;
+  };
+
+  const qualityChartData = leadData
+    ? [
+        { name: 'Excellent', value: leadData.qualityScores.excellent, fill: '#10b981' },
+        { name: 'Good', value: leadData.qualityScores.good, fill: '#3b82f6' },
+        { name: 'Average', value: leadData.qualityScores.average, fill: '#f59e0b' },
+        { name: 'Poor', value: leadData.qualityScores.poor, fill: '#ef4444' },
+      ]
+    : [];
+
+  const sentimentChartData = satisfactionData
+    ? [
+        {
+          name: 'Positive',
+          value: satisfactionData.sentimentBreakdown.positive,
+          fill: '#10b981',
+        },
+        {
+          name: 'Neutral',
+          value: satisfactionData.sentimentBreakdown.neutral,
+          fill: '#6b7280',
+        },
+        {
+          name: 'Negative',
+          value: satisfactionData.sentimentBreakdown.negative,
+          fill: '#ef4444',
+        },
+      ]
+    : [];
 
   return (
-    <div className="space-y-6 animate-fade-in pb-10">
-      {/* Header Controls */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-        <div>
-          <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <span className="text-2xl">📊</span> Performance Overview
+    <div className="space-y-6">
+      {/* Playful Header with Gradient */}
+      <div className="relative overflow-hidden rounded-3xl p-8 bg-gradient-to-br from-violet-600 via-purple-600 to-indigo-600 shadow-2xl">
+        {/* Animated background elements */}
+        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-pink-400/30 to-yellow-400/30 rounded-full blur-3xl animate-pulse" />
+        <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-blue-400/30 to-purple-400/30 rounded-full blur-2xl animate-float" />
+
+        {/* Content */}
+        <div className="relative z-10">
+          <h2 className="text-3xl md:text-4xl font-black text-white mb-2 flex items-center gap-3">
+            <BarChart3 size={36} />
+            Analytics Dashboard
           </h2>
-          <p className="text-sm text-slate-500 mt-1">
-            Real-time insights across your entire ecosystem
+          <p className="text-purple-100 text-lg">
+            Deep insights into your bot performance
           </p>
         </div>
-        
-        <div className="flex items-center gap-3 w-full md:w-auto">
-          <div className="flex bg-slate-100 p-1 rounded-lg w-full md:w-auto">
-            {['7d', '30d', '90d'].map((range) => (
-              <button
-                key={range}
-                onClick={() => setDateRange(range)}
-                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all flex-1 md:flex-none ${
-                  dateRange === range
-                    ? 'bg-white text-slate-900 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                {range === '30d' ? '30 Days' : range === '7d' ? '7 Days' : '3 Months'}
-              </button>
-            ))}
-          </div>
-          
-          <button 
-            onClick={fetchData}
-            className="p-2 text-slate-500 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors"
-            title="Refresh Data"
-          >
-            <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
-          </button>
-          
-          <button className="p-2 text-slate-500 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors">
-            <Download size={18} />
-          </button>
+      </div>
+
+      {/* Tab Navigation */}
+      <div className="bg-white rounded-2xl border-2 border-purple-100 overflow-hidden shadow-sm">
+        <div className="flex border-b-2 border-purple-100">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex-1 px-6 py-4 flex items-center justify-center gap-2 font-semibold transition-all duration-300 ${
+                activeTab === tab.id
+                  ? 'bg-gradient-to-r from-violet-500 to-purple-600 text-white border-b-4 border-purple-700'
+                  : 'text-slate-600 hover:bg-purple-50 hover:text-purple-700'
+              }`}
+            >
+              <tab.icon
+                size={20}
+                className={activeTab === tab.id ? 'animate-bounce' : ''}
+              />
+              <span className="hidden sm:inline">{tab.label}</span>
+            </button>
+          ))}
         </div>
-      </div>
 
-      {/* Key Metrics Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-        <StatCard
-          title="Total Conversations"
-          value={data?.metrics.totalConversations.toLocaleString() || '0'}
-          change={data?.metrics.conversationGrowth || 0}
-          icon={MessageSquare}
-          color="from-blue-500 to-indigo-600"
-          loading={loading}
-        />
-        <StatCard
-          title="Leads Generated"
-          value={data?.metrics.leadsGenerated.toLocaleString() || '0'}
-          change={data?.metrics.leadGrowth || 0}
-          icon={Target}
-          color="from-emerald-500 to-teal-600"
-          loading={loading}
-        />
-        <StatCard
-          title="Unique Visitors"
-          value={data?.metrics.uniqueVisitors.toLocaleString() || '0'}
-          change={data?.metrics.visitorGrowth || 0}
-          icon={Users}
-          color="from-violet-500 to-purple-600"
-          loading={loading}
-        />
-        <StatCard
-          title="Conversion Rate"
-          value={`${data?.metrics.conversionRate}%`}
-          change={data?.metrics.conversionGrowth || 0}
-          icon={Zap}
-          color="from-amber-500 to-orange-600"
-          loading={loading}
-        />
-      </div>
-
-      {/* Main Chart Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Traffic & Conversion Trend */}
-        <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-          <div className="flex justify-between items-center mb-6">
-            <div>
-              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                <TrendingUp size={20} className="text-blue-500" />
-                Growth Trends
-              </h3>
-              <p className="text-sm text-slate-500">Conversations vs Leads over time</p>
-            </div>
-            <div className="flex items-center gap-2 text-sm">
-              <span className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded-full bg-blue-500" /> Conversations
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded-full bg-emerald-500" /> Leads
-              </span>
-            </div>
-          </div>
-          
-          <div className="h-80 w-full">
-            {loading ? (
-              <div className="w-full h-full bg-slate-50 rounded-lg animate-pulse flex items-center justify-center">
-                <BarChart2 className="text-slate-300 w-12 h-12" />
+        {/* Tab Content */}
+        <div className="p-6">
+          {/* Conversations Tab */}
+          {activeTab === 'conversations' && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <PlayfulMetricCard
+                  icon={MessageSquare}
+                  label="Total Conversations"
+                  value={conversationData?.totalConversations || 0}
+                  gradient="from-blue-500 to-cyan-500"
+                  illustration="💬"
+                  loading={loading}
+                />
+                <PlayfulMetricCard
+                  icon={Clock}
+                  label="Avg Duration"
+                  value={
+                    conversationData
+                      ? formatDuration(conversationData.avgDuration)
+                      : '0m 0s'
+                  }
+                  gradient="from-emerald-500 to-teal-500"
+                  illustration="⏱️"
+                  loading={loading}
+                />
+                <PlayfulMetricCard
+                  icon={CheckCircle}
+                  label="Completion Rate"
+                  value={`${conversationData?.completionRate.toFixed(1) || 0}%`}
+                  gradient="from-violet-500 to-purple-600"
+                  illustration="✅"
+                  loading={loading}
+                />
               </div>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={data?.timeSeriesData || []} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="colorConv" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.1}/>
-                      <stop offset="95%" stopColor="#3B82F6" stopOpacity={0}/>
-                    </linearGradient>
-                    <linearGradient id="colorLeads" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10B981" stopOpacity={0.1}/>
-                      <stop offset="95%" stopColor="#10B981" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-                  <XAxis 
-                    dataKey="date" 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fontSize: 12, fill: '#64748B' }} 
-                    dy={10}
-                  />
-                  <YAxis 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fontSize: 12, fill: '#64748B' }} 
-                  />
-                  <Tooltip 
-                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                  />
-                  <Area 
-                    type="monotone" 
-                    dataKey="conversations" 
-                    stroke="#3B82F6" 
-                    strokeWidth={2}
-                    fillOpacity={1} 
-                    fill="url(#colorConv)" 
-                  />
-                  <Area 
-                    type="monotone" 
-                    dataKey="leads" 
-                    stroke="#10B981" 
-                    strokeWidth={2}
-                    fillOpacity={1} 
-                    fill="url(#colorLeads)" 
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </div>
 
-        {/* Lead Sources Donut */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 flex flex-col">
-          <div className="mb-4">
-            <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-              <PieChart size={20} className="text-violet-500" />
-              Lead Sources
-            </h3>
-            <p className="text-sm text-slate-500">Top performing channels</p>
-          </div>
+              {/* Peak Hours Chart */}
+              {conversationData && conversationData.activeHours.length > 0 && (
+                <div className="bg-gradient-to-br from-white to-purple-50 rounded-2xl p-6 border-2 border-purple-100">
+                  <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-slate-800">
+                    <Activity className="text-purple-600" />
+                    Active Hours
+                  </h3>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={conversationData.activeHours}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e0e7ff" />
+                      <XAxis
+                        dataKey="hour"
+                        stroke="#64748b"
+                        label={{ value: 'Hour of Day', position: 'insideBottom', offset: -5 }}
+                      />
+                      <YAxis stroke="#64748b" label={{ value: 'Count', angle: -90, position: 'insideLeft' }} />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: 'white',
+                          border: '2px solid #8b5cf6',
+                          borderRadius: '12px',
+                        }}
+                      />
+                      <Bar dataKey="count" radius={[8, 8, 0, 0]}>
+                        {conversationData.activeHours.map((entry, index) => (
+                          <Cell
+                            key={`cell-${index}`}
+                            fill={
+                              entry.hour === conversationData.peakHour
+                                ? '#8b5cf6'
+                                : '#c4b5fd'
+                            }
+                          />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </div>
+          )}
 
-          <div className="flex-1 min-h-[250px] relative">
-            {loading ? (
-              <div className="w-full h-full bg-slate-50 rounded-lg animate-pulse flex items-center justify-center">
-                <PieChart className="text-slate-300 w-12 h-12" />
+          {/* Leads Tab */}
+          {activeTab === 'leads' && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <PlayfulMetricCard
+                  icon={Users}
+                  label="Conversations Started"
+                  value={leadData?.conversionFunnel.conversationsStarted || 0}
+                  gradient="from-blue-500 to-indigo-600"
+                  illustration="🚀"
+                  loading={loading}
+                />
+                <PlayfulMetricCard
+                  icon={CheckCircle}
+                  label="Conversations Completed"
+                  value={leadData?.conversionFunnel.conversationsCompleted || 0}
+                  gradient="from-emerald-500 to-teal-600"
+                  illustration="✅"
+                  loading={loading}
+                />
+                <PlayfulMetricCard
+                  icon={Star}
+                  label="Leads Generated"
+                  value={leadData?.conversionFunnel.leadsGenerated || 0}
+                  gradient="from-pink-500 to-rose-600"
+                  illustration="⭐"
+                  loading={loading}
+                />
               </div>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <RechartsPieChart>
-                  <Pie
-                    data={data?.leadsBySource || []}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    paddingAngle={5}
-                    dataKey="leads"
-                    nameKey="source"
-                  >
-                    {(data?.leadsBySource || []).map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                  <Legend verticalAlign="bottom" height={36} iconType="circle" />
-                </RechartsPieChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </div>
-      </div>
 
-      {/* Secondary Metrics Row */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {/* Peak Hours Heatmap-ish */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-          <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
-            <Clock size={20} className="text-amber-500" />
-            Activity Heatmap
-          </h3>
-          <div className="h-64">
-            {loading ? (
-              <div className="w-full h-full bg-slate-50 rounded-lg animate-pulse" />
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data?.peakHoursData.filter((_, i) => i % 7 === 0) || []}> {/* Simplified for demo */}
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="hour" tickFormatter={(h) => `${h}:00`} />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="count" fill="#F59E0B" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </div>
-
-        {/* Sentiment Analysis */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-          <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
-            <Activity size={20} className="text-rose-500" />
-            Sentiment Analysis
-          </h3>
-          <div className="space-y-4">
-             {(data?.sentimentData || []).map((item, index) => (
-               <div key={index} className="space-y-2">
-                 <div className="flex justify-between text-sm font-medium">
-                   <span className="text-slate-700">{item.name}</span>
-                   <span className="text-slate-900">{item.value}%</span>
-                 </div>
-                 <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                   <div 
-                     className="h-full rounded-full transition-all duration-500 ease-out"
-                     style={{ width: `${item.value}%`, backgroundColor: item.color }}
-                   />
-                 </div>
-               </div>
-             ))}
-             {(!data?.sentimentData || data.sentimentData.length === 0) && !loading && (
-               <div className="text-center py-8 text-slate-400">No sentiment data available</div>
-             )}
-          </div>
-        </div>
-
-        {/* Top Intents */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-          <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
-            <Target size={20} className="text-indigo-500" />
-            Top User Intents
-          </h3>
-          <div className="space-y-3">
-            {(data?.topIntents || []).slice(0, 5).map((intent, i) => (
-              <div key={i} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100 hover:border-slate-200 transition-colors">
-                <div className="flex items-center gap-3">
-                  <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs font-bold">
-                    {i + 1}
+              {/* Lead Quality Distribution */}
+              {leadData && qualityChartData.length > 0 && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div className="bg-gradient-to-br from-white to-purple-50 rounded-2xl p-6 border-2 border-purple-100">
+                    <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-slate-800">
+                      <Star className="text-purple-600" />
+                      Lead Quality Distribution
+                    </h3>
+                    <ResponsiveContainer width="100%" height={250}>
+                      <PieChart>
+                        <Pie
+                          data={qualityChartData}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          label={(entry) => `${entry.name}: ${entry.value}`}
+                          outerRadius={80}
+                          fill="#8884d8"
+                          dataKey="value"
+                        >
+                          {qualityChartData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.fill} />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
                   </div>
-                  <span className="font-medium text-slate-700">{intent.intent}</span>
+
+                  {/* Leads Per Bot */}
+                  <div className="bg-gradient-to-br from-white to-blue-50 rounded-2xl p-6 border-2 border-blue-100">
+                    <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-slate-800">
+                      <MessageSquare className="text-blue-600" />
+                      Top Performing Bots
+                    </h3>
+                    <div className="space-y-3">
+                      {leadData.leadsPerBot.slice(0, 5).map((bot, index) => (
+                        <div
+                          key={bot.botId}
+                          className="flex items-center justify-between p-3 bg-white rounded-lg border border-blue-100"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-sm">
+                              {index + 1}
+                            </div>
+                            <span className="font-semibold text-slate-700">
+                              {bot.botName}
+                            </span>
+                          </div>
+                          <span className="px-3 py-1 rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-bold text-sm">
+                            {bot.count}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                   <span className="text-sm font-bold text-slate-900">{intent.percentage}%</span>
-                   {intent.trend === 'up' && <ArrowUpRight size={14} className="text-emerald-500" />}
-                   {intent.trend === 'down' && <ArrowDownRight size={14} className="text-rose-500" />}
-                </div>
-              </div>
-            ))}
-             {(!data?.topIntents || data.topIntents.length === 0) && !loading && (
-               <div className="text-center py-8 text-slate-400">No intent data available</div>
-             )}
-          </div>
+              )}
+            </div>
+          )}
+
+          {/* Performance Tab */}
+          {activeTab === 'performance' && (
+            <div className="space-y-6">
+              {trendsData && (
+                <>
+                  {/* Week over Week */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <PlayfulMetricCard
+                      icon={MessageSquare}
+                      label="Conversations Growth"
+                      value={`${trendsData.weekOverWeek.conversations.change > 0 ? '+' : ''}${trendsData.weekOverWeek.conversations.change.toFixed(1)}%`}
+                      gradient="from-blue-500 to-cyan-500"
+                      trend={`${trendsData.weekOverWeek.conversations.current} this week`}
+                      illustration="📊"
+                      loading={loading}
+                    />
+                    <PlayfulMetricCard
+                      icon={Users}
+                      label="Leads Growth"
+                      value={`${trendsData.weekOverWeek.leads.change > 0 ? '+' : ''}${trendsData.weekOverWeek.leads.change.toFixed(1)}%`}
+                      gradient="from-emerald-500 to-teal-600"
+                      trend={`${trendsData.weekOverWeek.leads.current} this week`}
+                      illustration="📈"
+                      loading={loading}
+                    />
+                    <PlayfulMetricCard
+                      icon={TrendingUp}
+                      label="Conversion Rate"
+                      value={`${trendsData.weekOverWeek.conversionRate.current.toFixed(1)}%`}
+                      gradient="from-violet-500 to-purple-600"
+                      trend={`${trendsData.weekOverWeek.conversionRate.change > 0 ? '+' : ''}${trendsData.weekOverWeek.conversionRate.change.toFixed(1)}%`}
+                      illustration="🎯"
+                      loading={loading}
+                    />
+                  </div>
+
+                  {/* Daily Trend Chart */}
+                  <div className="bg-gradient-to-br from-white to-purple-50 rounded-2xl p-6 border-2 border-purple-100">
+                    <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-slate-800">
+                      <TrendingUp className="text-purple-600" />
+                      30-Day Trend
+                    </h3>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <LineChart data={trendsData.dailyTrend}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e0e7ff" />
+                        <XAxis dataKey="date" stroke="#64748b" />
+                        <YAxis stroke="#64748b" />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: 'white',
+                            border: '2px solid #8b5cf6',
+                            borderRadius: '12px',
+                          }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="conversations"
+                          stroke="#3b82f6"
+                          strokeWidth={2}
+                          dot={{ fill: '#3b82f6' }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="leads"
+                          stroke="#10b981"
+                          strokeWidth={2}
+                          dot={{ fill: '#10b981' }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Satisfaction Tab */}
+          {activeTab === 'satisfaction' && (
+            <div className="space-y-6">
+              {satisfactionData && (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <PlayfulMetricCard
+                      icon={Star}
+                      label="Average Rating"
+                      value={satisfactionData.averageRating.toFixed(1)}
+                      gradient="from-amber-500 to-orange-600"
+                      illustration="⭐"
+                      trend={`${satisfactionData.totalRatings} ratings`}
+                      loading={loading}
+                    />
+                    <PlayfulMetricCard
+                      icon={ThumbsUp}
+                      label="Positive Sentiment"
+                      value={`${((satisfactionData.sentimentBreakdown.positive / (satisfactionData.sentimentBreakdown.positive + satisfactionData.sentimentBreakdown.neutral + satisfactionData.sentimentBreakdown.negative || 1)) * 100).toFixed(0)}%`}
+                      gradient="from-emerald-500 to-teal-600"
+                      illustration="😊"
+                      loading={loading}
+                    />
+                    <PlayfulMetricCard
+                      icon={ThumbsDown}
+                      label="Escalation Rate"
+                      value={`${satisfactionData.escalationRate.toFixed(1)}%`}
+                      gradient="from-rose-500 to-pink-600"
+                      illustration="⚠️"
+                      loading={loading}
+                    />
+                  </div>
+
+                  {/* Sentiment Pie Chart */}
+                  {sentimentChartData.length > 0 && (
+                    <div className="bg-gradient-to-br from-white to-purple-50 rounded-2xl p-6 border-2 border-purple-100">
+                      <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-slate-800">
+                        <Activity className="text-purple-600" />
+                        Sentiment Breakdown
+                      </h3>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <PieChart>
+                          <Pie
+                            data={sentimentChartData}
+                            cx="50%"
+                            cy="50%"
+                            labelLine={false}
+                            label={(entry) =>
+                              `${entry.name}: ${entry.value}`
+                            }
+                            outerRadius={100}
+                            fill="#8884d8"
+                            dataKey="value"
+                          >
+                            {sentimentChartData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.fill} />
+                            ))}
+                          </Pie>
+                          <Tooltip />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
