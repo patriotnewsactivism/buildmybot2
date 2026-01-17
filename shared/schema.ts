@@ -1170,6 +1170,126 @@ export const notificationReceiptsRelations = relations(
 );
 
 // ========================================
+// VOICE AGENTS
+// ========================================
+
+export const voiceAgents = pgTable('voice_agents', {
+  id: text('id').primaryKey(),
+  botId: text('bot_id')
+    .notNull()
+    .references(() => bots.id, { onDelete: 'cascade' }),
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+  enabled: boolean('enabled').default(false),
+  phoneNumber: varchar('phone_number', { length: 50 }), // Twilio phone number
+  twilioSid: varchar('twilio_sid', { length: 255 }), // Twilio phone number SID
+  voiceModel: varchar('voice_model', { length: 100 }).default('cartesia-sonic'), // Cartesia voice model
+  voiceId: varchar('voice_id', { length: 255 }).default(''), // Cartesia voice ID
+  language: varchar('language', { length: 10 }).default('en'),
+  greeting: text('greeting').default(
+    'Hello! How can I help you today?',
+  ),
+  endCallPhrase: text('end_call_phrase').default(
+    'Is there anything else I can help you with?',
+  ),
+  transferEnabled: boolean('transfer_enabled').default(false),
+  transferNumber: varchar('transfer_number', { length: 50 }),
+  transferTriggers: json('transfer_triggers').default([]), // Keywords that trigger transfer
+  leadCaptureEnabled: boolean('lead_capture_enabled').default(true),
+  // Voice plan tracking
+  plan: varchar('plan', { length: 50 }).default('VOICE_BASIC'), // VOICE_BASIC, VOICE_STANDARD, VOICE_PROFESSIONAL
+  minutesUsed: integer('minutes_used').default(0),
+  minutesLimit: integer('minutes_limit').default(150), // Based on plan
+  billingCycle: timestamp('billing_cycle').defaultNow(),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+export const voiceCalls = pgTable('voice_calls', {
+  id: text('id').primaryKey(),
+  voiceAgentId: text('voice_agent_id')
+    .notNull()
+    .references(() => voiceAgents.id, { onDelete: 'cascade' }),
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id),
+  botId: text('bot_id').references(() => bots.id),
+  twilioCallSid: varchar('twilio_call_sid', { length: 255 }).unique(),
+  fromNumber: varchar('from_number', { length: 50 }).notNull(),
+  toNumber: varchar('to_number', { length: 50 }).notNull(),
+  direction: varchar('direction', { length: 20 }).default('inbound'), // inbound, outbound
+  status: varchar('status', { length: 50 }).default('initiated'), // initiated, in-progress, completed, failed, no-answer
+  startedAt: timestamp('started_at').defaultNow(),
+  endedAt: timestamp('ended_at'),
+  durationSeconds: integer('duration_seconds').default(0),
+  transcript: text('transcript'),
+  sentiment: varchar('sentiment', { length: 50 }).default('neutral'),
+  leadCaptured: boolean('lead_captured').default(false),
+  leadId: text('lead_id').references(() => leads.id),
+  transferredToHuman: boolean('transferred_to_human').default(false),
+  transferredAt: timestamp('transferred_at'),
+  cost: real('cost').default(0), // Cost in dollars
+  recordingUrl: text('recording_url'),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+export const voiceCallMessages = pgTable('voice_call_messages', {
+  id: text('id').primaryKey(),
+  voiceCallId: text('voice_call_id')
+    .notNull()
+    .references(() => voiceCalls.id, { onDelete: 'cascade' }),
+  role: varchar('role', { length: 20 }).notNull(), // 'user' or 'assistant'
+  content: text('content').notNull(),
+  timestamp: timestamp('timestamp').defaultNow(),
+  audioUrl: text('audio_url'), // URL to Cartesia-generated audio
+  duration: real('duration'), // Duration in seconds
+});
+
+// Voice Agent Relations
+export const voiceAgentsRelations = relations(voiceAgents, ({ one, many }) => ({
+  bot: one(bots, {
+    fields: [voiceAgents.botId],
+    references: [bots.id],
+  }),
+  organization: one(organizations, {
+    fields: [voiceAgents.organizationId],
+    references: [organizations.id],
+  }),
+  calls: many(voiceCalls),
+}));
+
+export const voiceCallsRelations = relations(voiceCalls, ({ one, many }) => ({
+  voiceAgent: one(voiceAgents, {
+    fields: [voiceCalls.voiceAgentId],
+    references: [voiceAgents.id],
+  }),
+  organization: one(organizations, {
+    fields: [voiceCalls.organizationId],
+    references: [organizations.id],
+  }),
+  bot: one(bots, {
+    fields: [voiceCalls.botId],
+    references: [bots.id],
+  }),
+  lead: one(leads, {
+    fields: [voiceCalls.leadId],
+    references: [leads.id],
+  }),
+  messages: many(voiceCallMessages),
+}));
+
+export const voiceCallMessagesRelations = relations(
+  voiceCallMessages,
+  ({ one }) => ({
+    voiceCall: one(voiceCalls, {
+      fields: [voiceCallMessages.voiceCallId],
+      references: [voiceCalls.id],
+    }),
+  }),
+);
+
+// ========================================
 // TYPE EXPORTS
 // ========================================
 
@@ -1252,3 +1372,10 @@ export type InsertNotification = typeof notifications.$inferInsert;
 export type NotificationReceipt = typeof notificationReceipts.$inferSelect;
 export type InsertNotificationReceipt =
   typeof notificationReceipts.$inferInsert;
+
+export type VoiceAgent = typeof voiceAgents.$inferSelect;
+export type InsertVoiceAgent = typeof voiceAgents.$inferInsert;
+export type VoiceCall = typeof voiceCalls.$inferSelect;
+export type InsertVoiceCall = typeof voiceCalls.$inferInsert;
+export type VoiceCallMessage = typeof voiceCallMessages.$inferSelect;
+export type InsertVoiceCallMessage = typeof voiceCallMessages.$inferInsert;
