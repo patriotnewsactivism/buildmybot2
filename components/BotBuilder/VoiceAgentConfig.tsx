@@ -33,7 +33,6 @@ interface VoiceAgentConfig {
 
 interface VoiceAgentConfigProps {
   bot: BotType;
-  onUpdate: (updates: Partial<BotType>) => void;
 }
 
 const VOICE_OPTIONS = [
@@ -82,7 +81,6 @@ const VOICE_PLANS = [
 
 export const VoiceAgentConfigComponent: React.FC<VoiceAgentConfigProps> = ({
   bot,
-  onUpdate,
 }) => {
   const [config, setConfig] = useState<VoiceAgentConfig>({
     enabled: false,
