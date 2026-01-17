@@ -29,7 +29,7 @@ import {
 import { PlayfulMetricCard } from '../UI/PlayfulMetricCard';
 
 interface ComprehensiveAnalyticsProps {
-  organizationId: string;
+  organizationId?: string;
 }
 
 type AnalyticsTab = 'conversations' | 'leads' | 'performance' | 'satisfaction';
@@ -134,6 +134,8 @@ export const ComprehensiveAnalytics: React.FC<ComprehensiveAnalyticsProps> = ({
 
     if (organizationId) {
       fetchAnalytics();
+    } else {
+      setLoading(false);
     }
   }, [organizationId, dateRange]);
 
