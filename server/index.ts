@@ -65,6 +65,7 @@ import {
   templatesRouter,
   toolsRouter,
   twilioWebhooksRouter,
+  voiceRouter,
   webhooksRouter,
   searchRouter,
   teamRouter,
@@ -1364,6 +1365,9 @@ app.use('/api/integrations', integrationsRouter);
 
 // Landing pages builder API
 app.use('/api/landing-pages', landingPagesRouter);
+
+// Voice Agent API (Twilio + Cartesia integration for phone calls)
+app.use('/api/voice', voiceRouter);
 
 // Notifications API (admin broadcast and user notifications)
 app.use('/api', notificationsRouter);

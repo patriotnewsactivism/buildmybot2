@@ -22,6 +22,7 @@ import {
   Menu,
   MessageSquare,
   Monitor,
+  Phone,
   Plane,
   Play,
   Plus,
@@ -50,6 +51,7 @@ import type { BotDocument, Bot as BotType } from '../../types';
 import { SaveIndicator } from '../UI/SaveIndicator';
 import { KnowledgeBaseManager } from './KnowledgeBaseManager';
 import SimplifiedBotWizard from "./SimplifiedBotWizard";
+import { VoiceAgentConfigComponent } from './VoiceAgentConfig';
 
 interface BotBuilderProps {
   bots: BotType[];
@@ -59,7 +61,7 @@ interface BotBuilderProps {
   onRefresh?: () => Promise<void>;
 }
 
-type BotBuilderTab = 'config' | 'knowledge' | 'test' | 'embed';
+type BotBuilderTab = 'config' | 'knowledge' | 'voice' | 'embed' | 'test';
 
 type TabConfig = {
   id: BotBuilderTab;
@@ -579,6 +581,12 @@ export const BotBuilder: React.FC<BotBuilderProps> = ({
       icon: FileText,
     },
     {
+      id: 'voice',
+      label: 'Voice',
+      fullLabel: 'Voice Agent',
+      icon: Phone,
+    },
+    {
       id: 'embed',
       label: 'Embed',
       fullLabel: 'Embed & Share',
@@ -654,17 +662,17 @@ export const BotBuilder: React.FC<BotBuilderProps> = ({
         )}
       </div>
 
-      {/* Desktop Sidebar List - Playful Design */}
-      <div className="w-64 bg-white rounded-xl shadow-sm border-2 border-purple-100 flex-col overflow-hidden hidden md:flex relative z-10 flex-shrink-0">
-        <div className="p-4 border-b-2 border-purple-100 flex justify-between items-center bg-gradient-to-r from-violet-50 to-purple-50">
-          <h3 className="font-bold text-slate-800 flex items-center gap-2">
-            <BotIcon size={18} className="text-purple-600" />
+      {/* Desktop Sidebar List - Professional Design */}
+      <div className="w-64 bg-white rounded-lg shadow-sm border border-slate-200 flex-col overflow-hidden hidden md:flex relative z-10 flex-shrink-0">
+        <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
+          <h3 className="font-semibold text-slate-900 flex items-center gap-2">
+            <BotIcon size={18} className="text-blue-600" />
             My Bots
           </h3>
           <button
             type="button"
             onClick={() => setShowWizard(true)}
-            className="p-2 bg-gradient-to-r from-violet-500 to-purple-600 text-white rounded-lg hover:from-violet-600 hover:to-purple-700 transition-all hover:scale-110 shadow-md min-h-[40px] min-w-[40px] flex items-center justify-center"
+            className="p-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-all shadow-sm min-h-[40px] min-w-[40px] flex items-center justify-center"
             title="Quick Start Wizard"
           >
             <Sparkles size={18} />
@@ -676,20 +684,20 @@ export const BotBuilder: React.FC<BotBuilderProps> = ({
               type="button"
               key={bot.id}
               onClick={() => handleBotSelect(bot)}
-              className={`w-full text-left p-4 rounded-xl flex items-center gap-3 transition-all duration-300 min-h-[60px] group ${selectedBotId === bot.id ? 'bg-gradient-to-br from-white to-purple-50 border-2 border-purple-400 shadow-lg shadow-purple-200' : 'bg-white border-2 border-transparent hover:border-purple-200 hover:shadow-md hover:scale-102'}`}
+              className={`w-full text-left p-4 rounded-md flex items-center gap-3 transition-all duration-200 min-h-[60px] group ${selectedBotId === bot.id ? 'bg-blue-50 border-2 border-blue-600 shadow-sm' : 'bg-white border-2 border-transparent hover:border-slate-200 hover:shadow-sm'}`}
             >
-              <div className={`w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-sm font-bold flex-shrink-0 shadow-lg transition-transform ${selectedBotId === bot.id ? 'scale-110' : 'group-hover:scale-110'}`}>
+              <div className={`w-12 h-12 rounded-md bg-blue-600 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0 shadow-sm ${selectedBotId === bot.id ? '' : 'group-hover:bg-blue-700'}`}>
                 {bot.name.substring(0, 2)}
               </div>
               <div className="min-w-0 flex-1">
                 <div
-                  className={`font-semibold text-sm truncate ${selectedBotId === bot.id ? 'text-purple-700' : 'text-slate-700'}`}
+                  className={`font-semibold text-sm truncate ${selectedBotId === bot.id ? 'text-blue-700' : 'text-slate-900'}`}
                 >
                   {bot.name}
                 </div>
                 <div className="flex items-center gap-2 mt-1">
                   <span
-                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${bot.active ? 'bg-gradient-to-r from-emerald-400 to-teal-400 text-white' : 'bg-slate-200 text-slate-600'}`}
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${bot.active ? 'bg-green-600 text-white' : 'bg-slate-200 text-slate-600'}`}
                   >
                     {bot.active ? 'Active' : 'Draft'}
                   </span>
@@ -702,17 +710,12 @@ export const BotBuilder: React.FC<BotBuilderProps> = ({
 
       {/* Main Editor Area */}
       <div className="flex-1 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden">
-        {/* Editor Header - Playful Gradient Design */}
-        <div className="min-h-20 border-b-4 border-purple-200 px-4 md:px-6 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-gradient-to-r from-violet-100 via-purple-50 to-indigo-100 relative overflow-hidden">
-          {/* Animated floating shapes */}
-          <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-pink-400/20 to-purple-400/20 rounded-full blur-3xl animate-pulse pointer-events-none" />
-          <div className="absolute bottom-0 left-1/3 w-24 h-24 bg-gradient-to-br from-violet-400/20 to-indigo-400/20 rounded-full blur-2xl animate-float pointer-events-none" />
-
+        {/* Editor Header - Professional Design */}
+        <div className="min-h-20 border-b border-slate-200 px-4 md:px-6 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-slate-50 relative overflow-hidden">
           <div className="flex items-center gap-3 md:gap-4 min-w-0 flex-1 relative z-10">
-            {/* Bot avatar with gradient ring */}
+            {/* Bot avatar */}
             <div className="relative shrink-0">
-              <div className="absolute -inset-1 bg-gradient-to-r from-violet-600 to-purple-600 rounded-2xl opacity-75 blur animate-pulse" />
-              <div className="relative w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white shadow-xl">
+              <div className="w-14 h-14 rounded-md bg-blue-600 flex items-center justify-center text-white shadow-sm">
                 <BotIcon size={24} />
               </div>
             </div>
@@ -723,12 +726,12 @@ export const BotBuilder: React.FC<BotBuilderProps> = ({
                 onChange={(e) =>
                   setActiveBot({ ...activeBot, name: e.target.value })
                 }
-                className="font-bold text-xl text-slate-800 bg-transparent border-none p-0 focus:ring-0 placeholder-slate-400 w-full truncate"
+                className="font-semibold text-xl text-slate-900 bg-transparent border-none p-0 focus:ring-0 placeholder-slate-400 w-full truncate"
                 placeholder="Bot Name"
               />
               <div className="flex items-center gap-2 mt-1">
                 <span
-                  className={`px-3 py-1 rounded-full text-xs font-bold ${activeBot.active ? 'bg-gradient-to-r from-emerald-400 to-teal-400 text-white' : 'bg-slate-200 text-slate-600'}`}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold ${activeBot.active ? 'bg-green-600 text-white' : 'bg-slate-200 text-slate-600'}`}
                 >
                   {activeBot.active ? '● Live' : '○ Draft'}
                 </span>
@@ -741,7 +744,7 @@ export const BotBuilder: React.FC<BotBuilderProps> = ({
               type="button"
               onClick={handleSaveBot}
               disabled={saveState === 'saving'}
-              className="flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-lg hover:from-violet-700 hover:to-purple-700 font-medium transition-all shadow-lg hover:shadow-xl hover:scale-105 w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-semibold transition-all shadow-sm w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Save size={18} />{' '}
               <span className="hidden sm:inline">Save Bot</span>
@@ -755,20 +758,20 @@ export const BotBuilder: React.FC<BotBuilderProps> = ({
           </div>
         </div>
 
-        {/* Tabs - Playful Gradient Design */}
-        <div className="border-b-2 border-purple-100 bg-gradient-to-r from-purple-50/50 via-white to-violet-50/50 px-3 md:px-6 flex flex-wrap md:flex-nowrap gap-1 md:gap-6 overflow-x-hidden">
+        {/* Tabs - Professional Design */}
+        <div className="border-b border-slate-200 bg-white px-3 md:px-6 flex flex-wrap md:flex-nowrap gap-1 md:gap-6 overflow-x-hidden">
           {tabs.map((tab) => (
             <button
               type="button"
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`py-3 md:py-4 px-4 md:px-6 text-sm font-semibold flex items-center gap-2 border-b-4 transition-all duration-300 whitespace-nowrap min-h-[48px] ${
+              className={`py-3 md:py-4 px-4 md:px-6 text-sm font-semibold flex items-center gap-2 border-b-2 transition-all duration-200 whitespace-nowrap min-h-[48px] ${
                 activeTab === tab.id
-                  ? 'border-purple-600 bg-gradient-to-t from-purple-50 to-transparent text-purple-700 scale-105'
-                  : 'border-transparent text-slate-500 hover:text-purple-600 hover:bg-purple-50/50 hover:scale-102'
+                  ? 'border-blue-600 text-blue-700'
+                  : 'border-transparent text-slate-600 hover:text-blue-600 hover:border-slate-300'
               }`}
             >
-              <tab.icon size={18} className={`flex-shrink-0 ${activeTab === tab.id ? 'animate-bounce' : ''}`} />
+              <tab.icon size={18} className="flex-shrink-0" />
               <span className="md:hidden">{tab.label}</span>
               <span className="hidden md:inline">{tab.fullLabel}</span>
             </button>
@@ -1148,6 +1151,15 @@ export const BotBuilder: React.FC<BotBuilderProps> = ({
                   ))}
                 </div>
               </div>
+            </div>
+          )}
+
+          {activeTab === 'voice' && (
+            <div className="max-w-4xl mx-auto animate-fade-in">
+              <VoiceAgentConfigComponent
+                bot={activeBot}
+                onUpdate={handleBotUpdate}
+              />
             </div>
           )}
 
