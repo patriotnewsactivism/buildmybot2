@@ -559,7 +559,7 @@ app.post('/api/bots', ...apiAuthStack, async (req, res) => {
       name: req.body.name || 'New Bot',
       type: req.body.type,
       systemPrompt: req.body.systemPrompt || '',
-      model: req.body.model || 'gpt-5o-mini',
+      model: req.body.model || 'gpt-4o-mini',
       temperature: req.body.temperature ?? 0.7,
       knowledgeBase: req.body.knowledgeBase || [],
       active: req.body.active ?? true,
