@@ -177,7 +177,7 @@ app.use(
     resave: false,
     saveUninitialized: false,
     cookie: {
-      secure: isProduction,
+      secure: isProduction && process.env.VITE_ENVIRONMENT !== 'development',
       httpOnly: true,
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       sameSite: isProduction ? 'none' : 'lax',
