@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { Bot as BotType } from '../../types';
+import { buildApiUrl } from '../../services/apiConfig';
 
 interface VoiceAgentConfig {
   id?: string;
@@ -109,7 +110,9 @@ export const VoiceAgentConfigComponent: React.FC<VoiceAgentConfigProps> = ({
 
       setLoading(true);
       try {
-        const response = await fetch(`/api/voice/agents/${bot.id}`);
+        const response = await fetch(buildApiUrl(`/voice/agents/${bot.id}`), {
+          credentials: 'include',
+        });
         if (response.ok) {
           const data = await response.json();
           setConfig(data);
@@ -135,9 +138,10 @@ export const VoiceAgentConfigComponent: React.FC<VoiceAgentConfigProps> = ({
     setSuccess(false);
 
     try {
-      const response = await fetch(`/api/voice/agents/${bot.id}`, {
+      const response = await fetch(buildApiUrl(`/voice/agents/${bot.id}`), {
         method: config.id ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(config),
       });
 
@@ -164,8 +168,9 @@ export const VoiceAgentConfigComponent: React.FC<VoiceAgentConfigProps> = ({
       // If enabling and no phone number, provision one
       setSaving(true);
       try {
-        const response = await fetch(`/api/voice/agents/${bot.id}/provision`, {
+        const response = await fetch(buildApiUrl(`/voice/agents/${bot.id}/provision`), {
           method: 'POST',
+          credentials: 'include',
         });
         if (response.ok) {
           const data = await response.json();

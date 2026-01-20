@@ -68,6 +68,7 @@ import {
   webhooksRouter,
   searchRouter,
   teamRouter,
+  voiceRouter,
 } from './routes';
 import { getStripePublishableKey } from './stripeClient';
 import { stripeService } from './stripeService';
@@ -177,7 +178,7 @@ app.use(
     resave: false,
     saveUninitialized: false,
     cookie: {
-      secure: isProduction && process.env.VITE_ENVIRONMENT !== 'development',
+      secure: isProduction,
       httpOnly: true,
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       sameSite: isProduction ? 'none' : 'lax',
@@ -1326,6 +1327,9 @@ app.use('/api/channels', channelsRouter);
 
 // Phone number management (Twilio)
 app.use('/api/phone', phoneRouter);
+
+// Voice agent management
+app.use('/api/voice', authenticate, loadOrganizationContext, voiceRouter);
 
 // Twilio Webhooks
 app.use('/api/webhooks', twilioWebhooksRouter);
