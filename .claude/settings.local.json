@@ -74,7 +74,8 @@
       "WebSearch",
       "WebFetch(domain:www.firecrawl.dev)",
       "Bash(railway:*)",
-      "Bash(python -m json.tool:*)"
+      "Bash(python -m json.tool:*)",
+      "WebFetch(domain:www.buildmybot.app)"
     ]
   }
 }
