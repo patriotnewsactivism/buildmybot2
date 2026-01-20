@@ -1,7 +1,19 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, afterEach } from 'vitest';
 import { DocumentProcessorService } from '../../server/services/DocumentProcessorService';
 
+// Mock the database to avoid stack overflow or connection attempts during tests
+vi.mock('../../server/db', () => ({
+  db: {
+    insert: vi.fn().mockReturnThis(),
+    values: vi.fn().mockReturnThis(),
+  },
+}));
+
 describe('DocumentProcessorService', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('returns OCR text from PDF uploads', async () => {
     const fetchMock = vi
       .fn()
@@ -33,6 +45,5 @@ describe('DocumentProcessorService', () => {
 
     process.env.OPENAI_API_KEY = originalKey;
     global.fetch = originalFetch;
-    vi.restoreAllMocks();
   });
 });
