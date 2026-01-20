@@ -131,8 +131,12 @@ const isProduction = env.NODE_ENV === 'production';
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 const defaultPort = isProduction ? '5000' : env.API_PORT || '3001';
 const PORT = Number.parseInt(env.PORT || defaultPort, 10);
+=======
+const PORT = isProduction ? 5000 : Number.parseInt(env.API_PORT || '3001', 10);
+>>>>>>> Stashed changes
 =======
 const PORT = isProduction ? 5000 : Number.parseInt(env.API_PORT || '3001', 10);
 >>>>>>> Stashed changes
