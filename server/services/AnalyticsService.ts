@@ -4,9 +4,13 @@ import {
   type AnalyticsEvent,
   type InsertAnalyticsEvent,
   analyticsEvents,
+  botPerformanceDaily,
   bots,
+  conversationMetrics,
   conversations,
+  leadSources,
   leads,
+  satisfactionRatings,
 } from '../../shared/schema';
 import { db } from '../db';
 
@@ -56,7 +60,121 @@ export interface SentimentBreakdown {
   total: number;
 }
 
+export interface ConversationAnalytics {
+  totalConversations: number;
+  avgDuration: number; // seconds
+  completionRate: number; // percentage
+  activeHours: { hour: number; count: number }[];
+  peakHour: number;
+}
+
+export interface LeadAnalytics {
+  leadsPerBot: { botId: string; botName: string; count: number }[];
+  conversionFunnel: {
+    conversationsStarted: number;
+    conversationsCompleted: number;
+    leadsGenerated: number;
+  };
+  qualityScores: {
+    excellent: number; // 80-100
+    good: number; // 60-79
+    average: number; // 40-59
+    poor: number; // 0-39
+  };
+  sources: { source: string; count: number }[];
+}
+
+export interface PerformanceTrends {
+  weekOverWeek: {
+    conversations: { current: number; previous: number; change: number };
+    leads: { current: number; previous: number; change: number };
+    conversionRate: { current: number; previous: number; change: number };
+  };
+  dailyTrend: {
+    date: string;
+    conversations: number;
+    leads: number;
+    conversionRate: number;
+  }[];
+  engagementPattern: {
+    day: string;
+    avgDuration: number;
+    completionRate: number;
+  }[];
+}
+
+export interface SatisfactionAnalytics {
+  sentimentBreakdown: {
+    positive: number;
+    neutral: number;
+    negative: number;
+  };
+  averageRating: number;
+  totalRatings: number;
+  topComplaints: string[];
+  commonQuestions: { question: string; count: number }[];
+  escalationRate: number;
+}
+
 export class AnalyticsService {
+  async updateConversationMetrics(
+    conversationId: string,
+    botId: string,
+    organizationId: string | undefined,
+    messageRole: 'user' | 'model' | 'system',
+    leadId?: string,
+  ) {
+    const [existing] = await db
+      .select()
+      .from(conversationMetrics)
+      .where(eq(conversationMetrics.conversationId, conversationId));
+
+    if (existing) {
+      const now = new Date();
+      const durationSeconds = Math.round(
+        (now.getTime() - existing.startedAt.getTime()) / 1000,
+      );
+
+      const updates: any = {
+        messageCount: (existing.messageCount || 0) + 1,
+        endedAt: now,
+        durationSeconds,
+      };
+
+      if (messageRole === 'user') {
+        updates.userMessageCount = (existing.userMessageCount || 0) + 1;
+      } else if (messageRole === 'model') {
+        updates.botMessageCount = (existing.botMessageCount || 0) + 1;
+      }
+
+      if (leadId) {
+        updates.leadCaptured = true;
+        updates.leadId = leadId;
+      }
+
+      await db
+        .update(conversationMetrics)
+        .set(updates)
+        .where(eq(conversationMetrics.id, existing.id));
+    } else {
+      await db.insert(conversationMetrics).values({
+        id: uuidv4(),
+        conversationId,
+        botId,
+        organizationId: organizationId || null,
+        startedAt: new Date(),
+        endedAt: new Date(),
+        durationSeconds: 0,
+        messageCount: 1,
+        userMessageCount: messageRole === 'user' ? 1 : 0,
+        botMessageCount: messageRole === 'model' ? 1 : 0,
+        leadCaptured: !!leadId,
+        leadId: leadId || null,
+        completed: false,
+      });
+    }
+  }
+
   async trackEvent(
     eventData: Omit<InsertAnalyticsEvent, 'id' | 'createdAt'>,
   ): Promise<AnalyticsEvent> {
@@ -545,6 +663,467 @@ export class AnalyticsService {
         previousMetrics.totalLeads,
       ),
       revenueGrowth: 0,
+    };
+  }
+
+  async getConversationAnalytics(
+    organizationId: string,
+    startDate?: Date,
+    endDate?: Date,
+  ): Promise<ConversationAnalytics> {
+    const conditions: SQL[] = [
+      eq(conversationMetrics.organizationId, organizationId),
+    ];
+
+    if (startDate) {
+      conditions.push(gte(conversationMetrics.startedAt, startDate));
+    }
+
+    if (endDate) {
+      conditions.push(lte(conversationMetrics.startedAt, endDate));
+    }
+
+    const metrics = await db
+      .select()
+      .from(conversationMetrics)
+      .where(and(...conditions));
+
+    const totalConversations = metrics.length;
+    const completedConversations = metrics.filter((m) => m.completed).length;
+    const completionRate =
+      totalConversations > 0
+        ? (completedConversations / totalConversations) * 100
+        : 0;
+
+    const totalDuration = metrics.reduce(
+      (sum, m) => sum + (m.durationSeconds || 0),
+      0,
+    );
+    const avgDuration =
+      totalConversations > 0 ? totalDuration / totalConversations : 0;
+
+    const hourCounts: Record<number, number> = {};
+    for (let i = 0; i < 24; i++) {
+      hourCounts[i] = 0;
+    }
+
+    for (const metric of metrics) {
+      if (metric.startedAt) {
+        const hour = new Date(metric.startedAt).getHours();
+        hourCounts[hour]++;
+      }
+    }
+
+    const activeHours = Object.entries(hourCounts).map(([hour, count]) => ({
+      hour: Number.parseInt(hour),
+      count,
+    }));
+
+    const peakHour = activeHours.reduce(
+      (max, item) => (item.count > max.count ? item : max),
+      { hour: 0, count: 0 },
+    ).hour;
+
+    return {
+      totalConversations,
+      avgDuration,
+      completionRate,
+      activeHours,
+      peakHour,
+    };
+  }
+
+  async getLeadAnalytics(
+    organizationId: string,
+    startDate?: Date,
+    endDate?: Date,
+  ): Promise<LeadAnalytics> {
+    const leadConditions: SQL[] = [eq(leads.organizationId, organizationId)];
+
+    if (startDate) {
+      leadConditions.push(gte(leads.createdAt, startDate));
+    }
+
+    if (endDate) {
+      leadConditions.push(lte(leads.createdAt, endDate));
+    }
+
+    const allLeads = await db
+      .select()
+      .from(leads)
+      .where(and(...leadConditions));
+
+    const conversationConditions: SQL[] = [
+      eq(conversationMetrics.organizationId, organizationId),
+    ];
+
+    if (startDate) {
+      conversationConditions.push(
+        gte(conversationMetrics.startedAt, startDate),
+      );
+    }
+
+    if (endDate) {
+      conversationConditions.push(lte(conversationMetrics.startedAt, endDate));
+    }
+
+    const metrics = await db
+      .select()
+      .from(conversationMetrics)
+      .where(and(...conversationConditions));
+
+    const conversationsStarted = metrics.length;
+    const conversationsCompleted = metrics.filter((m) => m.completed).length;
+    const leadsGenerated = metrics.filter((m) => m.leadCaptured).length;
+
+    const leadsPerBot: { botId: string; botName: string; count: number }[] = [];
+    const botCounts: Record<string, number> = {};
+
+    for (const lead of allLeads) {
+      const botId = lead.sourceBotId;
+      if (botId) {
+        botCounts[botId] = (botCounts[botId] || 0) + 1;
+      }
+    }
+
+    const allBots = await db
+      .select()
+      .from(bots)
+      .where(eq(bots.organizationId, organizationId));
+
+    for (const bot of allBots) {
+      const count = botCounts[bot.id] || 0;
+      if (count > 0) {
+        leadsPerBot.push({
+          botId: bot.id,
+          botName: bot.name,
+          count,
+        });
+      }
+    }
+
+    let excellent = 0;
+    let good = 0;
+    let average = 0;
+    let poor = 0;
+
+    for (const lead of allLeads) {
+      const score = lead.score || 0;
+      if (score >= 80) excellent++;
+      else if (score >= 60) good++;
+      else if (score >= 40) average++;
+      else poor++;
+    }
+
+    const sourceConditions: SQL[] = [
+      eq(leadSources.organizationId, organizationId),
+    ];
+
+    if (startDate) {
+      sourceConditions.push(gte(leadSources.createdAt, startDate));
+    }
+
+    if (endDate) {
+      sourceConditions.push(lte(leadSources.createdAt, endDate));
+    }
+
+    const sources = await db
+      .select()
+      .from(leadSources)
+      .where(and(...sourceConditions));
+
+    const sourceCounts: Record<string, number> = {};
+    for (const source of sources) {
+      if (source.source) {
+        sourceCounts[source.source] = (sourceCounts[source.source] || 0) + 1;
+      }
+    }
+
+    const sourcesList = Object.entries(sourceCounts).map(
+      ([source, count]) => ({
+        source,
+        count,
+      }),
+    );
+
+    return {
+      leadsPerBot,
+      conversionFunnel: {
+        conversationsStarted,
+        conversationsCompleted,
+        leadsGenerated,
+      },
+      qualityScores: {
+        excellent,
+        good,
+        average,
+        poor,
+      },
+      sources: sourcesList,
+    };
+  }
+
+  async getPerformanceTrends(
+    organizationId: string,
+    days = 30,
+  ): Promise<PerformanceTrends> {
+    const now = new Date();
+    const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+
+    const currentWeekMetrics = await this.getConversationAnalytics(
+      organizationId,
+      oneWeekAgo,
+      now,
+    );
+    const previousWeekMetrics = await this.getConversationAnalytics(
+      organizationId,
+      twoWeeksAgo,
+      oneWeekAgo,
+    );
+
+    const currentLeads = await this.getLeadAnalytics(
+      organizationId,
+      oneWeekAgo,
+      now,
+    );
+    const previousLeads = await this.getLeadAnalytics(
+      organizationId,
+      twoWeeksAgo,
+      oneWeekAgo,
+    );
+
+    const currentConvRate =
+      currentWeekMetrics.totalConversations > 0
+        ? (currentLeads.conversionFunnel.leadsGenerated /
+            currentWeekMetrics.totalConversations) *
+          100
+        : 0;
+
+    const previousConvRate =
+      previousWeekMetrics.totalConversations > 0
+        ? (previousLeads.conversionFunnel.leadsGenerated /
+            previousWeekMetrics.totalConversations) *
+          100
+        : 0;
+
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+
+    const dailyTrend: {
+      date: string;
+      conversations: number;
+      leads: number;
+      conversionRate: number;
+    }[] = [];
+
+    for (let i = 0; i < days; i++) {
+      const date = new Date(startDate);
+      date.setDate(date.getDate() + i);
+      const nextDate = new Date(date);
+      nextDate.setDate(nextDate.getDate() + 1);
+
+      const dayConversations = await db
+        .select({ count: count() })
+        .from(conversationMetrics)
+        .where(
+          and(
+            eq(conversationMetrics.organizationId, organizationId),
+            gte(conversationMetrics.startedAt, date),
+            lte(conversationMetrics.startedAt, nextDate),
+          ),
+        );
+
+      const dayLeads = await db
+        .select({ count: count() })
+        .from(conversationMetrics)
+        .where(
+          and(
+            eq(conversationMetrics.organizationId, organizationId),
+            eq(conversationMetrics.leadCaptured, true),
+            gte(conversationMetrics.startedAt, date),
+            lte(conversationMetrics.startedAt, nextDate),
+          ),
+        );
+
+      const conversations = Number(dayConversations[0]?.count || 0);
+      const leadsCount = Number(dayLeads[0]?.count || 0);
+      const conversionRate =
+        conversations > 0 ? (leadsCount / conversations) * 100 : 0;
+
+      dailyTrend.push({
+        date: date.toISOString().split('T')[0],
+        conversations,
+        leads: leadsCount,
+        conversionRate,
+      });
+    }
+
+    const engagementPattern: {
+      day: string;
+      avgDuration: number;
+      completionRate: number;
+    }[] = [];
+
+    const daysOfWeek = [
+      'Sunday',
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+    ];
+
+    for (let i = 0; i < 7; i++) {
+      const dayMetrics = await db
+        .select()
+        .from(conversationMetrics)
+        .where(eq(conversationMetrics.organizationId, organizationId));
+
+      const dayFiltered = dayMetrics.filter(
+        (m) => new Date(m.startedAt).getDay() === i,
+      );
+
+      const totalDuration = dayFiltered.reduce(
+        (sum, m) => sum + (m.durationSeconds || 0),
+        0,
+      );
+      const avgDuration =
+        dayFiltered.length > 0 ? totalDuration / dayFiltered.length : 0;
+
+      const completed = dayFiltered.filter((m) => m.completed).length;
+      const completionRate =
+        dayFiltered.length > 0 ? (completed / dayFiltered.length) * 100 : 0;
+
+      engagementPattern.push({
+        day: daysOfWeek[i],
+        avgDuration,
+        completionRate,
+      });
+    }
+
+    return {
+      weekOverWeek: {
+        conversations: {
+          current: currentWeekMetrics.totalConversations,
+          previous: previousWeekMetrics.totalConversations,
+          change:
+            ((currentWeekMetrics.totalConversations -
+              previousWeekMetrics.totalConversations) /
+              (previousWeekMetrics.totalConversations || 1)) *
+            100,
+        },
+        leads: {
+          current: currentLeads.conversionFunnel.leadsGenerated,
+          previous: previousLeads.conversionFunnel.leadsGenerated,
+          change:
+            ((currentLeads.conversionFunnel.leadsGenerated -
+              previousLeads.conversionFunnel.leadsGenerated) /
+              (previousLeads.conversionFunnel.leadsGenerated || 1)) *
+            100,
+        },
+        conversionRate: {
+          current: currentConvRate,
+          previous: previousConvRate,
+          change:
+            ((currentConvRate - previousConvRate) / (previousConvRate || 1)) *
+            100,
+        },
+      },
+      dailyTrend,
+      engagementPattern,
+    };
+  }
+
+  async getSatisfactionAnalytics(
+    organizationId: string,
+    startDate?: Date,
+    endDate?: Date,
+  ): Promise<SatisfactionAnalytics> {
+    const conditions: SQL[] = [
+      eq(satisfactionRatings.organizationId, organizationId),
+    ];
+
+    if (startDate) {
+      conditions.push(gte(satisfactionRatings.createdAt, startDate));
+    }
+
+    if (endDate) {
+      conditions.push(lte(satisfactionRatings.createdAt, endDate));
+    }
+
+    const ratings = await db
+      .select()
+      .from(satisfactionRatings)
+      .where(and(...conditions));
+
+    const totalRatings = ratings.length;
+    const totalRatingSum = ratings.reduce(
+      (sum, r) => sum + (r.rating || 0),
+      0,
+    );
+    const averageRating =
+      totalRatings > 0 ? totalRatingSum / totalRatings : 0;
+
+    const topComplaints: string[] = [];
+    const feedbackTexts = ratings
+      .filter((r) => r.feedback && r.rating && r.rating <= 2)
+      .map((r) => r.feedback as string);
+
+    for (const feedback of feedbackTexts.slice(0, 5)) {
+      topComplaints.push(feedback);
+    }
+
+    const metricConditions: SQL[] = [
+      eq(conversationMetrics.organizationId, organizationId),
+    ];
+
+    if (startDate) {
+      metricConditions.push(gte(conversationMetrics.startedAt, startDate));
+    }
+
+    if (endDate) {
+      metricConditions.push(lte(conversationMetrics.startedAt, endDate));
+    }
+
+    const metrics = await db
+      .select()
+      .from(conversationMetrics)
+      .where(and(...metricConditions));
+
+    let positive = 0;
+    let neutral = 0;
+    let negative = 0;
+
+    for (const metric of metrics) {
+      const sentiment = (metric.overallSentiment || 'neutral').toLowerCase();
+      if (sentiment === 'positive') positive++;
+      else if (sentiment === 'negative') negative++;
+      else neutral++;
+    }
+
+    const escalatedConversations = metrics.filter(
+      (m) => m.completionReason === 'escalated',
+    ).length;
+    const escalationRate =
+      metrics.length > 0
+        ? (escalatedConversations / metrics.length) * 100
+        : 0;
+
+    const commonQuestions: { question: string; count: number }[] = [];
+
+    return {
+      sentimentBreakdown: {
+        positive,
+        neutral,
+        negative,
+      },
+      averageRating,
+      totalRatings,
+      topComplaints,
+      commonQuestions,
+      escalationRate,
     };
   }
 }

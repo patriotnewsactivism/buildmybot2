@@ -358,6 +358,104 @@ router.get('/partners', async (_req, res) => {
   }
 });
 
+router.get('/partners/:id', async (req, res) => {
+  try {
+    const [partner] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, req.params.id));
+    
+    if (!partner) {
+      return res.status(404).json({ error: 'Partner not found' });
+    }
+    
+    res.json(partner);
+  } catch (error) {
+    console.error('Partner details error:', error);
+    res.status(500).json({ error: 'Failed to fetch partner details' });
+  }
+});
+
+router.get('/partners/:id/clients', async (req, res) => {
+  try {
+    const [partner] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, req.params.id));
+
+    if (!partner) {
+      return res.status(404).json({ error: 'Partner not found' });
+    }
+
+    const clients = await db
+      .select()
+      .from(users)
+      .where(eq(users.referredBy, partner.resellerCode || ''));
+
+    // Enrich clients with metrics
+    const clientsWithMetrics = await Promise.all(
+      clients.map(async (client) => {
+        const [botCount] = await db
+          .select({ count: sql<number>`COUNT(*)` })
+          .from(bots)
+          .where(eq(bots.userId, client.id));
+        const [leadCount] = await db
+          .select({ count: sql<number>`COUNT(*)` })
+          .from(leads)
+          .where(eq(leads.userId, client.id));
+        
+        return {
+          ...client,
+          botCount: botCount?.count || 0,
+          leadCount: leadCount?.count || 0,
+        };
+      })
+    );
+
+    res.json(clientsWithMetrics);
+  } catch (error) {
+    console.error('Partner clients error:', error);
+    res.status(500).json({ error: 'Failed to fetch partner clients' });
+  }
+});
+
+router.get('/partners/:id/metrics', async (req, res) => {
+  try {
+    const [partner] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, req.params.id));
+
+    if (!partner) {
+      return res.status(404).json({ error: 'Partner not found' });
+    }
+
+    const clients = await db
+      .select()
+      .from(users)
+      .where(eq(users.referredBy, partner.resellerCode || ''));
+
+    const totalRevenue = clients.reduce((sum, client) => {
+      const price = PLANS[client.plan as keyof typeof PLANS]?.price || 0;
+      return sum + price;
+    }, 0);
+
+    const activeClients = clients.filter(c => c.status === 'Active').length;
+    const churnedClients = clients.filter(c => c.status === 'Suspended').length;
+
+    res.json({
+      totalClients: clients.length,
+      activeClients,
+      churnedClients,
+      totalRevenue: totalRevenue * 100, // in cents
+      commission: 0, // Calculate based on tier if needed
+    });
+  } catch (error) {
+    console.error('Partner metrics error:', error);
+    res.status(500).json({ error: 'Failed to fetch partner metrics' });
+  }
+});
+
 router.get('/clients', async (_req, res) => {
   try {
     const allClients = await db
