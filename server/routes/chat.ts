@@ -60,7 +60,7 @@ async function handleChatCompletion(req: Request, res: Response) {
     const {
       messages,
       systemPrompt,
-      model = 'gpt-5o-mini',
+      model = 'gpt-4o-mini',
       context,
       botId,
       sessionId,
@@ -365,7 +365,7 @@ router.post(
         return res.status(403).json({ error: 'Bot is currently inactive' });
       }
 
-      let useModel = model || bot.model || 'gpt-5o-mini';
+      let useModel = model || bot.model || 'gpt-4o-mini';
       let baseSystemPrompt = bot.systemPrompt || 'You are a helpful assistant.';
 
       // Phase 5: A/B Testing Logic
