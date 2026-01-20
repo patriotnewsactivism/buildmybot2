@@ -143,9 +143,32 @@ function getBaseUrl() {
 // Stripe is configured via environment variables
 // Webhook endpoint is available at /api/stripe/webhook
 
+// CORS configuration - whitelist specific origins for production
+const allowedOrigins = [
+  'https://www.buildmybot.app',
+  'https://buildmybot.app',
+  'https://buildmybot2-production.up.railway.app',
+  'http://localhost:5000',
+  'http://localhost:3001',
+];
+
 app.use(
   cors({
-    origin: true,
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, Postman, curl)
+      if (!origin) return callback(null, true);
+
+      // In development, allow all origins
+      if (!isProduction) return callback(null, true);
+
+      // In production, check whitelist
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        console.warn(`Blocked CORS request from origin: ${origin}`);
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     credentials: true,
   }),
 );
@@ -182,6 +205,8 @@ app.use(
       httpOnly: true,
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       sameSite: isProduction ? 'none' : 'lax',
+      // Don't set domain in production - let browser handle it
+      // This allows cookies to work across different domains (www.buildmybot.app <-> railway.app)
     },
   }),
 );
