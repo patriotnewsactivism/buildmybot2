@@ -349,6 +349,24 @@ router.get('/agents/:botId', async (req, res) => {
   try {
     const { botId } = req.params;
 
+    // Return empty config for new bots
+    if (botId === 'new') {
+      return res.json({
+        enabled: false,
+        voiceId: 'professional-female-us',
+        greeting: 'Hello! How can I help you today?',
+        transferEnabled: false,
+        transferNumber: '',
+        transferTriggers: ['speak to human', 'talk to agent', 'representative'],
+        leadCaptureEnabled: true,
+        plan: 'VOICE_BASIC',
+        minutesUsed: 0,
+        minutesLimit: 150,
+        language: 'en-US',
+        endCallPhrase: 'goodbye',
+      });
+    }
+
     const [voiceAgent] = await db
       .select()
       .from(voiceAgents)
@@ -459,6 +477,11 @@ router.post('/agents/:botId/provision', async (req, res) => {
     const { botId } = req.params;
     const { areaCode } = req.body;
 
+    // Don't allow provisioning for new/unsaved bots
+    if (botId === 'new' || !botId) {
+      return res.status(400).json({ error: 'Bot must be saved before provisioning phone number' });
+    }
+
     // Get voice agent
     const [voiceAgent] = await db
       .select()
@@ -467,16 +490,29 @@ router.post('/agents/:botId/provision', async (req, res) => {
       .limit(1);
 
     if (!voiceAgent) {
-      return res.status(404).json({ error: 'Voice agent not found' });
+      return res.status(404).json({ error: 'Voice agent not found. Please save voice configuration first.' });
     }
 
     // Provision phone number via Twilio
-    const phoneNumber = await twilioService.provisionPhoneNumber(
-      voiceAgent.id,
-      areaCode,
-    );
+    try {
+      const phoneNumber = await twilioService.provisionPhoneNumber(
+        voiceAgent.id,
+        areaCode,
+      );
 
-    res.json({ phoneNumber });
+      // Update voice agent with phone number
+      await db.update(voiceAgents)
+        .set({ phoneNumber, updatedAt: new Date() })
+        .where(eq(voiceAgents.id, voiceAgent.id));
+
+      res.json({ phoneNumber });
+    } catch (twilioError: any) {
+      console.error('Twilio provisioning error:', twilioError);
+      return res.status(500).json({
+        error: 'Failed to provision phone number',
+        details: twilioError.message || 'Twilio service error'
+      });
+    }
   } catch (error) {
     console.error('Error provisioning phone number:', error);
     res.status(500).json({ error: 'Failed to provision phone number' });
