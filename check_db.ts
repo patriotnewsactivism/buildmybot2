@@ -4,7 +4,7 @@ import postgres from 'postgres';
 import * as schema from './shared/schema';
 
 // Use the connection string from .env
-const connectionString = 'postgresql://postgres:RDjJpNGcVePaqxGTMBcVrUKeTlGwfRnc@yamanote.proxy.rlwy.net:29459/railway';
+const connectionString = process.env.DATABASE_URL || 'postgresql://postgres:RDjJpNGcVePaqxGTMBcVrUKeTlGwfRnc@yamanote.proxy.rlwy.net:29459/railway';
 
 async function checkConnection() {
   console.log('Testing database connection...');
