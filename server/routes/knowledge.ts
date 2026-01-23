@@ -432,4 +432,149 @@ router.get(
   },
 );
 
+// Get processing status for a knowledge source
+router.get(
+  '/status/:sourceId',
+  authenticate,
+  loadOrganizationContext,
+  async (req: Request, res: Response) => {
+    try {
+      const { sourceId } = req.params;
+
+      const [source] = await db
+        .select()
+        .from(knowledgeSources)
+        .where(eq(knowledgeSources.id, sourceId));
+
+      if (!source) {
+        return res.status(404).json({ error: 'Source not found' });
+      }
+
+      // Check access
+      if (!(await canAccessBot(source.botId!, req))) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      // Get chunk count
+      const [chunkCount] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(knowledgeChunks)
+        .where(eq(knowledgeChunks.sourceId, sourceId));
+
+      // Get embeddings count
+      const [embeddingsCount] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(knowledgeChunks)
+        .where(
+          and(
+            eq(knowledgeChunks.sourceId, sourceId),
+            sql`embedding IS NOT NULL`,
+          ),
+        );
+
+      res.json({
+        sourceId: source.id,
+        status: source.status,
+        sourceType: source.sourceType,
+        sourceName: source.sourceName,
+        sourceUrl: source.sourceUrl,
+        processingState: source.processingState || {},
+        retryCount: source.retryCount || 0,
+        lastError: source.lastError,
+        lastProcessedAt: source.lastProcessedAt,
+        pagesCrawled: source.pagesCrawled || 0,
+        pageCount: source.pageCount,
+        chunkCount: Number(chunkCount?.count || 0),
+        embeddingsCount: Number(embeddingsCount?.count || 0),
+        createdAt: source.createdAt,
+        updatedAt: source.updatedAt,
+      });
+    } catch (error: any) {
+      console.error('Status check error:', error);
+      res.status(500).json({ error: 'Failed to check status' });
+    }
+  },
+);
+
+// Retry failed knowledge source processing
+router.post(
+  '/retry/:sourceId',
+  authenticate,
+  loadOrganizationContext,
+  async (req: Request, res: Response) => {
+    try {
+      const { sourceId } = req.params;
+
+      const [source] = await db
+        .select()
+        .from(knowledgeSources)
+        .where(eq(knowledgeSources.id, sourceId));
+
+      if (!source) {
+        return res.status(404).json({ error: 'Source not found' });
+      }
+
+      // Check access
+      if (!(await canAccessBot(source.botId!, req))) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      // Only retry failed sources
+      if (source.status !== 'failed') {
+        return res.status(400).json({
+          error: 'Can only retry failed sources',
+          currentStatus: source.status,
+        });
+      }
+
+      // Reset source status and increment retry count
+      await db
+        .update(knowledgeSources)
+        .set({
+          status: 'processing',
+          retryCount: (source.retryCount || 0) + 1,
+          lastError: null,
+          processingState: {
+            extract: 'pending',
+            ocr: 'pending',
+            chunk: 'pending',
+            embed: 'pending',
+            index: 'pending',
+          },
+          updatedAt: new Date(),
+        })
+        .where(eq(knowledgeSources.id, sourceId));
+
+      // Trigger re-processing based on source type
+      if (source.sourceType === 'url' && source.sourceUrl) {
+        // Re-crawl the URL
+        WebScraperService.crawlWebsite(
+          source.sourceUrl,
+          20,
+          sourceId,
+          source.botId!,
+          source.organizationId,
+        ).catch((err) =>
+          console.error(`Retry crawl failed for ${source.sourceUrl}:`, err),
+        );
+      } else if (source.sourceType === 'document') {
+        // For documents, user needs to re-upload
+        return res.status(400).json({
+          error: 'Document sources must be re-uploaded',
+        });
+      }
+
+      res.json({
+        success: true,
+        sourceId,
+        retryCount: (source.retryCount || 0) + 1,
+        message: 'Source queued for re-processing',
+      });
+    } catch (error: any) {
+      console.error('Retry error:', error);
+      res.status(500).json({ error: 'Failed to retry processing' });
+    }
+  },
+);
+
 export default router;
