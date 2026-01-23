@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import compression from 'compression';
 import connectPgSimple from 'connect-pg-simple';
 import cors from 'cors';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, isNull } from 'drizzle-orm';
 import express from 'express';
 import session from 'express-session';
 import multer from 'multer';
@@ -30,6 +30,7 @@ import {
 } from '../shared/schema';
 import { WebScraperService } from './services/WebScraperService';
 import { db, pool } from './db';
+import { KnowledgeRepairService } from './services/KnowledgeRepairService';
 import {
   apiLimiter,
   applyImpersonation,
@@ -127,24 +128,8 @@ const app = express();
 app.set('trust proxy', 1);
 
 const isProduction = env.NODE_ENV === 'production';
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
 const defaultPort = isProduction ? '5000' : env.API_PORT || '3001';
 const PORT = Number.parseInt(env.PORT || defaultPort, 10);
-=======
-const PORT = isProduction ? 5000 : Number.parseInt(env.API_PORT || '3001', 10);
->>>>>>> Stashed changes
-=======
-const PORT = isProduction ? 5000 : Number.parseInt(env.API_PORT || '3001', 10);
->>>>>>> Stashed changes
-=======
-const PORT = isProduction ? 5000 : Number.parseInt(env.API_PORT || '3001', 10);
->>>>>>> Stashed changes
-=======
-const PORT = isProduction ? 5000 : Number.parseInt(env.API_PORT || '3001', 10);
->>>>>>> Stashed changes
 
 function getBaseUrl() {
   const appBaseUrl = env.APP_BASE_URL?.trim();
@@ -458,13 +443,91 @@ const apiAuthStack = [
   tenantIsolation(),
 ];
 
+const isAdminUser = (user?: { role?: string } | null) => {
+  return (
+    user?.role === 'ADMIN' ||
+    user?.role === 'Admin' ||
+    user?.role === 'MasterAdmin'
+  );
+};
+
+const canAccessBot = (
+  bot: typeof bots.$inferSelect,
+  user?: { id?: string; organizationId?: string; role?: string } | null,
+  organizationId?: string,
+) => {
+  if (isAdminUser(user)) return true;
+  if (!user?.id) return false;
+  if (bot.userId && bot.userId === user.id) return true;
+  if (organizationId && bot.organizationId === organizationId) return true;
+  return false;
+};
+
+const extractKnowledgeUrls = (knowledgeBase: unknown): string[] => {
+  if (!Array.isArray(knowledgeBase)) return [];
+  return knowledgeBase.filter(
+    (item) => typeof item === 'string' && item.startsWith('http'),
+  );
+};
+
+type DbExecutor = Pick<typeof db, 'select' | 'insert' | 'update'>;
+
+const createKnowledgeSourcesForUrls = async (
+  tx: DbExecutor,
+  botId: string,
+  organizationId: string | null | undefined,
+  urls: string[],
+) => {
+  if (urls.length === 0) return [];
+
+  const existing = await tx
+    .select({ sourceUrl: knowledgeSources.sourceUrl })
+    .from(knowledgeSources)
+    .where(
+      and(
+        eq(knowledgeSources.botId, botId),
+        eq(knowledgeSources.sourceType, 'url'),
+      ),
+    );
+
+  const existingSet = new Set(
+    existing.map((row) => row.sourceUrl).filter(Boolean),
+  );
+  const created: Array<{ sourceId: string; url: string }> = [];
+
+  for (const url of urls) {
+    if (existingSet.has(url)) continue;
+    try {
+      const parsed = new URL(url);
+      const sourceId = uuidv4();
+      await tx.insert(knowledgeSources).values({
+        id: sourceId,
+        botId,
+        organizationId,
+        sourceType: 'url',
+        sourceName: parsed.hostname,
+        sourceUrl: url,
+        status: 'processing',
+        pagesCrawled: 0,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      created.push({ sourceId, url });
+    } catch (error) {
+      console.warn('Invalid knowledge URL, skipping:', url);
+    }
+  }
+
+  return created;
+};
+
 app.get('/api/bots', ...apiAuthStack, async (req, res) => {
   try {
     const userId = req.query.userId as string;
     const organizationId =
       (req as any).organization?.id || (req.query.organizationId as string);
 
-    let conditions = [];
+    const conditions = [];
 
     if (userId) {
       conditions.push(eq(bots.userId, userId));
@@ -478,21 +541,23 @@ app.get('/api/bots', ...apiAuthStack, async (req, res) => {
       allBots = await db
         .select()
         .from(bots)
-        .where(and(...conditions));
+        .where(and(isNull(bots.deletedAt), ...conditions));
     } else {
       // Fallback: If no filters, return empty array for safety instead of all bots
       // or check if user is admin
       const user = (req as any).user;
-      if (
-        user?.role === 'ADMIN' ||
-        user?.role === 'Admin' ||
-        user?.role === 'MasterAdmin'
-      ) {
-        allBots = await db.select().from(bots);
+      if (isAdminUser(user)) {
+        allBots = await db
+          .select()
+          .from(bots)
+          .where(isNull(bots.deletedAt));
       } else {
         // If regular user/no context, only show their own bots if user exists
         if (user?.id) {
-          allBots = await db.select().from(bots).where(eq(bots.userId, user.id));
+          allBots = await db
+            .select()
+            .from(bots)
+            .where(and(eq(bots.userId, user.id), isNull(bots.deletedAt)));
         } else {
           allBots = [];
         }
@@ -510,9 +575,14 @@ app.get('/api/bots/:id', ...apiAuthStack, async (req, res) => {
     const [bot] = await db
       .select()
       .from(bots)
-      .where(eq(bots.id, req.params.id));
+      .where(and(eq(bots.id, req.params.id), isNull(bots.deletedAt)));
     if (!bot) {
       return res.status(404).json({ error: 'Bot not found' });
+    }
+    const user = (req as any).user;
+    const organizationId = (req as any).organization?.id;
+    if (!canAccessBot(bot, user, organizationId)) {
+      return res.status(403).json({ error: 'Not authorized to view this bot' });
     }
     res.json(bot);
   } catch (error) {
@@ -526,7 +596,7 @@ app.get('/api/public/bots/:id', async (req, res) => {
     const [bot] = await db
       .select()
       .from(bots)
-      .where(eq(bots.id, req.params.id));
+      .where(and(eq(bots.id, req.params.id), isNull(bots.deletedAt)));
     if (!bot || !bot.isPublic || !bot.active) {
       return res.status(404).json({ error: 'Bot not found' });
     }
@@ -564,10 +634,22 @@ app.post('/api/bots', ...apiAuthStack, async (req, res) => {
     const targetUserId = user?.id || req.body.userId;
     const targetOrgId = user?.organizationId || req.body.organizationId;
 
-    if (!targetUserId) {
-       console.warn('Attempted to create bot without User ID');
-       // We might allow it if it's a system bot, but for now warning is good.
+    if (
+      user?.id &&
+      req.body.userId &&
+      req.body.userId !== user.id &&
+      !isAdminUser(user)
+    ) {
+      return res.status(403).json({ error: 'Not authorized to create bot for another user' });
     }
+
+    if (!targetUserId) {
+      return res.status(400).json({ error: 'User ID is required' });
+    }
+
+    let knowledgeBase = Array.isArray(req.body.knowledgeBase)
+      ? req.body.knowledgeBase
+      : [];
 
     // Only include valid bot fields to prevent column mismatch errors
     const botData = {
@@ -577,7 +659,7 @@ app.post('/api/bots', ...apiAuthStack, async (req, res) => {
       systemPrompt: req.body.systemPrompt || '',
       model: req.body.model || 'gpt-5o-mini',
       temperature: req.body.temperature ?? 0.7,
-      knowledgeBase: req.body.knowledgeBase || [],
+      knowledgeBase,
       active: req.body.active ?? true,
       conversationsCount: 0,
       themeColor: req.body.themeColor || '#3B82F6',
@@ -627,48 +709,35 @@ app.post('/api/bots', ...apiAuthStack, async (req, res) => {
       }
     }
 
-    const [newBot] = await db.insert(bots).values(botData).returning();
+    knowledgeBase = Array.isArray(botData.knowledgeBase)
+      ? botData.knowledgeBase
+      : [];
 
-    // Process knowledge base URLs
-    if (
-      Array.isArray(botData.knowledgeBase) &&
-      botData.knowledgeBase.length > 0
-    ) {
-      for (const item of botData.knowledgeBase) {
-        if (typeof item === 'string' && item.startsWith('http')) {
-          try {
-            const sourceId = uuidv4();
-            await db.insert(knowledgeSources).values({
-              id: sourceId,
-              botId: newBot.id,
-              organizationId: newBot.organizationId,
-              sourceType: 'url',
-              sourceName: new URL(item).hostname,
-              sourceUrl: item,
-              status: 'processing',
-              pagesCrawled: 0,
-              createdAt: new Date(),
-              updatedAt: new Date(),
-            });
+    const { newBot, createdSources } = await db.transaction(async (tx) => {
+      const [createdBot] = await tx.insert(bots).values(botData).returning();
+      const urls = extractKnowledgeUrls(knowledgeBase);
+      const sources = await createKnowledgeSourcesForUrls(
+        tx,
+        createdBot.id,
+        createdBot.organizationId,
+        urls,
+      );
+      return { newBot: createdBot, createdSources: sources };
+    });
 
-            // Trigger scraper asynchronously
-            WebScraperService.crawlWebsite(
-              item,
-              20, // Increased default depth for deep scrape
-              sourceId,
-              newBot.id,
-              newBot.organizationId,
-            ).catch((err) =>
-              console.error(`Failed to scrape ${item} for bot ${newBot.id}:`, err),
-            );
-          } catch (err) {
-            console.error(
-              `Failed to create knowledge source for ${item}:`,
-              err,
-            );
-          }
-        }
-      }
+    for (const source of createdSources) {
+      WebScraperService.crawlWebsite(
+        source.url,
+        20,
+        source.sourceId,
+        newBot.id,
+        newBot.organizationId,
+      ).catch((err) =>
+        console.error(
+          `Failed to scrape ${source.url} for bot ${newBot.id}:`,
+          err,
+        ),
+      );
     }
 
     // Ensure audit log for reliability
@@ -698,6 +767,20 @@ app.post('/api/bots', ...apiAuthStack, async (req, res) => {
 
 app.put('/api/bots/:id', ...apiAuthStack, async (req, res) => {
   try {
+    const user = (req as any).user;
+    const organizationId = (req as any).organization?.id;
+
+    const [existingBot] = await db
+      .select()
+      .from(bots)
+      .where(and(eq(bots.id, req.params.id), isNull(bots.deletedAt)));
+    if (!existingBot) {
+      return res.status(404).json({ error: 'Bot not found' });
+    }
+    if (!canAccessBot(existingBot, user, organizationId)) {
+      return res.status(403).json({ error: 'Not authorized to update this bot' });
+    }
+
     // Only include valid bot fields to prevent column mismatch errors
     const updateData: Record<string, any> = { updatedAt: new Date() };
 
@@ -727,11 +810,53 @@ app.put('/api/bots/:id', ...apiAuthStack, async (req, res) => {
       }
     }
 
-    const [updatedBot] = await db
-      .update(bots)
-      .set(updateData)
-      .where(eq(bots.id, req.params.id))
-      .returning();
+    if (
+      updateData.knowledgeBase !== undefined &&
+      !Array.isArray(updateData.knowledgeBase)
+    ) {
+      return res
+        .status(400)
+        .json({ error: 'knowledgeBase must be an array' });
+    }
+
+    const { updatedBot, createdSources } = await db.transaction(async (tx) => {
+      const [bot] = await tx
+        .update(bots)
+        .set(updateData)
+        .where(eq(bots.id, req.params.id))
+        .returning();
+
+      let sources: Array<{ sourceId: string; url: string }> = [];
+      if (Array.isArray(updateData.knowledgeBase)) {
+        const urls = extractKnowledgeUrls(updateData.knowledgeBase);
+        sources = await createKnowledgeSourcesForUrls(
+          tx,
+          bot.id,
+          bot.organizationId,
+          urls,
+        );
+      }
+      return { updatedBot: bot, createdSources: sources };
+    });
+
+    if (!updatedBot) {
+      return res.status(404).json({ error: 'Bot not found' });
+    }
+
+    for (const source of createdSources) {
+      WebScraperService.crawlWebsite(
+        source.url,
+        20,
+        source.sourceId,
+        updatedBot.id,
+        updatedBot.organizationId,
+      ).catch((err) =>
+        console.error(
+          `Failed to scrape ${source.url} for bot ${updatedBot.id}:`,
+          err,
+        ),
+      );
+    }
     res.json(updatedBot);
   } catch (error) {
     console.error('Error updating bot:', error);
@@ -1416,6 +1541,19 @@ if (!isVercel) {
       `Server running on port ${PORT} (${isProduction ? 'production' : 'development'})`,
     );
   });
+}
+
+const repairIntervalMs = Number.parseInt(
+  env.KNOWLEDGE_REPAIR_INTERVAL_MS || '300000',
+  10,
+);
+
+if (!isVercel && repairIntervalMs > 0) {
+  setInterval(() => {
+    KnowledgeRepairService.reconcile().catch((error) => {
+      console.error('Knowledge repair job failed:', error);
+    });
+  }, repairIntervalMs);
 }
 
 export { app, server };

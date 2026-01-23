@@ -1,0 +1,21 @@
+// server.js
+import WebSocket from "ws";
+import { v4 as uuid } from "uuid";
+
+const sessions = new Map();
+
+function startCall(callId) {
+  sessions.set(callId, {
+    startedAt: Date.now(),
+    secondsUsed: 0,
+    tier: "standard",
+    memory: []
+  });
+}
+
+function endCall(callId) {
+  const s = sessions.get(callId);
+  const minutes = Math.ceil((Date.now() - s.startedAt) / 60000);
+  // write usage to DB
+  sessions.delete(callId);
+}
