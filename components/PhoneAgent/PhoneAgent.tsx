@@ -17,6 +17,7 @@ import {
 import type React from 'react';
 import { useEffect, useState } from 'react';
 import type { User } from '../../types';
+import { VoiceCallSimulator } from './VoiceCallSimulator';
 import { VoiceSetupWizard } from './VoiceSetupWizard';
 import { AudioWaveform } from './AudioWaveform';
 
@@ -76,8 +77,7 @@ export const PhoneAgent: React.FC<PhoneAgentProps> = ({ user, onUpdate }) => {
   );
   const [showApiKey, setShowApiKey] = useState(false);
 
-  const [isSimulating, setIsSimulating] = useState(false);
-  const [simulationStatus, setSimulationStatus] = useState('Ready to test');
+  const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isPlayingPreview, setIsPlayingPreview] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'setup' | 'config'>(
@@ -143,62 +143,6 @@ export const PhoneAgent: React.FC<PhoneAgentProps> = ({ user, onUpdate }) => {
       alert('Voice preview failed. Please check your Cartesia API key.');
       setIsPlayingPreview(null);
     }
-  };
-
-  const startSimulation = async () => {
-    const apiKey = getApiKey();
-    if (!apiKey) {
-      alert('Please enter your Cartesia API key first.');
-      setActiveTab('setup');
-      return;
-    }
-
-    setIsSimulating(true);
-    setSimulationStatus('Generating voice...');
-
-    try {
-      const response = await fetch('https://api.cartesia.ai/tts/bytes', {
-        method: 'POST',
-        headers: {
-          'Cartesia-Version': '2024-06-10',
-          'X-API-Key': apiKey,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model_id: 'sonic-2',
-          transcript: introMessage,
-          voice: { mode: 'id', id: voice },
-          output_format: {
-            container: 'mp3',
-            encoding: 'mp3',
-            sample_rate: 44100,
-          },
-        }),
-      });
-
-      if (!response.ok) throw new Error('Voice generation failed');
-
-      const audioBlob = await response.blob();
-      const audioUrl = URL.createObjectURL(audioBlob);
-      const audio = new Audio(audioUrl);
-      audio.onended = () => {
-        setSimulationStatus('Call ended');
-        setIsSimulating(false);
-        URL.revokeObjectURL(audioUrl);
-      };
-      setSimulationStatus('AI Speaking...');
-      await audio.play();
-    } catch (err) {
-      console.error(err);
-      alert('Voice simulation failed. Please check your Cartesia API key.');
-      setIsSimulating(false);
-      setSimulationStatus('Error occurred');
-    }
-  };
-
-  const endSimulation = () => {
-    setIsSimulating(false);
-    setSimulationStatus('Call ended');
   };
 
   const handleSave = () => {
@@ -539,28 +483,20 @@ export const PhoneAgent: React.FC<PhoneAgentProps> = ({ user, onUpdate }) => {
             {/* Call Simulator */}
             <div className="bg-slate-900 text-white p-6 rounded-xl shadow-lg relative overflow-hidden">
               <div className="relative z-10 text-center">
-                <h3 className="font-bold text-lg mb-4">Test Your Voice</h3>
+                <h3 className="font-bold text-lg mb-4">Live Call Simulation</h3>
 
                 <button
                   type="button"
-                  className={`w-20 h-20 rounded-full mx-auto flex items-center justify-center mb-4 transition-all duration-500 ${isSimulating ? 'bg-red-500 animate-pulse' : 'bg-emerald-500 hover:scale-105'}`}
-                  onClick={isSimulating ? endSimulation : startSimulation}
-                  aria-label="Toggle call simulation"
+                  className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition flex items-center justify-center gap-2"
+                  onClick={() => setIsSimulatorOpen(true)}
+                  aria-label="Start call simulation"
                 >
-                  {isSimulating ? (
-                    <Phone size={32} className="rotate-135" />
-                  ) : (
-                    <PlayCircle size={32} />
-                  )}
+                  <Phone size={20} />
+                  Test Your Voice Agent
                 </button>
 
-                <div className="h-[60px] mb-4 flex items-center justify-center">
-                  <AudioWaveform isActive={isSimulating} color="#ffffff" />
-                </div>
-
-                <p className="text-sm font-medium">{simulationStatus}</p>
-                <p className="text-xs text-slate-400 mt-2">
-                  Click to hear your greeting
+                <p className="text-xs text-slate-400 mt-4">
+                  Click to start a live test call with your configured voice and greeting.
                 </p>
               </div>
             </div>
@@ -635,6 +571,16 @@ export const PhoneAgent: React.FC<PhoneAgentProps> = ({ user, onUpdate }) => {
           Save Configuration
         </button>
       </div>
+
+      {isSimulatorOpen && (
+        <VoiceCallSimulator
+          isOpen={isSimulatorOpen}
+          onClose={() => setIsSimulatorOpen(false)}
+          introMessage={introMessage}
+          voiceId={voice}
+          cartesiaApiKey={cartesiaApiKey}
+        />
+      )}
 
       {/* Voice Setup Wizard */}
       {showWizard && user && (
