@@ -4,6 +4,8 @@ import { JSDOM } from 'jsdom';
 import { v4 as uuidv4 } from 'uuid';
 import { knowledgeChunks, knowledgeSources } from '../../shared/schema';
 import { db } from '../db';
+import { EmbeddingService } from './EmbeddingService';
+import { chunkTextWithOverlap } from './KnowledgeChunker';
 
 export interface ScrapedContent {
   url: string;
@@ -86,21 +88,39 @@ export class WebScraperService {
         results.push(scraped);
 
         const chunks = WebScraperService.chunkContent(scraped.content);
-        for (let i = 0; i < chunks.length; i++) {
-          await db.insert(knowledgeChunks).values({
-            id: uuidv4(),
-            sourceId,
-            botId,
-            content: chunks[i],
-            contentHash: WebScraperService.hashContent(chunks[i]),
-            metadata: {
-              title: scraped.title,
-              url: scraped.url,
-              pageIndex: results.length,
-            },
-            chunkIndex: i,
-            tokenCount: Math.ceil(chunks[i].length / 4),
-          });
+        const pageChunkRows = chunks.map((chunk, index) => ({
+          id: uuidv4(),
+          sourceId,
+          botId,
+          content: chunk,
+          contentHash: WebScraperService.hashContent(chunk),
+          metadata: {
+            docId: sourceId,
+            title: scraped.title,
+            url: scraped.url,
+            pageIndex: results.length,
+            pageNumber: results.length,
+            sourceType: 'url',
+            organizationId,
+          },
+          chunkIndex: index,
+          tokenCount: Math.ceil(chunk.length / 4),
+        }));
+
+        if (pageChunkRows.length > 0) {
+          await db.insert(knowledgeChunks).values(pageChunkRows);
+
+          const embeddings = await EmbeddingService.embedTexts(
+            pageChunkRows.map((row) => row.content),
+          );
+          if (embeddings && embeddings.length === pageChunkRows.length) {
+            for (let i = 0; i < pageChunkRows.length; i++) {
+              await db
+                .update(knowledgeChunks)
+                .set({ embedding: embeddings[i] })
+                .where(eq(knowledgeChunks.id, pageChunkRows[i].id));
+            }
+          }
         }
 
         for (const link of scraped.links) {
@@ -217,30 +237,13 @@ export class WebScraperService {
     return [...new Set(links)].slice(0, 100);
   }
 
-  static chunkContent(text: string, maxTokens = 500): string[] {
-    const chunks: string[] = [];
-    const sentences = text.split(/(?<=[.!?])\s+/);
-    let currentChunk = '';
-    let currentTokens = 0;
-
-    for (const sentence of sentences) {
-      const sentenceTokens = Math.ceil(sentence.length / 4);
-
-      if (currentTokens + sentenceTokens > maxTokens && currentChunk) {
-        chunks.push(currentChunk.trim());
-        currentChunk = sentence;
-        currentTokens = sentenceTokens;
-      } else {
-        currentChunk += ` ${sentence}`;
-        currentTokens += sentenceTokens;
-      }
-    }
-
-    if (currentChunk.trim()) {
-      chunks.push(currentChunk.trim());
-    }
-
-    return chunks;
+  static chunkContent(text: string): string[] {
+    return chunkTextWithOverlap(text, {
+      minTokens: 500,
+      maxTokens: 1000,
+      targetTokens: 800,
+      overlapTokens: 100,
+    });
   }
 
   static hashContent(content: string): string {

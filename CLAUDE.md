@@ -20,14 +20,22 @@ npm run preview      # Preview production build locally
 
 ### Database Operations
 ```bash
-npm run db:push      # Push Drizzle schema changes to PostgreSQL
-npm run db:studio    # Open Drizzle Studio GUI for database inspection
-npm run db:seed      # Seed marketplace bot templates
-npm run seed:roles   # Seed user roles and permissions
-npm run migrate:schema    # Run schema migrations
-npm run migrate:data      # Run data migrations
-npm run migrate:all       # Run both schema and data migrations
-npm run set-admin-permissions  # Set up admin user permissions
+# Modern unified system (RECOMMENDED)
+npm run db:migrate              # Run all pending migrations
+npm run db:migrate:status       # Show migration history
+npm run db:migrate:down         # Rollback last migration
+npm run db:seed                 # Run all seeds in order
+npm run db:seed -- --force      # Force re-run all seeds
+npm run db:seed -- --only=user-roles  # Run specific seed only
+npm run db:setup                # Run migrations + seeds (initial setup)
+npm run db:push                 # Push Drizzle schema changes to PostgreSQL
+npm run db:studio               # Open Drizzle Studio GUI for database inspection
+
+# Legacy commands (DEPRECATED - use above instead)
+npm run migrate:schema          # DEPRECATED: Use db:migrate
+npm run migrate:data            # DEPRECATED: Use db:migrate
+npm run seed:roles              # DEPRECATED: Use db:seed --only=user-roles
+npm run set-admin-permissions   # DEPRECATED: Admin permissions set via db:seed
 ```
 
 ### Testing
@@ -73,7 +81,7 @@ npx supabase db diff    # Show diff between local and remote schemas
 **Workflow**:
 1. Start local Supabase: `npx supabase start`
 2. Create `.env.local` with: `DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres`
-3. Run migrations: `npm run migrate:schema`
+3. Run migrations: `npm run db:migrate`
 4. Seed data: `npm run db:seed`
 5. Start dev server: `npm run dev`
 
@@ -131,11 +139,15 @@ The platform uses an **organization-based multi-tenancy model**:
 Key tables and relationships:
 - **Core Entities**: `users`, `organizations`, `bots`, `leads`, `conversations`
 - **Multi-tenancy**: `organizationMembers`, `roles`, `partnerClients`
-- **Knowledge Base**: `knowledgeSources`, `knowledgeChunks` (for RAG)
+- **Knowledge Base**:
+  - `knowledgeSources` - Stores uploaded documents/URLs with processing status
+  - `knowledgeChunks` - Stores chunked text with embeddings (pgvector, 1536 dimensions)
+  - `botDocuments` - LEGACY table, being migrated to `knowledgeSources`
 - **Analytics**: `analyticsEvents` (tracks user interactions)
 - **Billing**: `discountCodes`, `freeAccessCodes` (promotions)
 - **Security**: `auditLogs`, `impersonationSessions`
 - **Templates**: `botTemplates` (marketplace templates)
+- **Migrations**: `migrationHistory` - Tracks schema/data migrations with checksums
 
 All tables with `organizationId` MUST use tenant isolation middleware.
 
@@ -177,11 +189,15 @@ The app uses client-side routing managed in `App.tsx`:
 ### AI & Knowledge Base
 - **Bot Configuration**: `bots` table stores `systemPrompt`, `model`, `temperature`, `knowledgeBase`
 - **RAG System**:
-  - `knowledgeSources` stores uploaded docs/URLs
-  - `knowledgeChunks` stores chunked, indexed content
-  - `DocumentProcessorService` handles PDF/DOCX parsing
-  - `WebScraperService` crawls and extracts website content
-- **Chat Flow**: Client → `/api/chat` → OpenAI API → RAG lookup → Response
+  - `knowledgeSources` stores uploaded docs/URLs with processing status tracking
+  - `knowledgeChunks` stores chunked text with pgvector embeddings (1536 dimensions)
+  - `DocumentProcessorService` handles PDF/DOCX/TXT parsing and text extraction
+  - `WebScraperService` crawls and extracts website content with Readability
+  - `EmbeddingService` generates OpenAI embeddings (text-embedding-3-small)
+  - `KnowledgeChunker` splits text into overlapping chunks (~500-1000 tokens)
+  - `KnowledgeRepairService` reconciles broken/incomplete knowledge sources
+- **Chat Flow**: Client → `/api/chat` → OpenAI API → Vector similarity search → Context injection → Response
+- **Self-Healing**: `scripts/repairKnowledge.ts` can detect and repair incomplete ingestions
 
 ### Authentication & Security
 - **Master Admins**: Hardcoded list in `App.tsx` (`MASTER_ADMINS = ['mreardon@wtpnews.org']`)
@@ -199,9 +215,13 @@ The app uses client-side routing managed in `App.tsx`:
 
 ### Database Changes
 1. Modify `shared/schema.ts` (single source of truth)
-2. Run `npm run db:push` to push schema changes
-3. Create data migration in `server/migrations/` if needed
-4. Update TypeScript types (exported from schema.ts)
+2. Run `npm run db:push` to push schema changes to database
+3. For production migrations, create migration in `scripts/migrate.ts`:
+   - Add to `MIGRATIONS` array with version, name, and up() function
+   - Run `npm run db:migrate` to apply
+   - Check status with `npm run db:migrate:status`
+4. For SQL migrations, place in `server/migrations/` and reference in migrate.ts
+5. TypeScript types are automatically exported from schema.ts
 
 ### Adding New API Routes
 1. Create route file in `server/routes/`
@@ -254,8 +274,14 @@ Required variables (see `.env.example`):
 
 ### Creating a New Bot Template
 1. Add template data to `server/seeds/seedTemplates.ts`
-2. Run `npm run db:seed` to seed database
+2. Run `npm run db:seed` (or `npm run db:seed -- --only=bot-templates` for just templates)
 3. Template appears in marketplace (`/api/templates`)
+
+### Adding a New Database Seed
+1. Create seed function in `server/seeds/yourSeed.ts`
+2. Add to `SEEDS` array in `scripts/seed.ts` with order and dependencies
+3. Run `npm run db:seed` to execute in order
+4. Use `--force` flag to re-run seeds
 
 ### Adding a New Service
 1. Create service class in `server/services/`
@@ -319,14 +345,41 @@ The Express backend should be deployed separately to:
 
 ### Production Checklist
 
-1. Run migrations: `npm run migrate:schema`
-2. Seed templates: `npm run db:seed`
-3. Seed user roles: `npm run seed:roles`
-4. Update `MASTER_ADMINS` in `App.tsx` with production admin emails
-5. Set all environment variables in deployment platform
-6. Configure Stripe webhook URL in Stripe dashboard
-7. Test authentication flow
-8. Verify API connectivity between frontend and backend
+1. Run migrations: `npm run db:migrate`
+2. Seed data: `npm run db:seed`
+3. Update `MASTER_ADMINS` in `App.tsx` with production admin emails
+4. Set all environment variables in deployment platform
+5. Configure Stripe webhook URL in Stripe dashboard
+6. Test authentication flow
+7. Verify API connectivity between frontend and backend
+8. Run knowledge repair: `tsx scripts/repairKnowledge.ts` (if migrating existing data)
+
+## Common Utilities & Scripts
+
+### Knowledge Base Management
+```bash
+# Repair broken/incomplete knowledge sources
+tsx scripts/repairKnowledge.ts
+
+# Test knowledge base API
+node scripts/test-knowledge-api.js
+node scripts/test-knowledge-base.js
+
+# Test document upload
+node scripts/test-pdf-upload.js
+```
+
+### Database Utilities
+```bash
+# Check database connection
+tsx scripts/testDbConnection.ts
+
+# View migration history
+npm run db:migrate:status
+
+# Rollback migrations
+npm run db:migrate:down -- --steps=1
+```
 
 ## Known Issues & Gotchas
 
@@ -337,3 +390,6 @@ The Express backend should be deployed separately to:
 - **Model Migration**: System migrated from GPT-4o Mini to GPT-5o Mini as default
 - **Windows Development**: Use `tsx` instead of `ts-node` for script execution
 - **Docker Required**: Local Supabase requires Docker Desktop to be running
+- **pgvector Extension**: Required for knowledge base embeddings - automatically installed by migrations
+- **Legacy Migration**: Old `botDocuments` table is deprecated; use `knowledgeSources` + `knowledgeChunks`
+- **File Uploads**: Stored in `/tmp/uploads` on Vercel, `./uploads` locally (10MB limit)

@@ -402,8 +402,16 @@ export const knowledgeSources = pgTable('knowledge_sources', {
   sourceUrl: text('source_url'),
   status: varchar('status', { length: 50 }).default('pending'), // 'pending', 'processing', 'completed', 'failed'
   errorMessage: text('error_message'),
+  sourceText: text('source_text'),
+  pageCount: integer('page_count'),
+  processingState: json('processing_state').default({}),
+  retryCount: integer('retry_count').default(0),
+  lastError: text('last_error'),
+  nextRetryAt: timestamp('next_retry_at'),
+  deadLetteredAt: timestamp('dead_lettered_at'),
   pagesCrawled: integer('pages_crawled').default(0),
   lastCrawledAt: timestamp('last_crawled_at'),
+  lastProcessedAt: timestamp('last_processed_at'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });
@@ -419,7 +427,7 @@ export const knowledgeChunks = pgTable('knowledge_chunks', {
   metadata: json('metadata').default({}),
   chunkIndex: integer('chunk_index'),
   tokenCount: integer('token_count'),
-  // embedding: vector('embedding', { dimensions: 1536 }),
+  embedding: vector('embedding', { dimensions: 1536 }),
   createdAt: timestamp('created_at').defaultNow(),
 });
 

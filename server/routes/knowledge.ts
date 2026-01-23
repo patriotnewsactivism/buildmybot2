@@ -160,6 +160,7 @@ router.post(
         file.mimetype,
         sourceId,
         botId,
+        { userId: user?.id, organizationId },
       ).catch(async (error) => {
         console.error('Document processing error:', error);
         await db

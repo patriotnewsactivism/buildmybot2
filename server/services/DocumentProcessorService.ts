@@ -5,6 +5,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { knowledgeChunks, knowledgeSources } from '../../shared/schema';
 import { db } from '../db';
 import { env } from '../env';
+import { EmbeddingService } from './EmbeddingService';
+import { chunkTextWithOverlap } from './KnowledgeChunker';
 const require = createRequire(import.meta.url);
 const pdfParse = require('pdf-parse');
 
@@ -18,25 +20,45 @@ export interface ProcessedDocument {
 }
 
 export class DocumentProcessorService {
-  private static readonly MAX_TOKENS = 500;
-
   static async processDocument(
     buffer: Buffer,
     fileName: string,
     mimeType: string,
     sourceId: string,
     botId: string,
+    options?: { userId?: string; organizationId?: string },
   ): Promise<ProcessedDocument> {
     let content = '';
     let ocrUsed = false;
     let pageCount: number | undefined;
+    const userId = options?.userId;
+    const organizationId = options?.organizationId;
 
     try {
+      await DocumentProcessorService.updateProcessingState(sourceId, {
+        status: 'processing',
+        processingState: {
+          extract: 'processing',
+          ocr: 'pending',
+          chunk: 'pending',
+          embed: 'pending',
+          index: 'pending',
+        },
+      });
+
+      let pages: Array<{ pageNumber: number; text: string }> = [];
+
       if (mimeType === 'application/pdf') {
         const pdfResult =
-          await DocumentProcessorService.extractTextFromPdf(buffer);
+          await DocumentProcessorService.extractTextFromPdfPages(buffer);
         content = pdfResult.text;
+        pages = pdfResult.pages;
         pageCount = pdfResult.pageCount;
+
+        await DocumentProcessorService.updateProcessingState(sourceId, {
+          processingState: { extract: 'completed' },
+        });
+
         if (content.trim().length < 100) {
           try {
             const ocrContent =
@@ -47,12 +69,24 @@ export class DocumentProcessorService {
             if (ocrContent.trim()) {
               content = ocrContent;
               ocrUsed = true;
+              pages = DocumentProcessorService.splitOcrTextIntoPages(
+                ocrContent,
+                pageCount,
+              );
             }
+
+            await DocumentProcessorService.updateProcessingState(sourceId, {
+              processingState: { ocr: 'completed' },
+            });
           } catch (error: any) {
             console.warn(
               'PDF OCR failed, proceeding with parsed text:',
               error?.message || error,
             );
+            await DocumentProcessorService.updateProcessingState(sourceId, {
+              processingState: { ocr: 'failed' },
+              lastError: error?.message || String(error),
+            });
           }
         }
       } else if (mimeType.includes('image/')) {
@@ -61,30 +95,124 @@ export class DocumentProcessorService {
           mimeType,
         );
         ocrUsed = true;
+        pageCount = 1;
+        pages = [{ pageNumber: 1, text: content }];
+
+        await DocumentProcessorService.updateProcessingState(sourceId, {
+          processingState: { extract: 'completed', ocr: 'completed' },
+        });
       } else if (mimeType === 'text/plain' || mimeType === 'text/markdown') {
         content = buffer.toString('utf-8');
+        pageCount = 1;
+        pages = [{ pageNumber: 1, text: content }];
+
+        await DocumentProcessorService.updateProcessingState(sourceId, {
+          processingState: { extract: 'completed' },
+        });
       } else if (mimeType.includes('word') || mimeType.includes('docx')) {
         content = await DocumentProcessorService.extractTextFromDocx(buffer);
+        pageCount = 1;
+        pages = [{ pageNumber: 1, text: content }];
+
+        await DocumentProcessorService.updateProcessingState(sourceId, {
+          processingState: { extract: 'completed' },
+        });
       } else {
         content = buffer.toString('utf-8');
+        pageCount = 1;
+        pages = [{ pageNumber: 1, text: content }];
+
+        await DocumentProcessorService.updateProcessingState(sourceId, {
+          processingState: { extract: 'completed' },
+        });
       }
 
-      const chunks = DocumentProcessorService.chunkDocument(content);
-      for (let i = 0; i < chunks.length; i++) {
-        await db.insert(knowledgeChunks).values({
-          id: uuidv4(),
-          sourceId,
-          botId,
-          content: chunks[i],
-          contentHash: DocumentProcessorService.hashContent(chunks[i]),
-          metadata: {
-            fileName,
-            mimeType,
-            chunkOf: chunks.length,
-          },
-          chunkIndex: i,
-          tokenCount: Math.ceil(chunks[i].length / 4),
-        });
+      if (!pages.length && content.trim()) {
+        pages = [{ pageNumber: 1, text: content }];
+      }
+
+      const chunkInputs = pages.filter((page) => page.text.trim());
+
+      await db
+        .update(knowledgeSources)
+        .set({
+          sourceText: content.trim(),
+          pageCount,
+          updatedAt: new Date(),
+        })
+        .where(eq(knowledgeSources.id, sourceId));
+      const chunkRows: Array<{
+        id: string;
+        sourceId: string;
+        botId: string;
+        content: string;
+        contentHash: string;
+        metadata: Record<string, unknown>;
+        chunkIndex: number;
+        tokenCount: number;
+      }> = [];
+
+      let chunkIndex = 0;
+      for (const page of chunkInputs) {
+        const chunks = DocumentProcessorService.chunkDocument(page.text);
+        for (const chunk of chunks) {
+          chunkRows.push({
+            id: uuidv4(),
+            sourceId,
+            botId,
+            content: chunk,
+            contentHash: DocumentProcessorService.hashContent(chunk),
+            metadata: {
+              docId: sourceId,
+              fileName,
+              mimeType,
+              pageNumber: page.pageNumber,
+              pageCount,
+              userId,
+              organizationId,
+              ocrUsed,
+            },
+            chunkIndex,
+            tokenCount: Math.ceil(chunk.length / 4),
+          });
+          chunkIndex += 1;
+        }
+      }
+
+      await db.transaction(async (tx) => {
+        await tx
+          .delete(knowledgeChunks)
+          .where(eq(knowledgeChunks.sourceId, sourceId));
+        if (chunkRows.length > 0) {
+          await tx.insert(knowledgeChunks).values(chunkRows);
+        }
+      });
+
+      await DocumentProcessorService.updateProcessingState(sourceId, {
+        processingState: { chunk: 'completed' },
+      });
+
+      if (chunkRows.length > 0) {
+        const embeddings = await EmbeddingService.embedTexts(
+          chunkRows.map((row) => row.content),
+        );
+        if (embeddings && embeddings.length === chunkRows.length) {
+          await db.transaction(async (tx) => {
+            for (let i = 0; i < chunkRows.length; i++) {
+              await tx
+                .update(knowledgeChunks)
+                .set({ embedding: embeddings[i] })
+                .where(eq(knowledgeChunks.id, chunkRows[i].id));
+            }
+          });
+          await DocumentProcessorService.updateProcessingState(sourceId, {
+            processingState: { embed: 'completed', index: 'completed' },
+          });
+        } else {
+          await DocumentProcessorService.updateProcessingState(sourceId, {
+            processingState: { embed: 'skipped', index: 'skipped' },
+          });
+        }
       }
 
       await db
@@ -93,6 +221,7 @@ export class DocumentProcessorService {
           status: 'completed',
           lastCrawledAt: new Date(),
           updatedAt: new Date(),
+          lastProcessedAt: new Date(),
         })
         .where(eq(knowledgeSources.id, sourceId));
 
@@ -102,6 +231,7 @@ export class DocumentProcessorService {
         content,
         processedAt: new Date(),
         ocrUsed,
+        pageCount,
       };
     } catch (error: any) {
       await db
@@ -110,6 +240,7 @@ export class DocumentProcessorService {
           status: 'failed',
           errorMessage: error.message,
           updatedAt: new Date(),
+          lastError: error.message,
         })
         .where(eq(knowledgeSources.id, sourceId));
 
@@ -117,18 +248,33 @@ export class DocumentProcessorService {
     }
   }
 
-  static async extractTextFromPdf(
+  static async extractTextFromPdfPages(
     buffer: Buffer,
-  ): Promise<{ text: string; pageCount: number }> {
+  ): Promise<{ text: string; pageCount: number; pages: Array<{ pageNumber: number; text: string }> }> {
     try {
-      const data = await pdfParse(buffer);
+      const pages: Array<{ pageNumber: number; text: string }> = [];
+      const data = await pdfParse(buffer, {
+        pagerender: async (pageData: any) => {
+          const textContent = await pageData.getTextContent();
+          const strings = textContent.items
+            .map((item: any) => item?.str || '')
+            .filter(Boolean);
+          const text = strings.join(' ').replace(/\s+/g, ' ').trim();
+          pages.push({ pageNumber: pageData.pageIndex + 1, text });
+          return text;
+        },
+      });
+
+      pages.sort((a, b) => a.pageNumber - b.pageNumber);
+      const mergedText = pages.map((p) => p.text).join('\n\n').trim();
       return {
-        text: data.text.replace(/\s+/g, ' ').trim(),
-        pageCount: data.numpages || 1,
+        text: mergedText || data.text.replace(/\s+/g, ' ').trim(),
+        pageCount: data.numpages || pages.length || 1,
+        pages,
       };
     } catch (error: any) {
       console.error('PDF parse error:', error.message);
-      return { text: '', pageCount: 0 };
+      return { text: '', pageCount: 0, pages: [] };
     }
   }
 
@@ -353,29 +499,12 @@ export class DocumentProcessorService {
   }
 
   static chunkDocument(text: string, maxTokens = 500): string[] {
-    const chunks: string[] = [];
-    const paragraphs = text.split(/\n\n+/);
-    let currentChunk = '';
-    let currentTokens = 0;
-
-    for (const paragraph of paragraphs) {
-      const paragraphTokens = Math.ceil(paragraph.length / 4);
-
-      if (currentTokens + paragraphTokens > maxTokens && currentChunk) {
-        chunks.push(currentChunk.trim());
-        currentChunk = paragraph;
-        currentTokens = paragraphTokens;
-      } else {
-        currentChunk += `\n\n${paragraph}`;
-        currentTokens += paragraphTokens;
-      }
-    }
-
-    if (currentChunk.trim()) {
-      chunks.push(currentChunk.trim());
-    }
-
-    return chunks.length > 0 ? chunks : [text];
+    return chunkTextWithOverlap(text, {
+      minTokens: Math.min(500, maxTokens),
+      maxTokens: Math.max(1000, maxTokens),
+      targetTokens: Math.min(Math.max(800, maxTokens), 1000),
+      overlapTokens: 100,
+    });
   }
 
   static hashContent(content: string): string {
@@ -386,5 +515,80 @@ export class DocumentProcessorService {
       hash = hash & hash;
     }
     return Math.abs(hash).toString(16);
+  }
+
+  private static splitOcrTextIntoPages(
+    text: string,
+    pageCount?: number,
+  ): Array<{ pageNumber: number; text: string }> {
+    const normalized = text.replace(/\r\n/g, '\n');
+    const formFeedSplit = normalized.split('\f').map((page) => page.trim());
+    if (formFeedSplit.length > 1) {
+      return formFeedSplit
+        .filter(Boolean)
+        .map((pageText, index) => ({
+          pageNumber: index + 1,
+          text: pageText,
+        }));
+    }
+
+    const pages = pageCount && pageCount > 1 ? pageCount : 1;
+    if (pages === 1) {
+      return [{ pageNumber: 1, text: normalized.trim() }];
+    }
+
+    const approxLength = Math.ceil(normalized.length / pages);
+    const result: Array<{ pageNumber: number; text: string }> = [];
+    for (let i = 0; i < pages; i++) {
+      const start = i * approxLength;
+      const end = i === pages - 1 ? normalized.length : (i + 1) * approxLength;
+      const slice = normalized.slice(start, end).trim();
+      if (slice) {
+        result.push({ pageNumber: i + 1, text: slice });
+      }
+    }
+
+    return result.length > 0
+      ? result
+      : [{ pageNumber: 1, text: normalized.trim() }];
+  }
+
+  private static async updateProcessingState(
+    sourceId: string,
+    updates: {
+      status?: string;
+      processingState?: Record<string, string>;
+      lastError?: string;
+    },
+  ) {
+    const [current] = await db
+      .select({ processingState: knowledgeSources.processingState })
+      .from(knowledgeSources)
+      .where(eq(knowledgeSources.id, sourceId))
+      .limit(1);
+
+    const updateData: Record<string, unknown> = {
+      updatedAt: new Date(),
+    };
+
+    if (updates.status) {
+      updateData.status = updates.status;
+    }
+    if (updates.lastError) {
+      updateData.lastError = updates.lastError;
+      updateData.errorMessage = updates.lastError;
+    }
+
+    if (updates.processingState) {
+      updateData.processingState = {
+        ...(current?.processingState as Record<string, string> | undefined),
+        ...updates.processingState,
+      };
+    }
+
+    await db
+      .update(knowledgeSources)
+      .set(updateData)
+      .where(eq(knowledgeSources.id, sourceId));
   }
 }
