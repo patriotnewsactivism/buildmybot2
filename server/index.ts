@@ -626,24 +626,29 @@ app.get('/api/public/bots/:id', async (req, res) => {
 });
 
 app.post('/api/bots', ...apiAuthStack, async (req, res) => {
+  const requestId = uuidv4().slice(0, 8);
+  const user = (req as any).user;
+
   try {
-    const user = (req as any).user;
-    console.log('Creating bot for user:', user?.id, 'Org:', user?.organizationId);
-    
+    console.log(`[${requestId}] Creating bot for user:`, user?.id, 'Org:', user?.organizationId);
+
     const botId = uuidv4();
     const targetUserId = user?.id || req.body.userId;
     const targetOrgId = user?.organizationId || req.body.organizationId;
 
+    // Authorization checks
     if (
       user?.id &&
       req.body.userId &&
       req.body.userId !== user.id &&
       !isAdminUser(user)
     ) {
+      console.warn(`[${requestId}] Authorization failed: user ${user.id} tried to create bot for ${req.body.userId}`);
       return res.status(403).json({ error: 'Not authorized to create bot for another user' });
     }
 
     if (!targetUserId) {
+      console.error(`[${requestId}] Validation failed: missing user ID`);
       return res.status(400).json({ error: 'User ID is required' });
     }
 
@@ -686,6 +691,7 @@ app.post('/api/bots', ...apiAuthStack, async (req, res) => {
 
     // Explicitly handle knowledge base and configuration if coming from template
     if (req.body.templateId) {
+      console.log(`[${requestId}] Loading template:`, req.body.templateId);
       const [template] = await db
         .select()
         .from(botTemplates)
@@ -706,6 +712,8 @@ app.post('/api/bots', ...apiAuthStack, async (req, res) => {
             ];
           }
         }
+      } else {
+        console.warn(`[${requestId}] Template not found:`, req.body.templateId);
       }
     }
 
@@ -713,71 +721,116 @@ app.post('/api/bots', ...apiAuthStack, async (req, res) => {
       ? botData.knowledgeBase
       : [];
 
+    // Execute transactional write with audit log inside transaction
+    console.log(`[${requestId}] Starting transaction...`);
     const { newBot, createdSources } = await db.transaction(async (tx) => {
-      const [createdBot] = await tx.insert(bots).values(botData).returning();
+      // Insert bot
+      const botResult = await tx.insert(bots).values(botData).returning();
+
+      // CRITICAL: Validate bot was created
+      if (!botResult || botResult.length === 0) {
+        throw new Error('Bot insert failed - no rows returned. This may indicate RLS policy rejection or constraint violation.');
+      }
+
+      const createdBot = botResult[0];
+      console.log(`[${requestId}] Bot created:`, createdBot.id);
+
+      // Create knowledge sources for URLs
       const urls = extractKnowledgeUrls(knowledgeBase);
+      console.log(`[${requestId}] Extracted ${urls.length} knowledge URLs`);
+
       const sources = await createKnowledgeSourcesForUrls(
         tx,
         createdBot.id,
         createdBot.organizationId,
         urls,
       );
-      return { newBot: createdBot, createdSources: sources };
-    });
+      console.log(`[${requestId}] Created ${sources.length} knowledge sources`);
 
-    for (const source of createdSources) {
-      WebScraperService.crawlWebsite(
-        source.url,
-        20,
-        source.sourceId,
-        newBot.id,
-        newBot.organizationId,
-      ).catch((err) =>
-        console.error(
-          `Failed to scrape ${source.url} for bot ${newBot.id}:`,
-          err,
-        ),
-      );
-    }
-
-    // Ensure audit log for reliability
-    try {
-      await db.insert(auditLogs).values({
+      // MOVED: Audit log inside transaction for atomicity
+      await tx.insert(auditLogs).values({
         id: uuidv4(),
         userId: user?.id,
         organizationId: user?.organizationId,
         action: 'create_bot',
         resourceType: 'bot',
-        resourceId: botId,
-        newValues: botData,
+        resourceId: createdBot.id,
+        newValues: createdBot,
+        ipAddress: (req as any).ip,
+        userAgent: req.get('user-agent'),
         createdAt: new Date(),
       });
-    } catch (auditError) {
-      console.error('Non-critical audit log error:', auditError);
+
+      return { newBot: createdBot, createdSources: sources };
+    });
+
+    console.log(`[${requestId}] Transaction committed successfully`);
+
+    // Spawn web crawler asynchronously (fire-and-forget)
+    if (createdSources.length > 0) {
+      console.log(`[${requestId}] Spawning ${createdSources.length} web crawlers...`);
+      for (const source of createdSources) {
+        WebScraperService.crawlWebsite(
+          source.url,
+          20,
+          source.sourceId,
+          newBot.id,
+          newBot.organizationId,
+        ).catch((err) =>
+          console.error(
+            `[${requestId}] Failed to scrape ${source.url} for bot ${newBot.id}:`,
+            err.message || err,
+          ),
+        );
+      }
     }
 
+    console.log(`[${requestId}] Bot creation successful`);
     res.json(newBot);
+
   } catch (error: any) {
-    console.error('Error creating bot:', error);
-    res.status(500).json({
-      error: `Failed to create bot and save to database: ${error.message}`,
+    console.error(`[${requestId}] Bot creation failed:`, {
+      error: error.message,
+      stack: error.stack,
+      userId: user?.id,
+      organizationId: user?.organizationId,
+    });
+
+    // Return detailed error to frontend
+    const errorMessage = error.message || 'Unknown error';
+    const isValidationError = errorMessage.includes('RLS') ||
+                              errorMessage.includes('constraint') ||
+                              errorMessage.includes('no rows returned');
+
+    res.status(isValidationError ? 403 : 500).json({
+      error: 'Failed to create bot',
+      details: errorMessage,
+      requestId,
     });
   }
 });
 
 app.put('/api/bots/:id', ...apiAuthStack, async (req, res) => {
-  try {
-    const user = (req as any).user;
-    const organizationId = (req as any).organization?.id;
+  const requestId = uuidv4().slice(0, 8);
+  const user = (req as any).user;
+  const organizationId = (req as any).organization?.id;
 
+  try {
+    console.log(`[${requestId}] Updating bot:`, req.params.id, 'user:', user?.id);
+
+    // Fetch existing bot and validate access
     const [existingBot] = await db
       .select()
       .from(bots)
       .where(and(eq(bots.id, req.params.id), isNull(bots.deletedAt)));
+
     if (!existingBot) {
+      console.warn(`[${requestId}] Bot not found:`, req.params.id);
       return res.status(404).json({ error: 'Bot not found' });
     }
+
     if (!canAccessBot(existingBot, user, organizationId)) {
+      console.warn(`[${requestId}] Access denied: user ${user?.id} cannot access bot ${req.params.id}`);
       return res.status(403).json({ error: 'Not authorized to update this bot' });
     }
 
@@ -810,57 +863,112 @@ app.put('/api/bots/:id', ...apiAuthStack, async (req, res) => {
       }
     }
 
+    // Validate knowledgeBase type
     if (
       updateData.knowledgeBase !== undefined &&
       !Array.isArray(updateData.knowledgeBase)
     ) {
+      console.error(`[${requestId}] Validation failed: knowledgeBase must be array, got`, typeof updateData.knowledgeBase);
       return res
         .status(400)
         .json({ error: 'knowledgeBase must be an array' });
     }
 
+    console.log(`[${requestId}] Starting transaction...`);
     const { updatedBot, createdSources } = await db.transaction(async (tx) => {
-      const [bot] = await tx
+      // Update bot
+      const botResult = await tx
         .update(bots)
         .set(updateData)
         .where(eq(bots.id, req.params.id))
         .returning();
 
+      // CRITICAL: Validate update succeeded
+      if (!botResult || botResult.length === 0) {
+        throw new Error('Bot update failed - no rows returned. Bot may have been deleted or RLS policy rejected the update.');
+      }
+
+      const bot = botResult[0];
+      console.log(`[${requestId}] Bot updated:`, bot.id);
+
+      // Create knowledge sources for any new URLs
       let sources: Array<{ sourceId: string; url: string }> = [];
       if (Array.isArray(updateData.knowledgeBase)) {
         const urls = extractKnowledgeUrls(updateData.knowledgeBase);
+        console.log(`[${requestId}] Extracted ${urls.length} knowledge URLs`);
+
+        // TODO: Add deduplication - check for existing sources before creating new ones
         sources = await createKnowledgeSourcesForUrls(
           tx,
           bot.id,
           bot.organizationId,
           urls,
         );
+        console.log(`[${requestId}] Created ${sources.length} new knowledge sources`);
       }
+
+      // MOVED: Audit log inside transaction
+      await tx.insert(auditLogs).values({
+        id: uuidv4(),
+        userId: user?.id,
+        organizationId: user?.organizationId,
+        action: 'update_bot',
+        resourceType: 'bot',
+        resourceId: bot.id,
+        oldValues: existingBot,
+        newValues: bot,
+        ipAddress: (req as any).ip,
+        userAgent: req.get('user-agent'),
+        createdAt: new Date(),
+      });
+
       return { updatedBot: bot, createdSources: sources };
     });
 
-    if (!updatedBot) {
-      return res.status(404).json({ error: 'Bot not found' });
+    console.log(`[${requestId}] Transaction committed successfully`);
+
+    // Spawn web crawler for new URLs (fire-and-forget)
+    if (createdSources.length > 0) {
+      console.log(`[${requestId}] Spawning ${createdSources.length} web crawlers...`);
+      for (const source of createdSources) {
+        WebScraperService.crawlWebsite(
+          source.url,
+          20,
+          source.sourceId,
+          updatedBot.id,
+          updatedBot.organizationId,
+        ).catch((err) =>
+          console.error(
+            `[${requestId}] Failed to scrape ${source.url} for bot ${updatedBot.id}:`,
+            err.message || err,
+          ),
+        );
+      }
     }
 
-    for (const source of createdSources) {
-      WebScraperService.crawlWebsite(
-        source.url,
-        20,
-        source.sourceId,
-        updatedBot.id,
-        updatedBot.organizationId,
-      ).catch((err) =>
-        console.error(
-          `Failed to scrape ${source.url} for bot ${updatedBot.id}:`,
-          err,
-        ),
-      );
-    }
+    console.log(`[${requestId}] Bot update successful`);
     res.json(updatedBot);
-  } catch (error) {
-    console.error('Error updating bot:', error);
-    res.status(500).json({ error: 'Failed to update bot' });
+
+  } catch (error: any) {
+    console.error(`[${requestId}] Bot update failed:`, {
+      error: error.message,
+      stack: error.stack,
+      botId: req.params.id,
+      userId: user?.id,
+      organizationId: organizationId,
+    });
+
+    // Return detailed error to frontend
+    const errorMessage = error.message || 'Unknown error';
+    const isValidationError = errorMessage.includes('RLS') ||
+                              errorMessage.includes('constraint') ||
+                              errorMessage.includes('no rows returned');
+
+    res.status(isValidationError ? 403 : 500).json({
+      error: 'Failed to update bot',
+      details: errorMessage,
+      requestId,
+    });
   }
 });
 
