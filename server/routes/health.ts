@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from 'express';
 import { sql } from 'drizzle-orm';
 import { db } from '../db';
+import { knowledgeChunks, knowledgeSources } from '../../shared/schema';
 import { getUncachableStripeClient } from '../stripeClient';
 import logger from '../utils/logger';
 
@@ -128,6 +129,35 @@ router.get('/ready', async (req: Request, res: Response) => {
     res.status(200).json({ status: 'ready', timestamp: new Date().toISOString() });
   } catch (error) {
     res.status(503).json({ status: 'not ready', timestamp: new Date().toISOString() });
+  }
+});
+
+router.get('/knowledge', async (req: Request, res: Response) => {
+  try {
+    const statusResult = await db.execute(sql`
+      SELECT
+        COUNT(*) FILTER (WHERE status = 'completed') AS completed,
+        COUNT(*) FILTER (WHERE status = 'processing') AS processing,
+        COUNT(*) FILTER (WHERE status = 'failed') AS failed,
+        COUNT(*) FILTER (WHERE dead_lettered_at IS NOT NULL) AS dead_lettered
+      FROM knowledge_sources
+    `);
+
+    const embeddingResult = await db.execute(sql`
+      SELECT
+        COUNT(*) FILTER (WHERE embedding IS NULL) AS missing_embeddings,
+        COUNT(*) AS total_chunks
+      FROM knowledge_chunks
+    `);
+
+    res.status(200).json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      sources: statusResult.rows[0] || {},
+      embeddings: embeddingResult.rows[0] || {},
+    });
+  } catch (error: any) {
+    res.status(500).json({ status: 'error', error: error.message });
   }
 });
 

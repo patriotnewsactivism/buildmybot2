@@ -1,6 +1,7 @@
-import { and, desc, eq, isNull, or, sql } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, sql } from 'drizzle-orm';
 import { bots, knowledgeChunks, knowledgeSources } from '../../shared/schema';
 import { db } from '../db';
+import { EmbeddingService } from './EmbeddingService';
 
 export interface KnowledgeSearchResult {
   id: string;
@@ -53,15 +54,47 @@ export class KnowledgeService {
       return [];
     }
 
+    const embedding = await EmbeddingService.embedText(query);
+    if (embedding) {
+      try {
+        const vectorLiteral = EmbeddingService.toVectorLiteral(embedding);
+        const vectorParam = sql.raw(`'${vectorLiteral}'::vector`);
+        const scored = await db
+          .select({
+            id: knowledgeChunks.id,
+            content: knowledgeChunks.content,
+            metadata: knowledgeChunks.metadata,
+            sourceId: knowledgeChunks.sourceId,
+            score: sql<number>`1 - (${knowledgeChunks.embedding} <=> ${vectorParam})`,
+          })
+          .from(knowledgeChunks)
+          .where(
+            and(
+              eq(knowledgeChunks.botId, botId),
+              isNotNull(knowledgeChunks.embedding),
+            ),
+          )
+          .orderBy(sql`(${knowledgeChunks.embedding} <=> ${vectorParam})`)
+          .limit(limit);
+
+        if (scored.length > 0) {
+          return scored.map((row) => ({
+            id: row.id,
+            content: row.content,
+            metadata: row.metadata,
+            score: Math.round(Number(row.score) * 100),
+            sourceId: row.sourceId!,
+          }));
+        }
+      } catch (error) {
+        console.warn('Embedding search failed, falling back to keyword search:', error);
+      }
+    }
+
     const chunks = await db
       .select()
       .from(knowledgeChunks)
-      .where(
-        or(
-          eq(knowledgeChunks.botId, botId),
-          isNull(knowledgeChunks.botId)
-        )
-      )
+      .where(eq(knowledgeChunks.botId, botId))
       .limit(200);
 
     // Fetch manual knowledge base from bot definition
