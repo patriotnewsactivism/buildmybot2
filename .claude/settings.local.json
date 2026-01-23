@@ -75,7 +75,9 @@
       "WebFetch(domain:www.firecrawl.dev)",
       "Bash(railway:*)",
       "Bash(python -m json.tool:*)",
-      "WebFetch(domain:www.buildmybot.app)"
+      "WebFetch(domain:www.buildmybot.app)",
+      "Bash(find:*)",
+      "Bash(npm run db:migrate:status:*)"
     ]
   }
 }
