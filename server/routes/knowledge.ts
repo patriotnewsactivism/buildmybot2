@@ -577,4 +577,132 @@ router.post(
   },
 );
 
+// Admin: Detect missing embeddings across all bots or specific bot
+router.get(
+  '/admin/missing-embeddings',
+  authenticate,
+  loadOrganizationContext,
+  async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+
+      // Only admins can see system-wide stats
+      const isAdmin = user?.role === 'ADMIN' || user?.role === 'MasterAdmin';
+
+      const { botId } = req.query;
+
+      if (botId && typeof botId === 'string') {
+        // Check access
+        if (!(await canAccessBot(botId, req))) {
+          return res.status(403).json({ error: 'Access denied' });
+        }
+      } else if (!isAdmin) {
+        return res.status(403).json({ error: 'Admin access required for system-wide stats' });
+      }
+
+      const results = await KnowledgeService.detectMissingEmbeddings(
+        botId as string | undefined,
+      );
+
+      res.json({
+        success: true,
+        results,
+      });
+    } catch (error: any) {
+      console.error('Missing embeddings detection error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
+// Admin: Backfill missing embeddings for a bot
+router.post(
+  '/admin/backfill-embeddings/:botId',
+  authenticate,
+  loadOrganizationContext,
+  async (req: Request, res: Response) => {
+    try {
+      const { botId } = req.params;
+      const { batchSize = 50 } = req.body;
+
+      // Check access
+      if (!(await canAccessBot(botId, req))) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      const result = await KnowledgeService.backfillEmbeddings(
+        botId,
+        Number(batchSize),
+      );
+
+      res.json({
+        success: result.success,
+        processed: result.processed,
+        failed: result.failed,
+        errors: result.errors,
+        message: result.success
+          ? `Successfully backfilled ${result.processed} embeddings`
+          : `Backfill completed with ${result.failed} failures`,
+      });
+    } catch (error: any) {
+      console.error('Embedding backfill error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
+// Admin: Get cache statistics
+router.get(
+  '/admin/cache-stats',
+  authenticate,
+  loadOrganizationContext,
+  async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const isAdmin = user?.role === 'ADMIN' || user?.role === 'MasterAdmin';
+
+      if (!isAdmin) {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+
+      const stats = KnowledgeService.getCacheStats();
+
+      res.json({
+        success: true,
+        cache: stats,
+      });
+    } catch (error: any) {
+      console.error('Cache stats error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
+// Admin: Clear search cache
+router.post(
+  '/admin/clear-cache',
+  authenticate,
+  loadOrganizationContext,
+  async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const isAdmin = user?.role === 'ADMIN' || user?.role === 'MasterAdmin';
+
+      if (!isAdmin) {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+
+      KnowledgeService.clearCache();
+
+      res.json({
+        success: true,
+        message: 'Search cache cleared',
+      });
+    } catch (error: any) {
+      console.error('Cache clear error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
 export default router;
