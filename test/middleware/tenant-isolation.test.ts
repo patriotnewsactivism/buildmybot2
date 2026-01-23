@@ -447,7 +447,7 @@ describe('Tenant Isolation Middleware', () => {
       };
 
       const isValid =
-        resource.organizationId && resource.organizationId.length > 0;
+        Boolean(resource.organizationId && resource.organizationId.length > 0);
       expect(isValid).toBe(false);
     });
 

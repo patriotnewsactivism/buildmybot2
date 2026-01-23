@@ -14,7 +14,25 @@ export class OpenAIService {
     try {
       const response = await this.openai.chat.completions.create(params);
       return response.choices[0]?.message?.content || '';
-    } catch (error) {
+    } catch (error: any) {
+      const isModelNotFound =
+        error?.code === 'model_not_found' ||
+        error?.status === 404 ||
+        (error?.status === 400 &&
+          String(error?.message || '').toLowerCase().includes('model'));
+
+      if (params.model === 'gpt-5o-mini' && isModelNotFound) {
+        console.warn('GPT-5o Mini not found, falling back to GPT-4o Mini');
+        try {
+          const fallbackParams = { ...params, model: 'gpt-4o-mini' };
+          const response = await this.openai.chat.completions.create(fallbackParams);
+          return response.choices[0]?.message?.content || '';
+        } catch (fallbackError) {
+          console.error('OpenAI Fallback Completion Error:', fallbackError);
+          throw fallbackError;
+        }
+      }
+
       console.error('OpenAI Completion Error:', error);
       throw error;
     }
@@ -24,23 +42,26 @@ export class OpenAIService {
     if (!text || text.length < 5) return 'Neutral';
 
     try {
-      const response = await this.openai.chat.completions.create({
+      const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+        {
+          role: 'system',
+          content: 'You are a Sentiment Analyzer. Analyze the following user message and classify it as exactly one of: "Positive", "Neutral", "Negative". Return ONLY the label.',
+        },
+        {
+          role: 'user',
+          content: text,
+        },
+      ];
+
+      // Use complete method to handle fallback
+      const content = await this.complete({
         model: 'gpt-5o-mini',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a Sentiment Analyzer. Analyze the following user message and classify it as exactly one of: "Positive", "Neutral", "Negative". Return ONLY the label.',
-          },
-          {
-            role: 'user',
-            content: text,
-          },
-        ],
+        messages,
         temperature: 0.3,
         max_tokens: 10,
       });
 
-      const sentiment = response.choices[0]?.message?.content?.trim() || 'Neutral';
+      const sentiment = content.trim() || 'Neutral';
       // Normalize response
       if (sentiment.toLowerCase().includes('positive')) return 'Positive';
       if (sentiment.toLowerCase().includes('negative')) return 'Negative';
@@ -77,7 +98,8 @@ export class OpenAIService {
         Return ONLY the number (0-100).
       `;
 
-      const response = await this.openai.chat.completions.create({
+      // Use complete method to handle fallback
+      const content = await this.complete({
         model: 'gpt-5o-mini',
         messages: [
           { role: 'system', content: 'You are a Lead Scoring Expert. Output a single integer between 0 and 100.' },
@@ -87,7 +109,7 @@ export class OpenAIService {
         max_tokens: 5,
       });
 
-      const scoreStr = response.choices[0]?.message?.content?.trim();
+      const scoreStr = content.trim();
       const score = parseInt(scoreStr || '50', 10);
       return isNaN(score) ? 50 : Math.min(Math.max(score, 0), 100);
     } catch (error) {
