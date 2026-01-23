@@ -362,59 +362,71 @@ export class DocumentProcessorService {
       throw new Error('OpenAI API key required for OCR');
     }
 
-    const fileId = await DocumentProcessorService.uploadOpenAIFile(
-      buffer,
-      fileName,
-      'application/pdf',
-      apiKey,
-      baseURL,
-    );
+    console.log(`[OCR] Processing PDF: ${fileName}`);
 
     try {
-      const response = await fetch(`${baseURL}/responses`, {
+      // Parse PDF to get page count
+      const pdfData = await pdfParse(buffer);
+      const pageCount = pdfData.numpages;
+      console.log(`[OCR] PDF has ${pageCount} pages`);
+
+      // For now, extract text from first 10 pages to avoid excessive API calls
+      const maxPages = Math.min(pageCount, 10);
+      const extractedTexts: string[] = [];
+
+      // Use GPT-4o vision with the PDF file directly
+      // OpenAI now supports PDF files in vision API
+      const base64Pdf = buffer.toString('base64');
+
+      const response = await fetch(`${baseURL}/chat/completions`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          input: [
+          model: 'gpt-4o',
+          messages: [
             {
               role: 'user',
               content: [
                 {
-                  type: 'input_text',
-                  text: 'Extract all text content from this PDF. Return only the extracted text, preserving the original structure and formatting as much as possible. Do not add any commentary or explanations.',
+                  type: 'text',
+                  text: `Extract all text content from this PDF document. Return only the extracted text, preserving the original structure and formatting as much as possible. Process up to ${maxPages} pages. Do not add any commentary or explanations.`,
                 },
                 {
-                  type: 'input_file',
-                  file_id: fileId,
+                  type: 'image_url',
+                  image_url: {
+                    url: `data:application/pdf;base64,${base64Pdf}`,
+                  },
                 },
               ],
             },
           ],
-          max_output_tokens: 4000,
+          max_completion_tokens: 16000, // Increased for larger documents
         }),
       });
 
       if (!response.ok) {
         const error = await response.text();
-        throw new Error(`OpenAI API error: ${error}`);
+        console.error(`[OCR] OpenAI API error:`, error);
+        throw new Error(`OpenAI API error: ${response.status} ${error}`);
       }
 
       const data = await response.json();
-      return (
-        data.output_text ||
-        data.output?.[0]?.content?.[0]?.text ||
-        ''
-      );
-    } finally {
-      await DocumentProcessorService.deleteOpenAIFile(
-        fileId,
-        apiKey,
-        baseURL,
-      );
+      const extractedText = data.choices?.[0]?.message?.content || '';
+
+      if (!extractedText || extractedText.trim().length < 50) {
+        console.warn(`[OCR] Extraction produced minimal text (${extractedText.length} chars)`);
+        throw new Error('OCR produced insufficient text content');
+      }
+
+      console.log(`[OCR] Successfully extracted ${extractedText.length} characters`);
+      return extractedText;
+
+    } catch (error: any) {
+      console.error(`[OCR] Failed to extract text from PDF:`, error.message);
+      throw new Error(`OCR failed: ${error.message}`);
     }
   }
 
