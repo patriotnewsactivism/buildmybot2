@@ -341,28 +341,23 @@ export const ClientOverview: React.FC<ClientOverviewProps> = ({
         </div>
       )}
 
-      {/* Playful Gradient Hero Header */}
-      <div className="relative overflow-hidden rounded-3xl p-6 md:p-8 mb-6 bg-gradient-to-br from-violet-600 via-purple-600 to-indigo-600 shadow-2xl">
-        {/* Animated background elements */}
-        <div className="absolute top-0 right-0 w-48 md:w-64 h-48 md:h-64 bg-gradient-to-br from-pink-400/30 to-yellow-400/30 rounded-full blur-3xl animate-pulse" />
-        <div className="absolute bottom-0 left-0 w-32 md:w-48 h-32 md:h-48 bg-gradient-to-tr from-blue-400/30 to-purple-400/30 rounded-full blur-2xl animate-float" />
-
+      {/* Professional Header */}
+      <div className="relative overflow-hidden rounded-lg p-6 md:p-8 mb-6 bg-gradient-to-r from-blue-600 to-blue-700 shadow-lg border border-blue-800">
         {/* Content */}
         <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl md:text-4xl font-black text-white mb-2 flex items-center gap-3">
-              <span className="animate-wiggle">👋</span>
-              Welcome back, {user?.name || 'there'}!
+            <h1 className="text-2xl md:text-4xl font-bold text-white mb-2">
+              Welcome back, {user?.name || 'there'}
             </h1>
-            <p className="text-purple-100 text-base md:text-lg">
-              Your AI bots are working hard. Here's what's happening today.
+            <p className="text-blue-100 text-base md:text-lg">
+              Your AI automation platform. Reduce costs and improve efficiency.
             </p>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
             <button
               type="button"
               onClick={handleCreateBot}
-              className="px-4 py-3 bg-white text-purple-700 rounded-xl hover:bg-purple-50 font-bold flex items-center gap-2 text-sm shadow-lg hover:shadow-xl hover:scale-105 transition-all"
+              className="px-4 py-3 bg-white text-blue-700 rounded-md hover:bg-blue-50 font-semibold flex items-center gap-2 text-sm shadow-sm hover:shadow-md transition-all"
             >
               <Plus size={18} />
               <span>Create Bot</span>
@@ -575,7 +570,7 @@ export const ClientOverview: React.FC<ClientOverviewProps> = ({
         <button
           type="button"
           onClick={handleCreateBot}
-          className="group relative w-16 h-16 rounded-full bg-gradient-to-br from-violet-600 to-purple-600 shadow-xl shadow-purple-500/50 hover:shadow-2xl hover:shadow-purple-600/60 hover:scale-110 transition-all duration-300 flex items-center justify-center"
+          className="group relative w-16 h-16 rounded-full bg-blue-600 shadow-lg hover:shadow-xl hover:bg-blue-700 transition-all duration-300 flex items-center justify-center"
         >
           <Plus className="text-white" size={28} />
 
@@ -583,9 +578,6 @@ export const ClientOverview: React.FC<ClientOverviewProps> = ({
           <div className="absolute right-full mr-3 px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-semibold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
             Create New Bot
           </div>
-
-          {/* Pulse ring animation */}
-          <div className="absolute inset-0 rounded-full bg-gradient-to-br from-violet-600 to-purple-600 animate-ping opacity-75" />
         </button>
       </div>
     </div>

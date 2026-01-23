@@ -12,7 +12,8 @@ vi.mock('../../server/env', () => ({
   },
 }));
 
-const mockDb = {
+// Use vi.hoisted to define the mock before imports
+const mockDb = vi.hoisted(() => ({
   select: vi.fn().mockReturnThis(),
   from: vi.fn().mockReturnThis(),
   where: vi.fn().mockReturnThis(),
@@ -22,7 +23,7 @@ const mockDb = {
   values: vi.fn().mockResolvedValue(true),
   update: vi.fn().mockReturnThis(),
   set: vi.fn().mockReturnThis(),
-};
+}));
 
 vi.mock('../../server/db', () => ({
   db: mockDb,

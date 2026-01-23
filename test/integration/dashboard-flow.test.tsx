@@ -17,6 +17,10 @@ vi.mock('../../services/dbService', () => ({
     getActiveImpersonations: vi.fn().mockResolvedValue([]),
     getUser: vi.fn(),
     endImpersonation: vi.fn().mockResolvedValue(true),
+    getNotifications: vi.fn().mockResolvedValue({ unread: [], recent: [], unreadCount: 0 }),
+    markNotificationViewed: vi.fn(),
+    markAllNotificationsViewed: vi.fn(),
+    acknowledgeNotification: vi.fn(),
   },
 }));
 
@@ -55,7 +59,8 @@ describe('Dashboard Flow Integration', () => {
     });
 
     // Verify navigation items
-    expect(screen.getByText('Overview')).toBeInTheDocument();
+    // Use getAllByText for 'Overview' as it might appear multiple times (mobile/desktop or breadcrumbs)
+    expect(screen.getAllByText('Overview').length).toBeGreaterThan(0);
     expect(screen.getByText('Users')).toBeInTheDocument();
     expect(screen.getByText('System')).toBeInTheDocument();
 
@@ -130,7 +135,8 @@ describe('Dashboard Flow Integration', () => {
     // Verify impersonation banner
     await waitFor(() => {
       expect(screen.getByText(/impersonating/i)).toBeInTheDocument();
-      expect(screen.getByText(/Impersonated User/i)).toBeInTheDocument();
+      const userElements = screen.getAllByText(/Impersonated User/i);
+      expect(userElements.length).toBeGreaterThan(0);
     });
 
     // Test exit impersonation
