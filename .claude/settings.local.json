@@ -16,10 +16,10 @@
       "Bash(npx supabase:*)",
       "Bash(docker ps:*)",
       "Bash(ForEach-Object { docker rm -f $_ })",
-      "Bash(powershell \"docker ps -a --filter name=supabase --format ''{{.ID}}'' | ForEach-Object { docker rm -f $_}\")",
+      "Bash(powershell \"docker ps -a --filter name=supabase --format '{{.ID}}' | ForEach-Object { docker rm -f $_}\")",
       "Bash(xargs:*)",
       "Bash(powershell \"netsh interface ipv4 show excludedportrange protocol=tcp\")",
-      "Bash(dir \"C:\\\\buildmybot\\\\shared\\\\models\")",
+      "Bash(dir \"C:\\buildmybot\\shared\\models\")",
       "*",
       "Bash(node -e:*)",
       "Bash(git push:*)",
@@ -52,10 +52,6 @@
       "Bash(npx tsc:*)",
       "Bash(timeout 30 npx tsx:*)",
       "Bash(node --experimental-strip-types --no-warnings -e:*)",
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
       "Bash(npx drizzle-kit push:*)",
       "Bash(echo:*)",
       "Bash(npx drizzle-kit:*)",
@@ -76,19 +72,10 @@
       "Bash(node:*)",
       "Bash(grep:*)",
       "WebSearch",
-      "WebFetch(domain:www.firecrawl.dev)"
-=======
-      "Bash(echo:*)"
->>>>>>> Stashed changes
-=======
-      "Bash(echo:*)"
->>>>>>> Stashed changes
-=======
-      "Bash(echo:*)"
->>>>>>> Stashed changes
-=======
-      "Bash(echo:*)"
->>>>>>> Stashed changes
+      "WebFetch(domain:www.firecrawl.dev)",
+      "Bash(railway:*)",
+      "Bash(python -m json.tool:*)",
+      "WebFetch(domain:www.buildmybot.app)"
     ]
   }
 }

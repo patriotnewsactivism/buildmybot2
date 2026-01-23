@@ -26,7 +26,7 @@ export const PLANS = {
       'Multi-page training (URLs, PDFs)',
       '750 conversations/month',
       '500MB knowledge base storage',
-      'GPT-5o Mini model',
+      'GPT-4o Mini model',
       'Lead capture via email & SMS alerts',
       'Office-hours & scheduling rules',
       'Basic analytics dashboard',
@@ -132,16 +132,10 @@ export const REFERRAL_REWARDS = {
 
 export const AVAILABLE_MODELS = [
   {
-    id: 'gpt-5o-mini',
-    name: 'GPT-5o Mini',
-    description:
-      'Fast, cost-effective. Best for real-time chat. 33% lower cost than GPT-4o Mini.',
-  },
-  {
     id: 'gpt-4o-mini',
     name: 'GPT-4o Mini',
     description:
-      'Legacy model. Consider upgrading to GPT-5o Mini for cost savings.',
+      'Fast, cost-effective. Recommended for most chatbots.',
   },
   {
     id: 'gpt-4o',

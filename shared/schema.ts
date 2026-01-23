@@ -180,6 +180,118 @@ export const analyticsEvents = pgTable('analytics_events', {
   createdAt: timestamp('created_at').defaultNow(),
 });
 
+// Conversation metrics tracking
+export const conversationMetrics = pgTable('conversation_metrics', {
+  id: text('id').primaryKey(),
+  conversationId: text('conversation_id').references(() => conversations.id, {
+    onDelete: 'cascade',
+  }),
+  botId: text('bot_id').references(() => bots.id),
+  organizationId: text('organization_id').references(() => organizations.id),
+
+  // Duration tracking
+  startedAt: timestamp('started_at').notNull(),
+  endedAt: timestamp('ended_at'),
+  durationSeconds: integer('duration_seconds'),
+
+  // Engagement metrics
+  messageCount: integer('message_count').default(0),
+  userMessageCount: integer('user_message_count').default(0),
+  botMessageCount: integer('bot_message_count').default(0),
+
+  // Completion tracking
+  completed: boolean('completed').default(false),
+  completionReason: varchar('completion_reason', { length: 100 }), // 'goal_achieved', 'user_left', 'timeout', 'escalated'
+
+  // Sentiment
+  overallSentiment: varchar('overall_sentiment', { length: 50 }).default(
+    'neutral',
+  ),
+  sentimentScore: real('sentiment_score'), // -1 to 1
+
+  // Lead generation
+  leadCaptured: boolean('lead_captured').default(false),
+  leadId: text('lead_id').references(() => leads.id),
+
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+// Lead source tracking
+export const leadSources = pgTable('lead_sources', {
+  id: text('id').primaryKey(),
+  leadId: text('lead_id').references(() => leads.id, { onDelete: 'cascade' }),
+  organizationId: text('organization_id').references(() => organizations.id),
+
+  // Source details
+  source: varchar('source', { length: 100 }), // 'chat', 'form', 'phone', 'email'
+  medium: varchar('medium', { length: 100 }), // 'organic', 'paid', 'referral', 'direct'
+  campaign: varchar('campaign', { length: 255 }),
+
+  // Attribution
+  firstTouchBotId: text('first_touch_bot_id').references(() => bots.id),
+  lastTouchBotId: text('last_touch_bot_id').references(() => bots.id),
+  touchCount: integer('touch_count').default(1),
+
+  // UTM tracking
+  utmSource: varchar('utm_source', { length: 255 }),
+  utmMedium: varchar('utm_medium', { length: 255 }),
+  utmCampaign: varchar('utm_campaign', { length: 255 }),
+  utmContent: varchar('utm_content', { length: 255 }),
+
+  // Quality scoring
+  qualityScore: real('quality_score'), // 0-100
+  qualityFactors: json('quality_factors'), // { email_verified, phone_verified, engagement_score, etc }
+
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+// Bot performance snapshots (daily aggregates)
+export const botPerformanceDaily = pgTable('bot_performance_daily', {
+  id: text('id').primaryKey(),
+  botId: text('bot_id').references(() => bots.id, { onDelete: 'cascade' }),
+  organizationId: text('organization_id').references(() => organizations.id),
+  date: timestamp('date').notNull(),
+
+  // Conversation metrics
+  conversationsStarted: integer('conversations_started').default(0),
+  conversationsCompleted: integer('conversations_completed').default(0),
+  averageDuration: real('average_duration'), // seconds
+  completionRate: real('completion_rate'), // percentage
+
+  // Lead metrics
+  leadsGenerated: integer('leads_generated').default(0),
+  conversionRate: real('conversion_rate'), // percentage
+  averageLeadQuality: real('average_lead_quality'),
+
+  // Sentiment
+  positiveSentiment: integer('positive_sentiment').default(0),
+  neutralSentiment: integer('neutral_sentiment').default(0),
+  negativeSentiment: integer('negative_sentiment').default(0),
+  averageSentiment: real('average_sentiment'),
+
+  // Peak hours (JSON array of hour counts)
+  hourlyDistribution: json('hourly_distribution'), // { "0": 5, "1": 3, ... "23": 12 }
+
+  // Common questions/topics (top 10)
+  topTopics: json('top_topics'), // [{ topic: "pricing", count: 45 }, ...]
+
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+// User satisfaction ratings
+export const satisfactionRatings = pgTable('satisfaction_ratings', {
+  id: text('id').primaryKey(),
+  conversationId: text('conversation_id').references(() => conversations.id),
+  botId: text('bot_id').references(() => bots.id),
+  organizationId: text('organization_id').references(() => organizations.id),
+
+  rating: integer('rating'), // 1-5 stars
+  feedback: text('feedback'),
+  wouldRecommend: boolean('would_recommend'),
+
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
 // ========================================
 // BOT TEMPLATES
 // ========================================
@@ -680,6 +792,79 @@ export const analyticsEventsRelations = relations(
   }),
 );
 
+export const conversationMetricsRelations = relations(
+  conversationMetrics,
+  ({ one }) => ({
+    conversation: one(conversations, {
+      fields: [conversationMetrics.conversationId],
+      references: [conversations.id],
+    }),
+    bot: one(bots, {
+      fields: [conversationMetrics.botId],
+      references: [bots.id],
+    }),
+    organization: one(organizations, {
+      fields: [conversationMetrics.organizationId],
+      references: [organizations.id],
+    }),
+    lead: one(leads, {
+      fields: [conversationMetrics.leadId],
+      references: [leads.id],
+    }),
+  }),
+);
+
+export const leadSourcesRelations = relations(leadSources, ({ one }) => ({
+  lead: one(leads, {
+    fields: [leadSources.leadId],
+    references: [leads.id],
+  }),
+  organization: one(organizations, {
+    fields: [leadSources.organizationId],
+    references: [organizations.id],
+  }),
+  firstTouchBot: one(bots, {
+    fields: [leadSources.firstTouchBotId],
+    references: [bots.id],
+  }),
+  lastTouchBot: one(bots, {
+    fields: [leadSources.lastTouchBotId],
+    references: [bots.id],
+  }),
+}));
+
+export const botPerformanceDailyRelations = relations(
+  botPerformanceDaily,
+  ({ one }) => ({
+    bot: one(bots, {
+      fields: [botPerformanceDaily.botId],
+      references: [bots.id],
+    }),
+    organization: one(organizations, {
+      fields: [botPerformanceDaily.organizationId],
+      references: [organizations.id],
+    }),
+  }),
+);
+
+export const satisfactionRatingsRelations = relations(
+  satisfactionRatings,
+  ({ one }) => ({
+    conversation: one(conversations, {
+      fields: [satisfactionRatings.conversationId],
+      references: [conversations.id],
+    }),
+    bot: one(bots, {
+      fields: [satisfactionRatings.botId],
+      references: [bots.id],
+    }),
+    organization: one(organizations, {
+      fields: [satisfactionRatings.organizationId],
+      references: [organizations.id],
+    }),
+  }),
+);
+
 export const integrationsRelations = relations(integrations, ({ one }) => ({
   organization: one(organizations, {
     fields: [integrations.organizationId],
@@ -993,6 +1178,126 @@ export const notificationReceiptsRelations = relations(
 );
 
 // ========================================
+// VOICE AGENTS
+// ========================================
+
+export const voiceAgents = pgTable('voice_agents', {
+  id: text('id').primaryKey(),
+  botId: text('bot_id')
+    .notNull()
+    .references(() => bots.id, { onDelete: 'cascade' }),
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+  enabled: boolean('enabled').default(false),
+  phoneNumber: varchar('phone_number', { length: 50 }), // Twilio phone number
+  twilioSid: varchar('twilio_sid', { length: 255 }), // Twilio phone number SID
+  voiceModel: varchar('voice_model', { length: 100 }).default('cartesia-sonic'), // Cartesia voice model
+  voiceId: varchar('voice_id', { length: 255 }).default(''), // Cartesia voice ID
+  language: varchar('language', { length: 10 }).default('en'),
+  greeting: text('greeting').default(
+    'Hello! How can I help you today?',
+  ),
+  endCallPhrase: text('end_call_phrase').default(
+    'Is there anything else I can help you with?',
+  ),
+  transferEnabled: boolean('transfer_enabled').default(false),
+  transferNumber: varchar('transfer_number', { length: 50 }),
+  transferTriggers: json('transfer_triggers').default([]), // Keywords that trigger transfer
+  leadCaptureEnabled: boolean('lead_capture_enabled').default(true),
+  // Voice plan tracking
+  plan: varchar('plan', { length: 50 }).default('VOICE_BASIC'), // VOICE_BASIC, VOICE_STANDARD, VOICE_PROFESSIONAL
+  minutesUsed: integer('minutes_used').default(0),
+  minutesLimit: integer('minutes_limit').default(150), // Based on plan
+  billingCycle: timestamp('billing_cycle').defaultNow(),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+export const voiceCalls = pgTable('voice_calls', {
+  id: text('id').primaryKey(),
+  voiceAgentId: text('voice_agent_id')
+    .notNull()
+    .references(() => voiceAgents.id, { onDelete: 'cascade' }),
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id),
+  botId: text('bot_id').references(() => bots.id),
+  twilioCallSid: varchar('twilio_call_sid', { length: 255 }).unique(),
+  fromNumber: varchar('from_number', { length: 50 }).notNull(),
+  toNumber: varchar('to_number', { length: 50 }).notNull(),
+  direction: varchar('direction', { length: 20 }).default('inbound'), // inbound, outbound
+  status: varchar('status', { length: 50 }).default('initiated'), // initiated, in-progress, completed, failed, no-answer
+  startedAt: timestamp('started_at').defaultNow(),
+  endedAt: timestamp('ended_at'),
+  durationSeconds: integer('duration_seconds').default(0),
+  transcript: text('transcript'),
+  sentiment: varchar('sentiment', { length: 50 }).default('neutral'),
+  leadCaptured: boolean('lead_captured').default(false),
+  leadId: text('lead_id').references(() => leads.id),
+  transferredToHuman: boolean('transferred_to_human').default(false),
+  transferredAt: timestamp('transferred_at'),
+  cost: real('cost').default(0), // Cost in dollars
+  recordingUrl: text('recording_url'),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+export const voiceCallMessages = pgTable('voice_call_messages', {
+  id: text('id').primaryKey(),
+  voiceCallId: text('voice_call_id')
+    .notNull()
+    .references(() => voiceCalls.id, { onDelete: 'cascade' }),
+  role: varchar('role', { length: 20 }).notNull(), // 'user' or 'assistant'
+  content: text('content').notNull(),
+  timestamp: timestamp('timestamp').defaultNow(),
+  audioUrl: text('audio_url'), // URL to Cartesia-generated audio
+  duration: real('duration'), // Duration in seconds
+});
+
+// Voice Agent Relations
+export const voiceAgentsRelations = relations(voiceAgents, ({ one, many }) => ({
+  bot: one(bots, {
+    fields: [voiceAgents.botId],
+    references: [bots.id],
+  }),
+  organization: one(organizations, {
+    fields: [voiceAgents.organizationId],
+    references: [organizations.id],
+  }),
+  calls: many(voiceCalls),
+}));
+
+export const voiceCallsRelations = relations(voiceCalls, ({ one, many }) => ({
+  voiceAgent: one(voiceAgents, {
+    fields: [voiceCalls.voiceAgentId],
+    references: [voiceAgents.id],
+  }),
+  organization: one(organizations, {
+    fields: [voiceCalls.organizationId],
+    references: [organizations.id],
+  }),
+  bot: one(bots, {
+    fields: [voiceCalls.botId],
+    references: [bots.id],
+  }),
+  lead: one(leads, {
+    fields: [voiceCalls.leadId],
+    references: [leads.id],
+  }),
+  messages: many(voiceCallMessages),
+}));
+
+export const voiceCallMessagesRelations = relations(
+  voiceCallMessages,
+  ({ one }) => ({
+    voiceCall: one(voiceCalls, {
+      fields: [voiceCallMessages.voiceCallId],
+      references: [voiceCalls.id],
+    }),
+  }),
+);
+
+// ========================================
 // TYPE EXPORTS
 // ========================================
 
@@ -1075,3 +1380,10 @@ export type InsertNotification = typeof notifications.$inferInsert;
 export type NotificationReceipt = typeof notificationReceipts.$inferSelect;
 export type InsertNotificationReceipt =
   typeof notificationReceipts.$inferInsert;
+
+export type VoiceAgent = typeof voiceAgents.$inferSelect;
+export type InsertVoiceAgent = typeof voiceAgents.$inferInsert;
+export type VoiceCall = typeof voiceCalls.$inferSelect;
+export type InsertVoiceCall = typeof voiceCalls.$inferInsert;
+export type VoiceCallMessage = typeof voiceCallMessages.$inferSelect;
+export type InsertVoiceCallMessage = typeof voiceCallMessages.$inferInsert;

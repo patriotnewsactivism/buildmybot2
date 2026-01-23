@@ -23,6 +23,8 @@ import {
 import type React from 'react';
 import { useState } from 'react';
 import AdminFeaturesOverview from '../Analytics/AdminFeaturesOverview';
+import { ComprehensiveAnalytics } from '../Analytics/ComprehensiveAnalytics';
+import { PartnerOverviewAdmin } from './PartnerOverviewAdmin';
 import { NotificationComposer } from './NotificationComposer';
 import { FinancialDashboard } from './widgets/FinancialDashboard';
 import { LiveMetrics } from './widgets/LiveMetrics';
@@ -253,70 +255,10 @@ export const AdminDashboardV2: React.FC<AdminDashboardV2Props> = ({
         {activeTab === 'users' && (
           <UserManagement onImpersonate={onImpersonate} />
         )}
-        {activeTab === 'partners' && <PartnerOversight />}
+        {activeTab === 'partners' && <PartnerOverviewAdmin />}
         {activeTab === 'financial' && <FinancialDashboard />}
 
-        {activeTab === 'analytics' && (
-          <div className="space-y-4 md:space-y-6">
-            <PremiumCard className="p-4 md:p-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 md:mb-6">
-                <div>
-                  <h3 className="text-lg md:text-xl font-bold text-slate-900">
-                    Traffic Analytics
-                  </h3>
-                  <p className="text-xs md:text-sm text-slate-500 mt-1">
-                    Real-time visitor insights and engagement metrics
-                  </p>
-                </div>
-                <div className="px-3 py-1 bg-slate-100 rounded-full text-xs font-medium text-slate-600 self-start sm:self-auto">
-                  Last 30 days
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-                <AnalyticsMetricCard
-                  icon={Eye}
-                  label="Total Page Views"
-                  value="0"
-                  subtext="No data yet"
-                />
-                <AnalyticsMetricCard
-                  icon={UserCheck}
-                  label="Unique Visitors"
-                  value="0"
-                  subtext="No data yet"
-                />
-                <AnalyticsMetricCard
-                  icon={Clock}
-                  label="Avg Session Duration"
-                  value="0:00"
-                  subtext="No data yet"
-                />
-                <AnalyticsMetricCard
-                  icon={TrendingDown}
-                  label="Bounce Rate"
-                  value="0%"
-                  subtext="No data yet"
-                />
-              </div>
-            </PremiumCard>
-
-            <PremiumCard className="p-4 md:p-6">
-              <div className="flex flex-col items-center justify-center py-8 md:py-12 text-center">
-                <div className="p-3 md:p-4 bg-slate-100 rounded-full mb-3 md:mb-4">
-                  <BarChart3 className="text-slate-400" size={28} />
-                </div>
-                <h4 className="text-base md:text-lg font-semibold text-slate-900 mb-2">
-                  Analytics data will appear here
-                </h4>
-                <p className="text-sm md:text-base text-slate-500 max-w-md px-2">
-                  Once visitors start interacting with your platform, detailed
-                  analytics and trends will be displayed in this section.
-                </p>
-              </div>
-            </PremiumCard>
-          </div>
-        )}
+        {activeTab === 'analytics' && <ComprehensiveAnalytics />}
 
         {activeTab === 'notifications' && <NotificationComposer />}
 

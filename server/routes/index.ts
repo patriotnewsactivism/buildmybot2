@@ -28,6 +28,7 @@ import webhooksRouter from './webhooks';
 import searchRouter from './search';
 import teamRouter from './team';
 import toolsRouter from './tools';
+import voiceRouter from './voice';
 
 export {
   organizationsRouter,
@@ -55,4 +56,5 @@ export {
   integrationsRouter,
   phoneRouter,
   twilioWebhooksRouter,
+  voiceRouter,
 };

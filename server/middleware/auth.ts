@@ -44,6 +44,7 @@ export const authenticate: RequestHandler = async (
     const userId = sessionUserId || cookieSessionUserId || headerUserId;
 
     if (!userId) {
+      console.warn('Auth failed: No userId found in session or headers');
       return res.status(401).json({ error: 'Authentication required' });
     }
 
@@ -62,6 +63,7 @@ export const authenticate: RequestHandler = async (
     }
 
     if (!user) {
+      console.warn(`Auth failed: User not found for ID/Email: ${userId}`);
       return res
         .status(401)
         .json({ error: 'Invalid user or user has been deleted' });
