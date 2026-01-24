@@ -78,7 +78,7 @@ export const VoiceCallSimulator: React.FC<VoiceCallSimulatorProps> = ({
     if (isOpen) {
       if (!audioContext.current) {
         try {
-          audioContext.current = new (window.AudioContext || window.webkitAudioContext)();
+          audioContext.current = new (window.AudioContext || (window as any).webkitAudioContext)();
           nextPlayTime.current = audioContext.current.currentTime;
         } catch(e) {
             console.error("Error creating AudioContext", e);
