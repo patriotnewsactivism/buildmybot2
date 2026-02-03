@@ -1,10 +1,14 @@
+import { desc, eq } from 'drizzle-orm';
 import { Router } from 'express';
-import { authenticate, loadOrganizationContext, tenantIsolation } from '../middleware';
-import { webhookService } from '../services/WebhookService';
-import { db } from '../db';
-import { webhookLogs } from '../../shared/schema';
-import { eq, desc } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
+import { webhookLogs } from '../../shared/schema';
+import { db } from '../db';
+import {
+  authenticate,
+  loadOrganizationContext,
+  tenantIsolation,
+} from '../middleware';
+import { webhookService } from '../services/WebhookService';
 
 const router = Router();
 
@@ -27,7 +31,9 @@ router.post('/', async (req: any, res) => {
   try {
     const { url, eventTypes, description } = req.body;
     if (!url || !eventTypes || !Array.isArray(eventTypes)) {
-      return res.status(400).json({ error: 'Missing required fields: url, eventTypes (array)' });
+      return res
+        .status(400)
+        .json({ error: 'Missing required fields: url, eventTypes (array)' });
     }
 
     const orgId = req.organization.id;
@@ -65,7 +71,7 @@ router.get('/:id/logs', async (req: any, res) => {
       .where(eq(webhookLogs.webhookId, req.params.id))
       .orderBy(desc(webhookLogs.createdAt))
       .limit(50);
-    
+
     res.json(logs);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -77,7 +83,7 @@ router.post('/:id/test', async (req: any, res) => {
   try {
     const orgId = req.organization.id;
     const webhooks = await webhookService.listWebhooks(orgId);
-    const webhook = webhooks.find(w => w.id === req.params.id);
+    const webhook = webhooks.find((w) => w.id === req.params.id);
 
     if (!webhook) {
       return res.status(404).json({ error: 'Webhook not found' });
@@ -91,8 +97,12 @@ router.post('/:id/test', async (req: any, res) => {
 
     // We use the same deliverWebhook logic via a public wrapper or duplicate
     // For now, let's just trigger it with a fake event
-    await webhookService.triggerWebhook(orgId, 'bot.created' as any, testPayload);
-    
+    await webhookService.triggerWebhook(
+      orgId,
+      'bot.created' as any,
+      testPayload,
+    );
+
     res.json({ success: true, message: 'Test delivery initiated' });
   } catch (error: any) {
     res.status(500).json({ error: error.message });

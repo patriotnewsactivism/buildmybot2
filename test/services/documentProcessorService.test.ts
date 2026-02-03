@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, afterEach } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DocumentProcessorService } from '../../server/services/DocumentProcessorService';
 
 // Mock the database to avoid stack overflow or connection attempts during tests

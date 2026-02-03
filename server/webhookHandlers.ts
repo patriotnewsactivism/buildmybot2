@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import Stripe from 'stripe';
 import { users } from '../shared/schema';
 import { db } from './db';
-import { getStripeSync, getStripeSecretKey } from './stripeClient';
+import { getStripeSecretKey, getStripeSync } from './stripeClient';
 
 export class WebhookHandlers {
   static async processWebhook(
@@ -39,7 +39,7 @@ export class WebhookHandlers {
       // Get webhook secret from the managed webhook or fallback
       const sync = await getStripeSync();
       let webhookSecret: string | undefined;
-      
+
       try {
         const webhookInfo = await sync.getManagedWebhook();
         webhookSecret = webhookInfo?.webhook?.secret;
@@ -53,7 +53,11 @@ export class WebhookHandlers {
 
       let event: Stripe.Event;
       try {
-        event = stripe.webhooks.constructEvent(payload, signature, webhookSecret);
+        event = stripe.webhooks.constructEvent(
+          payload,
+          signature,
+          webhookSecret,
+        );
       } catch (error) {
         console.error('Stripe webhook signature verification failed:', error);
         return;

@@ -6,20 +6,22 @@ let connectionSettings: any;
 async function getCredentials() {
   const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
   const xReplitToken = process.env.REPL_IDENTITY
-    ? 'repl ' + process.env.REPL_IDENTITY
+    ? `repl ${process.env.REPL_IDENTITY}`
     : process.env.WEB_REPL_RENEWAL
-      ? 'depl ' + process.env.WEB_REPL_RENEWAL
+      ? `depl ${process.env.WEB_REPL_RENEWAL}`
       : null;
 
   if (!xReplitToken || !hostname) {
     // Fall back to environment variables if not running in Replit
     const secretKey = env.STRIPE_SECRET_KEY;
     const publishableKey = env.STRIPE_PUBLISHABLE_KEY;
-    
+
     if (!secretKey) {
-      throw new Error('Stripe not configured. Please set up the Stripe integration.');
+      throw new Error(
+        'Stripe not configured. Please set up the Stripe integration.',
+      );
     }
-    
+
     return {
       publishableKey: publishableKey || '',
       secretKey: secretKey,
@@ -37,16 +39,20 @@ async function getCredentials() {
 
   const response = await fetch(url.toString(), {
     headers: {
-      'Accept': 'application/json',
-      'X_REPLIT_TOKEN': xReplitToken
-    }
+      Accept: 'application/json',
+      X_REPLIT_TOKEN: xReplitToken,
+    },
   });
 
   const data = await response.json();
-  
+
   connectionSettings = data.items?.[0];
 
-  if (!connectionSettings || (!connectionSettings.settings.publishable || !connectionSettings.settings.secret)) {
+  if (
+    !connectionSettings ||
+    !connectionSettings.settings.publishable ||
+    !connectionSettings.settings.secret
+  ) {
     throw new Error(`Stripe ${targetEnvironment} connection not found`);
   }
 

@@ -59,9 +59,7 @@ export const PlayfulMetricCard: React.FC<PlayfulMetricCardProps> = ({
           </div>
         ) : (
           <>
-            <div className="text-4xl font-black text-white mb-1">
-              {value}
-            </div>
+            <div className="text-4xl font-black text-white mb-1">{value}</div>
             <div className="text-white/90 font-semibold text-sm uppercase tracking-wide">
               {label}
             </div>

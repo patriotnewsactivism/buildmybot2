@@ -46,7 +46,7 @@ router.get('/', async (req: any, res) => {
 
       const assignedToolIds = new Set(assignments.map((a) => a.toolId));
       const enabledToolIds = new Set(
-        assignments.filter((a) => a.enabled).map((a) => a.toolId)
+        assignments.filter((a) => a.enabled).map((a) => a.toolId),
       );
 
       const filteredTools = tools.filter((t) => {
@@ -97,8 +97,8 @@ router.get('/stats', async (req: any, res) => {
       .where(
         and(
           eq(actionExecutionLog.botId, botId),
-          eq(actionExecutionLog.status, 'pending')
-        )
+          eq(actionExecutionLog.status, 'pending'),
+        ),
       );
 
     // Get executions today
@@ -111,8 +111,8 @@ router.get('/stats', async (req: any, res) => {
       .where(
         and(
           eq(actionExecutionLog.botId, botId),
-          sql`${actionExecutionLog.createdAt} >= ${today}`
-        )
+          sql`${actionExecutionLog.createdAt} >= ${today}`,
+        ),
       );
 
     res.json({
@@ -146,8 +146,8 @@ router.get('/:id', async (req: any, res) => {
       .where(
         and(
           eq(toolDefinitions.id, req.params.id),
-          eq(toolDefinitions.organizationId, organizationId)
-        )
+          eq(toolDefinitions.organizationId, organizationId),
+        ),
       )
       .limit(1);
 
@@ -240,8 +240,8 @@ router.put('/:id', async (req: any, res) => {
       .where(
         and(
           eq(toolDefinitions.id, req.params.id),
-          eq(toolDefinitions.organizationId, organizationId)
-        )
+          eq(toolDefinitions.organizationId, organizationId),
+        ),
       )
       .limit(1);
 
@@ -298,8 +298,8 @@ router.delete('/:id', async (req: any, res) => {
       .where(
         and(
           eq(toolDefinitions.id, req.params.id),
-          eq(toolDefinitions.organizationId, organizationId)
-        )
+          eq(toolDefinitions.organizationId, organizationId),
+        ),
       )
       .limit(1);
 
@@ -307,7 +307,9 @@ router.delete('/:id', async (req: any, res) => {
       return res.status(404).json({ error: 'Tool not found' });
     }
 
-    await db.delete(toolDefinitions).where(eq(toolDefinitions.id, req.params.id));
+    await db
+      .delete(toolDefinitions)
+      .where(eq(toolDefinitions.id, req.params.id));
 
     res.json({ success: true });
   } catch (error) {
@@ -363,7 +365,7 @@ router.post('/execute', async (req: any, res) => {
     const result = await toolExecutionService.executeTool(
       toolId,
       parameters,
-      context
+      context,
     );
 
     res.json(result);
@@ -396,13 +398,13 @@ router.get('/pending', async (req: any, res) => {
       .from(actionExecutionLog)
       .leftJoin(
         toolDefinitions,
-        eq(actionExecutionLog.toolId, toolDefinitions.id)
+        eq(actionExecutionLog.toolId, toolDefinitions.id),
       )
       .where(
         and(
           eq(actionExecutionLog.botId, botId),
-          eq(actionExecutionLog.status, 'pending')
-        )
+          eq(actionExecutionLog.status, 'pending'),
+        ),
       )
       .orderBy(desc(actionExecutionLog.createdAt));
 
@@ -437,7 +439,10 @@ router.post('/approve/:id', async (req: any, res) => {
 
     if (approved) {
       // Approve and execute
-      const result = await toolExecutionService.approveAction(req.params.id, userId);
+      const result = await toolExecutionService.approveAction(
+        req.params.id,
+        userId,
+      );
       res.json({ success: true, result });
     } else {
       // Reject

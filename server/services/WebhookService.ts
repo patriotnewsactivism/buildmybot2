@@ -1,16 +1,16 @@
-import axios from 'axios';
 import crypto from 'node:crypto';
+import axios from 'axios';
+import { and, eq } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
+import { webhookLogs, webhooks } from '../../shared/schema';
 import { db } from '../db';
-import { webhooks, webhookLogs } from '../../shared/schema';
-import { eq, and } from 'drizzle-orm';
 import logger from '../utils/logger';
 
-export type WebhookEventType = 
-  | 'lead.captured' 
-  | 'conversation.started' 
-  | 'conversation.ended' 
-  | 'sentiment.negative' 
+export type WebhookEventType =
+  | 'lead.captured'
+  | 'conversation.started'
+  | 'conversation.ended'
+  | 'sentiment.negative'
   | 'bot.created';
 
 export class WebhookService {
@@ -24,52 +24,70 @@ export class WebhookService {
     const id = uuidv4();
     const secret = data.secret || crypto.randomBytes(32).toString('hex');
 
-    const [webhook] = await db.insert(webhooks).values({
-      id,
-      organizationId: data.organizationId,
-      url: data.url,
-      eventTypes: data.eventTypes,
-      secret,
-      description: data.description,
-      isActive: true,
-    }).returning();
+    const [webhook] = await db
+      .insert(webhooks)
+      .values({
+        id,
+        organizationId: data.organizationId,
+        url: data.url,
+        eventTypes: data.eventTypes,
+        secret,
+        description: data.description,
+        isActive: true,
+      })
+      .returning();
 
     return webhook;
   }
 
   async listWebhooks(organizationId: string) {
-    return db.select().from(webhooks).where(eq(webhooks.organizationId, organizationId));
+    return db
+      .select()
+      .from(webhooks)
+      .where(eq(webhooks.organizationId, organizationId));
   }
 
   async deleteWebhook(id: string, organizationId: string) {
-    return db.delete(webhooks).where(
-      and(
-        eq(webhooks.id, id),
-        eq(webhooks.organizationId, organizationId)
-      )
-    );
+    return db
+      .delete(webhooks)
+      .where(
+        and(eq(webhooks.id, id), eq(webhooks.organizationId, organizationId)),
+      );
   }
 
-  async triggerWebhook(organizationId: string, eventType: WebhookEventType, payload: any) {
-    const activeWebhooks = await db.select().from(webhooks).where(
-      and(
-        eq(webhooks.organizationId, organizationId),
-        eq(webhooks.isActive, true)
-      )
+  async triggerWebhook(
+    organizationId: string,
+    eventType: WebhookEventType,
+    payload: any,
+  ) {
+    const activeWebhooks = await db
+      .select()
+      .from(webhooks)
+      .where(
+        and(
+          eq(webhooks.organizationId, organizationId),
+          eq(webhooks.isActive, true),
+        ),
+      );
+
+    const relevantWebhooks = activeWebhooks.filter((w) =>
+      (w.eventTypes as string[]).includes(eventType),
     );
 
-    const relevantWebhooks = activeWebhooks.filter(w => 
-      (w.eventTypes as string[]).includes(eventType)
+    const tasks = relevantWebhooks.map((webhook) =>
+      this.deliverWebhook(webhook, eventType, payload),
     );
-
-    const tasks = relevantWebhooks.map(webhook => this.deliverWebhook(webhook, eventType, payload));
     return Promise.allSettled(tasks);
   }
 
-  private async deliverWebhook(webhook: any, eventType: WebhookEventType, payload: any) {
+  private async deliverWebhook(
+    webhook: any,
+    eventType: WebhookEventType,
+    payload: any,
+  ) {
     const startTime = Date.now();
     const logId = uuidv4();
-    
+
     const enrichedPayload = {
       id: logId,
       timestamp: new Date().toISOString(),
@@ -104,17 +122,23 @@ export class WebhookService {
       });
 
       responseStatus = response.status;
-      responseBody = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
+      responseBody =
+        typeof response.data === 'string'
+          ? response.data
+          : JSON.stringify(response.data);
     } catch (err: any) {
       error = err.message;
       if (err.response) {
         responseStatus = err.response.status;
-        responseBody = typeof err.response.data === 'string' ? err.response.data : JSON.stringify(err.response.data);
+        responseBody =
+          typeof err.response.data === 'string'
+            ? err.response.data
+            : JSON.stringify(err.response.data);
       }
       logger.error(`Webhook delivery failed to ${webhook.url}: ${error}`);
     } finally {
       const durationMs = Date.now() - startTime;
-      
+
       await db.insert(webhookLogs).values({
         id: logId,
         webhookId: webhook.id,

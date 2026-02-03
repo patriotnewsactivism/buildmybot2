@@ -107,8 +107,9 @@ export const WebhookDesigner: React.FC<WebhookDesignerProps> = ({
                 name,
                 type: spec.type || 'string',
                 description: spec.description || '',
-                required: data.tool.functionSchema.required?.includes(name) || false,
-              })
+                required:
+                  data.tool.functionSchema.required?.includes(name) || false,
+              }),
             )
           : [],
       });
@@ -143,7 +144,7 @@ export const WebhookDesigner: React.FC<WebhookDesignerProps> = ({
     try {
       const headersObj = form.headers.reduce(
         (acc, { key, value }) => ({ ...acc, [key]: value }),
-        {}
+        {},
       );
 
       const functionSchema = {
@@ -156,7 +157,7 @@ export const WebhookDesigner: React.FC<WebhookDesignerProps> = ({
               description: param.description,
             },
           }),
-          {}
+          {},
         ),
         required: form.parameters.filter((p) => p.required).map((p) => p.name),
       };
@@ -204,11 +205,15 @@ export const WebhookDesigner: React.FC<WebhookDesignerProps> = ({
     }));
   };
 
-  const updateHeader = (index: number, field: 'key' | 'value', value: string) => {
+  const updateHeader = (
+    index: number,
+    field: 'key' | 'value',
+    value: string,
+  ) => {
     setForm((prev) => ({
       ...prev,
       headers: prev.headers.map((h, i) =>
-        i === index ? { ...h, [field]: value } : h
+        i === index ? { ...h, [field]: value } : h,
       ),
     }));
   };
@@ -233,12 +238,12 @@ export const WebhookDesigner: React.FC<WebhookDesignerProps> = ({
   const updateParameter = (
     index: number,
     field: keyof Parameter,
-    value: any
+    value: any,
   ) => {
     setForm((prev) => ({
       ...prev,
       parameters: prev.parameters.map((p, i) =>
-        i === index ? { ...p, [field]: value } : p
+        i === index ? { ...p, [field]: value } : p,
       ),
     }));
   };
@@ -324,7 +329,9 @@ export const WebhookDesigner: React.FC<WebhookDesignerProps> = ({
             </label>
             <textarea
               value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              onChange={(e) =>
+                setForm({ ...form, description: e.target.value })
+              }
               placeholder="What does this tool do?"
               rows={3}
               className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
@@ -337,7 +344,9 @@ export const WebhookDesigner: React.FC<WebhookDesignerProps> = ({
             </label>
             <select
               value={form.category}
-              onChange={(e) => setForm({ ...form, category: e.target.value as any })}
+              onChange={(e) =>
+                setForm({ ...form, category: e.target.value as any })
+              }
               className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
             >
               <option value="webhook">Webhook / API</option>
@@ -361,7 +370,9 @@ export const WebhookDesigner: React.FC<WebhookDesignerProps> = ({
             </label>
             <select
               value={form.method}
-              onChange={(e) => setForm({ ...form, method: e.target.value as any })}
+              onChange={(e) =>
+                setForm({ ...form, method: e.target.value as any })
+              }
               className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
             >
               <option value="GET">GET</option>
@@ -446,7 +457,9 @@ export const WebhookDesigner: React.FC<WebhookDesignerProps> = ({
             </label>
             <select
               value={form.authType}
-              onChange={(e) => setForm({ ...form, authType: e.target.value as any })}
+              onChange={(e) =>
+                setForm({ ...form, authType: e.target.value as any })
+              }
               className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
             >
               <option value="none">None</option>
@@ -464,7 +477,9 @@ export const WebhookDesigner: React.FC<WebhookDesignerProps> = ({
               <input
                 type="password"
                 value={form.credentials}
-                onChange={(e) => setForm({ ...form, credentials: e.target.value })}
+                onChange={(e) =>
+                  setForm({ ...form, credentials: e.target.value })
+                }
                 placeholder="API key or token"
                 className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
               />
@@ -519,7 +534,9 @@ export const WebhookDesigner: React.FC<WebhookDesignerProps> = ({
               <input
                 type="text"
                 value={param.description}
-                onChange={(e) => updateParameter(i, 'description', e.target.value)}
+                onChange={(e) =>
+                  updateParameter(i, 'description', e.target.value)
+                }
                 placeholder="Description"
                 className="col-span-5 px-3 py-2 border border-slate-300 rounded-lg text-sm"
               />
@@ -527,7 +544,9 @@ export const WebhookDesigner: React.FC<WebhookDesignerProps> = ({
                 <input
                   type="checkbox"
                   checked={param.required}
-                  onChange={(e) => updateParameter(i, 'required', e.target.checked)}
+                  onChange={(e) =>
+                    updateParameter(i, 'required', e.target.checked)
+                  }
                   className="rounded border-slate-300 text-purple-600 focus:ring-purple-500"
                 />
                 <span className="text-xs text-slate-600">Req</span>
@@ -592,7 +611,7 @@ export const WebhookDesigner: React.FC<WebhookDesignerProps> = ({
                       ...form,
                       approvalThreshold: {
                         ...form.approvalThreshold,
-                        amount: parseFloat(e.target.value) || undefined,
+                        amount: Number.parseFloat(e.target.value) || undefined,
                       },
                     })
                   }

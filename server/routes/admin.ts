@@ -364,11 +364,11 @@ router.get('/partners/:id', async (req, res) => {
       .select()
       .from(users)
       .where(eq(users.id, req.params.id));
-    
+
     if (!partner) {
       return res.status(404).json({ error: 'Partner not found' });
     }
-    
+
     res.json(partner);
   } catch (error) {
     console.error('Partner details error:', error);
@@ -403,13 +403,13 @@ router.get('/partners/:id/clients', async (req, res) => {
           .select({ count: sql<number>`COUNT(*)` })
           .from(leads)
           .where(eq(leads.userId, client.id));
-        
+
         return {
           ...client,
           botCount: botCount?.count || 0,
           leadCount: leadCount?.count || 0,
         };
-      })
+      }),
     );
 
     res.json(clientsWithMetrics);
@@ -440,8 +440,10 @@ router.get('/partners/:id/metrics', async (req, res) => {
       return sum + price;
     }, 0);
 
-    const activeClients = clients.filter(c => c.status === 'Active').length;
-    const churnedClients = clients.filter(c => c.status === 'Suspended').length;
+    const activeClients = clients.filter((c) => c.status === 'Active').length;
+    const churnedClients = clients.filter(
+      (c) => c.status === 'Suspended',
+    ).length;
 
     res.json({
       totalClients: clients.length,

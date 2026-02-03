@@ -3,7 +3,15 @@
  * Shared layout for all dashboard experiences with navigation and impersonation banner
  */
 
-import { AlertTriangle, LogOut, Menu, Search, Settings, User, X } from 'lucide-react';
+import {
+  AlertTriangle,
+  LogOut,
+  Menu,
+  Search,
+  Settings,
+  User,
+  X,
+} from 'lucide-react';
 import type React from 'react';
 import { useEffect, useState } from 'react';
 import { useDashboardContext } from '../../hooks/useDashboardContext';
@@ -83,7 +91,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
   return (
     <div className="min-h-screen bg-slate-50">
       <UnifiedSearch isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
-      
+
       {/* Impersonation Banner */}
       {isImpersonating && impersonatedUser && (
         <div className="bg-amber-500 text-white px-4 py-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">

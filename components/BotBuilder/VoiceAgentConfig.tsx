@@ -1,19 +1,19 @@
 import {
+  AlertCircle,
+  CheckCircle2,
+  DollarSign,
+  Loader2,
   Phone,
   PhoneCall,
   PhoneIncoming,
   PhoneOff,
   Save,
-  Volume2,
   Users,
-  Loader2,
-  CheckCircle2,
-  AlertCircle,
-  DollarSign,
+  Volume2,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import type { Bot as BotType } from '../../types';
 import { buildApiUrl } from '../../services/apiConfig';
+import type { Bot as BotType } from '../../types';
 
 interface VoiceAgentConfig {
   id?: string;
@@ -168,13 +168,20 @@ export const VoiceAgentConfigComponent: React.FC<VoiceAgentConfigProps> = ({
       // If enabling and no phone number, provision one
       setSaving(true);
       try {
-        const response = await fetch(buildApiUrl(`/voice/agents/${bot.id}/provision`), {
-          method: 'POST',
-          credentials: 'include',
-        });
+        const response = await fetch(
+          buildApiUrl(`/voice/agents/${bot.id}/provision`),
+          {
+            method: 'POST',
+            credentials: 'include',
+          },
+        );
         if (response.ok) {
           const data = await response.json();
-          setConfig({ ...config, enabled: true, phoneNumber: data.phoneNumber });
+          setConfig({
+            ...config,
+            enabled: true,
+            phoneNumber: data.phoneNumber,
+          });
         }
       } catch (err) {
         setError('Failed to provision phone number');
@@ -452,7 +459,11 @@ export const VoiceAgentConfigComponent: React.FC<VoiceAgentConfigProps> = ({
                   <button
                     key={plan.id}
                     onClick={() =>
-                      setConfig({ ...config, plan: plan.id, minutesLimit: plan.minutes })
+                      setConfig({
+                        ...config,
+                        plan: plan.id,
+                        minutesLimit: plan.minutes,
+                      })
                     }
                     className={`text-left p-3 rounded-md border-2 transition-all ${
                       config.plan === plan.id

@@ -1,11 +1,11 @@
-import { TTSProvider } from './TTSProvider.js';
 import { CartesiaClient } from '@cartesia/cartesia-js';
+import { TTSProvider } from './TTSProvider.js';
 
 export class CartesiaTTS extends TTSProvider {
   constructor(apiKey) {
     super();
     if (!apiKey) {
-      throw new Error("Cartesia API Key is required");
+      throw new Error('Cartesia API Key is required');
     }
     this.client = new CartesiaClient({ apiKey });
   }
@@ -18,9 +18,9 @@ export class CartesiaTTS extends TTSProvider {
     try {
       // Initialize the WebSocket connection for TTS
       const websocket = this.client.tts.websocket({
-        container: "raw",
-        encoding: "pcm_s16le",
-        sampleRate: 24000
+        container: 'raw',
+        encoding: 'pcm_s16le',
+        sampleRate: 24000,
       });
 
       await websocket.connect();
@@ -28,12 +28,12 @@ export class CartesiaTTS extends TTSProvider {
       // Listen for incoming audio chunks from Cartesia
       // and write them to our output stream
       const response = await websocket.send({
-        model_id: "sonic-english", // Defaulting to a standard model
+        model_id: 'sonic-english', // Defaulting to a standard model
         transcript: text,
         voice: {
-          mode: "id",
-          id: "a0e99841-438c-4a64-b679-ae501e7d6091" // Placeholder Voice ID
-        }
+          mode: 'id',
+          id: 'a0e99841-438c-4a64-b679-ae501e7d6091', // Placeholder Voice ID
+        },
       });
 
       // Stream the response to the provided writable stream
@@ -42,12 +42,11 @@ export class CartesiaTTS extends TTSProvider {
       for await (const chunk of response.source) {
         stream.write(chunk);
       }
-      
+
       // We don't close the stream here as it might be kept open for more speech
       // but if this is a single-shot, we might want to let the caller handle it.
-      
     } catch (error) {
-      console.error("Cartesia TTS Error:", error);
+      console.error('Cartesia TTS Error:', error);
       throw error;
     }
   }

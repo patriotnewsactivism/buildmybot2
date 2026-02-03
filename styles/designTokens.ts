@@ -39,8 +39,10 @@ export const gradients = {
   playful7: 'bg-gradient-to-br from-yellow-400 via-pink-500 to-purple-600',
 
   // Text gradients
-  textPrimary: 'bg-gradient-to-r from-violet-600 to-purple-600 bg-clip-text text-transparent',
-  textPlayful: 'bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600 bg-clip-text text-transparent',
+  textPrimary:
+    'bg-gradient-to-r from-violet-600 to-purple-600 bg-clip-text text-transparent',
+  textPlayful:
+    'bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600 bg-clip-text text-transparent',
 };
 
 export const shadows = {
@@ -95,9 +97,12 @@ export const hovers = {
 
 export const borders = {
   gradient: {
-    primary: 'border-2 border-transparent bg-gradient-to-r from-violet-600 to-purple-600',
-    secondary: 'border-2 border-transparent bg-gradient-to-r from-orange-500 to-pink-500',
-    success: 'border-2 border-transparent bg-gradient-to-r from-emerald-500 to-teal-500',
+    primary:
+      'border-2 border-transparent bg-gradient-to-r from-violet-600 to-purple-600',
+    secondary:
+      'border-2 border-transparent bg-gradient-to-r from-orange-500 to-pink-500',
+    success:
+      'border-2 border-transparent bg-gradient-to-r from-emerald-500 to-teal-500',
   },
   glow: {
     purple: 'ring-2 ring-purple-500/50 ring-offset-2',

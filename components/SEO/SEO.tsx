@@ -232,8 +232,7 @@ export const SEOConfig = {
     title: 'Careers at BuildMyBot | AI and SaaS Jobs',
     description:
       'Join BuildMyBot and help build the future of AI-powered customer engagement. Explore open roles in engineering, design, and success.',
-    keywords:
-      'buildmybot careers, AI jobs, SaaS jobs, chatbot company careers',
+    keywords: 'buildmybot careers, AI jobs, SaaS jobs, chatbot company careers',
   },
   demo: {
     title: 'BuildMyBot Demo | See the AI Chatbot Builder in Action',
@@ -253,8 +252,7 @@ export const SEOConfig = {
     title: 'BuildMyBot Privacy Policy | Data Protection',
     description:
       'Read the BuildMyBot privacy policy and learn how we protect your data.',
-    keywords:
-      'buildmybot privacy policy, data protection, AI chatbot privacy',
+    keywords: 'buildmybot privacy policy, data protection, AI chatbot privacy',
   },
   status: {
     title: 'BuildMyBot Status | System Health',

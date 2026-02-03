@@ -1,9 +1,9 @@
-import { eq, and } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
 import { integrations } from '../../shared/schema';
 import { db } from '../db';
 import { HubSpotProvider } from './integrations/HubSpotProvider';
-import { IntegrationProvider } from './integrations/IntegrationProvider';
+import type { IntegrationProvider } from './integrations/IntegrationProvider';
 
 export class IntegrationService {
   private providers: Map<string, IntegrationProvider> = new Map();
@@ -18,17 +18,13 @@ export class IntegrationService {
   }
 
   getProviders() {
-    return Array.from(this.providers.values()).map(p => ({
+    return Array.from(this.providers.values()).map((p) => ({
       id: p.id,
-      name: p.name
+      name: p.name,
     }));
   }
 
-  async connect(
-    organizationId: string,
-    providerId: string,
-    config: any
-  ) {
+  async connect(organizationId: string, providerId: string, config: any) {
     const provider = this.providers.get(providerId);
     if (!provider) {
       throw new Error(`Provider ${providerId} not found`);
@@ -46,8 +42,8 @@ export class IntegrationService {
       .where(
         and(
           eq(integrations.organizationId, organizationId),
-          eq(integrations.provider, providerId)
-        )
+          eq(integrations.provider, providerId),
+        ),
       );
 
     if (existing) {
@@ -57,19 +53,18 @@ export class IntegrationService {
         .set({ config, isActive: true, updatedAt: new Date() })
         .where(eq(integrations.id, existing.id))
         .returning();
-    } else {
-      // Create new
-      return db
-        .insert(integrations)
-        .values({
-          id: uuidv4(),
-          organizationId,
-          provider: providerId,
-          config,
-          isActive: true
-        })
-        .returning();
     }
+    // Create new
+    return db
+      .insert(integrations)
+      .values({
+        id: uuidv4(),
+        organizationId,
+        provider: providerId,
+        config,
+        isActive: true,
+      })
+      .returning();
   }
 
   async disconnect(organizationId: string, providerId: string) {
@@ -79,8 +74,8 @@ export class IntegrationService {
       .where(
         and(
           eq(integrations.organizationId, organizationId),
-          eq(integrations.provider, providerId)
-        )
+          eq(integrations.provider, providerId),
+        ),
       );
   }
 
@@ -93,8 +88,8 @@ export class IntegrationService {
       .where(
         and(
           eq(integrations.organizationId, lead.organizationId),
-          eq(integrations.isActive, true)
-        )
+          eq(integrations.isActive, true),
+        ),
       );
 
     for (const integration of activeIntegrations) {
@@ -103,7 +98,10 @@ export class IntegrationService {
         try {
           await provider.createLead(lead, integration.config);
         } catch (error) {
-          console.error(`Failed to sync lead to ${integration.provider}:`, error);
+          console.error(
+            `Failed to sync lead to ${integration.provider}:`,
+            error,
+          );
         }
       }
     }

@@ -543,7 +543,6 @@ export const knowledgeChunks = pgTable('knowledge_chunks', {
   createdAt: timestamp('created_at').defaultNow(),
 });
 
-
 // ========================================
 // INTEGRATIONS & WEBHOOKS
 // ========================================
@@ -1195,9 +1194,7 @@ export const voiceAgents = pgTable('voice_agents', {
   voiceModel: varchar('voice_model', { length: 100 }).default('cartesia-sonic'), // Cartesia voice model
   voiceId: varchar('voice_id', { length: 255 }).default(''), // Cartesia voice ID
   language: varchar('language', { length: 10 }).default('en'),
-  greeting: text('greeting').default(
-    'Hello! How can I help you today?',
-  ),
+  greeting: text('greeting').default('Hello! How can I help you today?'),
   endCallPhrase: text('end_call_phrase').default(
     'Is there anything else I can help you with?',
   ),

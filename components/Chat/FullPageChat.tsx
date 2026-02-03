@@ -45,7 +45,7 @@ export const FullPageChat: React.FC<FullPageChatProps> = ({ botId }) => {
       try {
         // Try to fetch as authenticated user first (owner preview)
         let foundBot = await dbService.getBotById(botId);
-        
+
         // If not found or not authorized, try public endpoint
         if (!foundBot) {
           foundBot = await dbService.getPublicBotById(botId);

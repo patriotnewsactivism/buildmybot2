@@ -10,7 +10,7 @@ export class ChatService {
     botId: string,
     messages: any[],
     userId?: string,
-    organizationId?: string
+    organizationId?: string,
   ) {
     // Check if conversation exists for this session
     const [existing] = await db
@@ -30,24 +30,23 @@ export class ChatService {
           organizationId: organizationId || existing.organizationId,
         })
         .where(eq(conversations.id, existing.id));
-      
+
       return existing.id;
-    } else {
-      // Create new conversation
-      const id = uuidv4();
-      await db.insert(conversations).values({
-        id,
-        sessionId,
-        botId,
-        messages,
-        userId: userId || null,
-        organizationId: organizationId || null,
-        timestamp: new Date(),
-        sentiment: 'Neutral', // Default
-      });
-      
-      return id;
     }
+    // Create new conversation
+    const id = uuidv4();
+    await db.insert(conversations).values({
+      id,
+      sessionId,
+      botId,
+      messages,
+      userId: userId || null,
+      organizationId: organizationId || null,
+      timestamp: new Date(),
+      sentiment: 'Neutral', // Default
+    });
+
+    return id;
   }
 
   async updateSentiment(sessionId: string, text: string) {
@@ -56,12 +55,11 @@ export class ChatService {
     // Run in background (fire and forget from caller perspective, but await inside)
     try {
       const sentiment = await openAIService.analyzeSentiment(text);
-      
+
       await db
         .update(conversations)
         .set({ sentiment })
         .where(eq(conversations.sessionId, sessionId));
-        
     } catch (error) {
       console.error('Failed to update sentiment:', error);
     }

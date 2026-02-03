@@ -134,8 +134,7 @@ export const AVAILABLE_MODELS = [
   {
     id: 'gpt-4o-mini',
     name: 'GPT-4o Mini',
-    description:
-      'Fast, cost-effective. Recommended for most chatbots.',
+    description: 'Fast, cost-effective. Recommended for most chatbots.',
   },
   {
     id: 'gpt-4o',
