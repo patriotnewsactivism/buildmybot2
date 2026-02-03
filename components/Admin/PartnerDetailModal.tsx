@@ -68,6 +68,7 @@ export const PartnerDetailModal: React.FC<PartnerDetailModalProps> = ({
     if (isOpen && partnerId) {
       fetchPartnerDetails();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, partnerId]);
 
   const fetchPartnerDetails = async () => {

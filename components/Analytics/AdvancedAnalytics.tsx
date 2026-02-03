@@ -216,33 +216,38 @@ export const AdvancedAnalytics: React.FC<AdvancedAnalyticsProps> = ({
     }
   }, []);
 
-  const fetchAnalyticsData = useCallback(async (days: number) => {
-    try {
-      setLoading(true);
-      setError(null);
+  const fetchAnalyticsData = useCallback(
+    async (days: number) => {
+      try {
+        setLoading(true);
+        setError(null);
 
-      const url = endpoint
-        ? `${API_BASE}${endpoint}?days=${days}`
-        : `${API_BASE}/admin/analytics/dashboard?days=${days}`;
+        const url = endpoint
+          ? `${API_BASE}${endpoint}?days=${days}`
+          : `${API_BASE}/admin/analytics/dashboard?days=${days}`;
 
-      const response = await fetch(url, {
-        credentials: 'include',
-      });
+        const response = await fetch(url, {
+          credentials: 'include',
+        });
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch analytics data');
+        if (!response.ok) {
+          throw new Error('Failed to fetch analytics data');
+        }
+
+        const result = await response.json();
+        setData(result);
+      } catch (err) {
+        console.error('Error fetching analytics:', err);
+        setError(
+          err instanceof Error ? err.message : 'Failed to load analytics',
+        );
+        setData(getEmptyData());
+      } finally {
+        setLoading(false);
       }
-
-      const result = await response.json();
-      setData(result);
-    } catch (err) {
-      console.error('Error fetching analytics:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load analytics');
-      setData(getEmptyData());
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    },
+    [endpoint],
+  );
 
   useEffect(() => {
     const days = getDaysFromPreset(selectedPreset);
