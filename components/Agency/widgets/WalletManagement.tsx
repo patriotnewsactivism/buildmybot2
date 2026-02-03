@@ -317,7 +317,10 @@ export const WalletManagement: React.FC = () => {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
+            <label
+              htmlFor="recharge-threshold"
+              className="block text-sm font-medium text-slate-700 mb-2"
+            >
               Trigger Threshold
             </label>
             <div className="relative">
@@ -326,6 +329,7 @@ export const WalletManagement: React.FC = () => {
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
               />
               <input
+                id="recharge-threshold"
                 type="number"
                 value={autoRechargeSettings.threshold}
                 onChange={(e) =>
@@ -345,7 +349,10 @@ export const WalletManagement: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
+            <label
+              htmlFor="recharge-amount"
+              className="block text-sm font-medium text-slate-700 mb-2"
+            >
               Recharge Amount
             </label>
             <div className="relative">
@@ -354,6 +361,7 @@ export const WalletManagement: React.FC = () => {
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
               />
               <input
+                id="recharge-amount"
                 type="number"
                 value={autoRechargeSettings.amount}
                 onChange={(e) =>

@@ -603,6 +603,7 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
                 Document Preview
               </h3>
               <button
+                type="button"
                 onClick={() => setShowPreview(false)}
                 className="text-slate-500 hover:text-slate-700"
               >

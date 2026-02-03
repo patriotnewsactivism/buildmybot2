@@ -62,13 +62,17 @@ export const VoiceCallSimulator: React.FC<VoiceCallSimulatorProps> = ({
       return;
     }
 
+    if (!audioContext.current) {
+      return;
+    }
+
     isPlaying.current = true;
-    const source = audioContext.current?.createBufferSource();
+    const source = audioContext.current.createBufferSource();
     const buffer = audioQueue.current.shift()!;
     source.buffer = buffer;
-    source.connect(audioContext.current?.destination);
+    source.connect(audioContext.current.destination);
 
-    const currentTime = audioContext.current?.currentTime;
+    const currentTime = audioContext.current.currentTime;
     const startTime = Math.max(currentTime, nextPlayTime.current);
 
     source.start(startTime);

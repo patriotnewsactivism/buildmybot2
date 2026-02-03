@@ -200,7 +200,10 @@ export const PricingConfigurator: React.FC = () => {
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
+              <label
+                htmlFor="wholesale-voice-cost"
+                className="block text-sm font-medium text-slate-700 mb-2"
+              >
                 Wholesale Cost (Platform)
               </label>
               <div className="relative">
@@ -209,6 +212,7 @@ export const PricingConfigurator: React.FC = () => {
                   className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
                 />
                 <input
+                  id="wholesale-voice-cost"
                   type="number"
                   value={tier.wholesaleVoicePerMinute}
                   disabled
@@ -219,7 +223,10 @@ export const PricingConfigurator: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
+              <label
+                htmlFor="retail-voice-price"
+                className="block text-sm font-medium text-slate-700 mb-2"
+              >
                 Retail Price (Your Rate)
               </label>
               <div className="relative">
@@ -228,6 +235,7 @@ export const PricingConfigurator: React.FC = () => {
                   className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
                 />
                 <input
+                  id="retail-voice-price"
                   type="number"
                   value={tempTier.retailVoicePerMinute}
                   onChange={(e) =>
@@ -281,7 +289,10 @@ export const PricingConfigurator: React.FC = () => {
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
+              <label
+                htmlFor="wholesale-token-cost"
+                className="block text-sm font-medium text-slate-700 mb-2"
+              >
                 Wholesale Cost (Platform)
               </label>
               <div className="relative">
@@ -290,6 +301,7 @@ export const PricingConfigurator: React.FC = () => {
                   className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
                 />
                 <input
+                  id="wholesale-token-cost"
                   type="number"
                   value={tier.wholesaleTokensPer1k}
                   disabled
@@ -302,7 +314,10 @@ export const PricingConfigurator: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
+              <label
+                htmlFor="retail-token-price"
+                className="block text-sm font-medium text-slate-700 mb-2"
+              >
                 Retail Price (Your Rate)
               </label>
               <div className="relative">
@@ -311,6 +326,7 @@ export const PricingConfigurator: React.FC = () => {
                   className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
                 />
                 <input
+                  id="retail-token-price"
                   type="number"
                   value={tempTier.retailTokensPer1k}
                   onChange={(e) =>

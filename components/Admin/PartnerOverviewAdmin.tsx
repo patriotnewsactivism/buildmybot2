@@ -9,7 +9,7 @@ import {
   Users,
 } from 'lucide-react';
 import type React from 'react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { PlayfulMetricCard } from '../UI/PlayfulMetricCard';
 import { PartnerDetailModal } from './PartnerDetailModal';
 
@@ -36,7 +36,7 @@ export const PartnerOverviewAdmin: React.FC = () => {
   );
   const [searchQuery, setSearchQuery] = useState('');
 
-  const fetchPartners = async () => {
+  const fetchPartners = useCallback(async () => {
     setLoading(true);
     try {
       const response = await fetch('/api/admin/partners');
@@ -49,11 +49,11 @@ export const PartnerOverviewAdmin: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchPartners();
-  }, []);
+  }, [fetchPartners]);
 
   const totalPartners = partners.length;
   const activePartners = partners.filter(
@@ -114,6 +114,7 @@ export const PartnerOverviewAdmin: React.FC = () => {
             </p>
           </div>
           <button
+            type="button"
             onClick={fetchPartners}
             className="self-start sm:self-auto px-6 py-3 bg-white/20 backdrop-blur-sm rounded-xl text-white font-bold hover:bg-white/30 transition-all duration-300 hover:scale-105 shadow-lg flex items-center gap-2"
           >
@@ -302,7 +303,10 @@ export const PartnerOverviewAdmin: React.FC = () => {
 
               {/* Hover Action */}
               <div className="mt-4 pt-4 border-t border-slate-100 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button className="w-full py-2 px-4 bg-gradient-to-r from-violet-600 to-purple-600 text-white font-bold rounded-xl hover:from-violet-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl">
+                <button
+                  type="button"
+                  className="w-full py-2 px-4 bg-gradient-to-r from-violet-600 to-purple-600 text-white font-bold rounded-xl hover:from-violet-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl"
+                >
                   View Details
                 </button>
               </div>
