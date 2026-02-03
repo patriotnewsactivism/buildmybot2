@@ -79,79 +79,24 @@ export const AboutPage: React.FC = () => {
           </div>
         </section>
 
-        <section className="space-y-12">
-          <div className="text-center">
-            <h2 className="text-3xl font-bold text-slate-900 mb-4">
-              Leadership Team
-            </h2>
-            <p className="text-xl text-slate-600 max-w-2xl mx-auto">
-              Meet the team driving innovation in AI-powered business solutions.
-            </p>
+        <section className="bg-gradient-to-br from-blue-600 to-blue-900 rounded-3xl p-12 text-center text-white">
+          <div className="inline-flex items-center gap-2 bg-yellow-400 text-slate-900 px-6 py-2 rounded-full text-sm font-bold mb-6">
+            <span className="w-2 h-2 bg-slate-900 rounded-full animate-pulse"></span>
+            BETA TESTING IN PROGRESS
           </div>
-          <div className="grid md:grid-cols-3 gap-8">
-            <div className="bg-white rounded-2xl p-8 border border-slate-200 shadow-sm hover:shadow-lg transition-shadow text-center">
-              <div className="w-24 h-24 bg-gradient-to-br from-blue-600 to-blue-800 rounded-full flex items-center justify-center text-white text-2xl font-bold mx-auto mb-6">
-                MR
-              </div>
-              <h3 className="font-bold text-xl text-slate-900 mb-1">
-                Matthew Reardon
-              </h3>
-              <p className="text-blue-700 font-medium mb-4">
-                Founder, President & CEO
-              </p>
-              <p className="text-slate-600 text-sm">
-                With over 10 years of experience in sales, business development,
-                branding, and entrepreneurship, Matthew leads BuildMyBot's
-                vision to revolutionize customer engagement through AI.
-              </p>
-            </div>
-            <div className="bg-white rounded-2xl p-8 border border-slate-200 shadow-sm hover:shadow-lg transition-shadow text-center">
-              <div className="w-24 h-24 bg-gradient-to-br from-emerald-600 to-emerald-800 rounded-full flex items-center justify-center text-white text-2xl font-bold mx-auto mb-6">
-                JD
-              </div>
-              <h3 className="font-bold text-xl text-slate-900 mb-1">
-                Joey Davenport
-              </h3>
-              <p className="text-blue-700 font-medium mb-4">
-                Vice President of Artificial Intelligence
-              </p>
-              <p className="text-slate-600 text-sm">
-                Joey oversees all AI development and innovation, ensuring
-                BuildMyBot stays at the forefront of conversational AI and
-                machine learning technology.
-              </p>
-            </div>
-            <div className="bg-white rounded-2xl p-8 border border-slate-200 shadow-sm hover:shadow-lg transition-shadow text-center">
-              <div className="w-24 h-24 bg-gradient-to-br from-slate-600 to-slate-800 rounded-full flex items-center justify-center text-white text-2xl font-bold mx-auto mb-6">
-                BC
-              </div>
-              <h3 className="font-bold text-xl text-slate-900 mb-1">
-                Benjamin Campagna
-              </h3>
-              <p className="text-blue-700 font-medium mb-4">
-                Chief Legal Officer & General Counsel
-              </p>
-              <p className="text-slate-600 text-sm">
-                Benjamin ensures BuildMyBot operates with the highest standards
-                of legal compliance, data privacy, and corporate governance.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <section className="bg-gradient-to-br from-slate-900 to-blue-900 rounded-3xl p-12 text-center text-white">
-          <h2 className="text-3xl font-bold mb-4">
-            Join the BuildMyBot Family
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">
+            Be Part of the Future
           </h2>
-          <p className="text-blue-200 mb-8 max-w-xl mx-auto">
-            Whether you're a small business or enterprise, we're here to help
-            you grow. Start your free trial today.
+          <p className="text-blue-100 mb-8 max-w-2xl mx-auto text-lg">
+            We're currently in beta testing, preparing for our official launch.
+            Join our exclusive beta testing program and get early access to
+            cutting-edge AI technology.
           </p>
           <a
-            href="/"
-            className="inline-flex items-center gap-2 bg-white text-blue-900 px-8 py-4 rounded-xl font-bold hover:bg-blue-50 transition"
+            href="/contact"
+            className="inline-flex items-center gap-2 bg-white text-blue-900 px-8 py-4 rounded-xl font-bold hover:bg-blue-50 transition shadow-xl"
           >
-            Get Started Free
+            Request Beta Access
           </a>
         </section>
       </div>

@@ -61,6 +61,13 @@ export const Billing: React.FC<BillingProps> = ({ user }) => {
   };
 
   const handleUpgrade = async (planId: string) => {
+    // Beta testing mode - purchases disabled
+    alert(
+      'Purchases are currently disabled while we prepare for launch. Please contact us to join our beta testing program.',
+    );
+    return;
+
+    /* Disabled during beta testing
     if (!user) return;
 
     if (planId === PlanType.FREE) {
@@ -95,6 +102,7 @@ export const Billing: React.FC<BillingProps> = ({ user }) => {
       alert('Failed to start checkout. Please try again.');
       setProcessingPlan(null);
     }
+    */
   };
 
   const handleManageSubscription = async () => {

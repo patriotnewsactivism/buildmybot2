@@ -709,6 +709,26 @@ export const LandingPage: React.FC<LandingProps> = ({
         )}
 
         <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14 md:py-20 space-y-12 sm:space-y-16 md:space-y-24">
+          {/* Beta Banner */}
+          <div className="bg-gradient-to-r from-yellow-400 via-yellow-300 to-yellow-400 border-2 border-yellow-600 rounded-2xl p-4 sm:p-6 text-center shadow-xl">
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <span className="w-3 h-3 bg-slate-900 rounded-full animate-pulse"></span>
+              <span className="text-slate-900 font-bold text-sm sm:text-base">
+                BETA TESTING IN PROGRESS
+              </span>
+            </div>
+            <p className="text-slate-800 text-sm sm:text-base mb-3">
+              We're preparing for our official launch! Join our exclusive beta program for early access.
+            </p>
+            <a
+              href="/contact"
+              className="inline-flex items-center gap-2 bg-slate-900 text-white px-6 py-3 rounded-xl font-bold hover:bg-slate-800 transition-all shadow-lg"
+            >
+              Request Beta Access
+              <ArrowRight size={16} />
+            </a>
+          </div>
+
           {/* 1. Hero Section */}
           <section className="text-center space-y-8 pt-6">
             <div className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 px-4 py-2 rounded-full text-xs sm:text-sm font-semibold border border-blue-100 shadow-sm">
