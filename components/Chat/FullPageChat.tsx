@@ -446,7 +446,7 @@ export const FullPageChat: React.FC<FullPageChatProps> = ({ botId }) => {
             </button>
           </div>
           <div className="text-center mt-1">
-            <span className="text-[9px] text-slate-300 font-medium">
+            <span className="text-[9px] text-slate-500 font-medium">
               Powered by BuildMyBot
             </span>
           </div>
@@ -536,7 +536,7 @@ export const FullPageChat: React.FC<FullPageChatProps> = ({ botId }) => {
             </button>
           </div>
           <div className="text-center mt-2">
-            <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wide">
+            <span className="text-[10px] text-slate-600 font-medium uppercase tracking-wide">
               Powered by BuildMyBot
             </span>
           </div>

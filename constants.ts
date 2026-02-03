@@ -147,7 +147,7 @@ export const VOICE_AGENT_PRICING = [
   {
     id: 'voice_basic',
     name: 'Voice Basic',
-    price: 66,
+    price: 79,
     minutesIncluded: 150,
     overagePerMinute: 0.5,
     features: [
@@ -162,7 +162,7 @@ export const VOICE_AGENT_PRICING = [
   {
     id: 'voice_standard',
     name: 'Voice Standard',
-    price: 134,
+    price: 174,
     minutesIncluded: 450,
     overagePerMinute: 0.5,
     features: [
@@ -178,7 +178,7 @@ export const VOICE_AGENT_PRICING = [
   {
     id: 'voice_professional',
     name: 'Voice Professional',
-    price: 269,
+    price: 279,
     minutesIncluded: 1000,
     overagePerMinute: 0.5,
     features: [
@@ -194,7 +194,7 @@ export const VOICE_AGENT_PRICING = [
   {
     id: 'voice_enterprise',
     name: 'Voice Enterprise',
-    price: 539,
+    price: 549,
     minutesIncluded: 2500,
     overagePerMinute: 0.5,
     features: [
