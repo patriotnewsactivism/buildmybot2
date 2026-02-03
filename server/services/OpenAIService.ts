@@ -5,12 +5,18 @@ export class OpenAIService {
 
   constructor() {
     this.openai = new OpenAI({
-      apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY,
-      baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || 'https://api.openai.com/v1',
+      apiKey:
+        process.env.AI_INTEGRATIONS_OPENAI_API_KEY ||
+        process.env.OPENAI_API_KEY,
+      baseURL:
+        process.env.AI_INTEGRATIONS_OPENAI_BASE_URL ||
+        'https://api.openai.com/v1',
     });
   }
 
-  async complete(params: OpenAI.Chat.ChatCompletionCreateParams): Promise<string> {
+  async complete(
+    params: OpenAI.Chat.ChatCompletionCreateParams,
+  ): Promise<string> {
     try {
       const response = await this.openai.chat.completions.create(params);
       return response.choices[0]?.message?.content || '';
@@ -19,13 +25,16 @@ export class OpenAIService {
         error?.code === 'model_not_found' ||
         error?.status === 404 ||
         (error?.status === 400 &&
-          String(error?.message || '').toLowerCase().includes('model'));
+          String(error?.message || '')
+            .toLowerCase()
+            .includes('model'));
 
       if (params.model === 'gpt-5o-mini' && isModelNotFound) {
         console.warn('GPT-5o Mini not found, falling back to GPT-4o Mini');
         try {
           const fallbackParams = { ...params, model: 'gpt-4o-mini' };
-          const response = await this.openai.chat.completions.create(fallbackParams);
+          const response =
+            await this.openai.chat.completions.create(fallbackParams);
           return response.choices[0]?.message?.content || '';
         } catch (fallbackError) {
           console.error('OpenAI Fallback Completion Error:', fallbackError);
@@ -45,7 +54,8 @@ export class OpenAIService {
       const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
         {
           role: 'system',
-          content: 'You are a Sentiment Analyzer. Analyze the following user message and classify it as exactly one of: "Positive", "Neutral", "Negative". Return ONLY the label.',
+          content:
+            'You are a Sentiment Analyzer. Analyze the following user message and classify it as exactly one of: "Positive", "Neutral", "Negative". Return ONLY the label.',
         },
         {
           role: 'user',
@@ -72,11 +82,17 @@ export class OpenAIService {
     }
   }
 
-  async scoreLead(data: { name?: string; email?: string; phone?: string; conversationContext?: any }): Promise<number> {
+  async scoreLead(data: {
+    name?: string;
+    email?: string;
+    phone?: string;
+    conversationContext?: any;
+  }): Promise<number> {
     try {
-      const context = typeof data.conversationContext === 'string'
-        ? data.conversationContext
-        : JSON.stringify(data.conversationContext || []);
+      const context =
+        typeof data.conversationContext === 'string'
+          ? data.conversationContext
+          : JSON.stringify(data.conversationContext || []);
 
       const prompt = `
         Analyze this lead and assign a score from 0-100 based on purchase intent and qualification.
@@ -102,16 +118,20 @@ export class OpenAIService {
       const content = await this.complete({
         model: 'gpt-5o-mini',
         messages: [
-          { role: 'system', content: 'You are a Lead Scoring Expert. Output a single integer between 0 and 100.' },
-          { role: 'user', content: prompt }
+          {
+            role: 'system',
+            content:
+              'You are a Lead Scoring Expert. Output a single integer between 0 and 100.',
+          },
+          { role: 'user', content: prompt },
         ],
         temperature: 0.2,
         max_tokens: 5,
       });
 
       const scoreStr = content.trim();
-      const score = parseInt(scoreStr || '50', 10);
-      return isNaN(score) ? 50 : Math.min(Math.max(score, 0), 100);
+      const score = Number.parseInt(scoreStr || '50', 10);
+      return Number.isNaN(score) ? 50 : Math.min(Math.max(score, 0), 100);
     } catch (error) {
       console.error('Lead Scoring Error:', error);
       return 50; // Default fallback

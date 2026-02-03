@@ -5,8 +5,8 @@ export { ShadowTTS } from './ShadowTTS.js';
 
 import { CartesiaTTS } from './CartesiaTTS.js';
 import { ElevenLabsTTS } from './ElevenLabsTTS.js';
-import { ShadowTTS } from './ShadowTTS.js';
 import { MockTTS } from './MockTTS.js';
+import { ShadowTTS } from './ShadowTTS.js';
 
 function createProvider(name) {
   switch (name) {
@@ -27,7 +27,8 @@ function createProvider(name) {
 export function getTTSProvider(context = {}) {
   // Tiered Rollout Logic / Kill Switch
   // If a specific provider is requested in context (e.g. per-customer override), use it.
-  let primaryName = context.preferredProvider || process.env.TTS_PROVIDER || 'cartesia';
+  const primaryName =
+    context.preferredProvider || process.env.TTS_PROVIDER || 'cartesia';
 
   // Example: "Premium" tier might force a different provider if not explicitly set
   // if (context.tier === 'premium' && !context.preferredProvider) {
@@ -39,10 +40,12 @@ export function getTTSProvider(context = {}) {
   const primary = createProvider(primaryName);
 
   if (shadowName && shadowName !== primaryName) {
-    // We only shadow if not explicitly overriding for a single request, 
-    // though arguably we might want to shadow 'premium' users too. 
+    // We only shadow if not explicitly overriding for a single request,
+    // though arguably we might want to shadow 'premium' users too.
     // For now, simple logic:
-    console.log(`Initializing TTS with Shadow Mode: Primary=${primaryName}, Shadow=${shadowName}`);
+    console.log(
+      `Initializing TTS with Shadow Mode: Primary=${primaryName}, Shadow=${shadowName}`,
+    );
     const shadow = createProvider(shadowName);
     return new ShadowTTS(primary, shadow);
   }

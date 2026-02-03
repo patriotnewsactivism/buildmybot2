@@ -248,9 +248,11 @@ export class DocumentProcessorService {
     }
   }
 
-  static async extractTextFromPdfPages(
-    buffer: Buffer,
-  ): Promise<{ text: string; pageCount: number; pages: Array<{ pageNumber: number; text: string }> }> {
+  static async extractTextFromPdfPages(buffer: Buffer): Promise<{
+    text: string;
+    pageCount: number;
+    pages: Array<{ pageNumber: number; text: string }>;
+  }> {
     try {
       const pages: Array<{ pageNumber: number; text: string }> = [];
       const data = await pdfParse(buffer, {
@@ -266,7 +268,10 @@ export class DocumentProcessorService {
       });
 
       pages.sort((a, b) => a.pageNumber - b.pageNumber);
-      const mergedText = pages.map((p) => p.text).join('\n\n').trim();
+      const mergedText = pages
+        .map((p) => p.text)
+        .join('\n\n')
+        .trim();
       return {
         text: mergedText || data.text.replace(/\s+/g, ' ').trim(),
         pageCount: data.numpages || pages.length || 1,
@@ -292,9 +297,12 @@ export class DocumentProcessorService {
     buffer: Buffer,
     mimeType: string,
   ): Promise<string> {
-    const apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
-    const baseURL = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || 'https://api.openai.com/v1';
-    
+    const apiKey =
+      process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+    const baseURL =
+      process.env.AI_INTEGRATIONS_OPENAI_BASE_URL ||
+      'https://api.openai.com/v1';
+
     if (!apiKey) {
       throw new Error('OpenAI API key required for OCR');
     }
@@ -303,37 +311,34 @@ export class DocumentProcessorService {
     const mediaType = mimeType.startsWith('image/') ? mimeType : 'image/png';
 
     try {
-      const response = await fetch(
-        `${baseURL}/chat/completions`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'gpt-4o',
-            messages: [
-              {
-                role: 'user',
-                content: [
-                  {
-                    type: 'text',
-                    text: 'Extract all text content from this image. Return only the extracted text, preserving the original structure and formatting as much as possible. Do not add any commentary or explanations.',
-                  },
-                  {
-                    type: 'image_url',
-                    image_url: {
-                      url: `data:${mediaType};base64,${base64}`,
-                    },
-                  },
-                ],
-              },
-            ],
-            max_completion_tokens: 4000,
-          }),
+      const response = await fetch(`${baseURL}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
         },
-      );
+        body: JSON.stringify({
+          model: 'gpt-4o',
+          messages: [
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'text',
+                  text: 'Extract all text content from this image. Return only the extracted text, preserving the original structure and formatting as much as possible. Do not add any commentary or explanations.',
+                },
+                {
+                  type: 'image_url',
+                  image_url: {
+                    url: `data:${mediaType};base64,${base64}`,
+                  },
+                },
+              ],
+            },
+          ],
+          max_completion_tokens: 4000,
+        }),
+      });
 
       if (!response.ok) {
         const error = await response.text();
@@ -409,7 +414,7 @@ export class DocumentProcessorService {
 
       if (!response.ok) {
         const error = await response.text();
-        console.error(`[OCR] OpenAI API error:`, error);
+        console.error('[OCR] OpenAI API error:', error);
         throw new Error(`OpenAI API error: ${response.status} ${error}`);
       }
 
@@ -417,15 +422,18 @@ export class DocumentProcessorService {
       const extractedText = data.choices?.[0]?.message?.content || '';
 
       if (!extractedText || extractedText.trim().length < 50) {
-        console.warn(`[OCR] Extraction produced minimal text (${extractedText.length} chars)`);
+        console.warn(
+          `[OCR] Extraction produced minimal text (${extractedText.length} chars)`,
+        );
         throw new Error('OCR produced insufficient text content');
       }
 
-      console.log(`[OCR] Successfully extracted ${extractedText.length} characters`);
+      console.log(
+        `[OCR] Successfully extracted ${extractedText.length} characters`,
+      );
       return extractedText;
-
     } catch (error: any) {
-      console.error(`[OCR] Failed to extract text from PDF:`, error.message);
+      console.error('[OCR] Failed to extract text from PDF:', error.message);
       throw new Error(`OCR failed: ${error.message}`);
     }
   }
@@ -536,12 +544,10 @@ export class DocumentProcessorService {
     const normalized = text.replace(/\r\n/g, '\n');
     const formFeedSplit = normalized.split('\f').map((page) => page.trim());
     if (formFeedSplit.length > 1) {
-      return formFeedSplit
-        .filter(Boolean)
-        .map((pageText, index) => ({
-          pageNumber: index + 1,
-          text: pageText,
-        }));
+      return formFeedSplit.filter(Boolean).map((pageText, index) => ({
+        pageNumber: index + 1,
+        text: pageText,
+      }));
     }
 
     const pages = pageCount && pageCount > 1 ? pageCount : 1;

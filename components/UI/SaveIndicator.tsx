@@ -66,9 +66,7 @@ export const SaveIndicator: React.FC<SaveIndicatorProps> = ({
       )}
 
       {state === 'idle' && lastSaved && (
-        <div className="text-sm text-slate-500 px-4 py-2">
-          Saved {timeAgo}
-        </div>
+        <div className="text-sm text-slate-500 px-4 py-2">Saved {timeAgo}</div>
       )}
     </div>
   );

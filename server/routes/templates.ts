@@ -100,7 +100,9 @@ router.post('/:id/install', async (req, res) => {
     res.json(newBot);
   } catch (error: any) {
     console.error('Template install error:', error);
-    res.status(500).json({ error: `Failed to install template: ${error.message}` });
+    res
+      .status(500)
+      .json({ error: `Failed to install template: ${error.message}` });
   }
 });
 

@@ -180,11 +180,14 @@ export class WebScraperService {
       const reader = new Readability(dom.window.document);
       const article = reader.parse();
 
-      if (article && article.textContent) {
+      if (article?.textContent) {
         return article.textContent.replace(/\s+/g, ' ').trim();
       }
     } catch (error) {
-      console.warn('Readability extraction failed, falling back to regex:', error);
+      console.warn(
+        'Readability extraction failed, falling back to regex:',
+        error,
+      );
     }
 
     // Fallback to regex-based extraction
@@ -270,7 +273,7 @@ export class WebScraperService {
         }
 
         // Exponential backoff: 1s, 2s, 4s
-        const delay = 1000 * Math.pow(2, i);
+        const delay = 1000 * 2 ** i;
         console.log(`Retry ${i + 1}/${retries} for ${url} after ${delay}ms`);
         await new Promise((resolve) => setTimeout(resolve, delay));
       }

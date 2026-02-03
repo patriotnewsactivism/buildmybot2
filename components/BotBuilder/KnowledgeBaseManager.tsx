@@ -67,7 +67,7 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
     chunks: 0,
     totalTokens: 0,
   });
-  
+
   const [previewContent, setPreviewContent] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
   const [loadingPreview, setLoadingPreview] = useState(false);
@@ -271,9 +271,12 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
     setLoadingPreview(true);
     setShowPreview(true);
     try {
-      const response = await fetch(buildApiUrl(`/knowledge/preview/${sourceId}`), {
-        credentials: 'include',
-      });
+      const response = await fetch(
+        buildApiUrl(`/knowledge/preview/${sourceId}`),
+        {
+          credentials: 'include',
+        },
+      );
       if (response.ok) {
         const data = await response.json();
         setPreviewContent(data.content);
@@ -596,8 +599,13 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[80vh] flex flex-col">
             <div className="p-4 border-b border-slate-200 flex justify-between items-center">
-              <h3 className="font-semibold text-lg text-slate-900">Document Preview</h3>
-              <button onClick={() => setShowPreview(false)} className="text-slate-500 hover:text-slate-700">
+              <h3 className="font-semibold text-lg text-slate-900">
+                Document Preview
+              </h3>
+              <button
+                onClick={() => setShowPreview(false)}
+                className="text-slate-500 hover:text-slate-700"
+              >
                 <X size={20} />
               </button>
             </div>

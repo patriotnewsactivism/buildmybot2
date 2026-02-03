@@ -1,8 +1,8 @@
-import twilio from 'twilio';
-import { db } from '../../db';
-import { voiceAgents, voiceCalls } from '../../../shared/schema';
 import { eq } from 'drizzle-orm';
+import twilio from 'twilio';
 import { v4 as uuidv4 } from 'uuid';
+import { voiceAgents, voiceCalls } from '../../../shared/schema';
+import { db } from '../../db';
 
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
@@ -18,16 +18,19 @@ export class TwilioService {
    * Provisions a new phone number for a voice agent
    * Automatically assigns when voice agent is enabled
    */
-  async provisionPhoneNumber(voiceAgentId: string, areaCode?: string): Promise<string> {
+  async provisionPhoneNumber(
+    voiceAgentId: string,
+    areaCode?: string,
+  ): Promise<string> {
     if (!client) {
       throw new Error('Twilio client not initialized');
     }
 
     try {
       // Search for available phone numbers in the specified area code or default to US
-      const availableNumbers = await client.availablePhoneNumbers('US')
-        .local
-        .list({
+      const availableNumbers = await client
+        .availablePhoneNumbers('US')
+        .local.list({
           areaCode: areaCode || undefined,
           voiceEnabled: true,
           limit: 1,
@@ -49,7 +52,8 @@ export class TwilioService {
       });
 
       // Update voice agent with phone number
-      await db.update(voiceAgents)
+      await db
+        .update(voiceAgents)
         .set({
           phoneNumber: purchasedNumber.phoneNumber,
           twilioSid: purchasedNumber.sid,
@@ -85,12 +89,15 @@ export class TwilioService {
    */
   generateTwiML(message: string, voiceId?: string): string {
     const twiml = new twilio.twiml.VoiceResponse();
-    
+
     // We'll use Cartesia for TTS, so we play the generated audio URL
     // For now, use Twilio's built-in TTS as fallback
-    twiml.say({
-      voice: voiceId || 'Polly.Joanna',
-    }, message);
+    twiml.say(
+      {
+        voice: voiceId || 'Polly.Joanna',
+      },
+      message,
+    );
 
     twiml.gather({
       input: ['speech'],

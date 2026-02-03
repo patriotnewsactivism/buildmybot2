@@ -19,12 +19,15 @@ interface MetricCardProps {
   status?: string;
 }
 
-const variantStyles: Record<MetricVariant, {
-  border: string;
-  iconBg: string;
-  iconColor: string;
-  valueColor: string;
-}> = {
+const variantStyles: Record<
+  MetricVariant,
+  {
+    border: string;
+    iconBg: string;
+    iconColor: string;
+    valueColor: string;
+  }
+> = {
   savings: {
     border: 'border-green-200',
     iconBg: 'bg-green-100',
@@ -77,7 +80,9 @@ export const MetricCard: React.FC<MetricCardProps> = ({
       ) : (
         <>
           {/* Icon */}
-          <div className={`${styles.iconBg} w-10 h-10 rounded-lg flex items-center justify-center mb-4`}>
+          <div
+            className={`${styles.iconBg} w-10 h-10 rounded-lg flex items-center justify-center mb-4`}
+          >
             <Icon className={styles.iconColor} size={20} />
           </div>
 
@@ -87,18 +92,14 @@ export const MetricCard: React.FC<MetricCardProps> = ({
           </div>
 
           {/* Label */}
-          <div className="text-sm font-medium text-slate-600 mb-2">
-            {label}
-          </div>
+          <div className="text-sm font-medium text-slate-600 mb-2">{label}</div>
 
           {/* Change Indicator */}
           {change && (
             <div className="flex items-center gap-2">
               <span
                 className={`text-xs font-semibold ${
-                  change.trend === 'up'
-                    ? 'text-green-600'
-                    : 'text-red-600'
+                  change.trend === 'up' ? 'text-green-600' : 'text-red-600'
                 }`}
               >
                 {change.trend === 'up' ? '↑' : '↓'} {Math.abs(change.value)}%
@@ -113,9 +114,7 @@ export const MetricCard: React.FC<MetricCardProps> = ({
 
           {/* Subtext */}
           {subtext && (
-            <div className="text-xs text-slate-500 mt-2">
-              {subtext}
-            </div>
+            <div className="text-xs text-slate-500 mt-2">{subtext}</div>
           )}
         </>
       )}

@@ -16,7 +16,9 @@ vi.mock('../../../services/dbService', () => ({
     getActiveImpersonations: vi.fn().mockResolvedValue([]),
     getUser: vi.fn(),
     endImpersonation: vi.fn().mockResolvedValue(true),
-    getNotifications: vi.fn().mockResolvedValue({ unread: [], recent: [], unreadCount: 0 }),
+    getNotifications: vi
+      .fn()
+      .mockResolvedValue({ unread: [], recent: [], unreadCount: 0 }),
     markNotificationViewed: vi.fn(),
     markAllNotificationsViewed: vi.fn(),
     acknowledgeNotification: vi.fn(),

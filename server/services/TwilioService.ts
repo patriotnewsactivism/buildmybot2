@@ -34,7 +34,7 @@ export class TwilioService {
   ): Promise<AvailableNumber[]> {
     try {
       const options: any = { limit };
-      if (areaCode) options.areaCode = parseInt(areaCode, 10);
+      if (areaCode) options.areaCode = Number.parseInt(areaCode, 10);
 
       const local = await this.client
         .availablePhoneNumbers(countryCode)
@@ -94,7 +94,9 @@ export class TwilioService {
       const updateConfig: any = { voiceUrl };
       if (smsUrl) updateConfig.smsUrl = smsUrl;
 
-      await this.client.incomingPhoneNumbers(phoneNumberSid).update(updateConfig);
+      await this.client
+        .incomingPhoneNumbers(phoneNumberSid)
+        .update(updateConfig);
     } catch (error) {
       console.error('Error configuring number:', error);
       throw new Error('Failed to configure phone number');

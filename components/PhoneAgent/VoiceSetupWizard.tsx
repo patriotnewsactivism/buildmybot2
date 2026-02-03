@@ -231,13 +231,15 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
       alert('Please enter a valid 3-digit area code');
       return;
     }
-    
+
     setIsSearching(true);
     setAvailableNumbers([]);
     setPurchaseError(null);
 
     try {
-      const response = await fetch(`/api/phone/available?countryCode=US&areaCode=${searchAreaCode}`);
+      const response = await fetch(
+        `/api/phone/available?countryCode=US&areaCode=${searchAreaCode}`,
+      );
       if (!response.ok) throw new Error('Failed to search numbers');
       const data = await response.json();
       setAvailableNumbers(data);
@@ -249,7 +251,11 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
   };
 
   const handlePurchaseNumber = async (phoneNumber: string) => {
-    if (!confirm(`Are you sure you want to purchase ${phoneNumber}? This will be billed to your account.`)) {
+    if (
+      !confirm(
+        `Are you sure you want to purchase ${phoneNumber}? This will be billed to your account.`,
+      )
+    ) {
       return;
     }
 
@@ -260,7 +266,10 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
       const response = await fetch('/api/phone/purchase', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phoneNumber, friendlyName: `Voice Agent - ${user.companyName || 'Bot'}` }),
+        body: JSON.stringify({
+          phoneNumber,
+          friendlyName: `Voice Agent - ${user.companyName || 'Bot'}`,
+        }),
       });
 
       if (!response.ok) {
@@ -272,7 +281,7 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
       setConfig({
         ...config,
         phoneNumber: data.phoneNumber,
-        twilioSid: data.sid
+        twilioSid: data.sid,
       });
       alert('Phone number purchased successfully!');
     } catch (err: any) {
@@ -283,7 +292,11 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
   };
 
   const handleReleaseNumber = async () => {
-     if (!confirm('Are you sure you want to release this phone number? You will lose access to it.')) {
+    if (
+      !confirm(
+        'Are you sure you want to release this phone number? You will lose access to it.',
+      )
+    ) {
       return;
     }
 
@@ -637,40 +650,46 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
               </div>
 
               {purchaseError && (
-                 <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm border border-red-200">
-                   {purchaseError}
-                 </div>
+                <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm border border-red-200">
+                  {purchaseError}
+                </div>
               )}
 
               {config.phoneNumber ? (
-                 <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-center">
-                   <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                     <CheckCircle className="text-green-600" size={24} />
-                   </div>
-                   <h4 className="text-lg font-bold text-slate-900 mb-1">
-                     {config.phoneNumber}
-                   </h4>
-                   <p className="text-sm text-slate-600 mb-4">
-                     Active and routed to your voice agent
-                   </p>
-                   <button
-                     type="button"
-                     onClick={handleReleaseNumber}
-                     className="text-red-600 hover:text-red-700 text-sm font-medium"
-                   >
-                     Release Number
-                   </button>
-                 </div>
+                <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-center">
+                  <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <CheckCircle className="text-green-600" size={24} />
+                  </div>
+                  <h4 className="text-lg font-bold text-slate-900 mb-1">
+                    {config.phoneNumber}
+                  </h4>
+                  <p className="text-sm text-slate-600 mb-4">
+                    Active and routed to your voice agent
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleReleaseNumber}
+                    className="text-red-600 hover:text-red-700 text-sm font-medium"
+                  >
+                    Release Number
+                  </button>
+                </div>
               ) : (
                 <>
                   <div className="flex gap-2">
                     <div className="flex-1">
-                      <label htmlFor="area-code" className="sr-only">Area Code</label>
+                      <label htmlFor="area-code" className="sr-only">
+                        Area Code
+                      </label>
                       <input
                         id="area-code"
                         type="text"
                         value={searchAreaCode}
-                        onChange={(e) => setSearchAreaCode(e.target.value.replace(/\D/g, '').slice(0, 3))}
+                        onChange={(e) =>
+                          setSearchAreaCode(
+                            e.target.value.replace(/\D/g, '').slice(0, 3),
+                          )
+                        }
                         placeholder="Area Code (e.g. 415)"
                         className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
                       />
@@ -681,7 +700,11 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
                       disabled={isSearching || searchAreaCode.length < 3}
                       className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
                     >
-                      {isSearching ? <Loader size={16} className="animate-spin" /> : <Search size={16} />}
+                      {isSearching ? (
+                        <Loader size={16} className="animate-spin" />
+                      ) : (
+                        <Search size={16} />
+                      )}
                       Search
                     </button>
                   </div>
@@ -689,25 +712,34 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
                   {availableNumbers.length > 0 && (
                     <div className="border border-slate-200 rounded-lg overflow-hidden max-h-60 overflow-y-auto">
                       {availableNumbers.map((num) => (
-                        <div key={num.phoneNumber} className="flex items-center justify-between p-3 border-b border-slate-100 last:border-0 hover:bg-slate-50">
-                           <div>
-                             <p className="font-medium text-slate-900">{num.friendlyName}</p>
-                             <p className="text-xs text-slate-500">{num.locality}, {num.region}</p>
-                           </div>
-                           <button
-                             type="button"
-                             onClick={() => handlePurchaseNumber(num.phoneNumber)}
-                             disabled={isPurchasing}
-                             className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 disabled:opacity-50 flex items-center gap-1"
-                           >
-                             <ShoppingBag size={14} />
-                             Buy
-                           </button>
+                        <div
+                          key={num.phoneNumber}
+                          className="flex items-center justify-between p-3 border-b border-slate-100 last:border-0 hover:bg-slate-50"
+                        >
+                          <div>
+                            <p className="font-medium text-slate-900">
+                              {num.friendlyName}
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              {num.locality}, {num.region}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handlePurchaseNumber(num.phoneNumber)
+                            }
+                            disabled={isPurchasing}
+                            className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 disabled:opacity-50 flex items-center gap-1"
+                          >
+                            <ShoppingBag size={14} />
+                            Buy
+                          </button>
                         </div>
                       ))}
                     </div>
                   )}
-                  
+
                   <div className="text-xs text-slate-500 mt-2 text-center">
                     Phone numbers are provided via Twilio. Standard rates apply.
                   </div>

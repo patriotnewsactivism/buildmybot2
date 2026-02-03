@@ -111,15 +111,16 @@ export const PricingConfigurator: React.FC = () => {
 
   const voiceMarkup = calculateMarkup(
     tier.wholesaleVoicePerMinute,
-    tempTier.retailVoicePerMinute
+    tempTier.retailVoicePerMinute,
   );
 
   const tokenMarkup = calculateMarkup(
     tier.wholesaleTokensPer1k,
-    tempTier.retailTokensPer1k
+    tempTier.retailTokensPer1k,
   );
 
-  const voiceProfit = tempTier.retailVoicePerMinute - tier.wholesaleVoicePerMinute;
+  const voiceProfit =
+    tempTier.retailVoicePerMinute - tier.wholesaleVoicePerMinute;
   const tokenProfit = tempTier.retailTokensPer1k - tier.wholesaleTokensPer1k;
 
   const markupValid = voiceMarkup <= tier.maxMarkupPercentage;
@@ -177,7 +178,9 @@ export const PricingConfigurator: React.FC = () => {
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start space-x-3">
           <AlertCircle className="text-red-600 flex-shrink-0" size={20} />
           <div>
-            <p className="text-sm font-medium text-red-900">Markup Exceeds Limit</p>
+            <p className="text-sm font-medium text-red-900">
+              Markup Exceeds Limit
+            </p>
             <p className="text-xs text-red-700 mt-1">
               Your current markup exceeds the maximum allowed{' '}
               {tier.maxMarkupPercentage.toFixed(0)}%. Please adjust your retail
@@ -230,7 +233,8 @@ export const PricingConfigurator: React.FC = () => {
                   onChange={(e) =>
                     setTempTier((prev) => ({
                       ...prev,
-                      retailVoicePerMinute: parseFloat(e.target.value) || 0,
+                      retailVoicePerMinute:
+                        Number.parseFloat(e.target.value) || 0,
                     }))
                   }
                   step="0.01"
@@ -238,7 +242,9 @@ export const PricingConfigurator: React.FC = () => {
                   className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                 />
               </div>
-              <p className="text-xs text-slate-500 mt-1">Per minute (editable)</p>
+              <p className="text-xs text-slate-500 mt-1">
+                Per minute (editable)
+              </p>
             </div>
           </div>
 
@@ -290,7 +296,9 @@ export const PricingConfigurator: React.FC = () => {
                   className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg bg-slate-50 text-slate-500"
                 />
               </div>
-              <p className="text-xs text-slate-500 mt-1">Per 1,000 tokens (fixed)</p>
+              <p className="text-xs text-slate-500 mt-1">
+                Per 1,000 tokens (fixed)
+              </p>
             </div>
 
             <div>
@@ -308,7 +316,7 @@ export const PricingConfigurator: React.FC = () => {
                   onChange={(e) =>
                     setTempTier((prev) => ({
                       ...prev,
-                      retailTokensPer1k: parseFloat(e.target.value) || 0,
+                      retailTokensPer1k: Number.parseFloat(e.target.value) || 0,
                     }))
                   }
                   step="0.01"
@@ -337,7 +345,8 @@ export const PricingConfigurator: React.FC = () => {
                   ${tokenProfit.toFixed(4)}
                 </p>
                 <p className="text-xs text-blue-600">
-                  Example: 100k tokens = ${(tokenProfit * 100).toFixed(2)} profit
+                  Example: 100k tokens = ${(tokenProfit * 100).toFixed(2)}{' '}
+                  profit
                 </p>
               </div>
             </div>

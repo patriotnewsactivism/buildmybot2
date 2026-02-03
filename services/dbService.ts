@@ -1110,8 +1110,8 @@ export const dbService = {
   acknowledgeNotification: async (notificationId: string) => {
     const response = await request(
       `/notifications/${notificationId}/acknowledge`,
-      { method: 'POST',
-    });
+      { method: 'POST' },
+    );
     if (!response.ok) throw new Error('Failed to acknowledge notification');
     return response.json();
   },

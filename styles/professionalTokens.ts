@@ -59,12 +59,12 @@ export const typography = {
     mono: '"SF Mono", Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
   },
   fontSize: {
-    xs: '0.75rem',    // 12px
-    sm: '0.875rem',   // 14px
-    base: '1rem',     // 16px
-    lg: '1.125rem',   // 18px
-    xl: '1.25rem',    // 20px
-    '2xl': '1.5rem',  // 24px
+    xs: '0.75rem', // 12px
+    sm: '0.875rem', // 14px
+    base: '1rem', // 16px
+    lg: '1.125rem', // 18px
+    xl: '1.25rem', // 20px
+    '2xl': '1.5rem', // 24px
     '3xl': '1.875rem', // 30px
     '4xl': '2.25rem', // 36px
   },
@@ -79,16 +79,16 @@ export const typography = {
 // Spacing - Consistent 8px grid
 export const spacing = {
   0: '0',
-  1: '0.25rem',  // 4px
-  2: '0.5rem',   // 8px
-  3: '0.75rem',  // 12px
-  4: '1rem',     // 16px
-  5: '1.25rem',  // 20px
-  6: '1.5rem',   // 24px
-  8: '2rem',     // 32px
-  10: '2.5rem',  // 40px
-  12: '3rem',    // 48px
-  16: '4rem',    // 64px
+  1: '0.25rem', // 4px
+  2: '0.5rem', // 8px
+  3: '0.75rem', // 12px
+  4: '1rem', // 16px
+  5: '1.25rem', // 20px
+  6: '1.5rem', // 24px
+  8: '2rem', // 32px
+  10: '2.5rem', // 40px
+  12: '3rem', // 48px
+  16: '4rem', // 64px
 };
 
 // Shadows - Subtle, professional
@@ -103,36 +103,44 @@ export const shadows = {
 // Border Radius - Clean, modern
 export const borderRadius = {
   none: '0',
-  sm: '0.25rem',   // 4px
+  sm: '0.25rem', // 4px
   base: '0.375rem', // 6px
-  md: '0.5rem',    // 8px
-  lg: '0.75rem',   // 12px
-  xl: '1rem',      // 16px
+  md: '0.5rem', // 8px
+  lg: '0.75rem', // 12px
+  xl: '1rem', // 16px
   full: '9999px',
 };
 
 // Utility Classes
 export const utils = {
   // Primary button
-  btnPrimary: 'bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded-md shadow-sm transition-colors duration-150',
+  btnPrimary:
+    'bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded-md shadow-sm transition-colors duration-150',
 
   // Secondary button
-  btnSecondary: 'bg-white hover:bg-slate-50 text-slate-700 font-semibold px-4 py-2 rounded-md border border-slate-300 shadow-sm transition-colors duration-150',
+  btnSecondary:
+    'bg-white hover:bg-slate-50 text-slate-700 font-semibold px-4 py-2 rounded-md border border-slate-300 shadow-sm transition-colors duration-150',
 
   // Outline button
-  btnOutline: 'bg-transparent hover:bg-slate-50 text-blue-600 font-semibold px-4 py-2 rounded-md border border-blue-600 transition-colors duration-150',
+  btnOutline:
+    'bg-transparent hover:bg-slate-50 text-blue-600 font-semibold px-4 py-2 rounded-md border border-blue-600 transition-colors duration-150',
 
   // Card
   card: 'bg-white rounded-lg border border-slate-200 shadow-sm',
 
   // Input
-  input: 'w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent',
+  input:
+    'w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent',
 
   // Badge - Status
-  badgeSuccess: 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800',
-  badgeWarning: 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800',
-  badgeDanger: 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800',
-  badgeInfo: 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800',
+  badgeSuccess:
+    'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800',
+  badgeWarning:
+    'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800',
+  badgeDanger:
+    'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800',
+  badgeInfo:
+    'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800',
 
   // Section header
   sectionHeader: 'text-slate-900 font-semibold text-lg mb-4',

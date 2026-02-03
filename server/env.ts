@@ -5,7 +5,7 @@ import path from 'node:path';
 function loadEnv(filePath: string, override = true) {
   if (fs.existsSync(filePath)) {
     const content = fs.readFileSync(filePath, 'utf-8');
-    content.split(/\r?\n/).forEach(line => {
+    content.split(/\r?\n/).forEach((line) => {
       // Remove comments and whitespace
       const trimmedLine = line.trim();
       if (!trimmedLine || trimmedLine.startsWith('#')) return;
@@ -16,7 +16,7 @@ function loadEnv(filePath: string, override = true) {
         let value = match[2].trim();
         // Remove surrounding quotes
         value = value.replace(/^(['"])(.*)\1$/, '$2');
-        
+
         if (override || !process.env[key]) {
           process.env[key] = value;
         }
@@ -30,10 +30,10 @@ loadEnv(path.resolve(process.cwd(), '.env'));
 loadEnv(path.resolve(process.cwd(), '.env.local'), true);
 
 if (process.env.DATABASE_URL) {
-    const url = process.env.DATABASE_URL;
-    console.log(`Loaded DATABASE_URL: ${url.substring(0, 20)}...`);
+  const url = process.env.DATABASE_URL;
+  console.log(`Loaded DATABASE_URL: ${url.substring(0, 20)}...`);
 } else {
-    console.log('DATABASE_URL NOT FOUND in env');
+  console.log('DATABASE_URL NOT FOUND in env');
 }
 
 export const env = {

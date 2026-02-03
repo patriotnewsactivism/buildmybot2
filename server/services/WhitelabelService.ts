@@ -1,4 +1,5 @@
 import { eq } from 'drizzle-orm';
+import nodemailer from 'nodemailer';
 import { v4 as uuid } from 'uuid';
 import {
   type InsertOrganizationBranding,
@@ -6,7 +7,6 @@ import {
 } from '../../shared/billing-schema';
 import { db } from '../db';
 import { billingService } from './BillingService';
-import nodemailer from 'nodemailer';
 
 export class WhitelabelService {
   async getBranding(organizationId: string) {
@@ -95,7 +95,7 @@ export class WhitelabelService {
 
   async updateSmtpConfig(
     organizationId: string,
-    smtpConfig: any // Should ideally type this
+    smtpConfig: any, // Should ideally type this
   ) {
     return this.createOrUpdateBranding(organizationId, { smtpConfig });
   }
@@ -112,9 +112,14 @@ export class WhitelabelService {
       .where(eq(organizationBranding.organizationId, organizationId));
   }
 
-  async sendWhitelabeledEmail(organizationId: string, to: string, subject: string, html: string) {
+  async sendWhitelabeledEmail(
+    organizationId: string,
+    to: string,
+    subject: string,
+    html: string,
+  ) {
     const branding = await this.getBranding(organizationId);
-    
+
     // Default transport (system)
     let transporter = nodemailer.createTransport({
       // Configure default system transport here from env vars

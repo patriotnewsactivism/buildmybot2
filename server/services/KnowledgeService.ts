@@ -22,7 +22,10 @@ interface SearchMetrics {
 }
 
 // Simple in-memory cache for search results
-const searchCache = new Map<string, { results: KnowledgeSearchResult[]; timestamp: number }>();
+const searchCache = new Map<
+  string,
+  { results: KnowledgeSearchResult[]; timestamp: number }
+>();
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 export class KnowledgeService {
@@ -34,7 +37,10 @@ export class KnowledgeService {
     botId: string,
     query: string,
     limit = 5,
-    options?: { useCache?: boolean; method?: 'auto' | 'vector' | 'keyword' | 'hybrid' },
+    options?: {
+      useCache?: boolean;
+      method?: 'auto' | 'vector' | 'keyword' | 'hybrid';
+    },
   ): Promise<KnowledgeSearchResult[]> {
     const startTime = Date.now();
     const useCache = options?.useCache !== false;
@@ -50,16 +56,40 @@ export class KnowledgeService {
       }
     }
 
-    console.log(`[Search] Query: "${query.slice(0, 100)}..." (method: ${method})`);
+    console.log(
+      `[Search] Query: "${query.slice(0, 100)}..." (method: ${method})`,
+    );
 
     const queryLower = query.toLowerCase();
     const queryWords = queryLower.split(/\s+/).filter((w) => w.length > 2);
     const importantWords = queryWords.filter(
       (w) =>
         ![
-          'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all',
-          'can', 'her', 'was', 'one', 'our', 'out', 'has', 'have',
-          'with', 'this', 'that', 'what', 'when', 'where', 'how', 'why', 'which',
+          'the',
+          'and',
+          'for',
+          'are',
+          'but',
+          'not',
+          'you',
+          'all',
+          'can',
+          'her',
+          'was',
+          'one',
+          'our',
+          'out',
+          'has',
+          'have',
+          'with',
+          'this',
+          'that',
+          'what',
+          'when',
+          'where',
+          'how',
+          'why',
+          'which',
         ].includes(w),
     );
 
@@ -78,9 +108,14 @@ export class KnowledgeService {
       );
 
       if (vectorResults.length > 0) {
-        console.log(`[Search] Vector search returned ${vectorResults.length} results`);
+        console.log(
+          `[Search] Vector search returned ${vectorResults.length} results`,
+        );
 
-        if (method === 'vector' || (method === 'auto' && vectorResults.length >= limit)) {
+        if (
+          method === 'vector' ||
+          (method === 'auto' && vectorResults.length >= limit)
+        ) {
           // Vector search sufficient
           results = vectorResults.slice(0, limit);
 
@@ -106,10 +141,16 @@ export class KnowledgeService {
             limit * 2,
           );
 
-          console.log(`[Search] Keyword search returned ${keywordResults.length} results`);
+          console.log(
+            `[Search] Keyword search returned ${keywordResults.length} results`,
+          );
 
           // Merge and re-rank using hybrid scoring
-          results = KnowledgeService.mergeResults(vectorResults, keywordResults, limit);
+          results = KnowledgeService.mergeResults(
+            vectorResults,
+            keywordResults,
+            limit,
+          );
 
           // Cache results
           if (useCache) {
@@ -123,12 +164,14 @@ export class KnowledgeService {
           return results;
         }
       } else {
-        console.warn(`[Search] Vector search returned no results, falling back to keyword`);
+        console.warn(
+          '[Search] Vector search returned no results, falling back to keyword',
+        );
       }
     }
 
     // Fallback to keyword search
-    console.log(`[Search] Using keyword search`);
+    console.log('[Search] Using keyword search');
     results = await KnowledgeService.keywordSearch(
       botId,
       query,
@@ -145,7 +188,9 @@ export class KnowledgeService {
     }
 
     const duration = Date.now() - startTime;
-    console.log(`[Search] Completed in ${duration}ms (keyword only, ${results.length} results)`);
+    console.log(
+      `[Search] Completed in ${duration}ms (keyword only, ${results.length} results)`,
+    );
     return results;
   }
 
@@ -233,7 +278,11 @@ export class KnowledgeService {
     const manualChunks: any[] = [];
     if (bot && Array.isArray(bot.knowledgeBase)) {
       bot.knowledgeBase.forEach((item: any, index: number) => {
-        if (typeof item === 'string' && item.trim().length > 0 && !item.startsWith('http')) {
+        if (
+          typeof item === 'string' &&
+          item.trim().length > 0 &&
+          !item.startsWith('http')
+        ) {
           manualChunks.push({
             id: `manual-${index}`,
             content: item,
@@ -258,7 +307,8 @@ export class KnowledgeService {
       }
 
       // Word-level matching with BM25-inspired scoring
-      const wordsToSearch = importantWords.length > 0 ? importantWords : queryWords;
+      const wordsToSearch =
+        importantWords.length > 0 ? importantWords : queryWords;
       let matchedWords = 0;
 
       for (const word of wordsToSearch) {
@@ -274,7 +324,8 @@ export class KnowledgeService {
             // BM25-like: log(1 + termFreq) with length normalization
             const avgLength = 500; // Estimated average chunk length
             const lengthNorm = contentLength / avgLength;
-            const tfScore = (termFreq * (1.5 + 1)) / (termFreq + 1.5 * lengthNorm);
+            const tfScore =
+              (termFreq * (1.5 + 1)) / (termFreq + 1.5 * lengthNorm);
             score += tfScore * 10;
           } else {
             // Substring match (lower weight)
@@ -561,7 +612,10 @@ When answering:
   /**
    * Phase 3: Backfill missing embeddings for a bot
    */
-  static async backfillEmbeddings(botId: string, batchSize = 50): Promise<{
+  static async backfillEmbeddings(
+    botId: string,
+    batchSize = 50,
+  ): Promise<{
     success: boolean;
     processed: number;
     failed: number;
@@ -576,16 +630,11 @@ When answering:
         content: knowledgeChunks.content,
       })
       .from(knowledgeChunks)
-      .where(
-        and(
-          eq(knowledgeChunks.botId, botId),
-          sql`embedding IS NULL`,
-        ),
-      )
+      .where(and(eq(knowledgeChunks.botId, botId), sql`embedding IS NULL`))
       .limit(batchSize);
 
     if (chunksWithoutEmbeddings.length === 0) {
-      console.log(`[Backfill] No missing embeddings found`);
+      console.log('[Backfill] No missing embeddings found');
       return {
         success: true,
         processed: 0,
@@ -594,7 +643,9 @@ When answering:
       };
     }
 
-    console.log(`[Backfill] Found ${chunksWithoutEmbeddings.length} chunks without embeddings`);
+    console.log(
+      `[Backfill] Found ${chunksWithoutEmbeddings.length} chunks without embeddings`,
+    );
 
     let processed = 0;
     let failed = 0;
@@ -621,14 +672,23 @@ When answering:
           });
 
           processed += batch.length;
-          console.log(`[Backfill] Processed ${processed}/${chunksWithoutEmbeddings.length} chunks`);
+          console.log(
+            `[Backfill] Processed ${processed}/${chunksWithoutEmbeddings.length} chunks`,
+          );
         } else {
-          console.error(`[Backfill] Embedding generation failed for batch ${i / EMBED_BATCH_SIZE + 1}`);
+          console.error(
+            `[Backfill] Embedding generation failed for batch ${i / EMBED_BATCH_SIZE + 1}`,
+          );
           failed += batch.length;
-          errors.push(`Batch ${i / EMBED_BATCH_SIZE + 1}: Embedding generation failed`);
+          errors.push(
+            `Batch ${i / EMBED_BATCH_SIZE + 1}: Embedding generation failed`,
+          );
         }
       } catch (error: any) {
-        console.error(`[Backfill] Error processing batch ${i / EMBED_BATCH_SIZE + 1}:`, error.message);
+        console.error(
+          `[Backfill] Error processing batch ${i / EMBED_BATCH_SIZE + 1}:`,
+          error.message,
+        );
         failed += batch.length;
         errors.push(`Batch ${i / EMBED_BATCH_SIZE + 1}: ${error.message}`);
       }
@@ -639,7 +699,9 @@ When answering:
       }
     }
 
-    console.log(`[Backfill] Completed: ${processed} processed, ${failed} failed`);
+    console.log(
+      `[Backfill] Completed: ${processed} processed, ${failed} failed`,
+    );
 
     return {
       success: failed === 0,

@@ -1,5 +1,9 @@
 import { Router } from 'express';
-import { authenticate, loadOrganizationContext, tenantIsolation } from '../middleware';
+import {
+  authenticate,
+  loadOrganizationContext,
+  tenantIsolation,
+} from '../middleware';
 import { searchService } from '../services/SearchService';
 
 const router = Router();
@@ -16,7 +20,7 @@ router.get('/', async (req: any, res) => {
 
     const orgId = req.organization.id;
     const results = await searchService.unifiedSearch(orgId, q);
-    
+
     res.json(results);
   } catch (error: any) {
     res.status(500).json({ error: error.message });

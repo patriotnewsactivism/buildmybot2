@@ -8,9 +8,7 @@ export class EmbeddingService {
   });
 
   static isConfigured() {
-    return Boolean(
-      env.AI_INTEGRATIONS_OPENAI_API_KEY || env.OPENAI_API_KEY,
-    );
+    return Boolean(env.AI_INTEGRATIONS_OPENAI_API_KEY || env.OPENAI_API_KEY);
   }
 
   static async embedText(text: string): Promise<number[] | null> {

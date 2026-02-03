@@ -337,9 +337,7 @@ export const FeaturesPage: React.FC = () => {
     return (
       <span
         className={
-          highlight
-            ? 'text-emerald-400 font-semibold'
-            : 'text-slate-400'
+          highlight ? 'text-emerald-400 font-semibold' : 'text-slate-400'
         }
       >
         {value}

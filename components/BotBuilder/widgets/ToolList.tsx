@@ -129,10 +129,7 @@ export const ToolList: React.FC<ToolListProps> = ({
               <p className="font-medium text-slate-900 truncate">{tool.name}</p>
               {tool.requiresApproval && (
                 <span title="Requires approval">
-                  <Shield
-                    size={14}
-                    className="text-orange-600 flex-shrink-0"
-                  />
+                  <Shield size={14} className="text-orange-600 flex-shrink-0" />
                 </span>
               )}
             </div>
@@ -279,8 +276,8 @@ export const ToolList: React.FC<ToolListProps> = ({
             No Tools Yet
           </h3>
           <p className="text-sm text-slate-500 mb-6 max-w-md mx-auto">
-            Create your first tool to enable your bot to take actions like calling
-            APIs, sending emails, or updating databases.
+            Create your first tool to enable your bot to take actions like
+            calling APIs, sending emails, or updating databases.
           </p>
           <button
             type="button"

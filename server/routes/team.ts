@@ -1,9 +1,13 @@
+import { and, eq } from 'drizzle-orm';
 import { Router } from 'express';
-import { authenticate, loadOrganizationContext, tenantIsolation } from '../middleware';
+import { v4 as uuidv4 } from 'uuid';
 import { organizationMembers, users } from '../../shared/schema';
 import { db } from '../db';
-import { eq, and } from 'drizzle-orm';
-import { v4 as uuidv4 } from 'uuid';
+import {
+  authenticate,
+  loadOrganizationContext,
+  tenantIsolation,
+} from '../middleware';
 
 const router = Router();
 
@@ -23,12 +27,12 @@ router.get('/', async (req: any, res) => {
           name: users.name,
           email: users.email,
           avatarUrl: users.avatarUrl,
-        }
+        },
       })
       .from(organizationMembers)
       .innerJoin(users, eq(organizationMembers.userId, users.id))
       .where(eq(organizationMembers.organizationId, orgId));
-    
+
     res.json(members);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -47,16 +51,21 @@ router.post('/invite', async (req: any, res) => {
 
     const [user] = await db.select().from(users).where(eq(users.email, email));
     if (!user) {
-      return res.status(404).json({ error: 'User not found. They must sign up first.' });
+      return res
+        .status(404)
+        .json({ error: 'User not found. They must sign up first.' });
     }
 
     // Check if already member
-    const [existing] = await db.select().from(organizationMembers).where(
-      and(
-        eq(organizationMembers.organizationId, orgId),
-        eq(organizationMembers.userId, user.id)
-      )
-    );
+    const [existing] = await db
+      .select()
+      .from(organizationMembers)
+      .where(
+        and(
+          eq(organizationMembers.organizationId, orgId),
+          eq(organizationMembers.userId, user.id),
+        ),
+      );
 
     if (existing) {
       return res.status(400).json({ error: 'User is already a member' });
@@ -82,16 +91,18 @@ router.post('/invite', async (req: any, res) => {
 router.delete('/:memberId', async (req: any, res) => {
   try {
     const orgId = req.organization.id;
-    // Prevent removing self if owner? 
+    // Prevent removing self if owner?
     // Ideally check permissions here.
-    
-    await db.delete(organizationMembers).where(
-      and(
-        eq(organizationMembers.id, req.params.memberId),
-        eq(organizationMembers.organizationId, orgId)
-      )
-    );
-    
+
+    await db
+      .delete(organizationMembers)
+      .where(
+        and(
+          eq(organizationMembers.id, req.params.memberId),
+          eq(organizationMembers.organizationId, orgId),
+        ),
+      );
+
     res.json({ success: true });
   } catch (error: any) {
     res.status(500).json({ error: error.message });

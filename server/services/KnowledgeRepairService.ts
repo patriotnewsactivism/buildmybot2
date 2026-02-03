@@ -38,7 +38,8 @@ export class KnowledgeRepairService {
       else summary.skipped += 1;
     }
 
-    const embeddingBackfills = await KnowledgeRepairService.backfillEmbeddings();
+    const embeddingBackfills =
+      await KnowledgeRepairService.backfillEmbeddings();
     summary.embeddingBackfills = embeddingBackfills;
 
     return summary;
@@ -93,7 +94,10 @@ export class KnowledgeRepairService {
         chunkCount: sql<number>`COUNT(${knowledgeChunks.id})`,
       })
       .from(knowledgeSources)
-      .leftJoin(knowledgeChunks, eq(knowledgeChunks.sourceId, knowledgeSources.id))
+      .leftJoin(
+        knowledgeChunks,
+        eq(knowledgeChunks.sourceId, knowledgeSources.id),
+      )
       .where(eq(knowledgeSources.status, 'completed'))
       .groupBy(knowledgeSources.id)
       .having(sql`COUNT(${knowledgeChunks.id}) = 0`)
@@ -159,9 +163,7 @@ export class KnowledgeRepairService {
           source.id,
           source.botId,
           source.organizationId,
-        ).catch((error) =>
-          console.error('Repair crawl error:', error),
-        );
+        ).catch((error) => console.error('Repair crawl error:', error));
 
         await KnowledgeRepairService.bumpRetry(source.id, source.retryCount);
         return 'repaired';
@@ -312,7 +314,10 @@ export class KnowledgeRepairService {
       })
       .from(knowledgeChunks)
       .where(
-        and(eq(knowledgeChunks.sourceId, sourceId), sql`${knowledgeChunks.embedding} IS NULL`),
+        and(
+          eq(knowledgeChunks.sourceId, sourceId),
+          sql`${knowledgeChunks.embedding} IS NULL`,
+        ),
       );
 
     if (chunks.length === 0) return 0;
@@ -357,7 +362,9 @@ export class KnowledgeRepairService {
         .where(eq(knowledgeChunks.id, chunks[i].id));
     }
 
-    const sourceIds = [...new Set(chunks.map((chunk) => chunk.sourceId).filter(Boolean))];
+    const sourceIds = [
+      ...new Set(chunks.map((chunk) => chunk.sourceId).filter(Boolean)),
+    ];
     if (sourceIds.length > 0) {
       await db
         .update(knowledgeSources)

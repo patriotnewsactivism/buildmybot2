@@ -46,16 +46,21 @@ export const PartnerOversight: React.FC = () => {
     setLoading(true);
     try {
       // Fetch data independently
-      const partnersPromise = dbService.getAdminPartners().catch(e => {
+      const partnersPromise = dbService.getAdminPartners().catch((e) => {
         console.error('Partners fetch failed', e);
         return [];
       });
-      const leaderboardPromise = dbService.getAdminPartnerLeaderboard().catch(e => {
-        console.error('Leaderboard fetch failed', e);
-        return [];
-      });
+      const leaderboardPromise = dbService
+        .getAdminPartnerLeaderboard()
+        .catch((e) => {
+          console.error('Leaderboard fetch failed', e);
+          return [];
+        });
 
-      const [partnersData, leaderboardData] = await Promise.all([partnersPromise, leaderboardPromise]);
+      const [partnersData, leaderboardData] = await Promise.all([
+        partnersPromise,
+        leaderboardPromise,
+      ]);
 
       setPartners(partnersData);
       setLeaderboard(leaderboardData);

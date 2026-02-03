@@ -2,8 +2,8 @@ import { fileURLToPath } from 'node:url';
 import { eq } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
 import { organizationMembers, organizations, users } from '../../shared/schema';
-import { db } from '../db';
 import { ADMIN_USERS } from '../config/admins';
+import { db } from '../db';
 
 // Use centralized admin configuration from server/config/admins.ts
 const USER_ROLES = ADMIN_USERS;

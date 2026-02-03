@@ -7,14 +7,14 @@
 import { and, desc, eq } from 'drizzle-orm';
 import { v4 as uuid } from 'uuid';
 import {
+  type InsertActionExecutionLog,
+  type InsertToolDefinition,
   actionExecutionLog,
   botTools,
   toolDefinitions,
-  type InsertActionExecutionLog,
-  type InsertToolDefinition,
 } from '../../shared/schema-agentic-os';
 import { db } from '../db';
-import { encrypt, decrypt } from '../utils/encryption';
+import { decrypt, encrypt } from '../utils/encryption';
 
 export interface ToolExecutionContext {
   botId: string;
@@ -45,7 +45,7 @@ export class ToolExecutionService {
       approvalThreshold?: any;
       authType?: 'none' | 'api_key' | 'oauth2' | 'bearer';
       credentials?: string; // Will be encrypted
-    }
+    },
   ) {
     const id = uuid();
 
@@ -110,8 +110,8 @@ export class ToolExecutionService {
         and(
           eq(botTools.botId, botId),
           eq(botTools.enabled, true),
-          eq(toolDefinitions.active, true)
-        )
+          eq(toolDefinitions.active, true),
+        ),
       );
 
     // Format for OpenAI function calling
@@ -134,7 +134,7 @@ export class ToolExecutionService {
   async executeTool(
     toolId: string,
     parameters: Record<string, any>,
-    context: ToolExecutionContext
+    context: ToolExecutionContext,
   ): Promise<ToolExecutionResult> {
     const startTime = Date.now();
 
@@ -167,7 +167,7 @@ export class ToolExecutionService {
         // Check approval threshold
         const needsApproval = this.checkApprovalThreshold(
           parameters,
-          tool.approvalThreshold
+          tool.approvalThreshold,
         );
 
         if (needsApproval) {
@@ -241,14 +241,17 @@ export class ToolExecutionService {
    */
   private async executeWebhook(
     tool: typeof toolDefinitions.$inferSelect,
-    parameters: Record<string, any>
+    parameters: Record<string, any>,
   ) {
     const { method, url, headers: configHeaders } = tool.config as any;
 
     // Merge parameters into URL (for path params)
     let finalUrl = url;
     Object.keys(parameters).forEach((key) => {
-      finalUrl = finalUrl.replace(`{${key}}`, encodeURIComponent(parameters[key]));
+      finalUrl = finalUrl.replace(
+        `{${key}}`,
+        encodeURIComponent(parameters[key]),
+      );
     });
 
     // Build headers
@@ -257,10 +260,10 @@ export class ToolExecutionService {
     // Add auth if configured
     if (tool.authType === 'api_key' && tool.encryptedCredentials) {
       const apiKey = decrypt(tool.encryptedCredentials);
-      headers['Authorization'] = `Bearer ${apiKey}`;
+      headers.Authorization = `Bearer ${apiKey}`;
     } else if (tool.authType === 'bearer' && tool.encryptedCredentials) {
       const token = decrypt(tool.encryptedCredentials);
-      headers['Authorization'] = `Bearer ${token}`;
+      headers.Authorization = `Bearer ${token}`;
     }
 
     // Execute request
@@ -277,16 +280,17 @@ export class ToolExecutionService {
     const response = await fetch(finalUrl, fetchOptions);
 
     if (!response.ok) {
-      throw new Error(`Webhook failed: ${response.status} ${response.statusText}`);
+      throw new Error(
+        `Webhook failed: ${response.status} ${response.statusText}`,
+      );
     }
 
     // Parse response
     const contentType = response.headers.get('content-type');
     if (contentType?.includes('application/json')) {
       return await response.json();
-    } else {
-      return await response.text();
     }
+    return await response.text();
   }
 
   /**
@@ -294,7 +298,7 @@ export class ToolExecutionService {
    */
   private async executeEmail(
     tool: typeof toolDefinitions.$inferSelect,
-    parameters: Record<string, any>
+    parameters: Record<string, any>,
   ) {
     // TODO: Integrate with email service (SendGrid, SES, etc.)
     console.log('Email tool execution:', parameters);
@@ -306,7 +310,7 @@ export class ToolExecutionService {
    */
   private async executeDatabase(
     tool: typeof toolDefinitions.$inferSelect,
-    parameters: Record<string, any>
+    parameters: Record<string, any>,
   ) {
     // TODO: Implement safe database operations
     // IMPORTANT: Validate SQL to prevent injection
@@ -319,7 +323,7 @@ export class ToolExecutionService {
    */
   private checkApprovalThreshold(
     parameters: Record<string, any>,
-    threshold: any
+    threshold: any,
   ): boolean {
     if (!threshold) return true;
 
@@ -367,7 +371,7 @@ export class ToolExecutionService {
       {
         botId: execution.botId!,
         conversationId: execution.conversationId!,
-      }
+      },
     );
   }
 
@@ -377,7 +381,7 @@ export class ToolExecutionService {
   private async updateExecutionStatus(
     executionId: string,
     status: string,
-    updates?: Partial<InsertActionExecutionLog>
+    updates?: Partial<InsertActionExecutionLog>,
   ) {
     await db
       .update(actionExecutionLog)
@@ -403,7 +407,7 @@ export class ToolExecutionService {
     const newCount = (tool.executionCount || 0) + 1;
     const currentAvg = tool.averageExecutionTimeMs || 0;
     const newAvg = Math.round(
-      (currentAvg * (newCount - 1) + executionTimeMs) / newCount
+      (currentAvg * (newCount - 1) + executionTimeMs) / newCount,
     );
 
     await db
@@ -427,7 +431,10 @@ export class ToolExecutionService {
         tool: toolDefinitions,
       })
       .from(actionExecutionLog)
-      .leftJoin(toolDefinitions, eq(actionExecutionLog.toolId, toolDefinitions.id))
+      .leftJoin(
+        toolDefinitions,
+        eq(actionExecutionLog.toolId, toolDefinitions.id),
+      )
       .where(eq(actionExecutionLog.botId, botId))
       .orderBy(desc(actionExecutionLog.createdAt))
       .limit(limit);
@@ -443,12 +450,15 @@ export class ToolExecutionService {
         tool: toolDefinitions,
       })
       .from(actionExecutionLog)
-      .innerJoin(toolDefinitions, eq(actionExecutionLog.toolId, toolDefinitions.id))
+      .innerJoin(
+        toolDefinitions,
+        eq(actionExecutionLog.toolId, toolDefinitions.id),
+      )
       .where(
         and(
           eq(toolDefinitions.organizationId, organizationId),
-          eq(actionExecutionLog.status, 'pending')
-        )
+          eq(actionExecutionLog.status, 'pending'),
+        ),
       )
       .orderBy(desc(actionExecutionLog.createdAt));
   }

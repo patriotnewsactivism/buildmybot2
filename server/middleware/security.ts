@@ -2,7 +2,8 @@ import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 
 const isProduction = process.env.NODE_ENV === 'production';
-const isDevelopment = process.env.NODE_ENV === 'development' || !process.env.NODE_ENV;
+const isDevelopment =
+  process.env.NODE_ENV === 'development' || !process.env.NODE_ENV;
 
 // General API rate limiter - more permissive in development
 export const apiLimiter = rateLimit({

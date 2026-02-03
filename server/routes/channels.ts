@@ -1,9 +1,9 @@
 import { type Response, Router } from 'express';
 import {
+  type AuthRequest,
   authenticate,
   loadOrganizationContext,
   tenantIsolation,
-  type AuthRequest,
 } from '../middleware';
 import { ChannelService } from '../services';
 

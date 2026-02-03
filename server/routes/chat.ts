@@ -12,10 +12,10 @@ import {
   strictLimiter,
   tenantIsolation,
 } from '../middleware';
+import { agencyBillingService } from '../services/AgencyBillingService';
 import { chatService } from '../services/ChatService';
 import { KnowledgeService } from '../services/KnowledgeService';
 import { toolExecutionService } from '../services/ToolExecutionService';
-import { agencyBillingService } from '../services/AgencyBillingService';
 
 const router = Router();
 const isDevelopment = process.env.NODE_ENV !== 'production';
@@ -133,10 +133,11 @@ async function handleChatCompletion(req: Request, res: Response) {
 
     // Get available tools for function calling
     let tools: any[] = [];
-    let toolsMap: Map<string, any> = new Map();
+    const toolsMap: Map<string, any> = new Map();
     if (botId && currentBot) {
       try {
-        const availableTools = await toolExecutionService.getAvailableTools(botId);
+        const availableTools =
+          await toolExecutionService.getAvailableTools(botId);
         tools = availableTools.map((t: any) => {
           toolsMap.set(t.function.name, {
             id: t._toolId,
@@ -183,7 +184,9 @@ async function handleChatCompletion(req: Request, res: Response) {
           error?.code === 'model_not_found' ||
           error?.status === 404 ||
           (error?.status === 400 &&
-            String(error?.message || '').toLowerCase().includes('model'));
+            String(error?.message || '')
+              .toLowerCase()
+              .includes('model'));
         if (finalModel === 'gpt-5o-mini' && isModelNotFound) {
           finalModel = 'gpt-4o-mini';
           response = await openai.chat.completions.create({
@@ -225,7 +228,7 @@ async function handleChatCompletion(req: Request, res: Response) {
                   botId: botId!,
                   conversationId: sessionId || 'unknown',
                   userId: (req as any).user?.id,
-                }
+                },
               );
 
               if (executionResult.success) {
@@ -369,13 +372,20 @@ router.post(
       let baseSystemPrompt = bot.systemPrompt || 'You are a helpful assistant.';
 
       // Phase 5: A/B Testing Logic
-      if (bot.abTestConfig && (bot.abTestConfig as any).enabled && Array.isArray((bot.abTestConfig as any).variants)) {
+      if (
+        bot.abTestConfig &&
+        (bot.abTestConfig as any).enabled &&
+        Array.isArray((bot.abTestConfig as any).variants)
+      ) {
         const variants = (bot.abTestConfig as any).variants;
-        const totalWeight = variants.reduce((sum: number, v: any) => sum + (v.weight || 0), 0);
+        const totalWeight = variants.reduce(
+          (sum: number, v: any) => sum + (v.weight || 0),
+          0,
+        );
         let random = Math.random() * totalWeight;
-        
+
         for (const variant of variants) {
-          random -= (variant.weight || 0);
+          random -= variant.weight || 0;
           if (random <= 0) {
             if (variant.systemPrompt) baseSystemPrompt = variant.systemPrompt;
             if (variant.model) useModel = variant.model;
@@ -414,9 +424,10 @@ router.post(
 
       // Get available tools for function calling
       let tools: any[] = [];
-      let toolsMap: Map<string, any> = new Map();
+      const toolsMap: Map<string, any> = new Map();
       try {
-        const availableTools = await toolExecutionService.getAvailableTools(botId);
+        const availableTools =
+          await toolExecutionService.getAvailableTools(botId);
         tools = availableTools.map((t: any) => {
           toolsMap.set(t.function.name, {
             id: t._toolId,
@@ -461,7 +472,9 @@ router.post(
             error?.code === 'model_not_found' ||
             error?.status === 404 ||
             (error?.status === 400 &&
-              String(error?.message || '').toLowerCase().includes('model'));
+              String(error?.message || '')
+                .toLowerCase()
+                .includes('model'));
           if (useModel === 'gpt-5o-mini' && isModelNotFound) {
             useModel = 'gpt-4o-mini';
             response = await openai.chat.completions.create({
@@ -487,7 +500,9 @@ router.post(
 
           for (const toolCall of message.tool_calls) {
             const functionName = toolCall.function.name;
-            const functionArgs = JSON.parse(toolCall.function.arguments || '{}');
+            const functionArgs = JSON.parse(
+              toolCall.function.arguments || '{}',
+            );
             const toolInfo = toolsMap.get(functionName);
 
             let toolResult: any;
@@ -499,7 +514,7 @@ router.post(
                   {
                     botId,
                     conversationId: sessionId || 'public-chat',
-                  }
+                  },
                 );
 
                 if (executionResult.success) {

@@ -14,7 +14,7 @@ import {
   timestamp,
   varchar,
 } from 'drizzle-orm/pg-core';
-import { organizations, users, bots } from './schema';
+import { bots, organizations, users } from './schema';
 
 // ========================================
 // AGENCY BILLING ARBITRAGE
@@ -31,13 +31,17 @@ export const agencyPricingTiers = pgTable('agency_pricing_tiers', {
     .references(() => organizations.id, { onDelete: 'cascade' }),
 
   // Wholesale costs (what agency pays BuildMyBot)
-  wholesaleVoicePerMinute: real('wholesale_voice_per_minute').default(0.10),
-  wholesalePremiumTokensPer1k: real('wholesale_premium_tokens_per1k').default(0.05),
-  wholesaleStandardTokensPer1k: real('wholesale_standard_tokens_per1k').default(0.01),
+  wholesaleVoicePerMinute: real('wholesale_voice_per_minute').default(0.1),
+  wholesalePremiumTokensPer1k: real('wholesale_premium_tokens_per1k').default(
+    0.05,
+  ),
+  wholesaleStandardTokensPer1k: real('wholesale_standard_tokens_per1k').default(
+    0.01,
+  ),
 
   // Retail pricing (what agency charges clients)
-  retailVoicePerMinute: real('retail_voice_per_minute').default(0.20),
-  retailPremiumTokensPer1k: real('retail_premium_tokens_per1k').default(0.10),
+  retailVoicePerMinute: real('retail_voice_per_minute').default(0.2),
+  retailPremiumTokensPer1k: real('retail_premium_tokens_per1k').default(0.1),
   retailStandardTokensPer1k: real('retail_standard_tokens_per1k').default(0.02),
 
   // Markup limits based on agency tier
@@ -63,7 +67,9 @@ export const usageWallets = pgTable('usage_wallets', {
 
   // Auto-recharge settings
   autoRechargeEnabled: boolean('auto_recharge_enabled').default(false),
-  autoRechargeThresholdCents: integer('auto_recharge_threshold_cents').default(500),
+  autoRechargeThresholdCents: integer('auto_recharge_threshold_cents').default(
+    500,
+  ),
   autoRechargeAmountCents: integer('auto_recharge_amount_cents').default(5000),
 
   // Low balance alerts
@@ -85,8 +91,9 @@ export const revenueShareLedger = pgTable('revenue_share_ledger', {
   agencyOrganizationId: text('agency_organization_id')
     .notNull()
     .references(() => organizations.id),
-  clientOrganizationId: text('client_organization_id')
-    .references(() => organizations.id),
+  clientOrganizationId: text('client_organization_id').references(
+    () => organizations.id,
+  ),
 
   // Event details
   eventType: varchar('event_type', { length: 50 }).notNull(), // 'voice_minute', 'premium_tokens', 'standard_tokens'
@@ -113,35 +120,38 @@ export const revenueShareLedger = pgTable('revenue_share_ledger', {
  * Agency subscription packages (SaaS Configurator)
  * Agencies define custom pricing tiers for their clients
  */
-export const agencySubscriptionPackages = pgTable('agency_subscription_packages', {
-  id: text('id').primaryKey(),
-  agencyOrganizationId: text('agency_organization_id')
-    .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
+export const agencySubscriptionPackages = pgTable(
+  'agency_subscription_packages',
+  {
+    id: text('id').primaryKey(),
+    agencyOrganizationId: text('agency_organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
 
-  // Package details
-  name: varchar('name', { length: 100 }).notNull(), // "Silver", "Gold", "Platinum"
-  description: text('description'),
-  monthlyPriceCents: integer('monthly_price_cents').notNull(),
+    // Package details
+    name: varchar('name', { length: 100 }).notNull(), // "Silver", "Gold", "Platinum"
+    description: text('description'),
+    monthlyPriceCents: integer('monthly_price_cents').notNull(),
 
-  // Included credits
-  includedVoiceMinutes: integer('included_voice_minutes').default(0),
-  includedPremiumTokens: integer('included_premium_tokens').default(0),
-  includedStandardTokens: integer('included_standard_tokens').default(0),
+    // Included credits
+    includedVoiceMinutes: integer('included_voice_minutes').default(0),
+    includedPremiumTokens: integer('included_premium_tokens').default(0),
+    includedStandardTokens: integer('included_standard_tokens').default(0),
 
-  // Overage rates (when included credits exhausted)
-  overageVoicePerMinute: real('overage_voice_per_minute'),
-  overagePremiumTokensPer1k: real('overage_premium_tokens_per1k'),
-  overageStandardTokensPer1k: real('overage_standard_tokens_per1k'),
+    // Overage rates (when included credits exhausted)
+    overageVoicePerMinute: real('overage_voice_per_minute'),
+    overagePremiumTokensPer1k: real('overage_premium_tokens_per1k'),
+    overageStandardTokensPer1k: real('overage_standard_tokens_per1k'),
 
-  // Stripe integration
-  stripeProductId: varchar('stripe_product_id', { length: 255 }),
-  stripePriceId: varchar('stripe_price_id', { length: 255 }),
+    // Stripe integration
+    stripeProductId: varchar('stripe_product_id', { length: 255 }),
+    stripePriceId: varchar('stripe_price_id', { length: 255 }),
 
-  active: boolean('active').default(true),
-  createdAt: timestamp('created_at').defaultNow(),
-  updatedAt: timestamp('updated_at').defaultNow(),
-});
+    active: boolean('active').default(true),
+    createdAt: timestamp('created_at').defaultNow(),
+    updatedAt: timestamp('updated_at').defaultNow(),
+  },
+);
 
 // ========================================
 // AGENTIC ACTIONS & TOOL USE
@@ -280,7 +290,9 @@ export const agentHandoffRules = pgTable('agent_handoff_rules', {
     .references(() => bots.id, { onDelete: 'cascade' }),
 
   // Routing logic
-  fromRoleId: text('from_role_id').references(() => agentRoles.id, { onDelete: 'cascade' }),
+  fromRoleId: text('from_role_id').references(() => agentRoles.id, {
+    onDelete: 'cascade',
+  }),
   toRoleId: text('to_role_id')
     .notNull()
     .references(() => agentRoles.id, { onDelete: 'cascade' }),
@@ -393,8 +405,9 @@ export const sentimentEvents = pgTable('sentiment_events', {
  */
 export const documentTemplates = pgTable('document_templates', {
   id: text('id').primaryKey(),
-  organizationId: text('organization_id')
-    .references(() => organizations.id, { onDelete: 'cascade' }),
+  organizationId: text('organization_id').references(() => organizations.id, {
+    onDelete: 'cascade',
+  }),
 
   // Template metadata
   name: varchar('name', { length: 255 }).notNull(),
@@ -522,10 +535,11 @@ export const industrySnapshots = pgTable('industry_snapshots', {
   priceCents: integer('price_cents').default(0),
 
   // Agency marketplace
-  createdByOrganizationId: text('created_by_organization_id')
-    .references(() => organizations.id),
+  createdByOrganizationId: text('created_by_organization_id').references(
+    () => organizations.id,
+  ),
   isMarketplaceTemplate: boolean('is_marketplace_template').default(false),
-  commissionRate: real('commission_rate').default(0.20), // BuildMyBot takes 20% on sales
+  commissionRate: real('commission_rate').default(0.2), // BuildMyBot takes 20% on sales
 
   // Usage tracking
   installCount: integer('install_count').default(0),
@@ -583,8 +597,12 @@ export const piiRedactionRules = pgTable('pii_redaction_rules', {
   detectionPattern: text('detection_pattern').notNull(),
 
   // Redaction strategy
-  redactionStrategy: varchar('redaction_strategy', { length: 50 }).default('mask'), // 'mask', 'remove', 'tokenize'
-  replacementText: varchar('replacement_text', { length: 100 }).default('[REDACTED]'),
+  redactionStrategy: varchar('redaction_strategy', { length: 50 }).default(
+    'mask',
+  ), // 'mask', 'remove', 'tokenize'
+  replacementText: varchar('replacement_text', { length: 100 }).default(
+    '[REDACTED]',
+  ),
 
   // Where to apply
   applyToLogs: boolean('apply_to_logs').default(true),

@@ -42,7 +42,10 @@ describe('KnowledgeBaseManager', () => {
     // Mock global fetch
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ sources: [], stats: { sources: 0, chunks: 0, totalTokens: 0 } }),
+      json: async () => ({
+        sources: [],
+        stats: { sources: 0, chunks: 0, totalTokens: 0 },
+      }),
     });
   });
 
@@ -58,8 +61,8 @@ describe('KnowledgeBaseManager', () => {
     );
 
     await waitFor(() => {
-        expect(screen.getByText(/drop files here/i)).toBeInTheDocument();
-        expect(screen.getByText(/click to upload/i)).toBeInTheDocument();
+      expect(screen.getByText(/drop files here/i)).toBeInTheDocument();
+      expect(screen.getByText(/click to upload/i)).toBeInTheDocument();
     });
   });
 
@@ -79,11 +82,23 @@ describe('KnowledgeBaseManager', () => {
 
   it('displays uploaded documents', async () => {
     const onDocumentsChange = vi.fn();
-    
+
     // Mock sources that match our documents
     const mockSources = [
-      { id: 'src-1', sourceName: 'test.pdf', sourceType: 'document', status: 'completed', chunkCount: 1 },
-      { id: 'src-2', sourceName: 'manual.docx', sourceType: 'document', status: 'completed', chunkCount: 1 }
+      {
+        id: 'src-1',
+        sourceName: 'test.pdf',
+        sourceType: 'document',
+        status: 'completed',
+        chunkCount: 1,
+      },
+      {
+        id: 'src-2',
+        sourceName: 'manual.docx',
+        sourceType: 'document',
+        status: 'completed',
+        chunkCount: 1,
+      },
     ];
 
     global.fetch = vi.fn().mockResolvedValue({
@@ -100,8 +115,8 @@ describe('KnowledgeBaseManager', () => {
     );
 
     await waitFor(() => {
-        expect(screen.getByText(/test\.pdf/i)).toBeInTheDocument();
-        expect(screen.getByText(/manual\.docx/i)).toBeInTheDocument();
+      expect(screen.getByText(/test\.pdf/i)).toBeInTheDocument();
+      expect(screen.getByText(/manual\.docx/i)).toBeInTheDocument();
     });
   });
 
@@ -114,10 +129,25 @@ describe('KnowledgeBaseManager', () => {
     });
 
     // Mock upload fetch response sequence
-    global.fetch = vi.fn()
-        .mockResolvedValueOnce({ ok: true, json: async () => ({ sources: [], stats: {} }) }) // Initial load
-        .mockResolvedValueOnce({ ok: true, json: async () => ({ success: true }) }) // Upload
-        .mockResolvedValueOnce({ ok: true, json: async () => ({ sources: [{ id: 'src-new', sourceName: 'test.pdf', status: 'completed' }], stats: {} }) }); // Refresh
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ sources: [], stats: {} }),
+      }) // Initial load
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ success: true }),
+      }) // Upload
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          sources: [
+            { id: 'src-new', sourceName: 'test.pdf', status: 'completed' },
+          ],
+          stats: {},
+        }),
+      }); // Refresh
 
     const { container } = render(
       <KnowledgeBaseManager
@@ -136,12 +166,12 @@ describe('KnowledgeBaseManager', () => {
       await waitFor(() => {
         // Verify fetch was called with upload URL
         expect(global.fetch).toHaveBeenCalledWith(
-            expect.stringContaining('/knowledge/upload/bot-1'),
-            expect.objectContaining({ method: 'POST' })
+          expect.stringContaining('/knowledge/upload/bot-1'),
+          expect.objectContaining({ method: 'POST' }),
         );
       });
     } else {
-        throw new Error('File input not found');
+      throw new Error('File input not found');
     }
   });
 
@@ -177,17 +207,25 @@ describe('KnowledgeBaseManager', () => {
     const user = userEvent.setup();
 
     const mockSources = [
-      { id: 'src-1', sourceName: 'test.pdf', sourceType: 'document', status: 'completed' }
+      {
+        id: 'src-1',
+        sourceName: 'test.pdf',
+        sourceType: 'document',
+        status: 'completed',
+      },
     ];
 
     global.fetch = vi.fn().mockImplementation((url, options) => {
-        if (url.includes('/knowledge/sources/') && options?.method === 'DELETE') {
-             return Promise.resolve({ ok: true, json: async () => ({}) });
-        }
-        if (url.includes('/knowledge/sources/')) {
-             return Promise.resolve({ ok: true, json: async () => ({ sources: mockSources, stats: {} }) });
-        }
+      if (url.includes('/knowledge/sources/') && options?.method === 'DELETE') {
         return Promise.resolve({ ok: true, json: async () => ({}) });
+      }
+      if (url.includes('/knowledge/sources/')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ sources: mockSources, stats: {} }),
+        });
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) });
     });
 
     render(
@@ -198,7 +236,9 @@ describe('KnowledgeBaseManager', () => {
       />,
     );
 
-    await waitFor(() => expect(screen.getByText(/test\.pdf/i)).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText(/test\.pdf/i)).toBeInTheDocument(),
+    );
 
     const deleteButtons = screen.getAllByTitle(/delete/i);
     if (deleteButtons[0]) {

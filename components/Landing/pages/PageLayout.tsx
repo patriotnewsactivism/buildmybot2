@@ -11,9 +11,7 @@ export const PageLayout: React.FC<PageLayoutProps> = ({ children }) => {
       <nav className="h-14 sm:h-16 md:h-20 border-b border-slate-200/60 bg-white/95 backdrop-blur-lg px-4 sm:px-6 lg:px-12 flex items-center justify-between sticky top-0 z-40 shadow-sm">
         <a href="/" className="flex items-center gap-2">
           <Bot className="w-6 h-6 text-blue-700" />
-          <span className="font-bold text-lg text-slate-900">
-            BuildMyBot
-          </span>
+          <span className="font-bold text-lg text-slate-900">BuildMyBot</span>
         </a>
         <a
           href="/"

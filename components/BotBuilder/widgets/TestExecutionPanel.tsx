@@ -119,7 +119,7 @@ export const TestExecutionPanel: React.FC<TestExecutionPanelProps> = ({
             onChange={(e) =>
               setParameters({
                 ...parameters,
-                [name]: parseFloat(e.target.value) || 0,
+                [name]: Number.parseFloat(e.target.value) || 0,
               })
             }
             placeholder={spec.description || name}
@@ -158,7 +158,9 @@ export const TestExecutionPanel: React.FC<TestExecutionPanelProps> = ({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-bold text-slate-900">Test Tool Execution</h2>
+        <h2 className="text-xl font-bold text-slate-900">
+          Test Tool Execution
+        </h2>
         <p className="text-sm text-slate-500 mt-1">
           Test your tools with sample parameters
         </p>
@@ -194,7 +196,7 @@ export const TestExecutionPanel: React.FC<TestExecutionPanelProps> = ({
               </select>
             </div>
 
-            {selectedTool && selectedTool.functionSchema?.properties && (
+            {selectedTool?.functionSchema?.properties && (
               <div className="space-y-3">
                 <label className="block text-sm font-medium text-slate-700">
                   Parameters
@@ -204,13 +206,13 @@ export const TestExecutionPanel: React.FC<TestExecutionPanelProps> = ({
                     <div key={name}>
                       <label className="block text-xs text-slate-600 mb-1">
                         {name}
-                        {selectedTool.functionSchema.required?.includes(name) && (
-                          <span className="text-red-600 ml-1">*</span>
-                        )}
+                        {selectedTool.functionSchema.required?.includes(
+                          name,
+                        ) && <span className="text-red-600 ml-1">*</span>}
                       </label>
                       {renderParameterInput(name, spec)}
                     </div>
-                  )
+                  ),
                 )}
               </div>
             )}
@@ -253,7 +255,10 @@ export const TestExecutionPanel: React.FC<TestExecutionPanelProps> = ({
             {result && (
               <div className="space-y-3">
                 <div className="flex items-start space-x-2 p-3 bg-green-50 border border-green-200 rounded-lg">
-                  <CheckCircle className="text-green-600 flex-shrink-0" size={20} />
+                  <CheckCircle
+                    className="text-green-600 flex-shrink-0"
+                    size={20}
+                  />
                   <div className="flex-1">
                     <p className="text-sm font-medium text-green-900">
                       Execution Successful

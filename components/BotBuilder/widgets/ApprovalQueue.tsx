@@ -195,7 +195,10 @@ export const ApprovalQueue: React.FC<ApprovalQueueProps> = ({
         <>
           {actions.length > 0 && (
             <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 flex items-start space-x-3">
-              <AlertCircle className="text-orange-600 flex-shrink-0" size={20} />
+              <AlertCircle
+                className="text-orange-600 flex-shrink-0"
+                size={20}
+              />
               <div>
                 <p className="text-sm font-medium text-orange-900">
                   {actions.length} {actions.length === 1 ? 'Action' : 'Actions'}{' '}

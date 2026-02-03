@@ -356,7 +356,8 @@ Be empathetic, clear, and thorough with documentation requirements.`,
     name: 'Travel Concierge',
     category: 'Travel',
     industry: 'Travel & Hospitality',
-    description: 'Books trips, provides destination info, and handles itinerary changes.',
+    description:
+      'Books trips, provides destination info, and handles itinerary changes.',
     systemPrompt: `You are a luxury travel concierge. Your services include:
 - Planning complete travel itineraries
 - Recommending destinations based on preferences
@@ -366,7 +367,11 @@ Be empathetic, clear, and thorough with documentation requirements.`,
 Create memorable experiences with personalized recommendations.`,
     configuration: {
       tags: ['Travel', 'Booking'],
-      features: ['Itinerary planning', 'Destination guides', 'Booking assistance'],
+      features: [
+        'Itinerary planning',
+        'Destination guides',
+        'Booking assistance',
+      ],
     },
     isPublic: true,
     isPremium: true,
@@ -378,7 +383,8 @@ Create memorable experiences with personalized recommendations.`,
     name: 'Pet Care Advisor',
     category: 'Pet Services',
     industry: 'Pet Care',
-    description: 'Answers pet health questions and books grooming/vet appointments.',
+    description:
+      'Answers pet health questions and books grooming/vet appointments.',
     systemPrompt: `You are a friendly pet care advisor. Help pet parents with:
 - General pet health and wellness tips
 - Booking grooming and veterinary appointments
@@ -400,7 +406,8 @@ Be warm and caring. For serious health concerns, always recommend seeing a vet.`
     name: 'Wedding Planner Bot',
     category: 'Events',
     industry: 'Events & Planning',
-    description: 'Helps couples plan their perfect wedding with vendor recommendations.',
+    description:
+      'Helps couples plan their perfect wedding with vendor recommendations.',
     systemPrompt: `You are an experienced wedding planner assistant. Help couples:
 - Create wedding timelines and checklists
 - Recommend venues, caterers, and vendors
@@ -422,7 +429,8 @@ Be celebratory, organized, and attentive to their unique vision.`,
     name: 'Fitness Coach',
     category: 'Fitness',
     industry: 'Health & Wellness',
-    description: 'Creates workout plans and provides motivation for fitness goals.',
+    description:
+      'Creates workout plans and provides motivation for fitness goals.',
     systemPrompt: `You are an energetic personal fitness coach. Your role:
 - Create customized workout plans
 - Provide exercise form and technique guidance
@@ -444,7 +452,8 @@ Be encouraging, knowledgeable, and adapt to all fitness levels.`,
     name: 'HR Onboarding Assistant',
     category: 'Human Resources',
     industry: 'Corporate',
-    description: 'Guides new employees through company onboarding and policies.',
+    description:
+      'Guides new employees through company onboarding and policies.',
     systemPrompt: `You are an HR onboarding specialist. Help new hires with:
 - Completing paperwork and forms
 - Understanding company policies and benefits
@@ -466,7 +475,8 @@ Be welcoming, patient, and make new employees feel at home.`,
     name: 'Financial Advisor Bot',
     category: 'Finance',
     industry: 'Financial Services',
-    description: 'Provides investment guidance and financial planning assistance.',
+    description:
+      'Provides investment guidance and financial planning assistance.',
     systemPrompt: `You are a knowledgeable financial advisor. Help clients with:
 - Investment strategy discussions
 - Retirement planning guidance
@@ -488,7 +498,8 @@ Provide educational information only. Remind users to consult licensed advisors 
     name: 'Beauty Consultant',
     category: 'Beauty',
     industry: 'Beauty & Cosmetics',
-    description: 'Recommends skincare routines and makeup products based on preferences.',
+    description:
+      'Recommends skincare routines and makeup products based on preferences.',
     systemPrompt: `You are a professional beauty consultant. Help customers:
 - Build personalized skincare routines
 - Recommend products for their skin type
@@ -498,7 +509,11 @@ Provide educational information only. Remind users to consult licensed advisors 
 Be inclusive, knowledgeable, and help everyone feel beautiful.`,
     configuration: {
       tags: ['Beauty', 'Skincare'],
-      features: ['Product recommendations', 'Routine building', 'Consultations'],
+      features: [
+        'Product recommendations',
+        'Routine building',
+        'Consultations',
+      ],
     },
     isPublic: true,
     isPremium: false,
@@ -510,7 +525,8 @@ Be inclusive, knowledgeable, and help everyone feel beautiful.`,
     name: 'Real Estate Property Manager',
     category: 'Real Estate',
     industry: 'Property Management',
-    description: 'Handles tenant inquiries, maintenance requests, and lease questions.',
+    description:
+      'Handles tenant inquiries, maintenance requests, and lease questions.',
     systemPrompt: `You are a property management assistant. Handle:
 - Tenant maintenance requests and tracking
 - Lease questions and renewal information
@@ -532,7 +548,8 @@ Be responsive, professional, and resolve issues efficiently.`,
     name: 'Nonprofit Donor Relations',
     category: 'Nonprofit',
     industry: 'Nonprofit',
-    description: 'Engages donors, shares impact stories, and processes contributions.',
+    description:
+      'Engages donors, shares impact stories, and processes contributions.',
     systemPrompt: `You are a donor relations specialist for a nonprofit. Your role:
 - Share organizational mission and impact stories
 - Answer questions about programs and initiatives
@@ -554,7 +571,8 @@ Be passionate about the cause and grateful for every supporter.`,
     name: 'Recruiting Assistant',
     category: 'Human Resources',
     industry: 'Recruiting',
-    description: 'Screens candidates, schedules interviews, and answers job questions.',
+    description:
+      'Screens candidates, schedules interviews, and answers job questions.',
     systemPrompt: `You are a recruiting assistant. Help with:
 - Screening candidate qualifications
 - Scheduling interviews and calls
@@ -576,7 +594,8 @@ Be professional, efficient, and represent the company positively.`,
     name: 'Photography Studio Booker',
     category: 'Creative Services',
     industry: 'Photography',
-    description: 'Books photo sessions, discusses packages, and handles inquiries.',
+    description:
+      'Books photo sessions, discusses packages, and handles inquiries.',
     systemPrompt: `You are a photography studio booking assistant. Help clients:
 - Book photo sessions and consultations
 - Explain packages, pricing, and add-ons
@@ -598,7 +617,8 @@ Be creative, helpful, and capture their vision for the session.`,
     name: 'Spa & Wellness Concierge',
     category: 'Wellness',
     industry: 'Spa & Wellness',
-    description: 'Books spa treatments, recommends services, and handles memberships.',
+    description:
+      'Books spa treatments, recommends services, and handles memberships.',
     systemPrompt: `You are a spa and wellness concierge. Provide:
 - Treatment and service recommendations
 - Appointment booking and confirmations
@@ -620,7 +640,8 @@ Create a relaxing, luxurious experience from first contact.`,
     name: 'Music School Enrollment',
     category: 'Education',
     industry: 'Music Education',
-    description: 'Enrolls students, matches instructors, and schedules lessons.',
+    description:
+      'Enrolls students, matches instructors, and schedules lessons.',
     systemPrompt: `You are a music school enrollment advisor. Help students:
 - Find the right instrument and program
 - Match with compatible instructors
@@ -642,7 +663,8 @@ Be encouraging and help unlock their musical potential.`,
     name: 'Construction Project Coordinator',
     category: 'Construction',
     industry: 'Construction',
-    description: 'Provides project updates, handles inquiries, and schedules consultations.',
+    description:
+      'Provides project updates, handles inquiries, and schedules consultations.',
     systemPrompt: `You are a construction project coordinator. Help clients with:
 - Project status updates and timelines
 - Answering questions about materials and processes
@@ -686,7 +708,8 @@ Be knowledgeable, approachable, and help customers discover new favorites.`,
     name: 'Therapy Practice Intake',
     category: 'Healthcare',
     industry: 'Mental Health',
-    description: 'Screens new patients, explains services, and schedules consultations.',
+    description:
+      'Screens new patients, explains services, and schedules consultations.',
     systemPrompt: `You are a therapy practice intake coordinator. Help potential clients:
 - Understand available therapy services
 - Complete initial screening questions
@@ -708,7 +731,8 @@ Be warm, non-judgmental, and create a safe first impression.`,
     name: 'Moving Company Coordinator',
     category: 'Home Services',
     industry: 'Moving',
-    description: 'Provides quotes, schedules moves, and answers packing questions.',
+    description:
+      'Provides quotes, schedules moves, and answers packing questions.',
     systemPrompt: `You are a moving company coordinator. Help customers:
 - Get accurate moving quotes
 - Schedule moving dates and times
@@ -730,7 +754,8 @@ Be organized, reassuring, and make moving less stressful.`,
     name: 'Event Ticketing Agent',
     category: 'Entertainment',
     industry: 'Events',
-    description: 'Sells tickets, provides event info, and handles customer service.',
+    description:
+      'Sells tickets, provides event info, and handles customer service.',
     systemPrompt: `You are an event ticketing specialist. Help customers:
 - Find and purchase event tickets
 - Explain seating options and pricing
@@ -752,7 +777,8 @@ Be enthusiastic about events and create excitement for attendees.`,
     name: 'Childcare Center Assistant',
     category: 'Childcare',
     industry: 'Childcare',
-    description: 'Handles enrollment inquiries, schedules tours, and answers parent questions.',
+    description:
+      'Handles enrollment inquiries, schedules tours, and answers parent questions.',
     systemPrompt: `You are a childcare center enrollment specialist. Help parents:
 - Learn about programs and curriculum
 - Schedule facility tours
@@ -774,7 +800,8 @@ Be warm, trustworthy, and show genuine care for children's development.`,
     name: 'Pharmacy Assistant',
     category: 'Healthcare',
     industry: 'Pharmacy',
-    description: 'Answers medication questions, handles refills, and checks availability.',
+    description:
+      'Answers medication questions, handles refills, and checks availability.',
     systemPrompt: `You are a pharmacy assistant. Help customers:
 - Request prescription refills
 - Check medication availability
@@ -796,7 +823,8 @@ Always recommend consulting a pharmacist for medical advice.`,
     name: 'Florist Order Assistant',
     category: 'Retail',
     industry: 'Floral',
-    description: 'Takes flower orders, recommends arrangements, and handles deliveries.',
+    description:
+      'Takes flower orders, recommends arrangements, and handles deliveries.',
     systemPrompt: `You are a florist order assistant. Help customers:
 - Choose perfect arrangements for occasions
 - Place orders for delivery or pickup
@@ -818,7 +846,8 @@ Be creative, romantic, and help express emotions through flowers.`,
     name: 'IT Help Desk',
     category: 'Technology',
     industry: 'IT Support',
-    description: 'Troubleshoots tech issues, resets passwords, and escalates tickets.',
+    description:
+      'Troubleshoots tech issues, resets passwords, and escalates tickets.',
     systemPrompt: `You are an IT help desk technician. Help users:
 - Troubleshoot common technical issues
 - Reset passwords and unlock accounts
@@ -840,7 +869,8 @@ Be patient, clear with instructions, and solve problems efficiently.`,
     name: 'Bakery Order Bot',
     category: 'Food & Beverage',
     industry: 'Bakery',
-    description: 'Takes custom cake orders, provides menu info, and schedules pickups.',
+    description:
+      'Takes custom cake orders, provides menu info, and schedules pickups.',
     systemPrompt: `You are a bakery order specialist. Help customers:
 - Place custom cake and pastry orders
 - Discuss flavors, sizes, and decorations
@@ -862,7 +892,8 @@ Be sweet, creative, and make every order special.`,
     name: 'Solar Installation Advisor',
     category: 'Energy',
     industry: 'Renewable Energy',
-    description: 'Educates on solar benefits, provides quotes, and schedules assessments.',
+    description:
+      'Educates on solar benefits, provides quotes, and schedules assessments.',
     systemPrompt: `You are a solar energy advisor. Help homeowners:
 - Understand solar energy benefits and savings
 - Get preliminary cost estimates
@@ -884,7 +915,8 @@ Be knowledgeable, honest about costs, and passionate about clean energy.`,
     name: 'Veterinary Clinic Assistant',
     category: 'Healthcare',
     industry: 'Veterinary',
-    description: 'Books vet appointments, answers pet health questions, and handles emergencies.',
+    description:
+      'Books vet appointments, answers pet health questions, and handles emergencies.',
     systemPrompt: `You are a veterinary clinic assistant. Help pet owners:
 - Schedule wellness and sick visits
 - Triage potential emergencies
@@ -906,7 +938,8 @@ Be compassionate and prioritize animal welfare. For emergencies, act quickly.`,
     name: 'Tutoring Center Matcher',
     category: 'Education',
     industry: 'Tutoring',
-    description: 'Matches students with tutors, schedules sessions, and tracks progress.',
+    description:
+      'Matches students with tutors, schedules sessions, and tracks progress.',
     systemPrompt: `You are a tutoring center coordinator. Help students and parents:
 - Find tutors for specific subjects and levels
 - Schedule tutoring sessions
@@ -928,7 +961,8 @@ Be supportive of learning and help every student succeed.`,
     name: 'Landscaping Quote Bot',
     category: 'Home Services',
     industry: 'Landscaping',
-    description: 'Provides landscaping quotes, schedules consultations, and answers questions.',
+    description:
+      'Provides landscaping quotes, schedules consultations, and answers questions.',
     systemPrompt: `You are a landscaping company representative. Help homeowners:
 - Get estimates for landscaping projects
 - Schedule design consultations
@@ -950,7 +984,8 @@ Be knowledgeable about outdoor spaces and help create beautiful yards.`,
     name: 'Yoga Studio Receptionist',
     category: 'Fitness',
     industry: 'Yoga & Wellness',
-    description: 'Books classes, sells memberships, and answers studio questions.',
+    description:
+      'Books classes, sells memberships, and answers studio questions.',
     systemPrompt: `You are a yoga studio receptionist. Help students:
 - Book and manage class reservations
 - Explain membership options and pricing
@@ -972,7 +1007,8 @@ Create a welcoming, peaceful atmosphere that reflects the practice.`,
     name: 'Coworking Space Host',
     category: 'Real Estate',
     industry: 'Coworking',
-    description: 'Books tours, explains memberships, and handles space inquiries.',
+    description:
+      'Books tours, explains memberships, and handles space inquiries.',
     systemPrompt: `You are a coworking space community host. Help members and prospects:
 - Schedule tours and trial days
 - Explain membership tiers and pricing
@@ -1057,11 +1093,7 @@ Be concise, professional, and consistent in your data capture.`,
 Keep responses short, clear, and easy to follow.`,
     configuration: {
       tags: ['Voice', 'Phone', 'Reception'],
-      features: [
-        'Call intake',
-        'Appointment scheduling',
-        'Escalation routing',
-      ],
+      features: ['Call intake', 'Appointment scheduling', 'Escalation routing'],
     },
     isPublic: true,
     isPremium: true,
@@ -1095,7 +1127,6 @@ Be professional, precise, and consistent.`,
     rating: 4.9,
     installCount: 60,
   },
-
 ];
 
 export async function seedTemplates() {
@@ -1127,9 +1158,7 @@ export async function seedTemplates() {
       });
     }
 
-    console.log(
-      `? Successfully seeded ${templatesToInsert.length} templates!`,
-    );
+    console.log(`? Successfully seeded ${templatesToInsert.length} templates!`);
   } catch (error) {
     console.error('❌ Error seeding templates:', error);
     throw error;

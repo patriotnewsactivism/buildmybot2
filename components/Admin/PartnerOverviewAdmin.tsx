@@ -117,10 +117,7 @@ export const PartnerOverviewAdmin: React.FC = () => {
             onClick={fetchPartners}
             className="self-start sm:self-auto px-6 py-3 bg-white/20 backdrop-blur-sm rounded-xl text-white font-bold hover:bg-white/30 transition-all duration-300 hover:scale-105 shadow-lg flex items-center gap-2"
           >
-            <RefreshCw
-              size={18}
-              className={loading ? 'animate-spin' : ''}
-            />
+            <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
             Refresh
           </button>
         </div>
@@ -249,7 +246,9 @@ export const PartnerOverviewAdmin: React.FC = () => {
                         : 'bg-slate-200 text-slate-600'
                     }`}
                   >
-                    {row.partner.status === 'Active' ? '● Active' : '○ Inactive'}
+                    {row.partner.status === 'Active'
+                      ? '● Active'
+                      : '○ Inactive'}
                   </span>
                 </div>
               </div>

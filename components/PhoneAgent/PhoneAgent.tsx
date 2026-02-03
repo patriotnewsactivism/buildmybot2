@@ -17,9 +17,9 @@ import {
 import type React from 'react';
 import { useEffect, useState } from 'react';
 import type { User } from '../../types';
+import { AudioWaveform } from './AudioWaveform';
 import { VoiceCallSimulator } from './VoiceCallSimulator';
 import { VoiceSetupWizard } from './VoiceSetupWizard';
-import { AudioWaveform } from './AudioWaveform';
 
 const cartesiaVoices = [
   {
@@ -88,9 +88,12 @@ export const PhoneAgent: React.FC<PhoneAgentProps> = ({ user, onUpdate }) => {
     if (user?.phoneConfig) {
       setEnabled(user.phoneConfig.enabled);
       if (user.phoneConfig.voiceId) setVoice(user.phoneConfig.voiceId);
-      if (user.phoneConfig.introMessage) setIntroMessage(user.phoneConfig.introMessage);
-      if (user.phoneConfig.cartesiaApiKey) setCartesiaApiKey(user.phoneConfig.cartesiaApiKey);
-      if (user.phoneConfig.delegationLink) setDelegationLink(user.phoneConfig.delegationLink);
+      if (user.phoneConfig.introMessage)
+        setIntroMessage(user.phoneConfig.introMessage);
+      if (user.phoneConfig.cartesiaApiKey)
+        setCartesiaApiKey(user.phoneConfig.cartesiaApiKey);
+      if (user.phoneConfig.delegationLink)
+        setDelegationLink(user.phoneConfig.delegationLink);
     }
   }, [user?.phoneConfig]);
 
@@ -496,7 +499,8 @@ export const PhoneAgent: React.FC<PhoneAgentProps> = ({ user, onUpdate }) => {
                 </button>
 
                 <p className="text-xs text-slate-400 mt-4">
-                  Click to start a live test call with your configured voice and greeting.
+                  Click to start a live test call with your configured voice and
+                  greeting.
                 </p>
               </div>
             </div>

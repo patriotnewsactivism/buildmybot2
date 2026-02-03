@@ -1,6 +1,6 @@
+import { and, eq, ilike, isNull, or } from 'drizzle-orm';
+import { bots, knowledgeChunks, leads } from '../../shared/schema';
 import { db } from '../db';
-import { bots, leads, knowledgeChunks } from '../../shared/schema';
-import { eq, and, or, ilike, isNull } from 'drizzle-orm';
 
 export interface SearchResults {
   bots: any[];
@@ -9,7 +9,10 @@ export interface SearchResults {
 }
 
 export class SearchService {
-  async unifiedSearch(organizationId: string, query: string): Promise<SearchResults> {
+  async unifiedSearch(
+    organizationId: string,
+    query: string,
+  ): Promise<SearchResults> {
     const searchTerm = `%${query}%`;
 
     const [botResults, leadResults, knowledgeResults] = await Promise.all([
@@ -36,9 +39,9 @@ export class SearchService {
           or(
             ilike(bots.name, searchTerm),
             ilike(bots.type, searchTerm),
-            ilike(bots.systemPrompt, searchTerm)
-          )
-        )
+            ilike(bots.systemPrompt, searchTerm),
+          ),
+        ),
       )
       .limit(10);
   }
@@ -53,9 +56,9 @@ export class SearchService {
           or(
             ilike(leads.name, searchTerm),
             ilike(leads.email, searchTerm),
-            ilike(leads.phone, searchTerm)
-          )
-        )
+            ilike(leads.phone, searchTerm),
+          ),
+        ),
       )
       .limit(10);
   }
@@ -75,8 +78,8 @@ export class SearchService {
         and(
           eq(bots.organizationId, organizationId),
           isNull(bots.deletedAt),
-          ilike(knowledgeChunks.content, searchTerm)
-        )
+          ilike(knowledgeChunks.content, searchTerm),
+        ),
       )
       .limit(10);
   }

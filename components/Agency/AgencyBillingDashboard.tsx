@@ -10,16 +10,12 @@ import {
 import type React from 'react';
 import { useState } from 'react';
 import type { User } from '../../types';
-import { ProfitAnalytics } from './widgets/ProfitAnalytics';
-import { PricingConfigurator } from './widgets/PricingConfigurator';
-import { WalletManagement } from './widgets/WalletManagement';
 import { ClientUsageBreakdown } from './widgets/ClientUsageBreakdown';
+import { PricingConfigurator } from './widgets/PricingConfigurator';
+import { ProfitAnalytics } from './widgets/ProfitAnalytics';
+import { WalletManagement } from './widgets/WalletManagement';
 
-export type AgencyBillingTab =
-  | 'profit'
-  | 'wallet'
-  | 'pricing'
-  | 'clients';
+export type AgencyBillingTab = 'profit' | 'wallet' | 'pricing' | 'clients';
 
 interface AgencyBillingDashboardProps {
   user: User;
@@ -38,9 +34,11 @@ const PremiumCard: React.FC<{
   </div>
 );
 
-export const AgencyBillingDashboard: React.FC<
-  AgencyBillingDashboardProps
-> = ({ user, activeTab: controlledTab, onTabChange }) => {
+export const AgencyBillingDashboard: React.FC<AgencyBillingDashboardProps> = ({
+  user,
+  activeTab: controlledTab,
+  onTabChange,
+}) => {
   const [internalTab, setInternalTab] = useState<AgencyBillingTab>('profit');
 
   const activeTab = controlledTab ?? internalTab;
@@ -60,7 +58,11 @@ export const AgencyBillingDashboard: React.FC<
   });
 
   const tabs = [
-    { id: 'profit' as AgencyBillingTab, label: 'Profit Analytics', icon: TrendingUp },
+    {
+      id: 'profit' as AgencyBillingTab,
+      label: 'Profit Analytics',
+      icon: TrendingUp,
+    },
     {
       id: 'wallet' as AgencyBillingTab,
       label: 'Wallet & Balance',

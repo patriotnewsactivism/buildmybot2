@@ -15,16 +15,12 @@ import {
 import type React from 'react';
 import { useCallback, useEffect, useState } from 'react';
 import { MetricCard } from '../UI/MetricCard';
+import { ApprovalQueue } from './widgets/ApprovalQueue';
+import { TestExecutionPanel } from './widgets/TestExecutionPanel';
 import { ToolList } from './widgets/ToolList';
 import { WebhookDesigner } from './widgets/WebhookDesigner';
-import { TestExecutionPanel } from './widgets/TestExecutionPanel';
-import { ApprovalQueue } from './widgets/ApprovalQueue';
 
-export type ToolBuilderTab =
-  | 'tools'
-  | 'designer'
-  | 'test'
-  | 'approvals';
+export type ToolBuilderTab = 'tools' | 'designer' | 'test' | 'approvals';
 
 interface ToolBuilderProps {
   botId: string;
@@ -219,16 +215,10 @@ export const ToolBuilder: React.FC<ToolBuilderProps> = ({
           />
         )}
         {activeTab === 'test' && (
-          <TestExecutionPanel
-            botId={botId}
-            onStatsUpdate={fetchStats}
-          />
+          <TestExecutionPanel botId={botId} onStatsUpdate={fetchStats} />
         )}
         {activeTab === 'approvals' && (
-          <ApprovalQueue
-            botId={botId}
-            onApprovalAction={fetchStats}
-          />
+          <ApprovalQueue botId={botId} onApprovalAction={fetchStats} />
         )}
       </div>
     </div>

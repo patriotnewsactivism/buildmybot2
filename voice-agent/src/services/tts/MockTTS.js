@@ -9,8 +9,8 @@ export class MockTTS extends TTSProvider {
 
   async speak(text, stream) {
     // Simulate processing delay
-    await new Promise(resolve => setTimeout(resolve, this.latency));
-    
+    await new Promise((resolve) => setTimeout(resolve, this.latency));
+
     // Simulate writing audio data
     stream.write(`[${this.name}] Audio data for: "${text}"`);
   }
