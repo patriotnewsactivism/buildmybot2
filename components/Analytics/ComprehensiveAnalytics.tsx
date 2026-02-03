@@ -137,7 +137,7 @@ export const ComprehensiveAnalytics: React.FC<ComprehensiveAnalyticsProps> = ({
     } else {
       setLoading(false);
     }
-  }, [organizationId, dateRange]);
+  }, [organizationId]);
 
   const tabs: {
     id: AnalyticsTab;
