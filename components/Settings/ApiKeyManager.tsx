@@ -663,149 +663,153 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
             </div>
             <div className="hidden md:block overflow-x-auto mx-0">
               <table className="w-full md:min-w-[700px]">
-              <thead>
-                <tr className="border-b border-slate-100">
-                  <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Name
-                  </th>
-                  <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Key Prefix
-                  </th>
-                  <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Scopes
-                  </th>
-                  <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Last Used
-                  </th>
-                  <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Created
-                  </th>
-                  <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="text-right py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {apiKeys.map((key) => (
-                  <tr
-                    key={key.id}
-                    className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors"
-                  >
-                    <td className="py-4 px-4">
-                      <div className="font-medium text-slate-900">
-                        {key.name}
-                      </div>
-                      <div className="text-xs text-slate-500 mt-0.5">
-                        Rate: {key.rateLimitPerMin}/min
-                      </div>
-                    </td>
-                    <td className="py-4 px-4">
-                      <code className="text-sm font-mono text-slate-600 bg-slate-100 px-2 py-1 rounded">
-                        {key.keyPrefix}...
-                      </code>
-                    </td>
-                    <td className="py-4 px-4">
-                      <div className="relative">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setShowScopes(showScopes === key.id ? null : key.id)
-                          }
-                          className="flex items-center gap-1 text-sm text-slate-600 hover:text-slate-900"
-                        >
-                          {showScopes === key.id ? (
-                            <EyeOff size={14} />
-                          ) : (
-                            <Eye size={14} />
-                          )}
-                          {(key.scopes as string[]).includes('*')
-                            ? 'Full Access'
-                            : `${(key.scopes as string[]).length} scopes`}
-                        </button>
-                        {showScopes === key.id && (
-                          <div className="absolute z-10 mt-2 p-3 bg-white rounded-lg shadow-xl border border-slate-200 min-w-[200px]">
-                            <div className="text-xs font-medium text-slate-500 mb-2">
-                              Permissions
-                            </div>
-                            <div className="space-y-1">
-                              {(key.scopes as string[]).map((scope) => (
-                                <div
-                                  key={scope}
-                                  className="text-sm text-slate-700 flex items-center gap-2"
-                                >
-                                  <Check
-                                    size={12}
-                                    className="text-emerald-500"
-                                  />
-                                  {scope === '*' ? 'Full Access' : scope}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                    <td className="py-4 px-4 text-sm text-slate-600">
-                      {formatDateTime(key.lastUsedAt)}
-                    </td>
-                    <td className="py-4 px-4 text-sm text-slate-600">
-                      {formatDate(key.createdAt)}
-                    </td>
-                    <td className="py-4 px-4">
-                      {key.isActive ? (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                          Active
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-red-50 text-red-700">
-                          <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
-                          Revoked
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-4 px-4">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          type="button"
-                          onClick={() => copyToClipboard(key.keyPrefix, key.id)}
-                          className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-                          title="Copy prefix"
-                        >
-                          {copiedKeyId === key.id ? (
-                            <Check size={16} className="text-emerald-500" />
-                          ) : (
-                            <Copy size={16} />
-                          )}
-                        </button>
-                        {key.isActive && (
+                <thead>
+                  <tr className="border-b border-slate-100">
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                      Name
+                    </th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                      Key Prefix
+                    </th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                      Scopes
+                    </th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                      Last Used
+                    </th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                      Created
+                    </th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="text-right py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {apiKeys.map((key) => (
+                    <tr
+                      key={key.id}
+                      className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors"
+                    >
+                      <td className="py-4 px-4">
+                        <div className="font-medium text-slate-900">
+                          {key.name}
+                        </div>
+                        <div className="text-xs text-slate-500 mt-0.5">
+                          Rate: {key.rateLimitPerMin}/min
+                        </div>
+                      </td>
+                      <td className="py-4 px-4">
+                        <code className="text-sm font-mono text-slate-600 bg-slate-100 px-2 py-1 rounded">
+                          {key.keyPrefix}...
+                        </code>
+                      </td>
+                      <td className="py-4 px-4">
+                        <div className="relative">
                           <button
                             type="button"
-                            onClick={() => revokeApiKey(key.id)}
-                            className="p-2 text-amber-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
-                            title="Revoke key"
+                            onClick={() =>
+                              setShowScopes(
+                                showScopes === key.id ? null : key.id,
+                              )
+                            }
+                            className="flex items-center gap-1 text-sm text-slate-600 hover:text-slate-900"
                           >
-                            <Ban size={16} />
+                            {showScopes === key.id ? (
+                              <EyeOff size={14} />
+                            ) : (
+                              <Eye size={14} />
+                            )}
+                            {(key.scopes as string[]).includes('*')
+                              ? 'Full Access'
+                              : `${(key.scopes as string[]).length} scopes`}
                           </button>
+                          {showScopes === key.id && (
+                            <div className="absolute z-10 mt-2 p-3 bg-white rounded-lg shadow-xl border border-slate-200 min-w-[200px]">
+                              <div className="text-xs font-medium text-slate-500 mb-2">
+                                Permissions
+                              </div>
+                              <div className="space-y-1">
+                                {(key.scopes as string[]).map((scope) => (
+                                  <div
+                                    key={scope}
+                                    className="text-sm text-slate-700 flex items-center gap-2"
+                                  >
+                                    <Check
+                                      size={12}
+                                      className="text-emerald-500"
+                                    />
+                                    {scope === '*' ? 'Full Access' : scope}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-4 px-4 text-sm text-slate-600">
+                        {formatDateTime(key.lastUsedAt)}
+                      </td>
+                      <td className="py-4 px-4 text-sm text-slate-600">
+                        {formatDate(key.createdAt)}
+                      </td>
+                      <td className="py-4 px-4">
+                        {key.isActive ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                            Active
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-red-50 text-red-700">
+                            <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                            Revoked
+                          </span>
                         )}
-                        <button
-                          type="button"
-                          onClick={() => deleteApiKey(key.id)}
-                          className="p-2 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Delete key"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                      </td>
+                      <td className="py-4 px-4">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              copyToClipboard(key.keyPrefix, key.id)
+                            }
+                            className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                            title="Copy prefix"
+                          >
+                            {copiedKeyId === key.id ? (
+                              <Check size={16} className="text-emerald-500" />
+                            ) : (
+                              <Copy size={16} />
+                            )}
+                          </button>
+                          {key.isActive && (
+                            <button
+                              type="button"
+                              onClick={() => revokeApiKey(key.id)}
+                              className="p-2 text-amber-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                              title="Revoke key"
+                            >
+                              <Ban size={16} />
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => deleteApiKey(key.id)}
+                            className="p-2 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Delete key"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </>
         )}
       </PremiumCard>
@@ -931,61 +935,61 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
             </div>
             <div className="hidden md:block overflow-x-auto mx-0">
               <table className="w-full md:min-w-[600px]">
-              <thead>
-                <tr className="border-b border-slate-100">
-                  <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Method
-                  </th>
-                  <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Endpoint
-                  </th>
-                  <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Response Time
-                  </th>
-                  <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Time
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {logs.map((log) => (
-                  <tr
-                    key={log.id}
-                    className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors"
-                  >
-                    <td className="py-3 px-4">
-                      <span
-                        className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${getMethodColor(log.method)}`}
-                      >
-                        {log.method}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4">
-                      <code className="text-sm text-slate-700">
-                        {log.endpoint}
-                      </code>
-                    </td>
-                    <td className="py-3 px-4">
-                      <span
-                        className={`font-medium ${getStatusColor(log.statusCode)}`}
-                      >
-                        {log.statusCode}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-sm text-slate-600">
-                      {log.responseTimeMs}ms
-                    </td>
-                    <td className="py-3 px-4 text-sm text-slate-500">
-                      {formatDateTime(log.createdAt)}
-                    </td>
+                <thead>
+                  <tr className="border-b border-slate-100">
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                      Method
+                    </th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                      Endpoint
+                    </th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                      Response Time
+                    </th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                      Time
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {logs.map((log) => (
+                    <tr
+                      key={log.id}
+                      className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors"
+                    >
+                      <td className="py-3 px-4">
+                        <span
+                          className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${getMethodColor(log.method)}`}
+                        >
+                          {log.method}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4">
+                        <code className="text-sm text-slate-700">
+                          {log.endpoint}
+                        </code>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span
+                          className={`font-medium ${getStatusColor(log.statusCode)}`}
+                        >
+                          {log.statusCode}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-sm text-slate-600">
+                        {log.responseTimeMs}ms
+                      </td>
+                      <td className="py-3 px-4 text-sm text-slate-500">
+                        {formatDateTime(log.createdAt)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </>
         )}
       </PremiumCard>

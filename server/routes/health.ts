@@ -1,7 +1,7 @@
-import { Router, type Request, type Response } from 'express';
 import { sql } from 'drizzle-orm';
-import { db } from '../db';
+import { type Request, type Response, Router } from 'express';
 import { knowledgeChunks, knowledgeSources } from '../../shared/schema';
+import { db } from '../db';
 import { getUncachableStripeClient } from '../stripeClient';
 import logger from '../utils/logger';
 
@@ -60,7 +60,8 @@ async function checkStripe(): Promise<ServiceStatus> {
 }
 
 async function checkOpenAI(): Promise<ServiceStatus> {
-  const apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+  const apiKey =
+    process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
   if (!apiKey) {
     return {
       status: 'unknown',
@@ -73,7 +74,8 @@ async function checkOpenAI(): Promise<ServiceStatus> {
 }
 
 async function checkCartesia(): Promise<ServiceStatus> {
-  const apiKey = process.env.CARTESIA_API_KEY || process.env.VITE_CARTESIA_API_KEY;
+  const apiKey =
+    process.env.CARTESIA_API_KEY || process.env.VITE_CARTESIA_API_KEY;
   if (!apiKey) {
     return {
       status: 'unknown',
@@ -95,7 +97,10 @@ router.get('/', async (req: Request, res: Response) => {
     checkCartesia(),
   ]);
 
-  const allUp = database.status === 'up' && openai.status !== 'down' && cartesia.status !== 'down';
+  const allUp =
+    database.status === 'up' &&
+    openai.status !== 'down' &&
+    cartesia.status !== 'down';
   const anyDown = database.status === 'down' || stripe.status === 'down';
 
   const health: HealthStatus = {
@@ -115,20 +120,31 @@ router.get('/', async (req: Request, res: Response) => {
     logger.warn('System health check degraded or unhealthy', { health });
   }
 
-  const statusCode = health.status === 'healthy' ? 200 : health.status === 'degraded' ? 200 : 503;
+  const statusCode =
+    health.status === 'healthy'
+      ? 200
+      : health.status === 'degraded'
+        ? 200
+        : 503;
   res.status(statusCode).json(health);
 });
 
 router.get('/live', (req: Request, res: Response) => {
-  res.status(200).json({ status: 'alive', timestamp: new Date().toISOString() });
+  res
+    .status(200)
+    .json({ status: 'alive', timestamp: new Date().toISOString() });
 });
 
 router.get('/ready', async (req: Request, res: Response) => {
   try {
     await db.execute(sql`SELECT 1`);
-    res.status(200).json({ status: 'ready', timestamp: new Date().toISOString() });
+    res
+      .status(200)
+      .json({ status: 'ready', timestamp: new Date().toISOString() });
   } catch (error) {
-    res.status(503).json({ status: 'not ready', timestamp: new Date().toISOString() });
+    res
+      .status(503)
+      .json({ status: 'not ready', timestamp: new Date().toISOString() });
   }
 });
 

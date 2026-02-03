@@ -6,6 +6,7 @@ import { initSentry } from './utils/sentry';
 // Initialize Sentry before any other imports
 initSentry();
 
+import { createServer } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import compression from 'compression';
 import connectPgSimple from 'connect-pg-simple';
@@ -15,7 +16,6 @@ import express from 'express';
 import session from 'express-session';
 import multer from 'multer';
 import { v4 as uuidv4 } from 'uuid';
-import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
 import { PLANS, RESELLER_TIERS, WHITELABEL_FEE } from '../constants';
 import {
@@ -28,9 +28,7 @@ import {
   leads,
   users,
 } from '../shared/schema';
-import { WebScraperService } from './services/WebScraperService';
 import { db, pool } from './db';
-import { KnowledgeRepairService } from './services/KnowledgeRepairService';
 import {
   apiLimiter,
   applyImpersonation,
@@ -63,17 +61,19 @@ import {
   partnersRouter,
   phoneRouter,
   revenueRouter,
+  searchRouter,
+  teamRouter,
   templatesRouter,
   toolsRouter,
   twilioWebhooksRouter,
   webhooksRouter,
-  searchRouter,
-  teamRouter,
 } from './routes';
+import { KnowledgeRepairService } from './services/KnowledgeRepairService';
+import { voiceAgentService } from './services/VoiceAgentService';
+import { WebScraperService } from './services/WebScraperService';
 import { getStripePublishableKey } from './stripeClient';
 import { stripeService } from './stripeService';
 import { WebhookHandlers } from './webhookHandlers';
-import { voiceAgentService } from './services/VoiceAgentService';
 
 const isVercel = Boolean(process.env.VERCEL);
 const uploadsDir = isVercel
@@ -547,10 +547,7 @@ app.get('/api/bots', ...apiAuthStack, async (req, res) => {
       // or check if user is admin
       const user = (req as any).user;
       if (isAdminUser(user)) {
-        allBots = await db
-          .select()
-          .from(bots)
-          .where(isNull(bots.deletedAt));
+        allBots = await db.select().from(bots).where(isNull(bots.deletedAt));
       } else {
         // If regular user/no context, only show their own bots if user exists
         if (user?.id) {
@@ -630,7 +627,12 @@ app.post('/api/bots', ...apiAuthStack, async (req, res) => {
   const user = (req as any).user;
 
   try {
-    console.log(`[${requestId}] Creating bot for user:`, user?.id, 'Org:', user?.organizationId);
+    console.log(
+      `[${requestId}] Creating bot for user:`,
+      user?.id,
+      'Org:',
+      user?.organizationId,
+    );
 
     const botId = uuidv4();
     const targetUserId = user?.id || req.body.userId;
@@ -643,8 +645,12 @@ app.post('/api/bots', ...apiAuthStack, async (req, res) => {
       req.body.userId !== user.id &&
       !isAdminUser(user)
     ) {
-      console.warn(`[${requestId}] Authorization failed: user ${user.id} tried to create bot for ${req.body.userId}`);
-      return res.status(403).json({ error: 'Not authorized to create bot for another user' });
+      console.warn(
+        `[${requestId}] Authorization failed: user ${user.id} tried to create bot for ${req.body.userId}`,
+      );
+      return res
+        .status(403)
+        .json({ error: 'Not authorized to create bot for another user' });
     }
 
     if (!targetUserId) {
@@ -729,7 +735,9 @@ app.post('/api/bots', ...apiAuthStack, async (req, res) => {
 
       // CRITICAL: Validate bot was created
       if (!botResult || botResult.length === 0) {
-        throw new Error('Bot insert failed - no rows returned. This may indicate RLS policy rejection or constraint violation.');
+        throw new Error(
+          'Bot insert failed - no rows returned. This may indicate RLS policy rejection or constraint violation.',
+        );
       }
 
       const createdBot = botResult[0];
@@ -768,7 +776,9 @@ app.post('/api/bots', ...apiAuthStack, async (req, res) => {
 
     // Spawn web crawler asynchronously (fire-and-forget)
     if (createdSources.length > 0) {
-      console.log(`[${requestId}] Spawning ${createdSources.length} web crawlers...`);
+      console.log(
+        `[${requestId}] Spawning ${createdSources.length} web crawlers...`,
+      );
       for (const source of createdSources) {
         WebScraperService.crawlWebsite(
           source.url,
@@ -787,7 +797,6 @@ app.post('/api/bots', ...apiAuthStack, async (req, res) => {
 
     console.log(`[${requestId}] Bot creation successful`);
     res.json(newBot);
-
   } catch (error: any) {
     console.error(`[${requestId}] Bot creation failed:`, {
       error: error.message,
@@ -798,9 +807,10 @@ app.post('/api/bots', ...apiAuthStack, async (req, res) => {
 
     // Return detailed error to frontend
     const errorMessage = error.message || 'Unknown error';
-    const isValidationError = errorMessage.includes('RLS') ||
-                              errorMessage.includes('constraint') ||
-                              errorMessage.includes('no rows returned');
+    const isValidationError =
+      errorMessage.includes('RLS') ||
+      errorMessage.includes('constraint') ||
+      errorMessage.includes('no rows returned');
 
     res.status(isValidationError ? 403 : 500).json({
       error: 'Failed to create bot',
@@ -816,7 +826,12 @@ app.put('/api/bots/:id', ...apiAuthStack, async (req, res) => {
   const organizationId = (req as any).organization?.id;
 
   try {
-    console.log(`[${requestId}] Updating bot:`, req.params.id, 'user:', user?.id);
+    console.log(
+      `[${requestId}] Updating bot:`,
+      req.params.id,
+      'user:',
+      user?.id,
+    );
 
     // Fetch existing bot and validate access
     const [existingBot] = await db
@@ -830,8 +845,12 @@ app.put('/api/bots/:id', ...apiAuthStack, async (req, res) => {
     }
 
     if (!canAccessBot(existingBot, user, organizationId)) {
-      console.warn(`[${requestId}] Access denied: user ${user?.id} cannot access bot ${req.params.id}`);
-      return res.status(403).json({ error: 'Not authorized to update this bot' });
+      console.warn(
+        `[${requestId}] Access denied: user ${user?.id} cannot access bot ${req.params.id}`,
+      );
+      return res
+        .status(403)
+        .json({ error: 'Not authorized to update this bot' });
     }
 
     // Only include valid bot fields to prevent column mismatch errors
@@ -868,10 +887,11 @@ app.put('/api/bots/:id', ...apiAuthStack, async (req, res) => {
       updateData.knowledgeBase !== undefined &&
       !Array.isArray(updateData.knowledgeBase)
     ) {
-      console.error(`[${requestId}] Validation failed: knowledgeBase must be array, got`, typeof updateData.knowledgeBase);
-      return res
-        .status(400)
-        .json({ error: 'knowledgeBase must be an array' });
+      console.error(
+        `[${requestId}] Validation failed: knowledgeBase must be array, got`,
+        typeof updateData.knowledgeBase,
+      );
+      return res.status(400).json({ error: 'knowledgeBase must be an array' });
     }
 
     console.log(`[${requestId}] Starting transaction...`);
@@ -885,7 +905,9 @@ app.put('/api/bots/:id', ...apiAuthStack, async (req, res) => {
 
       // CRITICAL: Validate update succeeded
       if (!botResult || botResult.length === 0) {
-        throw new Error('Bot update failed - no rows returned. Bot may have been deleted or RLS policy rejected the update.');
+        throw new Error(
+          'Bot update failed - no rows returned. Bot may have been deleted or RLS policy rejected the update.',
+        );
       }
 
       const bot = botResult[0];
@@ -904,7 +926,9 @@ app.put('/api/bots/:id', ...apiAuthStack, async (req, res) => {
           bot.organizationId,
           urls,
         );
-        console.log(`[${requestId}] Created ${sources.length} new knowledge sources`);
+        console.log(
+          `[${requestId}] Created ${sources.length} new knowledge sources`,
+        );
       }
 
       // MOVED: Audit log inside transaction
@@ -929,7 +953,9 @@ app.put('/api/bots/:id', ...apiAuthStack, async (req, res) => {
 
     // Spawn web crawler for new URLs (fire-and-forget)
     if (createdSources.length > 0) {
-      console.log(`[${requestId}] Spawning ${createdSources.length} web crawlers...`);
+      console.log(
+        `[${requestId}] Spawning ${createdSources.length} web crawlers...`,
+      );
       for (const source of createdSources) {
         WebScraperService.crawlWebsite(
           source.url,
@@ -948,7 +974,6 @@ app.put('/api/bots/:id', ...apiAuthStack, async (req, res) => {
 
     console.log(`[${requestId}] Bot update successful`);
     res.json(updatedBot);
-
   } catch (error: any) {
     console.error(`[${requestId}] Bot update failed:`, {
       error: error.message,
@@ -960,9 +985,10 @@ app.put('/api/bots/:id', ...apiAuthStack, async (req, res) => {
 
     // Return detailed error to frontend
     const errorMessage = error.message || 'Unknown error';
-    const isValidationError = errorMessage.includes('RLS') ||
-                              errorMessage.includes('constraint') ||
-                              errorMessage.includes('no rows returned');
+    const isValidationError =
+      errorMessage.includes('RLS') ||
+      errorMessage.includes('constraint') ||
+      errorMessage.includes('no rows returned');
 
     res.status(isValidationError ? 403 : 500).json({
       error: 'Failed to update bot',
@@ -1227,7 +1253,7 @@ app.get('/api/conversations', ...apiAuthStack, async (req, res) => {
     const organizationId =
       (req as any).organization?.id || (req.query.organizationId as string);
 
-    let conditions = [];
+    const conditions = [];
 
     if (userId) {
       conditions.push(eq(conversations.userId, userId));
@@ -1248,21 +1274,21 @@ app.get('/api/conversations', ...apiAuthStack, async (req, res) => {
         .orderBy(desc(conversations.timestamp));
     } else {
       // If no filters, return empty or limit to user's org context
-       const user = (req as any).user;
-        if (
+      const user = (req as any).user;
+      if (
         user?.role === 'ADMIN' ||
         user?.role === 'Admin' ||
         user?.role === 'MasterAdmin'
       ) {
-         allConversations = await db
-        .select()
-        .from(conversations)
-        .orderBy(desc(conversations.timestamp));
+        allConversations = await db
+          .select()
+          .from(conversations)
+          .orderBy(desc(conversations.timestamp));
       } else {
-         // Default to user's context if available, otherwise empty
-         // Note: Conversations might not always have userId if anonymous, so we rely on organizationId usually.
-         // But if we are here, organizationId was undefined.
-         allConversations = [];
+        // Default to user's context if available, otherwise empty
+        // Note: Conversations might not always have userId if anonymous, so we rely on organizationId usually.
+        // But if we are here, organizationId was undefined.
+        allConversations = [];
       }
     }
     res.json(allConversations);
@@ -1597,7 +1623,7 @@ app.use(
   authenticate,
   loadOrganizationContext,
   tenantIsolation,
-  toolsRouter
+  toolsRouter,
 );
 
 // Revenue and billing features

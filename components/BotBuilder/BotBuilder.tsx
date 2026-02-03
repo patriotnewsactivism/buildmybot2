@@ -50,7 +50,7 @@ import {
 import type { BotDocument, Bot as BotType } from '../../types';
 import { SaveIndicator } from '../UI/SaveIndicator';
 import { KnowledgeBaseManager } from './KnowledgeBaseManager';
-import SimplifiedBotWizard from "./SimplifiedBotWizard";
+import SimplifiedBotWizard from './SimplifiedBotWizard';
 import { VoiceAgentConfigComponent } from './VoiceAgentConfig';
 
 interface BotBuilderProps {
@@ -686,7 +686,9 @@ export const BotBuilder: React.FC<BotBuilderProps> = ({
               onClick={() => handleBotSelect(bot)}
               className={`w-full text-left p-4 rounded-md flex items-center gap-3 transition-all duration-200 min-h-[60px] group ${selectedBotId === bot.id ? 'bg-blue-50 border-2 border-blue-600 shadow-sm' : 'bg-white border-2 border-transparent hover:border-slate-200 hover:shadow-sm'}`}
             >
-              <div className={`w-12 h-12 rounded-md bg-blue-600 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0 shadow-sm ${selectedBotId === bot.id ? '' : 'group-hover:bg-blue-700'}`}>
+              <div
+                className={`w-12 h-12 rounded-md bg-blue-600 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0 shadow-sm ${selectedBotId === bot.id ? '' : 'group-hover:bg-blue-700'}`}
+              >
                 {bot.name.substring(0, 2)}
               </div>
               <div className="min-w-0 flex-1">
@@ -735,7 +737,9 @@ export const BotBuilder: React.FC<BotBuilderProps> = ({
                 >
                   {activeBot.active ? '● Live' : '○ Draft'}
                 </span>
-                <span className="text-xs text-slate-600 font-medium">{activeBot.model}</span>
+                <span className="text-xs text-slate-600 font-medium">
+                  {activeBot.model}
+                </span>
               </div>
             </div>
           </div>
@@ -1156,9 +1160,7 @@ export const BotBuilder: React.FC<BotBuilderProps> = ({
 
           {activeTab === 'voice' && (
             <div className="max-w-4xl mx-auto animate-fade-in">
-              <VoiceAgentConfigComponent
-                bot={activeBot}
-              />
+              <VoiceAgentConfigComponent bot={activeBot} />
             </div>
           )}
 

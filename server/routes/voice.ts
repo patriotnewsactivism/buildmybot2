@@ -1,20 +1,20 @@
-import { Router } from 'express';
 import { eq } from 'drizzle-orm';
-import { v4 as uuidv4 } from 'uuid';
-import twilio from 'twilio';
+import { Router } from 'express';
 import OpenAI from 'openai';
-import { db } from '../db';
+import twilio from 'twilio';
+import { v4 as uuidv4 } from 'uuid';
 import {
-  voiceAgents,
-  voiceCalls,
-  voiceCallMessages,
-  leads,
   bots,
   knowledgeChunks,
+  leads,
+  voiceAgents,
+  voiceCallMessages,
+  voiceCalls,
 } from '../../shared/schema';
-import { twilioService } from '../services/voice/TwilioService';
-import { cartesiaService } from '../services/voice/CartesiaService';
+import { db } from '../db';
 import { env } from '../env';
+import { cartesiaService } from '../services/voice/CartesiaService';
+import { twilioService } from '../services/voice/TwilioService';
 
 const router = Router();
 const openai = new OpenAI({
@@ -145,13 +145,14 @@ router.post('/process', async (req, res) => {
     // Check for transfer triggers
     if (voiceAgent.transferEnabled && voiceAgent.transferTriggers) {
       const triggers = voiceAgent.transferTriggers as string[];
-      const shouldTransfer = triggers.some(trigger =>
+      const shouldTransfer = triggers.some((trigger) =>
         SpeechResult.toLowerCase().includes(trigger.toLowerCase()),
       );
 
       if (shouldTransfer && voiceAgent.transferNumber) {
         await twilioService.transferToHuman(CallSid, voiceAgent.transferNumber);
-        await db.update(voiceCalls)
+        await db
+          .update(voiceCalls)
           .set({
             transferredToHuman: true,
             transferredAt: new Date(),
@@ -179,12 +180,14 @@ router.post('/process', async (req, res) => {
           .where(eq(knowledgeChunks.sourceId, knowledgeIds[0]))
           .limit(3);
 
-        contextText = relevantChunks.map(chunk => chunk.content).join('\n\n');
+        contextText = relevantChunks.map((chunk) => chunk.content).join('\n\n');
       }
     }
 
     // Generate AI response using OpenAI
-    const contextSection = contextText ? `\n\nContext from knowledge base:\n${contextText}` : '';
+    const contextSection = contextText
+      ? `\n\nContext from knowledge base:\n${contextText}`
+      : '';
     const systemPrompt = `${bot.systemPrompt}${contextSection}
 
 You are a professional voice assistant. Keep responses concise and conversational (2-3 sentences max).
@@ -194,7 +197,7 @@ ${voiceAgent.leadCaptureEnabled ? 'If the caller seems interested, ask for their
       model: bot.model || 'gpt-4o-mini',
       messages: [
         { role: 'system', content: systemPrompt },
-        ...messages.map(msg => ({
+        ...messages.map((msg) => ({
           role: msg.role as 'user' | 'assistant',
           content: msg.content,
         })),
@@ -204,7 +207,9 @@ ${voiceAgent.leadCaptureEnabled ? 'If the caller seems interested, ask for their
       max_tokens: 150, // Keep responses concise for voice
     });
 
-    const aiResponse = completion.choices[0].message.content || 'I apologize, I did not understand that.';
+    const aiResponse =
+      completion.choices[0].message.content ||
+      'I apologize, I did not understand that.';
 
     // Save AI response
     await db.insert(voiceCallMessages).values({
@@ -232,7 +237,9 @@ ${voiceAgent.leadCaptureEnabled ? 'If the caller seems interested, ask for their
     twiml.play(`${env.APP_BASE_URL}${audioUrl}`);
 
     // Check if we should end the call
-    if (aiResponse.toLowerCase().includes(voiceAgent.endCallPhrase.toLowerCase())) {
+    if (
+      aiResponse.toLowerCase().includes(voiceAgent.endCallPhrase.toLowerCase())
+    ) {
       twiml.say('Thank you for calling. Goodbye!');
       twiml.hangup();
     } else {
@@ -271,16 +278,19 @@ router.post('/status', async (req, res) => {
       .limit(1);
 
     if (voiceCall) {
-      await db.update(voiceCalls)
+      await db
+        .update(voiceCalls)
         .set({
           status: CallStatus,
           endedAt: new Date(),
-          durationSeconds: parseInt(CallDuration || '0', 10),
+          durationSeconds: Number.parseInt(CallDuration || '0', 10),
         })
         .where(eq(voiceCalls.id, voiceCall.id));
 
       // Update voice agent minutes used
-      const minutesUsed = Math.ceil(parseInt(CallDuration || '0', 10) / 60);
+      const minutesUsed = Math.ceil(
+        Number.parseInt(CallDuration || '0', 10) / 60,
+      );
       const [voiceAgent] = await db
         .select()
         .from(voiceAgents)
@@ -288,7 +298,8 @@ router.post('/status', async (req, res) => {
         .limit(1);
 
       if (voiceAgent) {
-        await db.update(voiceAgents)
+        await db
+          .update(voiceAgents)
           .set({
             minutesUsed: (voiceAgent.minutesUsed || 0) + minutesUsed,
           })
@@ -333,7 +344,8 @@ async function attemptLeadCapture(
       createdAt: new Date(),
     });
 
-    await db.update(voiceCalls)
+    await db
+      .update(voiceCalls)
       .set({
         leadCaptured: true,
         leadId,
@@ -479,7 +491,9 @@ router.post('/agents/:botId/provision', async (req, res) => {
 
     // Don't allow provisioning for new/unsaved bots
     if (botId === 'new' || !botId) {
-      return res.status(400).json({ error: 'Bot must be saved before provisioning phone number' });
+      return res
+        .status(400)
+        .json({ error: 'Bot must be saved before provisioning phone number' });
     }
 
     // Get voice agent
@@ -490,7 +504,9 @@ router.post('/agents/:botId/provision', async (req, res) => {
       .limit(1);
 
     if (!voiceAgent) {
-      return res.status(404).json({ error: 'Voice agent not found. Please save voice configuration first.' });
+      return res.status(404).json({
+        error: 'Voice agent not found. Please save voice configuration first.',
+      });
     }
 
     // Provision phone number via Twilio
@@ -501,7 +517,8 @@ router.post('/agents/:botId/provision', async (req, res) => {
       );
 
       // Update voice agent with phone number
-      await db.update(voiceAgents)
+      await db
+        .update(voiceAgents)
         .set({ phoneNumber, updatedAt: new Date() })
         .where(eq(voiceAgents.id, voiceAgent.id));
 
@@ -510,7 +527,7 @@ router.post('/agents/:botId/provision', async (req, res) => {
       console.error('Twilio provisioning error:', twilioError);
       return res.status(500).json({
         error: 'Failed to provision phone number',
-        details: twilioError.message || 'Twilio service error'
+        details: twilioError.message || 'Twilio service error',
       });
     }
   } catch (error) {

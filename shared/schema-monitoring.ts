@@ -9,13 +9,13 @@
  */
 
 import {
+  integer,
+  json,
   pgTable,
+  real,
   text,
   timestamp,
-  integer,
   varchar,
-  json,
-  real,
 } from 'drizzle-orm/pg-core';
 import { auditLogs, organizations, users } from './schema';
 

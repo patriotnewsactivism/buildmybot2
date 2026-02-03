@@ -6,8 +6,8 @@ import { bots, knowledgeChunks, knowledgeSources } from '../../shared/schema';
 import { db } from '../db';
 import { authenticate, loadOrganizationContext } from '../middleware';
 import {
-  formatKnowledgeBaseAsText,
   INDUSTRY_KNOWLEDGE_BASES,
+  formatKnowledgeBaseAsText,
 } from '../seeds/industryKnowledgeBases';
 import { DocumentProcessorService } from '../services/DocumentProcessorService';
 import { KnowledgeService } from '../services/KnowledgeService';
@@ -47,7 +47,10 @@ async function canAccessBot(botId: string, req: Request): Promise<boolean> {
   const bot = await db.select().from(bots).where(eq(bots.id, botId)).limit(1);
   if (bot.length === 0) return false;
 
-  return bot[0].userId === userId || (organizationId && bot[0].organizationId === organizationId);
+  return (
+    bot[0].userId === userId ||
+    (organizationId && bot[0].organizationId === organizationId)
+  );
 }
 
 router.post(
@@ -59,7 +62,8 @@ router.post(
       const { botId } = req.params;
       const { url, crawlDepth = 20 } = req.body;
       const user = (req as any).user;
-      const organizationId = user?.organizationId || (req as any).organization?.id;
+      const organizationId =
+        user?.organizationId || (req as any).organization?.id;
 
       if (!url || typeof url !== 'string') {
         return res.status(400).json({ error: 'URL is required' });
@@ -131,7 +135,8 @@ router.post(
       const { botId } = req.params;
       const file = req.file;
       const user = (req as any).user;
-      const organizationId = user?.organizationId || (req as any).organization?.id;
+      const organizationId =
+        user?.organizationId || (req as any).organization?.id;
 
       if (!file) {
         return res.status(400).json({ error: 'File is required' });
@@ -422,7 +427,9 @@ router.get(
         .where(eq(knowledgeChunks.sourceId, sourceId))
         .orderBy(knowledgeChunks.chunkIndex);
 
-      const content = chunks.map((c) => c.content).join('\n\n--- Chunk Boundary ---\n\n');
+      const content = chunks
+        .map((c) => c.content)
+        .join('\n\n--- Chunk Boundary ---\n\n');
 
       res.json({ content });
     } catch (error: any) {
@@ -597,7 +604,9 @@ router.get(
           return res.status(403).json({ error: 'Access denied' });
         }
       } else if (!isAdmin) {
-        return res.status(403).json({ error: 'Admin access required for system-wide stats' });
+        return res
+          .status(403)
+          .json({ error: 'Admin access required for system-wide stats' });
       }
 
       const results = await KnowledgeService.detectMissingEmbeddings(

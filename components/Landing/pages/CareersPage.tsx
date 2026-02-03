@@ -60,9 +60,9 @@ export const CareersPage: React.FC = () => {
             <div className="space-y-4 text-slate-600 leading-relaxed">
               <p>
                 At BuildMyBot, we&apos;re not just building another software
-                product—we&apos;re revolutionizing how businesses connect with their
-                customers. Our AI handles millions of conversations every month,
-                helping companies of all sizes grow.
+                product—we&apos;re revolutionizing how businesses connect with
+                their customers. Our AI handles millions of conversations every
+                month, helping companies of all sizes grow.
               </p>
               <p>
                 We believe in hiring exceptional people and giving them the
@@ -186,7 +186,8 @@ export const CareersPage: React.FC = () => {
           </h2>
           <p className="text-slate-600 mb-6 max-w-xl mx-auto">
             Tell us about your sales experience and the markets you plan to
-            target. We&apos;ll follow up with details on onboarding and compensation.
+            target. We&apos;ll follow up with details on onboarding and
+            compensation.
           </p>
           <a
             href="mailto:careers@buildmybot.app"

@@ -640,9 +640,7 @@ export const UsageCredits: React.FC<UsageCreditsProps> = ({
                       </div>
                       <div
                         className={`text-sm font-semibold ${
-                          entry.amount > 0
-                            ? 'text-emerald-600'
-                            : 'text-red-600'
+                          entry.amount > 0 ? 'text-emerald-600' : 'text-red-600'
                         }`}
                       >
                         {entry.amount > 0 ? '+' : ''}
@@ -673,75 +671,75 @@ export const UsageCredits: React.FC<UsageCreditsProps> = ({
             </div>
             <div className="hidden md:block overflow-x-auto">
               <table className="w-full">
-              <thead>
-                <tr className="border-b border-slate-100">
-                  <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider py-3 px-4">
-                    Type
-                  </th>
-                  <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider py-3 px-4">
-                    Description
-                  </th>
-                  <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider py-3 px-4">
-                    Amount
-                  </th>
-                  <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider py-3 px-4">
-                    Balance After
-                  </th>
-                  <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider py-3 px-4">
-                    Date
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {usageHistory.map((entry) => {
-                  const config =
-                    resourceTypeConfig[entry.resourceType] ||
-                    resourceTypeConfig.sms_credits;
-                  const Icon = config.icon;
-                  return (
-                    <tr
-                      key={entry.id}
-                      className="hover:bg-slate-50 transition-colors"
-                    >
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-2">
-                          <div
-                            className={`p-1.5 rounded-lg bg-gradient-to-br ${config.gradient}`}
-                          >
-                            <Icon size={14} className="text-white" />
+                <thead>
+                  <tr className="border-b border-slate-100">
+                    <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider py-3 px-4">
+                      Type
+                    </th>
+                    <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider py-3 px-4">
+                      Description
+                    </th>
+                    <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider py-3 px-4">
+                      Amount
+                    </th>
+                    <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider py-3 px-4">
+                      Balance After
+                    </th>
+                    <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider py-3 px-4">
+                      Date
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {usageHistory.map((entry) => {
+                    const config =
+                      resourceTypeConfig[entry.resourceType] ||
+                      resourceTypeConfig.sms_credits;
+                    const Icon = config.icon;
+                    return (
+                      <tr
+                        key={entry.id}
+                        className="hover:bg-slate-50 transition-colors"
+                      >
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-2">
+                            <div
+                              className={`p-1.5 rounded-lg bg-gradient-to-br ${config.gradient}`}
+                            >
+                              <Icon size={14} className="text-white" />
+                            </div>
+                            <span className="text-sm font-medium text-slate-700">
+                              {config.label}
+                            </span>
                           </div>
-                          <span className="text-sm font-medium text-slate-700">
-                            {config.label}
+                        </td>
+                        <td className="py-3 px-4 text-sm text-slate-600">
+                          {entry.description || 'Usage'}
+                        </td>
+                        <td className="py-3 px-4">
+                          <span
+                            className={`text-sm font-medium ${
+                              entry.amount > 0
+                                ? 'text-emerald-600'
+                                : 'text-red-600'
+                            }`}
+                          >
+                            {entry.amount > 0 ? '+' : ''}
+                            {entry.amount.toLocaleString()}
                           </span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4 text-sm text-slate-600">
-                        {entry.description || 'Usage'}
-                      </td>
-                      <td className="py-3 px-4">
-                        <span
-                          className={`text-sm font-medium ${
-                            entry.amount > 0
-                              ? 'text-emerald-600'
-                              : 'text-red-600'
-                          }`}
-                        >
-                          {entry.amount > 0 ? '+' : ''}
-                          {entry.amount.toLocaleString()}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-sm text-slate-600">
-                        {entry.balanceAfter?.toLocaleString() ?? '-'}
-                      </td>
-                      <td className="py-3 px-4 text-sm text-slate-500">
-                        {formatDate(entry.createdAt)}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        </td>
+                        <td className="py-3 px-4 text-sm text-slate-600">
+                          {entry.balanceAfter?.toLocaleString() ?? '-'}
+                        </td>
+                        <td className="py-3 px-4 text-sm text-slate-500">
+                          {formatDate(entry.createdAt)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </>
         )}
       </PremiumCard>

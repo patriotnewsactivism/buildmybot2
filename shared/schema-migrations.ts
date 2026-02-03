@@ -5,7 +5,13 @@
  * This provides version control and audit trail for database changes.
  */
 
-import { pgTable, text, timestamp, integer, varchar } from 'drizzle-orm/pg-core';
+import {
+  integer,
+  pgTable,
+  text,
+  timestamp,
+  varchar,
+} from 'drizzle-orm/pg-core';
 
 /**
  * Migration History Table

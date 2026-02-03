@@ -1,8 +1,14 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { db } from '../../server/db';
-import { bots, users, organizations, auditLogs, knowledgeSources } from '../../shared/schema';
-import { eq, and, isNull } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { db } from '../../server/db';
+import {
+  auditLogs,
+  bots,
+  knowledgeSources,
+  organizations,
+  users,
+} from '../../shared/schema';
 
 describe('Bot Persistence - Phase 1 Fixes', () => {
   let testUserId: string;
@@ -88,7 +94,10 @@ describe('Bot Persistence - Phase 1 Fixes', () => {
 
       expect(fetchedBot).toBeDefined();
       expect(fetchedBot.name).toBe('Test Bot');
-      expect(fetchedBot.knowledgeBase).toEqual(['Manual entry 1', 'Manual entry 2']);
+      expect(fetchedBot.knowledgeBase).toEqual([
+        'Manual entry 1',
+        'Manual entry 2',
+      ]);
     });
 
     it('should fail with clear error if required fields missing', async () => {
@@ -120,7 +129,11 @@ describe('Bot Persistence - Phase 1 Fixes', () => {
 
       const [createdBot] = await db.insert(bots).values(botData).returning();
 
-      expect(createdBot.knowledgeBase).toEqual(['Entry 1', 'Entry 2', 'https://example.com']);
+      expect(createdBot.knowledgeBase).toEqual([
+        'Entry 1',
+        'Entry 2',
+        'https://example.com',
+      ]);
       expect(Array.isArray(createdBot.knowledgeBase)).toBe(true);
     });
 
@@ -130,15 +143,18 @@ describe('Bot Persistence - Phase 1 Fixes', () => {
 
       // Simulate transactional insert
       await db.transaction(async (tx) => {
-        const [createdBot] = await tx.insert(bots).values({
-          id: botId,
-          name: 'Audit Test Bot',
-          systemPrompt: 'Test',
-          userId: testUserId,
-          organizationId: testOrgId,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        }).returning();
+        const [createdBot] = await tx
+          .insert(bots)
+          .values({
+            id: botId,
+            name: 'Audit Test Bot',
+            systemPrompt: 'Test',
+            userId: testUserId,
+            organizationId: testOrgId,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .returning();
 
         // Insert audit log in same transaction
         await tx.insert(auditLogs).values({
@@ -155,7 +171,10 @@ describe('Bot Persistence - Phase 1 Fixes', () => {
 
       // Verify both bot and audit log exist
       const [bot] = await db.select().from(bots).where(eq(bots.id, botId));
-      const [audit] = await db.select().from(auditLogs).where(eq(auditLogs.id, auditId));
+      const [audit] = await db
+        .select()
+        .from(auditLogs)
+        .where(eq(auditLogs.id, auditId));
 
       expect(bot).toBeDefined();
       expect(audit).toBeDefined();
@@ -231,13 +250,19 @@ describe('Bot Persistence - Phase 1 Fixes', () => {
       expect(result[0].temperature).toBe(0.9);
 
       // Verify persistence
-      const [fetchedBot] = await db.select().from(bots).where(eq(bots.id, existingBotId));
+      const [fetchedBot] = await db
+        .select()
+        .from(bots)
+        .where(eq(bots.id, existingBotId));
       expect(fetchedBot.name).toBe('Updated Name');
       expect(fetchedBot.systemPrompt).toBe('Updated Prompt');
     });
 
     it('should preserve unchanged fields during update', async () => {
-      const [originalBot] = await db.select().from(bots).where(eq(bots.id, existingBotId));
+      const [originalBot] = await db
+        .select()
+        .from(bots)
+        .where(eq(bots.id, existingBotId));
 
       // Update only name
       await db
@@ -245,7 +270,10 @@ describe('Bot Persistence - Phase 1 Fixes', () => {
         .set({ name: 'New Name', updatedAt: new Date() })
         .where(eq(bots.id, existingBotId));
 
-      const [updatedBot] = await db.select().from(bots).where(eq(bots.id, existingBotId));
+      const [updatedBot] = await db
+        .select()
+        .from(bots)
+        .where(eq(bots.id, existingBotId));
 
       expect(updatedBot.name).toBe('New Name');
       expect(updatedBot.systemPrompt).toBe(originalBot.systemPrompt);
@@ -269,7 +297,10 @@ describe('Bot Persistence - Phase 1 Fixes', () => {
       const auditId = uuidv4();
 
       await db.transaction(async (tx) => {
-        const [oldBot] = await tx.select().from(bots).where(eq(bots.id, existingBotId));
+        const [oldBot] = await tx
+          .select()
+          .from(bots)
+          .where(eq(bots.id, existingBotId));
 
         const [updatedBot] = await tx
           .update(bots)
@@ -290,7 +321,10 @@ describe('Bot Persistence - Phase 1 Fixes', () => {
         });
       });
 
-      const [audit] = await db.select().from(auditLogs).where(eq(auditLogs.id, auditId));
+      const [audit] = await db
+        .select()
+        .from(auditLogs)
+        .where(eq(auditLogs.id, auditId));
       expect(audit).toBeDefined();
       expect(audit.action).toBe('update_bot');
       expect((audit.oldValues as any).name).toBe('Original Name');
@@ -358,7 +392,7 @@ describe('Bot Persistence - Phase 1 Fixes', () => {
         .where(and(eq(bots.organizationId, testOrgId), isNull(bots.deletedAt)));
 
       expect(orgBots.length).toBeGreaterThanOrEqual(1);
-      expect(orgBots.some(b => b.id === bot1Id)).toBe(true);
+      expect(orgBots.some((b) => b.id === bot1Id)).toBe(true);
     });
   });
 
@@ -433,8 +467,8 @@ describe('Bot Persistence - Phase 1 Fixes', () => {
         .from(bots)
         .where(eq(bots.organizationId, otherOrgId));
 
-      expect(org1Bots.some(b => b.id === org2BotId)).toBe(false);
-      expect(org2Bots.some(b => b.id === org1BotId)).toBe(false);
+      expect(org1Bots.some((b) => b.id === org2BotId)).toBe(false);
+      expect(org2Bots.some((b) => b.id === org1BotId)).toBe(false);
     });
 
     it('should prevent cross-organization updates', async () => {
@@ -442,10 +476,12 @@ describe('Bot Persistence - Phase 1 Fixes', () => {
       const result = await db
         .update(bots)
         .set({ name: 'Hacked Name', updatedAt: new Date() })
-        .where(and(
-          eq(bots.id, org2BotId),
-          eq(bots.organizationId, testOrgId) // Wrong org filter
-        ))
+        .where(
+          and(
+            eq(bots.id, org2BotId),
+            eq(bots.organizationId, testOrgId), // Wrong org filter
+          ),
+        )
         .returning();
 
       expect(result.length).toBe(0);

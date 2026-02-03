@@ -149,7 +149,8 @@ export const PartnerDetailModal: React.FC<PartnerDetailModalProps> = ({
                         </span>
                         <span className="flex items-center gap-2">
                           <Calendar size={16} />
-                          Joined {new Date(partner.createdAt).toLocaleDateString()}
+                          Joined{' '}
+                          {new Date(partner.createdAt).toLocaleDateString()}
                         </span>
                       </div>
                     </div>
@@ -163,7 +164,9 @@ export const PartnerDetailModal: React.FC<PartnerDetailModalProps> = ({
                             : 'bg-white/10 backdrop-blur-sm text-white/70 border-2 border-white/20'
                         }`}
                       >
-                        {partner.status === 'Active' ? '✓ Active' : '○ Inactive'}
+                        {partner.status === 'Active'
+                          ? '✓ Active'
+                          : '○ Inactive'}
                       </span>
                     </div>
                   </div>

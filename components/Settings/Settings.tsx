@@ -370,17 +370,19 @@ export const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser }) => {
             </div>
           )}
 
-          {activeTab !== 'security' && activeTab !== 'billing' && activeTab !== 'integrations' && (
-            <div className="mt-8 pt-6 border-t border-slate-100 flex justify-end">
-              <button
-                type="button"
-                onClick={handleSave}
-                className="px-6 py-2.5 bg-blue-900 text-white rounded-lg font-medium hover:bg-blue-950 shadow-sm transition flex items-center gap-2"
-              >
-                <Save size={18} /> Save Changes
-              </button>
-            </div>
-          )}
+          {activeTab !== 'security' &&
+            activeTab !== 'billing' &&
+            activeTab !== 'integrations' && (
+              <div className="mt-8 pt-6 border-t border-slate-100 flex justify-end">
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  className="px-6 py-2.5 bg-blue-900 text-white rounded-lg font-medium hover:bg-blue-950 shadow-sm transition flex items-center gap-2"
+                >
+                  <Save size={18} /> Save Changes
+                </button>
+              </div>
+            )}
         </div>
       </div>
     </div>

@@ -36,7 +36,14 @@ interface ClientUsage {
   lastActivityAt: string;
 }
 
-const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+const COLORS = [
+  '#10b981',
+  '#3b82f6',
+  '#f59e0b',
+  '#ef4444',
+  '#8b5cf6',
+  '#ec4899',
+];
 
 export const ClientUsageBreakdown: React.FC = () => {
   const [clients, setClients] = useState<ClientUsage[]>([]);
@@ -72,19 +79,19 @@ export const ClientUsageBreakdown: React.FC = () => {
 
   const totalProfit = clients.reduce(
     (sum, client) => sum + client.totalProfitCents,
-    0
+    0,
   );
   const totalRevenue = clients.reduce(
     (sum, client) => sum + client.retailChargeCents,
-    0
+    0,
   );
   const totalVoiceMinutes = clients.reduce(
     (sum, client) => sum + client.voiceMinutes,
-    0
+    0,
   );
   const totalChatTokens = clients.reduce(
     (sum, client) => sum + client.chatTokens,
-    0
+    0,
   );
 
   const sortedClients = [...clients].sort((a, b) => {
@@ -209,7 +216,9 @@ export const ClientUsageBreakdown: React.FC = () => {
           <div className="flex items-center justify-between mb-2">
             <Users className="text-slate-600" size={20} />
           </div>
-          <div className="text-2xl font-bold text-slate-900">{clients.length}</div>
+          <div className="text-2xl font-bold text-slate-900">
+            {clients.length}
+          </div>
           <div className="text-sm text-slate-600 mt-1">Active Clients</div>
         </div>
 

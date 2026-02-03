@@ -839,12 +839,10 @@ export class AnalyticsService {
       }
     }
 
-    const sourcesList = Object.entries(sourceCounts).map(
-      ([source, count]) => ({
-        source,
-        count,
-      }),
-    );
+    const sourcesList = Object.entries(sourceCounts).map(([source, count]) => ({
+      source,
+      count,
+    }));
 
     return {
       leadsPerBot,
@@ -1059,12 +1057,8 @@ export class AnalyticsService {
       .where(and(...conditions));
 
     const totalRatings = ratings.length;
-    const totalRatingSum = ratings.reduce(
-      (sum, r) => sum + (r.rating || 0),
-      0,
-    );
-    const averageRating =
-      totalRatings > 0 ? totalRatingSum / totalRatings : 0;
+    const totalRatingSum = ratings.reduce((sum, r) => sum + (r.rating || 0), 0);
+    const averageRating = totalRatings > 0 ? totalRatingSum / totalRatings : 0;
 
     const topComplaints: string[] = [];
     const feedbackTexts = ratings
@@ -1107,9 +1101,7 @@ export class AnalyticsService {
       (m) => m.completionReason === 'escalated',
     ).length;
     const escalationRate =
-      metrics.length > 0
-        ? (escalatedConversations / metrics.length) * 100
-        : 0;
+      metrics.length > 0 ? (escalatedConversations / metrics.length) * 100 : 0;
 
     const commonQuestions: { question: string; count: number }[] = [];
 

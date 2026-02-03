@@ -17,7 +17,11 @@ const ITERATIONS = 100000;
  * Falls back to SESSION_SECRET if ENCRYPTION_KEY not set
  */
 function getEncryptionKey(): string {
-  return process.env.ENCRYPTION_KEY || process.env.SESSION_SECRET || 'default-key-change-me';
+  return (
+    process.env.ENCRYPTION_KEY ||
+    process.env.SESSION_SECRET ||
+    'default-key-change-me'
+  );
 }
 
 /**
@@ -25,13 +29,7 @@ function getEncryptionKey(): string {
  */
 function deriveKey(salt: Buffer): Buffer {
   const masterKey = getEncryptionKey();
-  return crypto.pbkdf2Sync(
-    masterKey,
-    salt,
-    ITERATIONS,
-    KEY_LENGTH,
-    'sha512'
-  );
+  return crypto.pbkdf2Sync(masterKey, salt, ITERATIONS, KEY_LENGTH, 'sha512');
 }
 
 /**
@@ -100,13 +98,7 @@ export function decrypt(encryptedText: string): string {
  */
 export function hash(text: string): string {
   const salt = crypto.randomBytes(SALT_LENGTH);
-  const hash = crypto.pbkdf2Sync(
-    text,
-    salt,
-    ITERATIONS,
-    KEY_LENGTH,
-    'sha512'
-  );
+  const hash = crypto.pbkdf2Sync(text, salt, ITERATIONS, KEY_LENGTH, 'sha512');
 
   return `${salt.toString('hex')}:${hash.toString('hex')}`;
 }
@@ -117,13 +109,7 @@ export function hash(text: string): string {
 export function verifyHash(text: string, hashedText: string): boolean {
   const [saltHex, hashHex] = hashedText.split(':');
   const salt = Buffer.from(saltHex, 'hex');
-  const hash = crypto.pbkdf2Sync(
-    text,
-    salt,
-    ITERATIONS,
-    KEY_LENGTH,
-    'sha512'
-  );
+  const hash = crypto.pbkdf2Sync(text, salt, ITERATIONS, KEY_LENGTH, 'sha512');
 
   return hash.toString('hex') === hashHex;
 }

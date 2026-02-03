@@ -139,13 +139,16 @@ export const ComprehensiveAnalytics: React.FC<ComprehensiveAnalyticsProps> = ({
     }
   }, [organizationId, dateRange]);
 
-  const tabs: { id: AnalyticsTab; label: string; icon: typeof MessageSquare }[] =
-    [
-      { id: 'conversations', label: 'Conversations', icon: MessageSquare },
-      { id: 'leads', label: 'Leads', icon: Users },
-      { id: 'performance', label: 'Performance', icon: TrendingUp },
-      { id: 'satisfaction', label: 'Satisfaction', icon: Star },
-    ];
+  const tabs: {
+    id: AnalyticsTab;
+    label: string;
+    icon: typeof MessageSquare;
+  }[] = [
+    { id: 'conversations', label: 'Conversations', icon: MessageSquare },
+    { id: 'leads', label: 'Leads', icon: Users },
+    { id: 'performance', label: 'Performance', icon: TrendingUp },
+    { id: 'satisfaction', label: 'Satisfaction', icon: Star },
+  ];
 
   const formatDuration = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
@@ -155,9 +158,17 @@ export const ComprehensiveAnalytics: React.FC<ComprehensiveAnalyticsProps> = ({
 
   const qualityChartData = leadData
     ? [
-        { name: 'Excellent', value: leadData.qualityScores.excellent, fill: '#10b981' },
+        {
+          name: 'Excellent',
+          value: leadData.qualityScores.excellent,
+          fill: '#10b981',
+        },
         { name: 'Good', value: leadData.qualityScores.good, fill: '#3b82f6' },
-        { name: 'Average', value: leadData.qualityScores.average, fill: '#f59e0b' },
+        {
+          name: 'Average',
+          value: leadData.qualityScores.average,
+          fill: '#f59e0b',
+        },
         { name: 'Poor', value: leadData.qualityScores.poor, fill: '#ef4444' },
       ]
     : [];
@@ -274,9 +285,20 @@ export const ComprehensiveAnalytics: React.FC<ComprehensiveAnalyticsProps> = ({
                       <XAxis
                         dataKey="hour"
                         stroke="#64748b"
-                        label={{ value: 'Hour of Day', position: 'insideBottom', offset: -5 }}
+                        label={{
+                          value: 'Hour of Day',
+                          position: 'insideBottom',
+                          offset: -5,
+                        }}
                       />
-                      <YAxis stroke="#64748b" label={{ value: 'Count', angle: -90, position: 'insideLeft' }} />
+                      <YAxis
+                        stroke="#64748b"
+                        label={{
+                          value: 'Count',
+                          angle: -90,
+                          position: 'insideLeft',
+                        }}
+                      />
                       <Tooltip
                         contentStyle={{
                           backgroundColor: 'white',
@@ -517,9 +539,7 @@ export const ComprehensiveAnalytics: React.FC<ComprehensiveAnalyticsProps> = ({
                             cx="50%"
                             cy="50%"
                             labelLine={false}
-                            label={(entry) =>
-                              `${entry.name}: ${entry.value}`
-                            }
+                            label={(entry) => `${entry.name}: ${entry.value}`}
                             outerRadius={100}
                             fill="#8884d8"
                             dataKey="value"

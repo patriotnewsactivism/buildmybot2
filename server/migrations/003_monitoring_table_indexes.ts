@@ -286,7 +286,9 @@ export async function monitoringTableIndexes(): Promise<IndexResult> {
   console.log('\n📊 Monitoring Index Creation Summary:');
   console.log(`   Total indexes: ${indexes.length}`);
   console.log(`   Created: ${result.indexesCreated.length}`);
-  console.log(`   Already existed: ${indexes.length - result.indexesCreated.length - result.errors.length}`);
+  console.log(
+    `   Already existed: ${indexes.length - result.indexesCreated.length - result.errors.length}`,
+  );
   console.log(`   Errors: ${result.errors.length}`);
 
   if (result.errors.length > 0) {

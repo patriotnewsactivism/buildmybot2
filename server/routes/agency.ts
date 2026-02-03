@@ -8,9 +8,9 @@ import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import {
   agencyPricingTiers,
-  usageWallets,
-  revenueShareLedger,
   organizations,
+  revenueShareLedger,
+  usageWallets,
 } from '../../shared/schema-agentic-os';
 import { db } from '../db';
 import { agencyBillingService } from '../services/AgencyBillingService';
@@ -38,7 +38,7 @@ router.get('/profit-report', async (req: any, res) => {
     const report = await agencyBillingService.getAgencyProfitReport(
       organizationId,
       startDate,
-      endDate
+      endDate,
     );
 
     // Get timeline data (daily aggregation)
@@ -54,8 +54,8 @@ router.get('/profit-report', async (req: any, res) => {
         and(
           eq(revenueShareLedger.agencyOrganizationId, organizationId),
           gte(revenueShareLedger.createdAt, startDate),
-          lte(revenueShareLedger.createdAt, endDate)
-        )
+          lte(revenueShareLedger.createdAt, endDate),
+        ),
       )
       .groupBy(sql`DATE(${revenueShareLedger.createdAt})`)
       .orderBy(sql`DATE(${revenueShareLedger.createdAt})`);
@@ -164,9 +164,7 @@ router.post('/wallet/recharge', async (req: any, res) => {
 
     if (!amountCents || amountCents < 1000) {
       // Minimum $10
-      return res
-        .status(400)
-        .json({ error: 'Minimum recharge amount is $10' });
+      return res.status(400).json({ error: 'Minimum recharge amount is $10' });
     }
 
     // TODO: Process payment via Stripe here
@@ -376,8 +374,8 @@ router.get('/client-usage', async (req: any, res) => {
       .where(
         and(
           eq(revenueShareLedger.agencyOrganizationId, organizationId),
-          sql`${revenueShareLedger.clientOrganizationId} IS NOT NULL`
-        )
+          sql`${revenueShareLedger.clientOrganizationId} IS NOT NULL`,
+        ),
       )
       .groupBy(revenueShareLedger.clientOrganizationId);
 
@@ -391,20 +389,24 @@ router.get('/client-usage', async (req: any, res) => {
         ? await db
             .select()
             .from(organizations)
-            .where(sql`${organizations.id} IN (${sql.join(clientIds, sql`, `)})`)
+            .where(
+              sql`${organizations.id} IN (${sql.join(clientIds, sql`, `)})`,
+            )
         : [];
 
     const orgMap = new Map(clientOrgs.map((org) => [org.id, org.name]));
 
     const clients = clientUsage.map((usage) => ({
       clientOrganizationId: usage.clientOrganizationId || '',
-      clientName: orgMap.get(usage.clientOrganizationId || '') || 'Unknown Client',
+      clientName:
+        orgMap.get(usage.clientOrganizationId || '') || 'Unknown Client',
       voiceMinutes: usage.voiceMinutes || 0,
       chatTokens: usage.chatTokens || 0,
       totalProfitCents: usage.totalProfitCents || 0,
       wholesaleCostCents: usage.wholesaleCostCents || 0,
       retailChargeCents: usage.retailChargeCents || 0,
-      lastActivityAt: usage.lastActivityAt?.toISOString() || new Date().toISOString(),
+      lastActivityAt:
+        usage.lastActivityAt?.toISOString() || new Date().toISOString(),
     }));
 
     res.json({ clients });

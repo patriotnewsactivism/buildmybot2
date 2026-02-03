@@ -1,14 +1,15 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  AlertCircle, 
-  CheckCircle, 
-  Clock, 
-  Database, 
-  Globe, 
-  MessageSquare, 
-  Server, 
-  XCircle 
+import {
+  AlertCircle,
+  CheckCircle,
+  Clock,
+  Database,
+  Globe,
+  MessageSquare,
+  Server,
+  XCircle,
 } from 'lucide-react';
+import type React from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { SEO, SEOConfig } from '../SEO/SEO';
 
 interface ServiceStatus {
@@ -112,93 +113,122 @@ export const StatusPage: React.FC = () => {
                 <Server className="text-white" size={32} />
               </div>
             </div>
-            <h1 className="text-3xl font-bold text-slate-900 mb-2">BuildMyBot Status</h1>
-            <p className="text-slate-600">Real-time status of our services and infrastructure</p>
-          </div>
-
-        {/* Overall Status */}
-        <div className={`rounded-xl p-6 mb-8 flex items-center gap-4 shadow-sm border ${
-          health?.status === 'healthy' ? 'bg-green-50 border-green-200' :
-          health?.status === 'degraded' ? 'bg-yellow-50 border-yellow-200' :
-          'bg-red-50 border-red-200'
-        }`}>
-          {getStatusIcon(health?.status || 'unknown')}
-          <div>
-            <h2 className={`text-xl font-bold ${
-              health?.status === 'healthy' ? 'text-green-900' :
-              health?.status === 'degraded' ? 'text-yellow-900' :
-              'text-red-900'
-            }`}>
-              {getStatusText(health?.status || 'unknown')}
-            </h2>
-            <p className="text-sm opacity-80">
-              Last updated: {health ? new Date(health.timestamp).toLocaleTimeString() : 'Never'}
+            <h1 className="text-3xl font-bold text-slate-900 mb-2">
+              BuildMyBot Status
+            </h1>
+            <p className="text-slate-600">
+              Real-time status of our services and infrastructure
             </p>
           </div>
-        </div>
 
-        {/* Services Grid */}
-        <div className="grid gap-4 mb-8">
-          <ServiceCard 
-            name="Core Platform & Database" 
-            status={health?.services.database} 
-            icon={<Database size={20} />}
-          />
-          <ServiceCard 
-            name="AI Chat Services (OpenAI)" 
-            status={health?.services.openai} 
-            icon={<MessageSquare size={20} />}
-          />
-          <ServiceCard 
-            name="Voice Synthesis (Cartesia)" 
-            status={health?.services.cartesia} 
-            icon={<Globe size={20} />}
-          />
-          <ServiceCard 
-            name="Billing & Payments (Stripe)" 
-            status={health?.services.stripe} 
-            icon={<CheckCircle size={20} />}
-          />
-        </div>
-
-        {/* Infrastructure Details */}
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200">
-          <h3 className="font-bold text-slate-900 mb-4">System Information</h3>
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div className="flex justify-between border-b border-slate-100 pb-2">
-              <span className="text-slate-500">Uptime</span>
-              <span className="font-mono">{health ? Math.floor(health.uptime / 3600) : 0}h {health ? Math.floor((health.uptime % 3600) / 60) : 0}m</span>
-            </div>
-            <div className="flex justify-between border-b border-slate-100 pb-2">
-              <span className="text-slate-500">Version</span>
-              <span className="font-mono">v{health?.version}</span>
-            </div>
-            <div className="flex justify-between border-b border-slate-100 pb-2">
-              <span className="text-slate-500">Environment</span>
-              <span className="font-mono">Production</span>
-            </div>
-            <div className="flex justify-between border-b border-slate-100 pb-2">
-              <span className="text-slate-500">Region</span>
-              <span className="font-mono">Global Edge</span>
+          {/* Overall Status */}
+          <div
+            className={`rounded-xl p-6 mb-8 flex items-center gap-4 shadow-sm border ${
+              health?.status === 'healthy'
+                ? 'bg-green-50 border-green-200'
+                : health?.status === 'degraded'
+                  ? 'bg-yellow-50 border-yellow-200'
+                  : 'bg-red-50 border-red-200'
+            }`}
+          >
+            {getStatusIcon(health?.status || 'unknown')}
+            <div>
+              <h2
+                className={`text-xl font-bold ${
+                  health?.status === 'healthy'
+                    ? 'text-green-900'
+                    : health?.status === 'degraded'
+                      ? 'text-yellow-900'
+                      : 'text-red-900'
+                }`}
+              >
+                {getStatusText(health?.status || 'unknown')}
+              </h2>
+              <p className="text-sm opacity-80">
+                Last updated:{' '}
+                {health
+                  ? new Date(health.timestamp).toLocaleTimeString()
+                  : 'Never'}
+              </p>
             </div>
           </div>
-        </div>
 
-        <div className="mt-12 text-center">
-          <a href="/" className="text-blue-600 hover:text-blue-800 font-medium">
-            &larr; Back to BuildMyBot
-          </a>
-        </div>
+          {/* Services Grid */}
+          <div className="grid gap-4 mb-8">
+            <ServiceCard
+              name="Core Platform & Database"
+              status={health?.services.database}
+              icon={<Database size={20} />}
+            />
+            <ServiceCard
+              name="AI Chat Services (OpenAI)"
+              status={health?.services.openai}
+              icon={<MessageSquare size={20} />}
+            />
+            <ServiceCard
+              name="Voice Synthesis (Cartesia)"
+              status={health?.services.cartesia}
+              icon={<Globe size={20} />}
+            />
+            <ServiceCard
+              name="Billing & Payments (Stripe)"
+              status={health?.services.stripe}
+              icon={<CheckCircle size={20} />}
+            />
+          </div>
+
+          {/* Infrastructure Details */}
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200">
+            <h3 className="font-bold text-slate-900 mb-4">
+              System Information
+            </h3>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="flex justify-between border-b border-slate-100 pb-2">
+                <span className="text-slate-500">Uptime</span>
+                <span className="font-mono">
+                  {health ? Math.floor(health.uptime / 3600) : 0}h{' '}
+                  {health ? Math.floor((health.uptime % 3600) / 60) : 0}m
+                </span>
+              </div>
+              <div className="flex justify-between border-b border-slate-100 pb-2">
+                <span className="text-slate-500">Version</span>
+                <span className="font-mono">v{health?.version}</span>
+              </div>
+              <div className="flex justify-between border-b border-slate-100 pb-2">
+                <span className="text-slate-500">Environment</span>
+                <span className="font-mono">Production</span>
+              </div>
+              <div className="flex justify-between border-b border-slate-100 pb-2">
+                <span className="text-slate-500">Region</span>
+                <span className="font-mono">Global Edge</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-12 text-center">
+            <a
+              href="/"
+              className="text-blue-600 hover:text-blue-800 font-medium"
+            >
+              &larr; Back to BuildMyBot
+            </a>
+          </div>
         </div>
       </div>
     </>
   );
 };
 
-const ServiceCard: React.FC<{ name: string; status?: ServiceStatus; icon: React.ReactNode }> = ({ name, status, icon }) => {
+const ServiceCard: React.FC<{
+  name: string;
+  status?: ServiceStatus;
+  icon: React.ReactNode;
+}> = ({ name, status, icon }) => {
   const getStatusIcon = (s?: string) => {
-    if (s === 'up') return <div className="w-2.5 h-2.5 bg-green-500 rounded-full" />;
-    if (s === 'down') return <div className="w-2.5 h-2.5 bg-red-500 rounded-full" />;
+    if (s === 'up')
+      return <div className="w-2.5 h-2.5 bg-green-500 rounded-full" />;
+    if (s === 'down')
+      return <div className="w-2.5 h-2.5 bg-red-500 rounded-full" />;
     return <div className="w-2.5 h-2.5 bg-slate-300 rounded-full" />;
   };
 
@@ -211,7 +241,9 @@ const ServiceCard: React.FC<{ name: string; status?: ServiceStatus; icon: React.
         <div>
           <h4 className="font-medium text-slate-900">{name}</h4>
           {status?.latency && (
-            <p className="text-xs text-slate-500">Latency: {status.latency}ms</p>
+            <p className="text-xs text-slate-500">
+              Latency: {status.latency}ms
+            </p>
           )}
         </div>
       </div>

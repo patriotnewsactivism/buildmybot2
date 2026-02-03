@@ -1,9 +1,9 @@
-import express from 'express';
-import { twilioService } from '../services/TwilioService';
-import { db } from '../db';
-import { users } from '../../shared/schema';
 import { eq } from 'drizzle-orm';
+import express from 'express';
+import { users } from '../../shared/schema';
+import { db } from '../db';
 import { authenticate } from '../middleware';
+import { twilioService } from '../services/TwilioService';
 
 const router = express.Router();
 
@@ -38,14 +38,14 @@ router.post('/purchase', async (req, res) => {
     // Update user's phone config
     const [user] = await db.select().from(users).where(eq(users.id, userId));
     const currentConfig = (user?.phoneConfig as any) || {};
-    
+
     // Append or replace the phone number details
     // For now, we assume one number per user/agent, but this could be an array
     const newConfig = {
       ...currentConfig,
       twilioPhoneNumber: phoneNumber,
       twilioSid: sid,
-      twilioPhoneStatus: 'active'
+      twilioPhoneStatus: 'active',
     };
 
     await db
