@@ -132,6 +132,7 @@ export default function SimplifiedBotWizard({
         <div className="p-8 border-b border-gray-100 relative">
           {/* Back/Cancel Button */}
           <button
+            type="button"
             onClick={onCancel}
             className="absolute top-4 left-4 text-gray-400 hover:text-gray-600"
           >
@@ -182,10 +183,14 @@ export default function SimplifiedBotWizard({
               {step === 1 && (
                 <div className="space-y-6">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    <label
+                      htmlFor="bot-name"
+                      className="block text-sm font-semibold text-gray-700 mb-2"
+                    >
                       Bot Name
                     </label>
                     <input
+                      id="bot-name"
                       type="text"
                       value={formData.name}
                       onChange={(e) => updateField('name', e.target.value)}
@@ -194,10 +199,14 @@ export default function SimplifiedBotWizard({
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    <label
+                      htmlFor="bot-role"
+                      className="block text-sm font-semibold text-gray-700 mb-2"
+                    >
                       Role / Title
                     </label>
                     <input
+                      id="bot-role"
                       type="text"
                       value={formData.role}
                       onChange={(e) => updateField('role', e.target.value)}
@@ -206,10 +215,14 @@ export default function SimplifiedBotWizard({
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    <label
+                      htmlFor="bot-description"
+                      className="block text-sm font-semibold text-gray-700 mb-2"
+                    >
                       Description
                     </label>
                     <textarea
+                      id="bot-description"
                       value={formData.description}
                       onChange={(e) =>
                         updateField('description', e.target.value)
@@ -224,7 +237,10 @@ export default function SimplifiedBotWizard({
               {step === 2 && (
                 <div className="space-y-6">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    <label
+                      htmlFor="bot-system-prompt"
+                      className="block text-sm font-semibold text-gray-700 mb-2"
+                    >
                       System Prompt (The Brain)
                     </label>
                     <p className="text-xs text-gray-500 mb-2">
@@ -232,6 +248,7 @@ export default function SimplifiedBotWizard({
                       forget.
                     </p>
                     <textarea
+                      id="bot-system-prompt"
                       value={formData.systemPrompt}
                       onChange={(e) =>
                         updateField('systemPrompt', e.target.value)
@@ -243,10 +260,14 @@ export default function SimplifiedBotWizard({
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      <label
+                        htmlFor="bot-tone"
+                        className="block text-sm font-semibold text-gray-700 mb-2"
+                      >
                         Tone
                       </label>
                       <select
+                        id="bot-tone"
                         value={formData.tone}
                         onChange={(e) => updateField('tone', e.target.value)}
                         className="w-full px-4 py-3 rounded-lg border border-gray-200 outline-none"
@@ -292,7 +313,10 @@ export default function SimplifiedBotWizard({
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <button className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-300 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-all group">
+                    <button
+                      type="button"
+                      className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-300 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-all group"
+                    >
                       <Upload
                         className="text-gray-400 group-hover:text-blue-500 mb-2"
                         size={32}
@@ -301,7 +325,10 @@ export default function SimplifiedBotWizard({
                         Upload PDF/Doc
                       </span>
                     </button>
-                    <button className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-300 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-all group">
+                    <button
+                      type="button"
+                      className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-300 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-all group"
+                    >
                       <Globe
                         className="text-gray-400 group-hover:text-blue-500 mb-2"
                         size={32}
@@ -368,6 +395,7 @@ export default function SimplifiedBotWizard({
         {/* Footer Actions */}
         <div className="p-8 border-t border-gray-200 bg-gray-50 flex justify-between items-center">
           <button
+            type="button"
             onClick={() =>
               step === 1 ? onCancel() : setStep((s) => Math.max(1, s - 1))
             }
@@ -378,6 +406,7 @@ export default function SimplifiedBotWizard({
 
           {step < 4 ? (
             <button
+              type="button"
               onClick={() => setStep((s) => Math.min(4, s + 1))}
               className="px-6 py-2.5 bg-slate-900 text-white rounded-lg font-medium hover:bg-slate-800 transition-all flex items-center space-x-2"
             >
@@ -386,6 +415,7 @@ export default function SimplifiedBotWizard({
             </button>
           ) : (
             <button
+              type="button"
               onClick={handleSave}
               disabled={isSaving}
               className={`px-8 py-3 rounded-lg font-bold text-white shadow-lg transform transition-all flex items-center space-x-2
