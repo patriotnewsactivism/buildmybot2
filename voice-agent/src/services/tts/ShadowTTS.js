@@ -1,5 +1,5 @@
+import { Writable } from 'node:stream';
 import { TTSProvider } from './TTSProvider.js';
-import { Writable } from 'stream';
 
 class NullStream extends Writable {
   _write(chunk, encoding, callback) {
@@ -30,9 +30,13 @@ export class ShadowTTS extends TTSProvider {
         const nullStream = new NullStream();
         await this.shadow.speak(text, nullStream);
         const duration = Date.now() - shadowStart;
-        console.log(`[Shadow Metrics] Provider: ${this.shadow.constructor.name} | Latency: ${duration}ms | Status: Success`);
+        console.log(
+          `[Shadow Metrics] Provider: ${this.shadow.constructor.name} | Latency: ${duration}ms | Status: Success`,
+        );
       } catch (err) {
-        console.error(`[Shadow Metrics] Provider: ${this.shadow.constructor.name} | Error: ${err.message}`);
+        console.error(
+          `[Shadow Metrics] Provider: ${this.shadow.constructor.name} | Error: ${err.message}`,
+        );
       }
     })();
 
@@ -40,12 +44,16 @@ export class ShadowTTS extends TTSProvider {
     try {
       await this.primary.speak(text, stream);
       const duration = Date.now() - start;
-      console.log(`[Primary Metrics] Provider: ${this.primary.constructor.name} | Latency: ${duration}ms | Status: Success`);
+      console.log(
+        `[Primary Metrics] Provider: ${this.primary.constructor.name} | Latency: ${duration}ms | Status: Success`,
+      );
     } catch (err) {
-      console.error(`[Primary Metrics] Provider: ${this.primary.constructor.name} | Error: ${err.message}`);
+      console.error(
+        `[Primary Metrics] Provider: ${this.primary.constructor.name} | Error: ${err.message}`,
+      );
       throw err; // Propagate primary error to user
     }
-    
+
     // Note: We don't await shadowPromise here because we don't want to delay the end of the call
     // However, Node process might exit if not handled. In a long-running server, this is fine.
   }

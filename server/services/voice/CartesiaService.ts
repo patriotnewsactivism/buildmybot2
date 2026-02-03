@@ -1,6 +1,6 @@
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import axios from 'axios';
-import { writeFileSync, mkdirSync } from 'fs';
-import { join } from 'path';
 
 const CARTESIA_API_KEY = process.env.CARTESIA_API_KEY;
 const CARTESIA_API_URL = 'https://api.cartesia.ai/tts/bytes';
@@ -10,11 +10,11 @@ export const CARTESIA_VOICES = {
   // Professional female voices
   'professional-female-us': 'a0e99841-438c-4a64-b679-ae501e7d6091',
   'professional-female-uk': '79a125e8-cd45-4c13-8a67-188112f4dd22',
-  
-  // Professional male voices  
+
+  // Professional male voices
   'professional-male-us': '694f9389-aac1-45b6-b726-9d9369183238',
   'professional-male-uk': '2ee87190-8f84-4925-97da-e52547f9462c',
-  
+
   // Friendly/casual voices
   'friendly-female': '71a5d7b0-1e8e-4c0e-9c3f-98e3a5b8c2a1',
   'friendly-male': '9b3e4f2a-7c6d-4e1b-8a5f-3d2c1e9a8b7c',
@@ -90,18 +90,18 @@ export class CartesiaService {
   ): Promise<string> {
     try {
       const audioBuffer = await this.generateSpeech(text, voiceId);
-      
+
       // Create audio directory if it doesn't exist
       const audioDir = join(process.cwd(), 'public', 'voice', 'audio');
       mkdirSync(audioDir, { recursive: true });
-      
+
       // Generate unique filename
       const filename = `${callId}-${Date.now()}.wav`;
       const filepath = join(audioDir, filename);
-      
+
       // Write audio file
       writeFileSync(filepath, audioBuffer);
-      
+
       // Return public URL
       return `/voice/audio/${filename}`;
     } catch (error) {
@@ -113,10 +113,7 @@ export class CartesiaService {
   /**
    * Streams audio directly (for real-time responses)
    */
-  async streamSpeech(
-    text: string,
-    voiceId: string,
-  ): Promise<ReadableStream> {
+  async streamSpeech(text: string, voiceId: string): Promise<ReadableStream> {
     try {
       const response = await axios.post(
         CARTESIA_API_URL,

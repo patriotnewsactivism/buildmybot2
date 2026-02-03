@@ -221,7 +221,7 @@ export const AdvancedAnalytics: React.FC<AdvancedAnalyticsProps> = ({
       setLoading(true);
       setError(null);
 
-      const url = endpoint 
+      const url = endpoint
         ? `${API_BASE}${endpoint}?days=${days}`
         : `${API_BASE}/admin/analytics/dashboard?days=${days}`;
 

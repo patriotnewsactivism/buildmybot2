@@ -6,20 +6,25 @@
 
 import { and, desc, eq, gte, lte, sql } from 'drizzle-orm';
 import { v4 as uuid } from 'uuid';
+import { organizations } from '../../shared/schema';
 import {
+  type InsertAgencyPricingTier,
+  type InsertRevenueShareLedger,
+  type InsertUsageWallet,
   agencyPricingTiers,
   agencySubscriptionPackages,
   revenueShareLedger,
   usageWallets,
-  type InsertAgencyPricingTier,
-  type InsertRevenueShareLedger,
-  type InsertUsageWallet,
 } from '../../shared/schema-agentic-os';
-import { organizations } from '../../shared/schema';
 import { db } from '../db';
 
 export interface UsageEvent {
-  eventType: 'voice_minute' | 'premium_tokens' | 'standard_tokens' | 'tool_execution' | 'chat_token';
+  eventType:
+    | 'voice_minute'
+    | 'premium_tokens'
+    | 'standard_tokens'
+    | 'tool_execution'
+    | 'chat_token';
   quantity: number; // minutes, token count, or execution count
   agencyOrganizationId: string;
   clientOrganizationId?: string;
@@ -39,7 +44,7 @@ export class AgencyBillingService {
    */
   async createPricingTier(
     organizationId: string,
-    rates?: Partial<InsertAgencyPricingTier>
+    rates?: Partial<InsertAgencyPricingTier>,
   ) {
     const id = uuid();
 
@@ -77,7 +82,7 @@ export class AgencyBillingService {
       retailVoicePerMinute?: number;
       retailPremiumTokensPer1k?: number;
       retailStandardTokensPer1k?: number;
-    }
+    },
   ) {
     const tier = await this.getPricingTier(organizationId);
     if (!tier) {
@@ -88,7 +93,8 @@ export class AgencyBillingService {
     if (retailRates.retailVoicePerMinute) {
       const markupPercent =
         ((retailRates.retailVoicePerMinute - tier.wholesaleVoicePerMinute!) /
-         tier.wholesaleVoicePerMinute!) * 100;
+          tier.wholesaleVoicePerMinute!) *
+        100;
 
       if (markupPercent > tier.maxMarkupPercentage!) {
         throw new Error(`Markup exceeds limit of ${tier.maxMarkupPercentage}%`);
@@ -110,9 +116,7 @@ export class AgencyBillingService {
   /**
    * Calculate pricing for a usage event
    */
-  private async calculatePricing(
-    event: UsageEvent
-  ): Promise<PricingRates> {
+  private async calculatePricing(event: UsageEvent): Promise<PricingRates> {
     const tier = await this.getPricingTier(event.agencyOrganizationId);
     if (!tier) {
       throw new Error('Pricing tier not configured for agency');
@@ -132,7 +136,8 @@ export class AgencyBillingService {
         break;
       case 'standard_tokens':
       case 'chat_token':
-        wholesale = (tier.wholesaleStandardTokensPer1k! * event.quantity) / 1000;
+        wholesale =
+          (tier.wholesaleStandardTokensPer1k! * event.quantity) / 1000;
         retail = (tier.retailStandardTokensPer1k! * event.quantity) / 1000;
         break;
       case 'tool_execution':
@@ -175,17 +180,11 @@ export class AgencyBillingService {
     });
 
     // Deduct from agency's wallet (wholesale cost)
-    await this.deductFromWallet(
-      event.agencyOrganizationId,
-      pricing.wholesale
-    );
+    await this.deductFromWallet(event.agencyOrganizationId, pricing.wholesale);
 
     // If client exists, charge their wallet (retail price)
     if (event.clientOrganizationId) {
-      await this.deductFromWallet(
-        event.clientOrganizationId,
-        pricing.retail
-      );
+      await this.deductFromWallet(event.clientOrganizationId, pricing.retail);
     }
   }
 
@@ -228,10 +227,7 @@ export class AgencyBillingService {
   /**
    * Add credits to wallet
    */
-  async addCredits(
-    organizationId: string,
-    amountCents: number
-  ) {
+  async addCredits(organizationId: string, amountCents: number) {
     await db
       .update(usageWallets)
       .set({
@@ -246,10 +242,7 @@ export class AgencyBillingService {
   /**
    * Deduct from wallet
    */
-  private async deductFromWallet(
-    organizationId: string,
-    amountCents: number
-  ) {
+  private async deductFromWallet(organizationId: string, amountCents: number) {
     const wallet = await this.getWallet(organizationId);
 
     // Check if balance sufficient
@@ -279,17 +272,14 @@ export class AgencyBillingService {
    */
   private async triggerAutoRecharge(
     organizationId: string,
-    wallet: typeof usageWallets.$inferSelect
+    wallet: typeof usageWallets.$inferSelect,
   ) {
     // TODO: Integrate with Stripe to charge saved payment method
     // For now, just log
     console.log(`Auto-recharge triggered for org ${organizationId}`);
 
     // Add credits
-    await this.addCredits(
-      organizationId,
-      wallet.autoRechargeAmountCents!
-    );
+    await this.addCredits(organizationId, wallet.autoRechargeAmountCents!);
   }
 
   /**
@@ -297,7 +287,7 @@ export class AgencyBillingService {
    */
   private async sendLowBalanceAlert(
     organizationId: string,
-    wallet: typeof usageWallets.$inferSelect
+    wallet: typeof usageWallets.$inferSelect,
   ) {
     // Prevent spam - only send once
     if (wallet.lowBalanceAlertSent) return;
@@ -321,7 +311,7 @@ export class AgencyBillingService {
   async getAgencyProfitReport(
     agencyOrganizationId: string,
     startDate: Date,
-    endDate: Date
+    endDate: Date,
   ) {
     const ledger = await db
       .select()
@@ -330,29 +320,41 @@ export class AgencyBillingService {
         and(
           eq(revenueShareLedger.agencyOrganizationId, agencyOrganizationId),
           gte(revenueShareLedger.createdAt, startDate),
-          lte(revenueShareLedger.createdAt, endDate)
-        )
+          lte(revenueShareLedger.createdAt, endDate),
+        ),
       )
       .orderBy(desc(revenueShareLedger.createdAt));
 
-    const totalProfit = ledger.reduce((sum, entry) => sum + entry.agencyProfitCents!, 0);
-    const totalWholesale = ledger.reduce((sum, entry) => sum + entry.wholesaleCostCents!, 0);
-    const totalRetail = ledger.reduce((sum, entry) => sum + entry.retailChargeCents!, 0);
+    const totalProfit = ledger.reduce(
+      (sum, entry) => sum + entry.agencyProfitCents!,
+      0,
+    );
+    const totalWholesale = ledger.reduce(
+      (sum, entry) => sum + entry.wholesaleCostCents!,
+      0,
+    );
+    const totalRetail = ledger.reduce(
+      (sum, entry) => sum + entry.retailChargeCents!,
+      0,
+    );
 
     // Breakdown by event type
-    const byEventType = ledger.reduce((acc, entry) => {
-      if (!acc[entry.eventType!]) {
-        acc[entry.eventType!] = {
-          count: 0,
-          totalProfit: 0,
-          totalQuantity: 0,
-        };
-      }
-      acc[entry.eventType!].count++;
-      acc[entry.eventType!].totalProfit += entry.agencyProfitCents!;
-      acc[entry.eventType!].totalQuantity += entry.quantity!;
-      return acc;
-    }, {} as Record<string, any>);
+    const byEventType = ledger.reduce(
+      (acc, entry) => {
+        if (!acc[entry.eventType!]) {
+          acc[entry.eventType!] = {
+            count: 0,
+            totalProfit: 0,
+            totalQuantity: 0,
+          };
+        }
+        acc[entry.eventType!].count++;
+        acc[entry.eventType!].totalProfit += entry.agencyProfitCents!;
+        acc[entry.eventType!].totalQuantity += entry.quantity!;
+        return acc;
+      },
+      {} as Record<string, any>,
+    );
 
     return {
       periodStart: startDate,
@@ -360,7 +362,8 @@ export class AgencyBillingService {
       totalProfitCents: totalProfit,
       totalWholesaleCents: totalWholesale,
       totalRetailCents: totalRetail,
-      profitMarginPercent: totalRetail > 0 ? (totalProfit / totalRetail) * 100 : 0,
+      profitMarginPercent:
+        totalRetail > 0 ? (totalProfit / totalRetail) * 100 : 0,
       eventBreakdown: byEventType,
       transactionCount: ledger.length,
     };
@@ -381,7 +384,7 @@ export class AgencyBillingService {
       overageVoicePerMinute?: number;
       overagePremiumTokensPer1k?: number;
       overageStandardTokensPer1k?: number;
-    }
+    },
   ) {
     const id = uuid();
 
@@ -406,9 +409,12 @@ export class AgencyBillingService {
       .from(agencySubscriptionPackages)
       .where(
         and(
-          eq(agencySubscriptionPackages.agencyOrganizationId, agencyOrganizationId),
-          eq(agencySubscriptionPackages.active, true)
-        )
+          eq(
+            agencySubscriptionPackages.agencyOrganizationId,
+            agencyOrganizationId,
+          ),
+          eq(agencySubscriptionPackages.active, true),
+        ),
       );
   }
 }

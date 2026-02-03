@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
 import { CheckCircle, Plug, Plus, Trash2, XCircle } from 'lucide-react';
+import type React from 'react';
+import { useEffect, useState } from 'react';
 import { API_BASE } from '../../services/apiConfig';
 
 interface Provider {
@@ -22,7 +23,10 @@ export const Integrations: React.FC = () => {
   const [selectedProvider, setSelectedProvider] = useState<string>('');
   const [apiKey, setApiKey] = useState('');
   const [connecting, setConnecting] = useState(false);
-  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+  const [message, setMessage] = useState<{
+    type: 'success' | 'error';
+    text: string;
+  } | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -32,7 +36,7 @@ export const Integrations: React.FC = () => {
     try {
       const [provRes, intRes] = await Promise.all([
         fetch(`${API_BASE}/integrations/providers`, { credentials: 'include' }),
-        fetch(`${API_BASE}/integrations`, { credentials: 'include' })
+        fetch(`${API_BASE}/integrations`, { credentials: 'include' }),
       ]);
 
       if (provRes.ok) setProviders(await provRes.json());
@@ -54,8 +58,8 @@ export const Integrations: React.FC = () => {
         credentials: 'include',
         body: JSON.stringify({
           providerId: selectedProvider,
-          config: { accessToken: apiKey }
-        })
+          config: { accessToken: apiKey },
+        }),
       });
 
       if (!res.ok) throw new Error('Connection failed');
@@ -63,22 +67,29 @@ export const Integrations: React.FC = () => {
       await fetchData();
       setShowModal(false);
       setApiKey('');
-      setMessage({ type: 'success', text: 'Integration connected successfully!' });
+      setMessage({
+        type: 'success',
+        text: 'Integration connected successfully!',
+      });
     } catch (error) {
-      setMessage({ type: 'error', text: 'Failed to connect. Check your credentials.' });
+      setMessage({
+        type: 'error',
+        text: 'Failed to connect. Check your credentials.',
+      });
     } finally {
       setConnecting(false);
     }
   };
 
   const handleDisconnect = async (providerId: string) => {
-    if (!confirm('Are you sure you want to disconnect this integration?')) return;
+    if (!confirm('Are you sure you want to disconnect this integration?'))
+      return;
     try {
       await fetch(`${API_BASE}/integrations/disconnect`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ providerId })
+        body: JSON.stringify({ providerId }),
       });
       await fetchData();
       setMessage({ type: 'success', text: 'Integration disconnected.' });
@@ -88,7 +99,7 @@ export const Integrations: React.FC = () => {
   };
 
   const isConnected = (providerId: string) => {
-    return integrations.some(i => i.provider === providerId && i.isActive);
+    return integrations.some((i) => i.provider === providerId && i.isActive);
   };
 
   return (
@@ -98,17 +109,28 @@ export const Integrations: React.FC = () => {
       </h2>
 
       {message && (
-        <div className={`p-4 mb-6 rounded-lg flex items-center gap-2 ${message.type === 'success' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
-          {message.type === 'success' ? <CheckCircle size={20} /> : <XCircle size={20} />}
+        <div
+          className={`p-4 mb-6 rounded-lg flex items-center gap-2 ${message.type === 'success' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}
+        >
+          {message.type === 'success' ? (
+            <CheckCircle size={20} />
+          ) : (
+            <XCircle size={20} />
+          )}
           {message.text}
         </div>
       )}
 
       <div className="grid md:grid-cols-2 gap-4">
-        {providers.map(provider => (
-          <div key={provider.id} className="bg-white border rounded-xl p-6 shadow-sm flex items-center justify-between">
+        {providers.map((provider) => (
+          <div
+            key={provider.id}
+            className="bg-white border rounded-xl p-6 shadow-sm flex items-center justify-between"
+          >
             <div className="flex items-center gap-4">
-              <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${isConnected(provider.id) ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
+              <div
+                className={`w-12 h-12 rounded-lg flex items-center justify-center ${isConnected(provider.id) ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}
+              >
                 <Plug size={24} />
               </div>
               <div>
@@ -118,17 +140,20 @@ export const Integrations: React.FC = () => {
                 </p>
               </div>
             </div>
-            
+
             {isConnected(provider.id) ? (
-              <button 
+              <button
                 onClick={() => handleDisconnect(provider.id)}
                 className="px-4 py-2 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 text-sm font-medium flex items-center gap-2"
               >
                 <Trash2 size={16} /> Disconnect
               </button>
             ) : (
-              <button 
-                onClick={() => { setSelectedProvider(provider.id); setShowModal(true); }}
+              <button
+                onClick={() => {
+                  setSelectedProvider(provider.id);
+                  setShowModal(true);
+                }}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium flex items-center gap-2"
               >
                 <Plus size={16} /> Connect
@@ -141,12 +166,16 @@ export const Integrations: React.FC = () => {
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl p-6 w-full max-w-md">
-            <h3 className="font-bold text-xl mb-4">Connect {providers.find(p => p.id === selectedProvider)?.name}</h3>
-            
+            <h3 className="font-bold text-xl mb-4">
+              Connect {providers.find((p) => p.id === selectedProvider)?.name}
+            </h3>
+
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Access Token / API Key</label>
-                <input 
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Access Token / API Key
+                </label>
+                <input
                   type="password"
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
@@ -154,15 +183,15 @@ export const Integrations: React.FC = () => {
                   placeholder="Paste your key here..."
                 />
               </div>
-              
+
               <div className="flex gap-2 justify-end mt-6">
-                <button 
+                <button
                   onClick={() => setShowModal(false)}
                   className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium"
                 >
                   Cancel
                 </button>
-                <button 
+                <button
                   onClick={handleConnect}
                   disabled={!apiKey || connecting}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50 flex items-center gap-2"

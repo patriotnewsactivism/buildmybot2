@@ -500,8 +500,6 @@ function App() {
     setTimeout(() => setNotification(null), 3000);
   };
 
-
-
   const handleInstallTemplate = (template: MarketplaceTemplate) => {
     const category = template.category || 'Custom';
     const description = template.description || 'Provide expert guidance.';

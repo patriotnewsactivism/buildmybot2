@@ -1,4 +1,4 @@
-import { IntegrationProvider } from './IntegrationProvider';
+import type { IntegrationProvider } from './IntegrationProvider';
 
 export class HubSpotProvider implements IntegrationProvider {
   id = 'hubspot';
@@ -11,8 +11,10 @@ export class HubSpotProvider implements IntegrationProvider {
   }
 
   async createLead(lead: any, config: any): Promise<void> {
-    console.log(`[HubSpot Integration] Syncing lead ${lead.email} to HubSpot...`);
-    
+    console.log(
+      `[HubSpot Integration] Syncing lead ${lead.email} to HubSpot...`,
+    );
+
     // Simulation of API call
     if (!config.accessToken) {
       throw new Error('Missing HubSpot Access Token');
@@ -20,8 +22,8 @@ export class HubSpotProvider implements IntegrationProvider {
 
     // In a real implementation:
     // await axios.post('https://api.hubapi.com/crm/v3/objects/contacts', { ... })
-    
-    await new Promise(resolve => setTimeout(resolve, 500)); // Simulate latency
+
+    await new Promise((resolve) => setTimeout(resolve, 500)); // Simulate latency
     console.log(`[HubSpot Integration] Successfully synced lead ${lead.email}`);
   }
 }

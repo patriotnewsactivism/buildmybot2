@@ -63,7 +63,9 @@ export const ProfitAnalytics: React.FC = () => {
   const [stats, setStats] = useState<ProfitStats>(defaultStats);
   const [timelineData, setTimelineData] = useState<ProfitDataPoint[]>([]);
   const [loading, setLoading] = useState(true);
-  const [dateRange, setDateRange] = useState<'7d' | '30d' | '90d' | 'all'>('30d');
+  const [dateRange, setDateRange] = useState<'7d' | '30d' | '90d' | 'all'>(
+    '30d',
+  );
 
   const fetchProfitData = useCallback(async () => {
     setLoading(true);
@@ -77,7 +79,7 @@ export const ProfitAnalytics: React.FC = () => {
       else startDate.setFullYear(2020); // All time
 
       const response = await fetch(
-        `/api/agency/profit-report?start=${startDate.toISOString()}&end=${endDate.toISOString()}`
+        `/api/agency/profit-report?start=${startDate.toISOString()}&end=${endDate.toISOString()}`,
       );
 
       if (!response.ok) {
@@ -230,7 +232,9 @@ export const ProfitAnalytics: React.FC = () => {
             <div className="text-center">
               <TrendingUp size={48} className="mx-auto mb-2 opacity-20" />
               <p className="text-sm">
-                {loading ? 'Loading profit data...' : 'No profit data available yet'}
+                {loading
+                  ? 'Loading profit data...'
+                  : 'No profit data available yet'}
               </p>
             </div>
           </div>
@@ -247,7 +251,11 @@ export const ProfitAnalytics: React.FC = () => {
           <ResponsiveContainer width="100%" height={250}>
             <BarChart data={eventBreakdownData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis dataKey="name" stroke="#94a3b8" style={{ fontSize: '12px' }} />
+              <XAxis
+                dataKey="name"
+                stroke="#94a3b8"
+                style={{ fontSize: '12px' }}
+              />
               <YAxis
                 stroke="#94a3b8"
                 style={{ fontSize: '12px' }}
@@ -282,13 +290,17 @@ export const ProfitAnalytics: React.FC = () => {
         </h3>
         <div className="space-y-3">
           <div className="flex justify-between items-center">
-            <span className="text-sm text-slate-600">Client Charges (Retail)</span>
+            <span className="text-sm text-slate-600">
+              Client Charges (Retail)
+            </span>
             <span className="font-semibold text-slate-900">
               {formatCurrency(stats.totalRetailCents)}
             </span>
           </div>
           <div className="flex justify-between items-center">
-            <span className="text-sm text-slate-600">Platform Costs (Wholesale)</span>
+            <span className="text-sm text-slate-600">
+              Platform Costs (Wholesale)
+            </span>
             <span className="font-semibold text-red-700">
               -{formatCurrency(stats.totalWholesaleCents)}
             </span>

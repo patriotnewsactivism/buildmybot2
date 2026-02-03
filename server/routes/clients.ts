@@ -1,4 +1,14 @@
-import { type SQL, and, desc, eq, gte, inArray, isNull, or, sql } from 'drizzle-orm';
+import {
+  type SQL,
+  and,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNull,
+  or,
+  sql,
+} from 'drizzle-orm';
 import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import {
@@ -95,7 +105,7 @@ router.get('/bots', async (req, res) => {
     }
 
     const organizationId = user.organizationId;
-    
+
     // Allow seeing bots from the organization OR personal bots
     const visibilityConditions = [eq(bots.userId, user.id)];
     if (organizationId) {
@@ -105,12 +115,7 @@ router.get('/bots', async (req, res) => {
     const list = await db
       .select()
       .from(bots)
-      .where(
-        and(
-          or(...visibilityConditions),
-          isNull(bots.deletedAt)
-        )
-      )
+      .where(and(or(...visibilityConditions), isNull(bots.deletedAt)))
       .orderBy(desc(bots.createdAt));
     res.json(list);
   } catch (error) {
@@ -246,8 +251,8 @@ router.get('/analytics/dashboard', async (req, res) => {
 
     const organizationId = user.organizationId;
     const getScope = (table: any) => {
-        if (organizationId) return eq(table.organizationId, organizationId);
-        return eq(table.userId, user.id);
+      if (organizationId) return eq(table.organizationId, organizationId);
+      return eq(table.userId, user.id);
     };
 
     const days = Number.parseInt(req.query.days as string) || 30;
@@ -315,10 +320,7 @@ router.get('/analytics/dashboard', async (req, res) => {
       .select({ count: sql<number>`COUNT(*)` })
       .from(conversations)
       .where(
-        and(
-            getScope(conversations),
-            gte(conversations.timestamp, startDate)
-        )
+        and(getScope(conversations), gte(conversations.timestamp, startDate)),
       );
 
     const [previousConversations] = await db
@@ -335,12 +337,7 @@ router.get('/analytics/dashboard', async (req, res) => {
     const [currentLeads] = await db
       .select({ count: sql<number>`COUNT(*)` })
       .from(leads)
-      .where(
-          and(
-              getScope(leads),
-              gte(leads.createdAt, startDate)
-          )
-      );
+      .where(and(getScope(leads), gte(leads.createdAt, startDate)));
 
     const [previousLeads] = await db
       .select({ count: sql<number>`COUNT(*)` })
@@ -359,10 +356,7 @@ router.get('/analytics/dashboard', async (req, res) => {
       })
       .from(conversations)
       .where(
-          and(
-              getScope(conversations),
-              gte(conversations.timestamp, startDate)
-          )
+        and(getScope(conversations), gte(conversations.timestamp, startDate)),
       );
 
     const [previousVisitors] = await db
@@ -399,12 +393,7 @@ router.get('/analytics/dashboard', async (req, res) => {
       })
       .from(leads)
       .leftJoin(bots, eq(leads.sourceBotId, bots.id))
-      .where(
-          and(
-              getScope(leads),
-              gte(leads.createdAt, startDate)
-          )
-      )
+      .where(and(getScope(leads), gte(leads.createdAt, startDate)))
       .groupBy(leads.sourceBotId, bots.name)
       .orderBy(desc(sql`COUNT(*)`))
       .limit(5);
@@ -421,10 +410,7 @@ router.get('/analytics/dashboard', async (req, res) => {
       })
       .from(conversations)
       .where(
-          and(
-              getScope(conversations),
-              gte(conversations.timestamp, startDate)
-          )
+        and(getScope(conversations), gte(conversations.timestamp, startDate)),
       )
       .groupBy(conversations.sentiment);
 
@@ -463,10 +449,7 @@ router.get('/analytics/dashboard', async (req, res) => {
       })
       .from(conversations)
       .where(
-          and(
-              getScope(conversations),
-              gte(conversations.timestamp, startDate)
-          )
+        and(getScope(conversations), gte(conversations.timestamp, startDate)),
       )
       .groupBy(sql`EXTRACT(HOUR FROM ${conversations.timestamp})`);
 

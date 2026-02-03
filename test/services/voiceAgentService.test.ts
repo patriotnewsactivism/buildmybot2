@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { WebSocket } from 'ws';
 import { VoiceAgentService } from '../../server/services/VoiceAgentService';
 
@@ -18,7 +18,9 @@ const mockDb = vi.hoisted(() => ({
   from: vi.fn().mockReturnThis(),
   where: vi.fn().mockReturnThis(),
   orderBy: vi.fn().mockReturnThis(),
-  limit: vi.fn().mockResolvedValue([{ id: 'bot-123', systemPrompt: 'Test Prompt' }]),
+  limit: vi
+    .fn()
+    .mockResolvedValue([{ id: 'bot-123', systemPrompt: 'Test Prompt' }]),
   insert: vi.fn().mockReturnThis(),
   values: vi.fn().mockResolvedValue(true),
   update: vi.fn().mockReturnThis(),
@@ -60,8 +62,8 @@ describe('VoiceAgentService', () => {
     mockCartesiaWs = createMockWs(cartesiaHandlers);
 
     (WebSocket as unknown as any).mockImplementation((url: string) => {
-      if (url && url.includes('openai.com')) return mockOpenAIWs;
-      if (url && url.includes('cartesia.ai')) return mockCartesiaWs;
+      if (url?.includes('openai.com')) return mockOpenAIWs;
+      if (url?.includes('cartesia.ai')) return mockCartesiaWs;
       return createMockWs({}); // Fallback
     });
 
@@ -84,48 +86,56 @@ describe('VoiceAgentService', () => {
         },
       },
     });
-    
-    await twilioHandlers['message'](startMsg);
+
+    await twilioHandlers.message(startMsg);
 
     // Assert Connections Opened
     expect(mockDb.select).toHaveBeenCalled(); // Bot fetch
     expect(mockDb.insert).toHaveBeenCalled(); // Conversation create
-    
+
     // Simulate OpenAI and Cartesia 'open' events to finalize setup
-    if (openaiHandlers['open']) openaiHandlers['open']();
-    if (cartesiaHandlers['open']) cartesiaHandlers['open']();
+    if (openaiHandlers.open) openaiHandlers.open();
+    if (cartesiaHandlers.open) cartesiaHandlers.open();
 
     // Verify Session Update sent to OpenAI
-    expect(mockOpenAIWs.send).toHaveBeenCalledWith(expect.stringContaining('session.update'));
+    expect(mockOpenAIWs.send).toHaveBeenCalledWith(
+      expect.stringContaining('session.update'),
+    );
 
     // 3. Media Input (User speaks)
     const mediaMsg = JSON.stringify({
       event: 'media',
-      media: { payload: 'base64-audio' }
+      media: { payload: 'base64-audio' },
     });
-    await twilioHandlers['message'](mediaMsg);
+    await twilioHandlers.message(mediaMsg);
 
     // Verify audio forwarded to OpenAI
-    expect(mockOpenAIWs.send).toHaveBeenCalledWith(expect.stringContaining('input_audio_buffer.append'));
+    expect(mockOpenAIWs.send).toHaveBeenCalledWith(
+      expect.stringContaining('input_audio_buffer.append'),
+    );
 
     // 4. OpenAI generates text (Assistant speaks)
     const openaiResponse = JSON.stringify({
       type: 'response.text.delta',
-      delta: 'Hello world'
+      delta: 'Hello world',
     });
-    await openaiHandlers['message'](Buffer.from(openaiResponse));
+    await openaiHandlers.message(Buffer.from(openaiResponse));
 
     // Verify text sent to Cartesia
-    expect(mockCartesiaWs.send).toHaveBeenCalledWith(expect.stringContaining('"transcript":"Hello world"'));
+    expect(mockCartesiaWs.send).toHaveBeenCalledWith(
+      expect.stringContaining('"transcript":"Hello world"'),
+    );
 
     // 5. Cartesia generates audio
     const cartesiaResponse = JSON.stringify({
       type: 'chunk',
-      data: 'base64-tts-audio'
+      data: 'base64-tts-audio',
     });
-    await cartesiaHandlers['message'](Buffer.from(cartesiaResponse));
+    await cartesiaHandlers.message(Buffer.from(cartesiaResponse));
 
     // Verify audio forwarded back to Twilio
-    expect(mockTwilioWs.send).toHaveBeenCalledWith(expect.stringContaining('"payload":"base64-tts-audio"'));
+    expect(mockTwilioWs.send).toHaveBeenCalledWith(
+      expect.stringContaining('"payload":"base64-tts-audio"'),
+    );
   });
 });

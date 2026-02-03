@@ -79,7 +79,7 @@ export const WalletManagement: React.FC = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          amountCents: parseFloat(rechargeAmount) * 100,
+          amountCents: Number.parseFloat(rechargeAmount) * 100,
         }),
       });
 
@@ -101,8 +101,9 @@ export const WalletManagement: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           enabled: !wallet.autoRechargeEnabled,
-          thresholdCents: parseFloat(autoRechargeSettings.threshold) * 100,
-          amountCents: parseFloat(autoRechargeSettings.amount) * 100,
+          thresholdCents:
+            Number.parseFloat(autoRechargeSettings.threshold) * 100,
+          amountCents: Number.parseFloat(autoRechargeSettings.amount) * 100,
         }),
       });
 
@@ -123,7 +124,9 @@ export const WalletManagement: React.FC = () => {
   };
 
   const balanceStatus =
-    wallet.balanceCents < wallet.autoRechargeThresholdCents ? 'warning' : 'healthy';
+    wallet.balanceCents < wallet.autoRechargeThresholdCents
+      ? 'warning'
+      : 'healthy';
 
   const transactionColumns: Column<Transaction>[] = [
     {
@@ -137,7 +140,11 @@ export const WalletManagement: React.FC = () => {
               : 'bg-red-100 text-red-800'
           }`}
         >
-          {tx.type === 'recharge' ? 'Recharge' : tx.type === 'credit' ? 'Credit' : 'Usage'}
+          {tx.type === 'recharge'
+            ? 'Recharge'
+            : tx.type === 'credit'
+              ? 'Credit'
+              : 'Usage'}
         </span>
       ),
     },
@@ -159,7 +166,9 @@ export const WalletManagement: React.FC = () => {
     {
       key: 'description',
       label: 'Description',
-      render: (tx) => <span className="text-sm text-slate-600">{tx.description}</span>,
+      render: (tx) => (
+        <span className="text-sm text-slate-600">{tx.description}</span>
+      ),
     },
     {
       key: 'createdAt',
@@ -370,8 +379,8 @@ export const WalletManagement: React.FC = () => {
             <p className="text-xs text-emerald-800">
               Auto-recharge is active. When your balance drops below{' '}
               {formatCurrency(wallet.autoRechargeThresholdCents)}, we'll
-              automatically add {formatCurrency(wallet.autoRechargeAmountCents)} to
-              your wallet.
+              automatically add {formatCurrency(wallet.autoRechargeAmountCents)}{' '}
+              to your wallet.
             </p>
           </div>
         )}
