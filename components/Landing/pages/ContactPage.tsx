@@ -18,6 +18,7 @@ export const ContactPage: React.FC = () => {
     subject: '',
     message: '',
     priority: false,
+    betaTesting: false,
   });
   const [submitted, setSubmitted] = useState(false);
 
@@ -35,11 +36,15 @@ export const ContactPage: React.FC = () => {
       />
       <div className="max-w-7xl mx-auto px-6 lg:px-12 py-16 space-y-16">
         <section className="text-center space-y-6">
+          <div className="inline-flex items-center gap-2 bg-yellow-400 text-slate-900 px-6 py-2 rounded-full text-sm font-bold mb-4">
+            <span className="w-2 h-2 bg-slate-900 rounded-full animate-pulse"></span>
+            BETA TESTING IN PROGRESS
+          </div>
           <h1 className="text-4xl md:text-5xl font-extrabold text-slate-900">
             Contact Us
           </h1>
           <p className="text-xl text-slate-600 max-w-3xl mx-auto">
-            Have a question or need help? We're here for you. Reach out and our
+            Interested in beta testing? Have questions? We're here for you. Reach out and our
             team will get back to you within 24 hours.
           </p>
         </section>
@@ -73,6 +78,7 @@ export const ContactPage: React.FC = () => {
                         subject: '',
                         message: '',
                         priority: false,
+                        betaTesting: false,
                       });
                     }}
                     className="text-blue-700 font-medium hover:underline"
@@ -160,6 +166,32 @@ export const ContactPage: React.FC = () => {
                       placeholder="Tell us more about your inquiry..."
                     />
                   </div>
+                  <div className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4">
+                    <input
+                      id="contact-beta"
+                      type="checkbox"
+                      checked={formData.betaTesting}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          betaTesting: e.target.checked,
+                        })
+                      }
+                      className="mt-1 h-4 w-4 rounded border-blue-300 text-blue-700 focus:ring-blue-600"
+                    />
+                    <div>
+                      <label
+                        htmlFor="contact-beta"
+                        className="text-sm font-semibold text-blue-900"
+                      >
+                        I'm interested in beta testing
+                      </label>
+                      <p className="text-xs text-blue-700">
+                        Get early access to BuildMyBot before our official launch.
+                        Beta testers receive exclusive benefits and priority support.
+                      </p>
+                    </div>
+                  </div>
                   <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
                     <input
                       id="contact-priority"
@@ -178,11 +210,10 @@ export const ContactPage: React.FC = () => {
                         htmlFor="contact-priority"
                         className="text-sm font-semibold text-slate-900"
                       >
-                        Mark as priority for immediate admin review
+                        Mark as priority for immediate review
                       </label>
                       <p className="text-xs text-slate-600">
-                        Vetted urgent issues are flagged in the support inbox
-                        for you and Joey Davenport to triage ASAP.
+                        Urgent issues are flagged in the support inbox for immediate attention.
                       </p>
                     </div>
                   </div>
@@ -302,19 +333,16 @@ export const ContactPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="bg-slate-100 rounded-2xl p-6">
+            <div className="bg-blue-50 rounded-2xl p-6 border-2 border-blue-200">
               <h3 className="font-bold text-lg text-slate-900 mb-2">
-                Sales Inquiries
+                Beta Testing Program
               </h3>
               <p className="text-slate-600 text-sm mb-3">
-                Interested in enterprise plans or custom solutions?
+                Join our exclusive beta program and get early access to cutting-edge AI technology.
               </p>
-              <a
-                href="mailto:sales@buildmybot.app"
-                className="text-blue-700 font-medium hover:underline"
-              >
-                sales@buildmybot.app
-              </a>
+              <p className="text-blue-700 font-medium text-sm">
+                Check the beta testing box above to express your interest!
+              </p>
             </div>
           </div>
         </section>
