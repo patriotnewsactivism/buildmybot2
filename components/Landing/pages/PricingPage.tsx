@@ -71,46 +71,30 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onLogin }) => {
       />
       <div className="max-w-7xl mx-auto px-6 lg:px-12 py-16 space-y-16">
         <section className="text-center space-y-6">
-          <div className="inline-flex items-center gap-2 bg-blue-100 text-blue-700 px-4 py-2 rounded-full text-sm font-semibold">
-            <Sparkles size={16} />
-            Transparent pricing
+          <div className="inline-flex items-center gap-2 bg-yellow-400 text-slate-900 px-6 py-2 rounded-full text-sm font-bold">
+            <span className="w-2 h-2 bg-slate-900 rounded-full animate-pulse"></span>
+            BETA TESTING - LAUNCHING SOON
           </div>
           <h1 className="text-4xl md:text-5xl font-extrabold text-slate-900">
-            Pricing that scales with your growth
+            Pricing Preview
           </h1>
           <p className="text-xl text-slate-600 max-w-3xl mx-auto leading-relaxed">
-            Start free and upgrade when you need more bots, conversations, and
-            advanced automation. No hidden fees.
+            We're currently in beta testing. View our pricing plans below and join our beta program for early access.
           </p>
-          <div className="flex flex-wrap justify-center gap-4">
-            <button
-              type="button"
-              onClick={handleLogin}
-              className="inline-flex items-center gap-2 bg-blue-900 text-white px-8 py-4 rounded-xl font-bold hover:bg-blue-950 transition-all"
-            >
-              Start free
-              <ArrowRight size={18} />
-            </button>
+          <div className="bg-blue-50 border-2 border-blue-200 rounded-2xl p-6 max-w-2xl mx-auto">
+            <p className="text-blue-900 font-semibold mb-3">
+              🚀 Purchases are currently disabled while we prepare for launch
+            </p>
+            <p className="text-blue-700 text-sm mb-4">
+              Interested in early access? Join our beta testing program and be among the first to experience BuildMyBot.
+            </p>
             <a
               href="/contact"
-              className="inline-flex items-center gap-2 border-2 border-slate-200 text-slate-700 px-8 py-4 rounded-xl font-bold hover:border-blue-300 hover:text-blue-700 transition-all"
+              className="inline-flex items-center gap-2 bg-blue-900 text-white px-8 py-4 rounded-xl font-bold hover:bg-blue-950 transition-all"
             >
-              Talk to sales
+              Request Beta Access
+              <ArrowRight size={18} />
             </a>
-          </div>
-          <div className="flex flex-wrap items-center justify-center gap-4 text-sm text-slate-500">
-            <span className="flex items-center gap-2">
-              <CheckCircle size={16} className="text-emerald-500" /> No credit
-              card required
-            </span>
-            <span className="flex items-center gap-2">
-              <CheckCircle size={16} className="text-emerald-500" /> Cancel
-              anytime
-            </span>
-            <span className="flex items-center gap-2">
-              <CheckCircle size={16} className="text-emerald-500" /> 5-minute
-              setup
-            </span>
           </div>
         </section>
 
@@ -173,14 +157,10 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onLogin }) => {
                 )}
                 <button
                   type="button"
-                  onClick={handleLogin}
-                  className={`w-full py-2 rounded-lg font-bold transition ${
-                    isPopular
-                      ? 'bg-blue-900 text-white hover:bg-blue-950'
-                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                  }`}
+                  disabled={true}
+                  className="w-full py-2 rounded-lg font-bold transition bg-slate-200 text-slate-500 cursor-not-allowed"
                 >
-                  {plan.price === 0 ? 'Start free' : 'Get started'}
+                  Coming Soon
                 </button>
               </div>
             );
