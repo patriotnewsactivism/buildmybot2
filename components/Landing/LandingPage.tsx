@@ -486,7 +486,7 @@ export const LandingPage: React.FC<LandingProps> = ({
                 setEmbedInput('');
               }
             }}
-            className="flex-1 bg-slate-100 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-600"
+            className="flex-1 bg-white rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-600 text-slate-900 placeholder:text-slate-600 border border-slate-200"
             placeholder="Test fixed embed..."
           />
           <button
@@ -576,7 +576,7 @@ export const LandingPage: React.FC<LandingProps> = ({
                       setChatInput('');
                     }
                   }}
-                  className="flex-1 bg-slate-100 rounded-lg px-4 py-2 text-sm"
+                  className="flex-1 bg-white rounded-lg px-4 py-2 text-sm text-slate-900 placeholder:text-slate-600 border border-slate-200"
                   placeholder="Ask me anything..."
                 />
                 <button
@@ -1272,7 +1272,7 @@ export const LandingPage: React.FC<LandingProps> = ({
                     value={demoUrl}
                     onChange={(e) => setDemoUrl(e.target.value)}
                     placeholder="https://example.com"
-                    className="flex-1 border border-slate-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+                    className="flex-1 border border-slate-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base text-slate-900 placeholder:text-slate-600 bg-white"
                   />
                   <button
                     type="button"
@@ -1310,7 +1310,7 @@ export const LandingPage: React.FC<LandingProps> = ({
                     value={marketingTopic}
                     onChange={(e) => setMarketingTopic(e.target.value)}
                     placeholder="Enter your topic or product..."
-                    className="flex-1 border border-slate-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+                    className="flex-1 border border-slate-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base text-slate-900 placeholder:text-slate-600 bg-white"
                   />
                   <button
                     type="button"
