@@ -462,7 +462,7 @@ export const LandingPage: React.FC<LandingProps> = ({
               className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
               <div
-                className={`max-w-[85%] px-4 py-2 rounded-xl text-sm ${msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-white border border-slate-200'}`}
+                className={`max-w-[85%] px-4 py-2 rounded-xl text-sm ${msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-white border border-slate-200 text-slate-900'}`}
               >
                 {msg.text}
               </div>
@@ -552,7 +552,7 @@ export const LandingPage: React.FC<LandingProps> = ({
                     className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
                     <div
-                      className={`max-w-[85%] px-4 py-2 rounded-xl text-sm ${msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-white border border-slate-200'}`}
+                      className={`max-w-[85%] px-4 py-2 rounded-xl text-sm ${msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-white border border-slate-200 text-slate-900'}`}
                     >
                       {msg.text}
                     </div>
@@ -872,7 +872,7 @@ export const LandingPage: React.FC<LandingProps> = ({
           {/* 4. Setup Steps */}
           <section id="features" className="space-y-8 sm:space-y-12">
             <div className="text-center">
-              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4 text-slate-900">
                 Go Live in 5 Minutes
               </h2>
               <p className="text-slate-600 text-lg">
@@ -888,7 +888,7 @@ export const LandingPage: React.FC<LandingProps> = ({
                       {i + 1}
                     </div>
                   </div>
-                  <h3 className="font-bold text-lg mb-2">{step.title}</h3>
+                  <h3 className="font-bold text-lg mb-2 text-slate-900">{step.title}</h3>
                   <p className="text-slate-600 text-sm">{step.description}</p>
                 </div>
               ))}
@@ -898,7 +898,7 @@ export const LandingPage: React.FC<LandingProps> = ({
           {/* 5. ROI Calculator */}
           <section className="bg-white rounded-2xl sm:rounded-3xl shadow-xl p-5 sm:p-8 md:p-10 border border-slate-200">
             <div className="text-center mb-6 sm:mb-10">
-              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4 text-slate-900">
                 Calculate Your ROI
               </h2>
               <p className="text-slate-600 text-lg">
@@ -1094,7 +1094,7 @@ export const LandingPage: React.FC<LandingProps> = ({
           {/* 7. Voice AI Preview */}
           <section id="voice" className="space-y-8 sm:space-y-12">
             <div className="text-center">
-              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4 text-slate-900">
                 AI Phone Receptionist
               </h2>
               <p className="text-slate-600 text-lg max-w-2xl mx-auto">
@@ -1107,21 +1107,21 @@ export const LandingPage: React.FC<LandingProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
               <div className="bg-slate-100 p-6 rounded-xl text-center overflow-hidden">
                 <Phone className="mx-auto mb-3 text-blue-900" size={28} />
-                <h4 className="font-bold mb-1">24/7 Availability</h4>
+                <h4 className="font-bold mb-1 text-slate-900">24/7 Availability</h4>
                 <p className="text-slate-600 text-sm leading-relaxed">
                   Never miss another call, even at 3am
                 </p>
               </div>
               <div className="bg-slate-100 p-6 rounded-xl text-center overflow-hidden">
                 <Mic className="mx-auto mb-3 text-blue-900" size={28} />
-                <h4 className="font-bold mb-1">Human-Like Voice</h4>
+                <h4 className="font-bold mb-1 text-slate-900">Human-Like Voice</h4>
                 <p className="text-slate-600 text-sm leading-relaxed">
                   Callers won't know it's AI
                 </p>
               </div>
               <div className="bg-slate-100 p-6 rounded-xl text-center overflow-hidden">
                 <Target className="mx-auto mb-3 text-blue-900" size={28} />
-                <h4 className="font-bold mb-1">Lead Qualification</h4>
+                <h4 className="font-bold mb-1 text-slate-900">Lead Qualification</h4>
                 <p className="text-slate-600 text-sm leading-relaxed">
                   Ask intake questions, book appointments
                 </p>
@@ -1132,7 +1132,7 @@ export const LandingPage: React.FC<LandingProps> = ({
           {/* 8. Industries Section */}
           <section className="space-y-8 sm:space-y-12">
             <div className="text-center">
-              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4 text-slate-900">
                 Built for Every Industry
               </h2>
               <p className="text-slate-600 text-lg">
@@ -1149,7 +1149,7 @@ export const LandingPage: React.FC<LandingProps> = ({
                     className="mx-auto mb-3 text-slate-400 group-hover:text-blue-900 transition"
                     size={32}
                   />
-                  <h4 className="font-bold text-sm sm:text-base mb-1">
+                  <h4 className="font-bold text-sm sm:text-base mb-1 text-slate-900">
                     {ind.name}
                   </h4>
                   <p className="text-slate-500 text-xs leading-relaxed">
@@ -1274,7 +1274,7 @@ export const LandingPage: React.FC<LandingProps> = ({
           {/* 9. Live Demo Section */}
           <section id="demo" className="space-y-8 sm:space-y-12">
             <div className="text-center">
-              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4 text-slate-900">
                 Try It Yourself
               </h2>
               <p className="text-slate-600 text-lg">
@@ -1285,7 +1285,7 @@ export const LandingPage: React.FC<LandingProps> = ({
               <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg border border-slate-200 p-5 sm:p-8 overflow-hidden">
                 <div className="flex items-center gap-3 mb-4 sm:mb-6">
                   <Globe className="text-blue-900 shrink-0" size={24} />
-                  <h3 className="text-lg sm:text-xl font-bold">
+                  <h3 className="text-lg sm:text-xl font-bold text-slate-900">
                     Website URL Trainer
                   </h3>
                 </div>
@@ -1324,7 +1324,7 @@ export const LandingPage: React.FC<LandingProps> = ({
               <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg border border-slate-200 p-5 sm:p-8 overflow-hidden">
                 <div className="flex items-center gap-3 mb-4 sm:mb-6">
                   <Megaphone className="text-blue-900 shrink-0" size={24} />
-                  <h3 className="text-lg sm:text-xl font-bold">
+                  <h3 className="text-lg sm:text-xl font-bold text-slate-900">
                     Viral Post Creator
                   </h3>
                 </div>
@@ -1364,7 +1364,7 @@ export const LandingPage: React.FC<LandingProps> = ({
           {/* Both Chat Types Preview */}
           <section className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-20 items-center">
             <div className="space-y-6">
-              <h2 className="text-3xl font-bold">Two Ways to Connect</h2>
+              <h2 className="text-3xl font-bold text-slate-900">Two Ways to Connect</h2>
               <p className="text-slate-600 text-lg">
                 Choose between a discreet floating hover widget or a powerful
                 fixed embed that stays as part of your page's content.
@@ -1390,7 +1390,7 @@ export const LandingPage: React.FC<LandingProps> = ({
           {/* 10. Pricing Section */}
           <section id="pricing" className="space-y-8 sm:space-y-12">
             <div className="text-center">
-              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4 text-slate-900">
                 Simple, Transparent Pricing
               </h2>
               <p className="text-slate-600 text-lg">
@@ -1410,7 +1410,7 @@ export const LandingPage: React.FC<LandingProps> = ({
                         MOST POPULAR
                       </div>
                     )}
-                    <h3 className="font-bold text-lg mb-1">{plan.name}</h3>
+                    <h3 className="font-bold text-lg mb-1 text-slate-900">{plan.name}</h3>
                     <div className="mb-4">
                       <div
                         className={`inline-flex items-baseline gap-2 rounded-xl border-2 px-4 py-3 ${isPopular ? 'border-blue-900 bg-blue-50 text-blue-900 shadow-[0_12px_25px_rgba(15,23,42,0.18)]' : 'border-slate-200 bg-slate-50 text-slate-900 shadow-sm'}`}
@@ -1531,7 +1531,7 @@ export const LandingPage: React.FC<LandingProps> = ({
           {/* 11. FAQ Section */}
           <section id="faq" className="space-y-8 sm:space-y-12">
             <div className="text-center">
-              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4 text-slate-900">
                 Frequently Asked Questions
               </h2>
               <p className="text-slate-600 text-lg">
