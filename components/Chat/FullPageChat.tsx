@@ -305,7 +305,7 @@ export const FullPageChat: React.FC<FullPageChatProps> = ({ botId }) => {
             onChange={(e) =>
               setLeadFormData((prev) => ({ ...prev, name: e.target.value }))
             }
-            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500"
+            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500 text-slate-900 placeholder:text-slate-600 bg-white"
           />
         </div>
 
@@ -317,7 +317,7 @@ export const FullPageChat: React.FC<FullPageChatProps> = ({ botId }) => {
             onChange={(e) =>
               setLeadFormData((prev) => ({ ...prev, email: e.target.value }))
             }
-            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500"
+            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500 text-slate-900 placeholder:text-slate-600 bg-white"
           />
         </div>
 
@@ -329,7 +329,7 @@ export const FullPageChat: React.FC<FullPageChatProps> = ({ botId }) => {
             onChange={(e) =>
               setLeadFormData((prev) => ({ ...prev, phone: e.target.value }))
             }
-            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500"
+            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500 text-slate-900 placeholder:text-slate-600 bg-white"
           />
         </div>
 
@@ -430,7 +430,7 @@ export const FullPageChat: React.FC<FullPageChatProps> = ({ botId }) => {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
               placeholder="Type a message..."
-              className="w-full pl-3 pr-10 py-2 rounded-lg border border-slate-200 focus:ring-blue-900 focus:border-blue-900 text-sm text-slate-900"
+              className="w-full pl-3 pr-10 py-2 rounded-lg border border-slate-200 focus:ring-blue-900 focus:border-blue-900 text-sm text-slate-900 placeholder:text-slate-600 bg-white"
             />
             <button
               type="button"
@@ -520,7 +520,7 @@ export const FullPageChat: React.FC<FullPageChatProps> = ({ botId }) => {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
               placeholder="Type a message..."
-              className="w-full pl-4 pr-12 py-3 rounded-xl border border-slate-200 focus:ring-blue-900 focus:border-blue-900 text-slate-900"
+              className="w-full pl-4 pr-12 py-3 rounded-xl border border-slate-200 focus:ring-blue-900 focus:border-blue-900 text-slate-900 placeholder:text-slate-600 bg-white"
             />
             <button
               type="button"
