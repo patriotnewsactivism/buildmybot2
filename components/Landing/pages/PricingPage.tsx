@@ -5,6 +5,7 @@ import {
   PLANS,
   TEMPLATE_MARKETPLACE_PRICING,
   VOICE_AGENT_PRICING,
+  VOICE_LAUNCH_PROMO,
 } from '../../../constants';
 import { PlanType } from '../../../types';
 import { SEO, SEOConfig } from '../../SEO/SEO';
@@ -168,33 +169,95 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onLogin }) => {
         </section>
 
         <section className="space-y-8">
+          {/* MASSIVE VOICE AGENT LAUNCH PROMO BANNER */}
+          <div className="bg-gradient-to-r from-red-600 via-orange-500 to-yellow-500 rounded-3xl p-8 md:p-12 text-center text-white shadow-2xl border-4 border-yellow-300 relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl animate-pulse"></div>
+            <div className="absolute bottom-0 left-0 w-64 h-64 bg-white/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
+
+            <div className="relative z-10">
+              <div className="inline-flex items-center gap-2 bg-white text-red-600 px-6 py-3 rounded-full text-sm font-black mb-4 animate-bounce shadow-lg">
+                <Sparkles size={20} />
+                {VOICE_LAUNCH_PROMO.announcement}
+              </div>
+
+              <h2 className="text-4xl md:text-6xl font-black mb-4 drop-shadow-lg">
+                50% OFF VOICE PLANS
+              </h2>
+
+              <p className="text-2xl md:text-3xl font-bold mb-6 text-yellow-100">
+                First 3 Months + FREE Phone Number!
+              </p>
+
+              <div className="bg-white/20 backdrop-blur-sm rounded-2xl p-6 max-w-2xl mx-auto mb-6">
+                <div className="grid md:grid-cols-2 gap-4 text-left">
+                  {VOICE_LAUNCH_PROMO.benefits.map((benefit, idx) => (
+                    <div key={idx} className="flex items-center gap-3">
+                      <CheckCircle size={24} className="text-green-300 flex-shrink-0" />
+                      <span className="font-semibold">{benefit}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-slate-900 text-white inline-block px-8 py-4 rounded-xl mb-4">
+                <p className="text-sm font-semibold mb-2">USE CODE AT CHECKOUT:</p>
+                <p className="text-3xl md:text-4xl font-black tracking-wider font-mono">
+                  {VOICE_LAUNCH_PROMO.code}
+                </p>
+              </div>
+
+              <p className="text-yellow-100 font-semibold">
+                ⏰ Offer expires {VOICE_LAUNCH_PROMO.expires}
+              </p>
+            </div>
+          </div>
+
           <div className="text-center space-y-3">
             <h2 className="text-3xl font-bold text-slate-900">
-              Add-ons & Launch Services
+              Voice Agent Pricing
             </h2>
             <p className="text-lg text-slate-600 max-w-3xl mx-auto">
-              Voice minutes, expert setup, and template packs to scale your
-              rollout.
+              <span className="text-red-600 font-bold">NOW 50% OFF FOR 3 MONTHS!</span> Choose your plan and enter code VALAUNCH50 at checkout.
             </p>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
-              <h3 className="font-bold text-lg text-slate-900 mb-4">
+            <div className="bg-gradient-to-br from-orange-50 to-red-50 rounded-2xl p-6 border-2 border-red-300 shadow-lg relative overflow-hidden">
+              <div className="absolute top-0 right-0 bg-red-500 text-white px-4 py-1 rounded-bl-xl font-black text-xs">
+                50% OFF!
+              </div>
+              <h3 className="font-bold text-lg text-slate-900 mb-2 mt-4">
                 Voice Agent Pricing
               </h3>
-              <ul className="space-y-2 text-sm text-slate-600">
-                {VOICE_AGENT_PRICING.map((plan) => (
-                  <li
-                    key={plan.id}
-                    className="flex items-center justify-between gap-3"
-                  >
-                    <span>{plan.name}</span>
-                    <span className="font-semibold text-slate-900">
-                      ${plan.price}/mo
-                    </span>
-                  </li>
-                ))}
+              <p className="text-xs text-red-600 font-bold mb-4">
+                Use code VALAUNCH50 for 50% off first 3 months!
+              </p>
+              <ul className="space-y-3 text-sm">
+                {VOICE_AGENT_PRICING.map((plan) => {
+                  const discountedPrice = Math.round(plan.price * 0.5);
+                  return (
+                    <li
+                      key={plan.id}
+                      className="flex items-center justify-between gap-3 bg-white rounded-lg p-3 border border-red-200"
+                    >
+                      <div>
+                        <div className="font-semibold text-slate-900">{plan.name}</div>
+                        <div className="text-xs text-green-600 font-bold">+ FREE phone number</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-lg font-bold text-red-600">
+                          ${discountedPrice}/mo
+                        </div>
+                        <div className="text-xs text-slate-500 line-through">
+                          ${plan.price}/mo
+                        </div>
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
+              <div className="mt-4 bg-yellow-100 border border-yellow-300 rounded-lg p-3 text-xs text-center">
+                <span className="font-bold text-yellow-900">⚡ Then ${VOICE_AGENT_PRICING[0].price}/mo+ after promo period</span>
+              </div>
             </div>
             <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
               <h3 className="font-bold text-lg text-slate-900 mb-4">

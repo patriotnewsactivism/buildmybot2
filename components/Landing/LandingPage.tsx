@@ -58,6 +58,7 @@ import {
   PLANS,
   TEMPLATE_MARKETPLACE_PRICING,
   VOICE_AGENT_PRICING,
+  VOICE_LAUNCH_PROMO,
 } from '../../constants';
 import {
   generateBotResponseDemo,
@@ -709,6 +710,32 @@ export const LandingPage: React.FC<LandingProps> = ({
         )}
 
         <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14 md:py-20 space-y-12 sm:space-y-16 md:space-y-24">
+          {/* VOICE AGENT LAUNCH PROMO - MASSIVE BANNER */}
+          <div className="bg-gradient-to-r from-red-600 via-orange-500 to-yellow-500 rounded-2xl sm:rounded-3xl p-6 sm:p-8 text-center text-white shadow-2xl border-4 border-yellow-300 relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 sm:w-64 h-32 sm:h-64 bg-white/10 rounded-full blur-3xl animate-pulse"></div>
+            <div className="relative z-10">
+              <div className="inline-flex items-center gap-2 bg-white text-red-600 px-4 sm:px-6 py-2 sm:py-3 rounded-full text-xs sm:text-sm font-black mb-3 sm:mb-4 animate-bounce shadow-lg">
+                <Sparkles size={16} className="sm:w-5 sm:h-5" />
+                {VOICE_LAUNCH_PROMO.announcement}
+              </div>
+              <h2 className="text-2xl sm:text-4xl md:text-5xl font-black mb-2 sm:mb-4 drop-shadow-lg">
+                50% OFF VOICE PLANS
+              </h2>
+              <p className="text-lg sm:text-2xl md:text-3xl font-bold mb-4 sm:mb-6 text-yellow-100">
+                First 3 Months + FREE Phone Number!
+              </p>
+              <div className="bg-slate-900 text-white inline-block px-4 sm:px-8 py-3 sm:py-4 rounded-xl mb-3 sm:mb-4">
+                <p className="text-xs sm:text-sm font-semibold mb-1 sm:mb-2">USE CODE:</p>
+                <p className="text-xl sm:text-3xl font-black tracking-wider font-mono">
+                  {VOICE_LAUNCH_PROMO.code}
+                </p>
+              </div>
+              <p className="text-yellow-100 font-semibold text-sm sm:text-base">
+                ⏰ Limited time - Expires {VOICE_LAUNCH_PROMO.expires}
+              </p>
+            </div>
+          </div>
+
           {/* Beta Banner */}
           <div className="bg-gradient-to-r from-yellow-400 via-yellow-300 to-yellow-400 border-2 border-yellow-600 rounded-2xl p-4 sm:p-6 text-center shadow-xl">
             <div className="flex items-center justify-center gap-2 mb-2">
