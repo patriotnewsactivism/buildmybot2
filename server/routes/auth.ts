@@ -225,27 +225,64 @@ router.post('/forgot-password', async (req: Request, res: Response) => {
     console.log(`Password reset requested for: ${email}`);
 
     if (user) {
-      // Create a temporary password for now so the user can actually log in
-      // In a real production app, this would be a secure reset link
-      const tempPassword = Math.random().toString(36).slice(-8);
+      // Create a secure reset token
+      const resetToken = uuidv4();
+      const resetTokenExpires = new Date(Date.now() + 3600000); // 1 hour
+
+      // Store reset token (would need to add columns to users table in production)
+      // For now, create a temporary password for immediate use
+      const tempPassword = Math.random().toString(36).slice(-12) + 'A1!'; // Stronger temp password
       const passwordHash = await bcrypt.hash(tempPassword, 12);
 
       await db.update(users).set({ passwordHash }).where(eq(users.id, user.id));
 
+      // Log the temporary password for development/debugging
       console.log(`TEMPORARY PASSWORD FOR ${email}: ${tempPassword}`);
 
-      // In a real app, you'd send this via email. For Replit environment debugging:
+      // In production, send email via SMTP
+      const smtpHost = process.env.SMTP_HOST;
+      if (smtpHost) {
+        try {
+          const nodemailer = await import('nodemailer');
+          const transporter = nodemailer.default.createTransport({
+            host: smtpHost,
+            port: Number(process.env.SMTP_PORT) || 587,
+            secure: process.env.SMTP_SECURE === 'true',
+            auth: {
+              user: process.env.SMTP_USER,
+              pass: process.env.SMTP_PASS,
+            },
+          });
+
+          await transporter.sendMail({
+            from: process.env.SMTP_FROM || 'noreply@buildmybot.app',
+            to: email,
+            subject: 'Your BuildMyBot Password Reset',
+            html: `
+              <h2>Password Reset</h2>
+              <p>Your temporary password is: <strong>${tempPassword}</strong></p>
+              <p>Please log in and change your password immediately.</p>
+              <p>If you did not request this reset, please contact support.</p>
+            `,
+          });
+          console.log(`Password reset email sent to ${email}`);
+        } catch (emailError) {
+          console.error('Failed to send password reset email:', emailError);
+          // Continue - don't reveal email sending failure to user
+        }
+      }
+
+      // Always return same message to prevent email enumeration
       return res.json({
-        message: 'Password reset successful.',
-        debug_temp_pass: tempPassword,
-        instructions:
-          'For security, please change this password after logging in.',
+        message:
+          'If an account exists with this email, you will receive reset instructions.',
       });
     }
 
+    // Return same message even if user not found (prevents email enumeration)
     res.json({
       message:
-        'If an account exists with this email, instructions will be sent.',
+        'If an account exists with this email, you will receive reset instructions.',
     });
   } catch (error) {
     console.error('Forgot password error:', error);

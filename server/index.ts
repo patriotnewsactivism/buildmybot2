@@ -69,6 +69,7 @@ import {
   webhooksRouter,
 } from './routes';
 import { KnowledgeRepairService } from './services/KnowledgeRepairService';
+import { nurtureService } from './services/NurtureService';
 import { voiceAgentService } from './services/VoiceAgentService';
 import { WebScraperService } from './services/WebScraperService';
 import { getStripePublishableKey } from './stripeClient';
@@ -1758,6 +1759,24 @@ if (!isVercel && repairIntervalMs > 0) {
       console.error('Knowledge repair job failed:', error);
     });
   }, repairIntervalMs);
+}
+
+// Nurture sequence scheduler - process due enrollments every 15 minutes
+const nurtureIntervalMs = 15 * 60 * 1000; // 15 minutes
+
+if (!isVercel) {
+  setInterval(() => {
+    nurtureService.processEnrollments().catch((error) => {
+      console.error('Nurture sequence processing failed:', error);
+    });
+  }, nurtureIntervalMs);
+
+  // Also run once on startup
+  setTimeout(() => {
+    nurtureService.processEnrollments().catch((error) => {
+      console.error('Initial nurture processing failed:', error);
+    });
+  }, 10000); // Wait 10 seconds after startup
 }
 
 export { app, server };

@@ -15,6 +15,8 @@ import {
 } from '../../shared/schema-agentic-os';
 import { db } from '../db';
 import { decrypt, encrypt } from '../utils/encryption';
+import { notificationService } from './NotificationService';
+import { whitelabelService } from './WhitelabelService';
 
 export interface ToolExecutionContext {
   botId: string;
@@ -176,7 +178,9 @@ export class ToolExecutionService {
             message: 'Awaiting human approval',
           });
 
-          // TODO: Send notification to human supervisor
+          // Send notification to human supervisor
+          await this.sendApprovalNotification(context, tool, parameters, logId);
+
           return {
             success: false,
             error: 'Requires human approval',
@@ -300,9 +304,57 @@ export class ToolExecutionService {
     tool: typeof toolDefinitions.$inferSelect,
     parameters: Record<string, any>,
   ) {
-    // TODO: Integrate with email service (SendGrid, SES, etc.)
-    console.log('Email tool execution:', parameters);
-    return { sent: true, messageId: uuid() };
+    const { to, subject, body, cc, bcc } = parameters;
+    const config = tool.config as any;
+
+    // Get organization from tool's context
+    const organizationId = tool.organizationId;
+    if (!organizationId) {
+      throw new Error('Tool not associated with an organization');
+    }
+
+    // Send email via whitelabel service
+    await whitelabelService.sendWhitelabeledEmail(
+      organizationId,
+      to,
+      subject || config.defaultSubject || 'Notification',
+      body || '',
+    );
+
+    return {
+      sent: true,
+      messageId: uuid(),
+      to,
+      subject: subject || config.defaultSubject,
+    };
+  }
+
+  /**
+   * Send notification for pending approval
+   */
+  private async sendApprovalNotification(
+    context: ToolExecutionContext,
+    tool: typeof toolDefinitions.$inferSelect,
+    parameters: Record<string, any>,
+    executionId: string,
+  ) {
+    const organizationId = tool.organizationId;
+    if (!organizationId) return;
+
+    // Create in-app notification for approval
+    try {
+      await notificationService.createNotification({
+        title: `Action Requires Approval: ${tool.name}`,
+        body: `The bot wants to execute "${tool.name}" with parameters: ${JSON.stringify(parameters).substring(0, 200)}...`,
+        audienceType: 'organization',
+        targetOrganizationId: organizationId,
+        priority: 'high',
+        isPopup: false,
+        actionUrl: `/approvals/${executionId}`,
+      });
+    } catch (error) {
+      console.error('Failed to send approval notification:', error);
+    }
   }
 
   /**

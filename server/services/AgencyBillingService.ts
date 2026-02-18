@@ -6,7 +6,7 @@
 
 import { and, desc, eq, gte, lte, sql } from 'drizzle-orm';
 import { v4 as uuid } from 'uuid';
-import { organizations } from '../../shared/schema';
+import { organizations, users } from '../../shared/schema';
 import {
   type InsertAgencyPricingTier,
   type InsertRevenueShareLedger,
@@ -17,6 +17,9 @@ import {
   usageWallets,
 } from '../../shared/schema-agentic-os';
 import { db } from '../db';
+import { env } from '../env';
+import { stripeService } from './StripeService';
+import { whitelabelService } from './WhitelabelService';
 
 export interface UsageEvent {
   eventType:
@@ -274,12 +277,65 @@ export class AgencyBillingService {
     organizationId: string,
     wallet: typeof usageWallets.$inferSelect,
   ) {
-    // TODO: Integrate with Stripe to charge saved payment method
-    // For now, just log
-    console.log(`Auto-recharge triggered for org ${organizationId}`);
+    // Get organization and owner
+    const [org] = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.id, organizationId));
 
-    // Add credits
-    await this.addCredits(organizationId, wallet.autoRechargeAmountCents!);
+    if (!org?.ownerId) {
+      console.error(`No owner found for organization ${organizationId}`);
+      return;
+    }
+
+    const [owner] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, org.ownerId));
+
+    if (!owner?.stripeCustomerId) {
+      console.error(`No Stripe customer ID for owner ${owner?.id}`);
+      throw new Error('No payment method configured');
+    }
+
+    try {
+      // Create a payment intent for the recharge amount
+      const amountCents = wallet.autoRechargeAmountCents || 5000; // Default $50
+
+      // Use Stripe to charge the saved payment method
+      // Note: This requires a saved payment method (setup intent completed previously)
+      const paymentIntent = await stripeService.createPaymentIntent(
+        owner.stripeCustomerId,
+        amountCents,
+        {
+          purpose: 'wallet_recharge',
+          organizationId,
+        },
+      );
+
+      if (paymentIntent.status === 'succeeded') {
+        // Add credits to wallet
+        await this.addCredits(organizationId, amountCents);
+
+        // Reset alert flags
+        await db
+          .update(usageWallets)
+          .set({
+            lowBalanceAlertSent: false,
+            lastRechargeAt: new Date(),
+          })
+          .where(eq(usageWallets.id, wallet.id));
+
+        console.log(
+          `Auto-recharge successful: $${amountCents / 100} for org ${organizationId}`,
+        );
+      } else {
+        throw new Error(`Payment failed with status: ${paymentIntent.status}`);
+      }
+    } catch (error) {
+      console.error('Auto-recharge failed:', error);
+      throw new Error('Auto-recharge failed. Please add credits manually.');
+    }
   }
 
   /**
@@ -289,11 +345,75 @@ export class AgencyBillingService {
     organizationId: string,
     wallet: typeof usageWallets.$inferSelect,
   ) {
-    // Prevent spam - only send once
+    // Prevent spam - only send once per low balance period
     if (wallet.lowBalanceAlertSent) return;
 
-    // TODO: Send email via NurtureService
-    console.log(`Low balance alert for org ${organizationId}`);
+    // Get organization owner
+    const [org] = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.id, organizationId));
+
+    if (!org?.ownerId) return;
+
+    const [owner] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, org.ownerId));
+
+    if (!owner?.email) return;
+
+    const balance = (wallet.balanceCents || 0) / 100;
+    const subject =
+      '⚠️ Low Balance Alert - Add Credits to Your BuildMyBot Account';
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: #f59e0b; color: white; padding: 20px; border-radius: 8px 8px 0 0; }
+            .content { background: #f9fafb; padding: 20px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px; }
+            .balance { font-size: 32px; font-weight: bold; color: #dc2626; }
+            .cta-button { display: inline-block; background: #3b82f6; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; margin-top: 15px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h2 style="margin: 0;">⚠️ Low Balance Warning</h2>
+              <p style="margin: 5px 0 0 0;">Your wallet balance is running low</p>
+            </div>
+            <div class="content">
+              <p>Hello ${owner.name || 'there'},</p>
+              <p>Your BuildMyBot wallet balance is running low:</p>
+              <p class="balance">$${balance.toFixed(2)}</p>
+              <p>Low balance may affect your services. Add credits to ensure uninterrupted service.</p>
+              <a href="${env.APP_BASE_URL}/billing" class="cta-button">Add Credits</a>
+              <p style="margin-top: 20px; font-size: 12px; color: #6b7280;">
+                You can enable auto-recharge in your billing settings to automatically top up your balance.
+              </p>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+
+    try {
+      await whitelabelService.sendWhitelabeledEmail(
+        organizationId,
+        owner.email,
+        subject,
+        html,
+      );
+      console.log(
+        `Low balance alert sent to ${owner.email} for org ${organizationId}`,
+      );
+    } catch (error) {
+      console.error('Failed to send low balance alert email:', error);
+    }
 
     await db
       .update(usageWallets)
