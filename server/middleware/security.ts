@@ -50,4 +50,24 @@ export const securityHeaders = helmet({
   },
   crossOriginEmbedderPolicy: false,
   crossOriginResourcePolicy: { policy: 'cross-origin' },
+  // HSTS - Force HTTPS in production
+  hsts: isProduction
+    ? {
+        maxAge: 31536000, // 1 year
+        includeSubDomains: true,
+        preload: true,
+      }
+    : false,
+  // Prevent MIME type sniffing
+  noSniff: true,
+  // X-Content-Type-Options
+  contentTypeOptions: nosniff(),
+  // X-Frame-Options (additional to CSP frame-src)
+  frameguard: { action: 'sameorigin' },
+  // XSS Protection (legacy, but still useful for older browsers)
+  xssFilter: true,
+  // Referrer Policy
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
 });
+
+import { nosniff } from 'helmet';
