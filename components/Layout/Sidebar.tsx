@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import type React from 'react';
 import { PLANS } from '../../constants';
-import { type User, UserRole } from '../../types';
+import { PlanType, type User, UserRole } from '../../types';
 
 interface SidebarProps {
   currentView: string;
