@@ -54,6 +54,23 @@ export class StripeService {
     });
   }
 
+  async createPaymentIntent(
+    customerId: string,
+    amountCents: number,
+    metadata?: Record<string, string>,
+  ) {
+    const stripe = await getUncachableStripeClient();
+    return await stripe.paymentIntents.create({
+      amount: amountCents,
+      currency: 'usd',
+      customer: customerId,
+      metadata,
+      automatic_payment_methods: {
+        enabled: true,
+      },
+    });
+  }
+
   async getProduct(productId: string) {
     const stripe = await getUncachableStripeClient();
     return await stripe.products.retrieve(productId);
