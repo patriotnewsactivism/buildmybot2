@@ -5,7 +5,7 @@ export const PLANS = {
     price: 0,
     bots: 1,
     conversations: 60,
-    name: 'Free Tier',
+    name: 'Free',
     features: [
       'Drag-and-drop website widget',
       '1 bot with branded colors',
@@ -72,7 +72,7 @@ export const PLANS = {
     price: 499,
     bots: 9999, // Unlimited
     conversations: 50000,
-    name: 'Ultimate Power', // Updated from Enterprise
+    name: 'Enterprise', // Updated from Ultimate Power
     overage: 0.01,
     features: [
       'Unlimited bots & workspaces',
