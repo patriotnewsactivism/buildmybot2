@@ -11,6 +11,7 @@ import {
   tenantIsolation,
 } from '../middleware';
 import { integrationService } from '../services/IntegrationService';
+import { leadAlertService } from '../services/LeadAlertService';
 import { openAIService } from '../services/OpenAIService';
 
 const router = Router();
@@ -78,6 +79,39 @@ router.post('/capture', strictLimiter, async (req: Request, res: Response) => {
 
     // Trigger CRM sync asynchronously
     integrationService.syncLead(newLead).catch(console.error);
+
+    // Send lead alert for hot leads (score >= 70) or all leads based on settings
+    // For now, send alerts for all leads; in future, make this configurable per bot
+    leadAlertService
+      .sendLeadAlert({
+        leadId: newLead.id,
+        leadName: newLead.name || 'Anonymous',
+        leadEmail: newLead.email,
+        leadPhone: newLead.phone,
+        leadScore: score,
+        botId,
+        botName: bot.name || 'Unknown Bot',
+        organizationId: bot.organizationId,
+        conversationContext,
+      })
+      .catch((err) => console.error('Failed to send lead alert:', err));
+
+    // For very hot leads (score >= 85), also send SMS if configured
+    if (score >= 85) {
+      leadAlertService
+        .sendSmsAlert({
+          leadId: newLead.id,
+          leadName: newLead.name || 'Anonymous',
+          leadEmail: newLead.email,
+          leadPhone: newLead.phone,
+          leadScore: score,
+          botId,
+          botName: bot.name || 'Unknown Bot',
+          organizationId: bot.organizationId,
+          conversationContext,
+        })
+        .catch((err) => console.error('Failed to send SMS alert:', err));
+    }
 
     res.json(newLead);
   } catch (error) {

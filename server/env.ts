@@ -95,4 +95,12 @@ export const env = {
   RESELLER_PLAN: process.env.RESELLER_PLAN,
   CLIENT_EMAIL: process.env.CLIENT_EMAIL,
   CLIENT_PLAN: process.env.CLIENT_PLAN,
+  CORS_ORIGINS: process.env.CORS_ORIGINS,
+  KNOWLEDGE_REPAIR_INTERVAL_MS: process.env.KNOWLEDGE_REPAIR_INTERVAL_MS,
+  SMTP_HOST: process.env.SMTP_HOST,
+  SMTP_PORT: process.env.SMTP_PORT,
+  SMTP_SECURE: process.env.SMTP_SECURE,
+  SMTP_USER: process.env.SMTP_USER,
+  SMTP_PASS: process.env.SMTP_PASS,
+  SMTP_FROM: process.env.SMTP_FROM,
 };
