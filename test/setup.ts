@@ -1,6 +1,34 @@
 import '@testing-library/jest-dom';
 import { vi } from 'vitest';
 
+// Set required environment variables before any modules load
+process.env.NODE_ENV = 'test';
+process.env.DATABASE_URL =
+  process.env.DATABASE_URL || 'postgresql://test:test@localhost:5432/test';
+process.env.SESSION_SECRET =
+  process.env.SESSION_SECRET || 'test-session-secret-min-32-characters!';
+process.env.OPENAI_API_KEY = process.env.OPENAI_API_KEY || 'test-openai-key';
+
+// Mock OpenAI module to prevent browser environment error
+vi.mock('openai', () => {
+  return {
+    default: vi.fn().mockImplementation(() => ({
+      embeddings: {
+        create: vi.fn().mockResolvedValue({
+          data: [{ embedding: [0.1, 0.2, 0.3] }],
+        }),
+      },
+      chat: {
+        completions: {
+          create: vi.fn().mockResolvedValue({
+            choices: [{ message: { content: 'test response' } }],
+          }),
+        },
+      },
+    })),
+  };
+});
+
 // Polyfills for pdfjs-dist / jsdom environment compatibility
 if (typeof global.DOMMatrix === 'undefined') {
   global.DOMMatrix = class DOMMatrix {
