@@ -25,18 +25,16 @@ function createProvider(name) {
 
 // Factory to get the configured provider
 export function getTTSProvider(context = {}) {
-  // Tiered Rollout Logic / Kill Switch
-  // If a specific provider is requested in context (e.g. per-customer override), use it.
-  const primaryName =
-    context.preferredProvider || process.env.TTS_PROVIDER || 'cartesia';
+  // Tiered Rollout Logic: Standard (Cartesia) vs Premium (ElevenLabs)
+  let primaryName = context.preferredProvider || process.env.TTS_PROVIDER || 'cartesia';
 
-  // Example: "Premium" tier might force a different provider if not explicitly set
-  // if (context.tier === 'premium' && !context.preferredProvider) {
-  //   primaryName = 'elevenlabs';
-  // }
+  if (context.tier === 'premium') {
+    primaryName = 'elevenlabs';
+  } else if (context.tier === 'standard') {
+    primaryName = 'cartesia';
+  }
 
   const shadowName = process.env.SHADOW_TTS_PROVIDER;
-
   const primary = createProvider(primaryName);
 
   if (shadowName && shadowName !== primaryName) {

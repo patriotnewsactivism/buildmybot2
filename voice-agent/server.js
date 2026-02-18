@@ -2,6 +2,8 @@ import dotenv from 'dotenv';
 import express from 'express';
 import { v4 as uuid } from 'uuid';
 import { WebSocketServer } from 'ws';
+import { getSTTProvider } from './src/services/stt/index.js';
+import { getLLMProvider } from './src/services/llm/index.js';
 import { getTTSProvider } from './src/services/tts/index.js';
 
 dotenv.config();
@@ -9,68 +11,109 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Session tracking (from your snippet)
+// Session tracking
 const sessions = new Map();
 
-function startCall(callId) {
-  console.log(`Starting call: ${callId}`);
+function startCall(callId, metadata = {}) {
+  console.log(`[${callId}] Starting call session.`);
   sessions.set(callId, {
     startedAt: Date.now(),
     secondsUsed: 0,
-    tier: 'standard',
+    tier: metadata.tier || 'standard', // 'standard' or 'premium'
+    botId: metadata.botId,
     memory: [],
+    maxMemoryWindow: 10, // Only keep last 10 messages for low latency/cost
   });
 }
 
 function endCall(callId) {
-  const s = sessions.get(callId);
-  if (s) {
-    const minutes = Math.ceil((Date.now() - s.startedAt) / 60000);
-    console.log(`Ending call: ${callId}, Duration: ${minutes} min`);
-    // TODO: write usage to DB
+  const session = sessions.get(callId);
+  if (session) {
+    const durationMs = Date.now() - session.startedAt;
+    const minutes = Math.ceil(durationMs / 60000);
+    console.log(`[${callId}] Call ended. Duration: ${minutes} min. Tier: ${session.tier}`);
+    
+    // Webhook call back to BuildMyBot main server for billing
+    // await fetch(`${process.env.APP_BASE_URL}/api/voice/billing`, { 
+    //   method: 'POST', 
+    //   body: JSON.stringify({ callId, minutes, tier: session.tier, botId: session.botId }) 
+    // });
+    
     sessions.delete(callId);
   }
 }
 
-// HTTP Server
-const server = app.listen(port, () => {
-  console.log(`Voice Agent Server running on port ${port}`);
-});
-
-// WebSocket Server for Voice Streaming
+// WebSocket Server for Voice Streaming (Orchestrator)
 const wss = new WebSocketServer({ server });
 
-wss.on('connection', (ws) => {
+wss.on('connection', async (ws) => {
   const callId = uuid();
-  startCall(callId);
+  let session = null;
 
-  ws.on('message', async (message) => {
+  // Providers
+  const stt = getSTTProvider();
+  const llm = getLLMProvider();
+  let tts = null; // Wait for session metadata to pick tier
+
+  // 1. STT: Start streaming connection (Deepgram)
+  const dgConnection = await stt.startStream({
+    model: 'nova-2-phonecall',
+    encoding: 'mulaw',
+    sample_rate: 8000,
+  });
+
+  dgConnection.on('Results', async (data) => {
+    const transcript = data.channel.alternatives[0].transcript;
+    if (transcript && data.is_final) {
+      if (!session) return;
+      
+      console.log(`[${callId}] User: ${transcript}`);
+      session.memory.push({ role: 'user', content: transcript });
+
+      // Keep memory window clean
+      if (session.memory.length > session.maxMemoryWindow) {
+        session.memory.shift();
+      }
+
+      // 2. Agent Brain (LLM)
+      console.log(`[${callId}] Generating AI response (Tier: ${session.tier})...`);
+      const aiResponse = await llm.complete(session.memory, {
+        system: "You are a professional voice agent. Be concise and helpful. (Max 2-3 sentences)",
+      });
+
+      console.log(`[${callId}] AI: ${aiResponse}`);
+      session.memory.push({ role: 'assistant', content: aiResponse });
+
+      // 3. TTS (Tiered)
+      const clientStream = {
+        write: (chunk) => {
+          if (ws.readyState === ws.OPEN) {
+            ws.send(JSON.stringify({
+              event: 'media',
+              media: { payload: Buffer.from(chunk).toString('base64') }
+            }));
+          }
+        },
+        end: () => {}
+      };
+
+      await tts.speak(aiResponse, clientStream);
+    }
+  });
+
+  ws.on('message', (message) => {
     try {
-      // Expecting a JSON message with text to speak
-      // In a real voice agent, this would be audio input -> STT -> LLM -> TTS
-      // Here we simulate the TTS step using our abstraction.
       const data = JSON.parse(message);
 
-      if (data.type === 'speak' && data.text) {
-        console.log(`[${callId}] Speaking: ${data.text}`);
-
-        const session = sessions.get(callId);
-        const tts = getTTSProvider({ tier: session?.tier });
-
-        // Create a stream wrapper to send audio back to the client
-        // This simulates a Writable stream that sends data to the websocket
-        const clientStream = {
-          write: (chunk) => {
-            if (ws.readyState === ws.OPEN) {
-              ws.send(chunk);
-            }
-          },
-          end: () => {
-            // Stream finished
-          },
-        };
-
-        await tts.speak(data.text, clientStream);
+      if (data.event === 'start') {
+        const metadata = data.start.customParameters || {};
+        startCall(callId, metadata);
+        session = sessions.get(callId);
+        tts = getTTSProvider({ tier: session.tier });
+        console.log(`[${callId}] Orchestrating call for bot: ${metadata.botId} with ${session.tier} voice.`);
+      } else if (data.event === 'media' && data.media.payload) {
+        // Forward audio to Deepgram (STT)
+        dgConnection.send(Buffer.from(data.media.payload, 'base64'));
       }
     } catch (err) {
       console.error(`[${callId}] Error:`, err);
@@ -78,6 +121,7 @@ wss.on('connection', (ws) => {
   });
 
   ws.on('close', () => {
+    if (dgConnection) dgConnection.finish();
     endCall(callId);
   });
 });
