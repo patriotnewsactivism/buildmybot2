@@ -143,10 +143,71 @@ function getBaseUrl() {
 // Stripe is configured via environment variables
 // Webhook endpoint is available at /api/stripe/webhook
 
+// CORS configuration - restrict origins in production
+const getAllowedOrigins = (): (string | RegExp)[] => {
+  const origins: (string | RegExp)[] = [];
+
+  // Add APP_BASE_URL if configured
+  if (env.APP_BASE_URL) {
+    origins.push(env.APP_BASE_URL.replace(/\/+$/, ''));
+  }
+
+  // Add additional allowed origins from environment
+  if (env.CORS_ORIGINS) {
+    origins.push(
+      ...env.CORS_ORIGINS.split(',')
+        .map((o) => o.trim())
+        .filter(Boolean),
+    );
+  }
+
+  // In development, allow common local origins
+  if (!isProduction) {
+    origins.push(/^http:\/\/localhost:\d+$/);
+    origins.push(/^http:\/\/127\.0\.0\.1:\d+$/);
+  }
+
+  // Fallback: if no origins configured, allow same-origin only
+  if (origins.length === 0) {
+    origins.push(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/);
+  }
+
+  return origins;
+};
+
 app.use(
   cors({
-    origin: true,
+    origin: (requestOrigin, callback) => {
+      const allowedOrigins = getAllowedOrigins();
+
+      // Allow requests with no origin (mobile apps, curl, etc.)
+      if (!requestOrigin) {
+        return callback(null, true);
+      }
+
+      // Check if origin matches any allowed pattern
+      const isAllowed = allowedOrigins.some((allowed) => {
+        if (typeof allowed === 'string') {
+          return allowed === requestOrigin;
+        }
+        return allowed.test(requestOrigin);
+      });
+
+      if (isAllowed) {
+        callback(null, true);
+      } else {
+        console.warn(`CORS blocked origin: ${requestOrigin}`);
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Requested-With',
+      'X-Organization-Id',
+    ],
   }),
 );
 
@@ -167,6 +228,14 @@ app.use(
 
 // Configure session store with PostgreSQL
 const PgSession = connectPgSimple(session);
+// Validate session secret in production
+const sessionSecret = env.SESSION_SECRET;
+if (isProduction && (!sessionSecret || sessionSecret.length < 32)) {
+  throw new Error(
+    'SESSION_SECRET must be at least 32 characters in production',
+  );
+}
+
 app.use(
   session({
     store: new PgSession({
@@ -174,7 +243,7 @@ app.use(
       tableName: 'sessions',
       createTableIfMissing: true,
     }),
-    secret: env.SESSION_SECRET || 'buildmybot-dev-secret-change-in-production',
+    secret: sessionSecret || 'buildmybot-dev-secret-change-in-production',
     resave: false,
     saveUninitialized: false,
     cookie: {
@@ -209,9 +278,10 @@ app.post(
   },
 );
 
-app.use(express.json());
+// Limit JSON body size to prevent abuse
+app.use(express.json({ limit: '10mb' }));
 // Handle url encoded for Twilio
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Phase 8: Structured Request Logging
 app.use(requestLogger);
