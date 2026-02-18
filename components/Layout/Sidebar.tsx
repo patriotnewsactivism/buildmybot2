@@ -89,8 +89,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }
   };
 
-  const planName = user?.plan || 'Free';
-  const planLimit = PLANS[user?.plan || 'FREE']?.conversations || 60;
+  const planKey = user?.plan || PlanType.FREE;
+  const planInfo = PLANS[planKey];
+  const planName = planInfo?.name || 'Free';
+  const planLimit = planInfo?.conversations || 60;
   const usagePercent = Math.min(100, Math.round((usage / planLimit) * 100));
 
   return (
@@ -152,8 +154,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
               Current Plan
             </p>
             <div className="flex justify-between items-center mb-2">
-              <span className="text-slate-200 font-bold truncate capitalize">
-                {planName.toLowerCase()}
+              <span className="text-slate-200 font-bold truncate">
+                {planName}
               </span>
               <span className="bg-emerald-900/30 text-emerald-400 text-xs px-2 py-0.5 rounded-full border border-emerald-900/50">
                 Active

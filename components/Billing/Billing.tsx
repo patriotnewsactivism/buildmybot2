@@ -154,7 +154,7 @@ export const Billing: React.FC<BillingProps> = ({ user }) => {
           const isFree = key === PlanType.FREE;
 
           const displayTitle = isEnterprise
-            ? 'Enterprise / White-label'
+            ? 'Enterprise'
             : plan.name;
 
           return (
@@ -176,7 +176,7 @@ export const Billing: React.FC<BillingProps> = ({ user }) => {
 
               {isEnterprise && (
                 <div className="mb-4 flex items-center gap-1.5 text-yellow-400 font-bold text-[10px] uppercase tracking-widest">
-                  <Crown size={12} fill="currentColor" /> Ultimate Power
+                  <Crown size={12} fill="currentColor" /> Enterprise
                 </div>
               )}
 

@@ -148,28 +148,32 @@ export const PrivacyPage: React.FC = () => {
               5. Data Sharing and Disclosure
             </h2>
             <p className="text-slate-600 leading-relaxed mb-4">
-              We may share your information in the following circumstances:
+              We may share your information with the following third-party
+              processors to provide our Services:
             </p>
-            <ul className="list-disc list-inside text-slate-600 space-y-2">
+            <ul className="list-disc list-inside text-slate-600 space-y-2 mb-4">
               <li>
-                <strong>Service Providers:</strong> With third-party vendors who
-                perform services on our behalf
+                <strong>Cloud Infrastructure:</strong> Amazon Web Services (AWS)
+                for secure data hosting and processing.
               </li>
               <li>
-                <strong>Business Transfers:</strong> In connection with a
-                merger, acquisition, or sale of assets
+                <strong>Payment Processing:</strong> Stripe for secure,
+                PCI-compliant transaction handling.
               </li>
               <li>
-                <strong>Legal Requirements:</strong> When required by law or to
-                protect our rights
+                <strong>AI Services:</strong> OpenAI and Cartesia for generating
+                chatbot and voice agent responses.
               </li>
               <li>
-                <strong>With Your Consent:</strong> When you have given us
-                permission to share your information
+                <strong>Communication:</strong> Twilio and Telnyx for telephony
+                and SMS services.
               </li>
             </ul>
             <p className="text-slate-600 leading-relaxed mt-4">
-              We do not sell your personal information to third parties.
+              We do not sell your personal information to third parties. All
+              service providers are bound by data processing agreements that
+              protect your information. For more details, request our Data
+              Processing Addendum (DPA).
             </p>
           </section>
 
@@ -177,14 +181,35 @@ export const PrivacyPage: React.FC = () => {
             <h2 className="text-2xl font-bold text-slate-900 mb-4">
               6. Data Security
             </h2>
+            <p className="text-slate-600 leading-relaxed mb-4">
+              We implement industry-standard security measures to protect your
+              information:
+            </p>
+            <ul className="list-disc list-inside text-slate-600 space-y-2 mb-4">
+              <li>
+                <strong>Encryption in Transit:</strong> All data transmitted
+                between your browser and our servers is encrypted using TLS 1.3
+                with modern, secure ciphers.
+              </li>
+              <li>
+                <strong>Encryption at Rest:</strong> Sensitive data, including
+                account credentials and personal information, is encrypted at
+                rest using AES-256 encryption.
+              </li>
+              <li>
+                <strong>Database Security:</strong> We use parameterized queries
+                and strictly enforced RLS (Row Level Security) to prevent
+                unauthorized data access.
+              </li>
+              <li>
+                <strong>Regular Audits:</strong> We conduct periodic security
+                reviews and vulnerability scans to maintain our SOC 2 compliant
+                status.
+              </li>
+            </ul>
             <p className="text-slate-600 leading-relaxed">
-              We implement appropriate technical and organizational security
-              measures to protect your personal information against unauthorized
-              access, alteration, disclosure, or destruction. These measures
-              include encryption, secure server infrastructure, regular security
-              audits, and employee training. However, no method of transmission
-              over the Internet or electronic storage is 100% secure, and we
-              cannot guarantee absolute security.
+              However, no method of transmission over the Internet or electronic
+              storage is 100% secure, and we cannot guarantee absolute security.
             </p>
           </section>
 

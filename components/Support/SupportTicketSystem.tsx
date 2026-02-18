@@ -71,7 +71,7 @@ const SLA_CONFIG: Record<
   [PlanType.EXECUTIVE]: {
     responseHours: 8,
     resolutionHours: 48,
-    label: 'Priority+',
+    label: 'Executive SLA',
   },
   [PlanType.ENTERPRISE]: {
     responseHours: 4,
@@ -1029,7 +1029,7 @@ export const SupportTicketSystem: React.FC<SupportTicketSystemProps> = ({
 };
 
 const PLANS: Record<PlanType, { name: string }> = {
-  [PlanType.FREE]: { name: 'Free Tier' },
+  [PlanType.FREE]: { name: 'Free' },
   [PlanType.STARTER]: { name: 'Starter' },
   [PlanType.PROFESSIONAL]: { name: 'Professional' },
   [PlanType.EXECUTIVE]: { name: 'Executive' },

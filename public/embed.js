@@ -29,15 +29,33 @@
   const iframe = document.createElement('iframe');
   iframe.src = `https://${domain}/chat/${botId}?mode=embed`;
   iframe.style.border = 'none';
+  iframe.style.position = 'fixed';
+  iframe.style.bottom = '90px';
+  iframe.style.right = '20px';
   iframe.style.width = '380px';
   iframe.style.height = '600px';
-  iframe.style.maxHeight = '80vh';
+  iframe.style.maxWidth = 'calc(100vw - 40px)';
+  iframe.style.maxHeight = 'calc(100vh - 120px)';
   iframe.style.borderRadius = '16px';
   iframe.style.boxShadow = '0 10px 25px rgba(0,0,0,0.15)';
   iframe.style.display = 'none'; // Start hidden
+  iframe.style.zIndex = '999999';
   iframe.style.transition = 'all 0.3s ease';
-  iframe.style.marginBottom = '10px';
-  container.appendChild(iframe);
+  document.body.appendChild(iframe);
+
+  // Mobile overrides
+  const mobileMediaQuery = window.matchMedia('(max-width: 480px)');
+  const applyMobileStyles = (e) => {
+    if (e.matches) {
+      iframe.style.width = 'calc(100vw - 40px)';
+      iframe.style.height = 'calc(100vh - 120px)';
+    } else {
+      iframe.style.width = '380px';
+      iframe.style.height = '600px';
+    }
+  };
+  mobileMediaQuery.addListener(applyMobileStyles);
+  applyMobileStyles(mobileMediaQuery);
 
   // Create Launcher Button
   const button = document.createElement('div');
