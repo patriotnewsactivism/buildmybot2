@@ -1,5 +1,6 @@
 import { ArrowLeft, Bot } from 'lucide-react';
 import type React from 'react';
+import { CookieConsent } from '../../Support/CookieConsent';
 
 interface PageLayoutProps {
   children: React.ReactNode;
@@ -23,6 +24,8 @@ export const PageLayout: React.FC<PageLayoutProps> = ({ children }) => {
       </nav>
 
       <main className="flex-1">{children}</main>
+
+      <CookieConsent />
 
       <footer className="bg-slate-900 text-slate-400 py-12 sm:py-20 px-4 sm:px-6">
         <div className="max-w-7xl mx-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8 sm:gap-12">
@@ -78,6 +81,11 @@ export const PageLayout: React.FC<PageLayoutProps> = ({ children }) => {
           <div>
             <h4 className="text-white font-bold mb-4">Support</h4>
             <ul className="space-y-2 text-sm">
+              <li>
+                <a href="/help" className="hover:text-white transition">
+                  Help Center
+                </a>
+              </li>
               <li>
                 <a href="/faq" className="hover:text-white transition">
                   FAQ
