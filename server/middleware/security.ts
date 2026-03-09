@@ -58,10 +58,8 @@ export const securityHeaders = helmet({
         preload: true,
       }
     : false,
-  // Prevent MIME type sniffing
-  noSniff: true,
-  // X-Content-Type-Options
-  contentTypeOptions: nosniff(),
+  // Prevent MIME type sniffing - X-Content-Type-Options
+  contentTypeOptions: true,
   // X-Frame-Options (additional to CSP frame-src)
   frameguard: { action: 'sameorigin' },
   // XSS Protection (legacy, but still useful for older browsers)
@@ -69,5 +67,3 @@ export const securityHeaders = helmet({
   // Referrer Policy
   referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
 });
-
-import { nosniff } from 'helmet';
