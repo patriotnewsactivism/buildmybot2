@@ -18,7 +18,7 @@ import {
 } from '../../shared/schema-agentic-os';
 import { db } from '../db';
 import { env } from '../env';
-import { stripeService } from './StripeService';
+import { stripeService } from '../stripeService';
 import { whitelabelService } from './WhitelabelService';
 
 export interface UsageEvent {
