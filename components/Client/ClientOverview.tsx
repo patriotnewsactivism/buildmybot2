@@ -17,6 +17,7 @@ import { MetricCard } from '../UI/MetricCard';
 import { PlayfulMetricCard } from '../UI/PlayfulMetricCard';
 import { QuickMetricsWidget } from '../UI/QuickMetricsWidget';
 import { ReferralBanner } from '../UI/ReferralBanner';
+import { OnboardingWizard } from './OnboardingWizard';
 
 interface ClientOverviewProps {
   user?: User | null;
@@ -62,12 +63,6 @@ export const ClientOverview: React.FC<ClientOverviewProps> = ({
   const [showOnboarding, setShowOnboarding] = useState(
     Boolean(user && !user.preferences?.onboardingComplete),
   );
-  const [onboardingStep, setOnboardingStep] = useState(1);
-  const [onboardingData, setOnboardingData] = useState<{
-    industry?: string;
-    goal?: string;
-  }>({});
-
   const fetchOverview = useCallback(async () => {
     try {
       const data = await dbService.getClientOverview();
@@ -234,111 +229,14 @@ export const ClientOverview: React.FC<ClientOverviewProps> = ({
       <QuickMetricsWidget />
       {resellerCode ? <ReferralBanner user={user as User} /> : null}
       {showOnboarding && (
-        <div className="bg-white border border-slate-200 rounded-xl p-4 md:p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-slate-900">
-              Quick Start Wizard
-            </h3>
-            <span className="text-xs text-slate-500">
-              Step {onboardingStep} of 3
-            </span>
-          </div>
-          {onboardingStep === 1 && (
-            <div className="space-y-4">
-              <label
-                htmlFor="client-onboarding-industry"
-                className="block text-sm font-medium text-slate-700"
-              >
-                Choose your industry
-              </label>
-              <input
-                id="client-onboarding-industry"
-                value={onboardingData.industry || ''}
-                onChange={(event) =>
-                  setOnboardingData({
-                    ...onboardingData,
-                    industry: event.target.value,
-                  })
-                }
-                placeholder="e.g. Real Estate, Dental, HVAC"
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-              />
-            </div>
-          )}
-          {onboardingStep === 2 && (
-            <div className="space-y-4">
-              <label
-                htmlFor="client-onboarding-goal"
-                className="block text-sm font-medium text-slate-700"
-              >
-                Primary goal for your bot
-              </label>
-              <input
-                id="client-onboarding-goal"
-                value={onboardingData.goal || ''}
-                onChange={(event) =>
-                  setOnboardingData({
-                    ...onboardingData,
-                    goal: event.target.value,
-                  })
-                }
-                placeholder="e.g. Capture leads, answer FAQs, schedule calls"
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-              />
-            </div>
-          )}
-          {onboardingStep === 3 && (
-            <div className="space-y-3 text-sm text-slate-600">
-              <p>
-                Industry:{' '}
-                <span className="font-semibold text-slate-900">
-                  {onboardingData.industry || 'Not set'}
-                </span>
-              </p>
-              <p>
-                Goal:{' '}
-                <span className="font-semibold text-slate-900">
-                  {onboardingData.goal || 'Not set'}
-                </span>
-              </p>
-              <p className="text-slate-500">
-                We will tailor templates and guidance based on this info.
-              </p>
-            </div>
-          )}
-          <div className="flex justify-between mt-6">
-            <button
-              type="button"
-              onClick={() => setOnboardingStep((prev) => Math.max(1, prev - 1))}
-              className="px-4 py-2 text-sm font-medium text-slate-600"
-              disabled={onboardingStep === 1}
-            >
-              Back
-            </button>
-            {onboardingStep < 3 ? (
-              <button
-                type="button"
-                onClick={() =>
-                  setOnboardingStep((prev) => Math.min(3, prev + 1))
-                }
-                className="px-4 py-2 bg-orange-600 text-white rounded-lg text-sm font-semibold hover:bg-orange-700"
-              >
-                Next
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={async () => {
-                  await dbService.completeOnboarding();
-                  setShowOnboarding(false);
-                }}
-                className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700"
-              >
-                Finish Setup
-              </button>
-            )}
-          </div>
-        </div>
+        <OnboardingWizard
+          existingBotId={recentBots[0]?.id}
+          onSkip={() => setShowOnboarding(false)}
+          onComplete={async () => {
+            await dbService.completeOnboarding();
+            setShowOnboarding(false);
+          }}
+        />
       )}
 
       {/* Professional Header */}
