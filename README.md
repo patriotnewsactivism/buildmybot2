@@ -169,6 +169,11 @@ buildmybot-2026/
 └── README.md           # This file
 ```
 
+## Planning Resources
+
+- [Market Readiness Roadmap](./MARKET_READINESS_ROADMAP.md)
+- [Engineering Plan](./PLAN.md)
+
 ## New in Milestone 2 & 3
 
 ### ✅ Template Marketplace (Database-Backed)
