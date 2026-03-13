@@ -1,14 +1,33 @@
-FROM node:20-slim
-
+FROM node:20-alpine AS deps
 WORKDIR /app
-
 COPY package*.json ./
-RUN npm install --include=dev
+RUN npm ci
 
+FROM node:20-alpine AS build
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+RUN npm run build
 
+FROM node:20-alpine AS prod-deps
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY package*.json ./
+RUN npm prune --omit=dev && npm cache clean --force
+
+FROM node:20-alpine AS production
+WORKDIR /app
 ENV NODE_ENV=production
 
-EXPOSE 5000
+COPY --from=prod-deps /app/node_modules ./node_modules
+COPY --from=prod-deps /app/package*.json ./
+COPY --from=build /app/dist ./dist
+COPY --from=build /app/server ./server
+COPY --from=build /app/shared ./shared
+COPY --from=build /app/public ./public
+COPY --from=build /app/index.html ./index.html
+COPY --from=build /app/tsconfig.json ./tsconfig.json
 
+USER node
+EXPOSE 5000
 CMD ["npm", "run", "start"]
