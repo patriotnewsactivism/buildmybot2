@@ -66,6 +66,7 @@ import {
   templatesRouter,
   toolsRouter,
   twilioWebhooksRouter,
+  voiceAgentsRouter,
   webhooksRouter,
 } from './routes';
 import { KnowledgeRepairService } from './services/KnowledgeRepairService';
@@ -1675,6 +1676,9 @@ app.use('/api/phone', phoneRouter);
 
 // Twilio Webhooks
 app.use('/api/webhooks', twilioWebhooksRouter);
+
+// Voice Agent API (provider-agnostic)
+app.use('/api/voice', authenticate, voiceAgentsRouter);
 
 // Webhook management
 app.use('/api/webhooks', webhooksRouter);

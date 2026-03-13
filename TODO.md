@@ -1,0 +1,3 @@
+- [ ] Wire VoiceAgentManager into server bootstrap with env-driven provider configs (map VAPI/Retell keys + webhook URLs).
+- [ ] Route voice webhooks and REST endpoints through VoiceAgentController/VoiceAgentManager; persist sessions to DB.
+- [ ] Implement persistence hooks (CRM/call logs/usage) and real transfer/booking handlers in VoiceAgentController.
