@@ -16,6 +16,7 @@ import { agencyBillingService } from '../services/AgencyBillingService';
 import { chatService } from '../services/ChatService';
 import { KnowledgeService } from '../services/KnowledgeService';
 import { toolExecutionService } from '../services/ToolExecutionService';
+import { isWidgetOriginAllowed } from '../utils/originValidation';
 
 const router = Router();
 const isDevelopment = process.env.NODE_ENV !== 'production';
@@ -366,6 +367,18 @@ router.post(
 
       if (!bot.active) {
         return res.status(403).json({ error: 'Bot is currently inactive' });
+      }
+
+      const hasAllowedOrigin = isWidgetOriginAllowed({
+        originHeader: req.headers.origin,
+        refererHeader: req.headers.referer,
+        websiteUrl: bot.websiteUrl,
+      });
+
+      if (!hasAllowedOrigin) {
+        return res.status(403).json({
+          error: 'Origin is not allowed for this bot',
+        });
       }
 
       let useModel = model || bot.model || 'gpt-4o-mini';
