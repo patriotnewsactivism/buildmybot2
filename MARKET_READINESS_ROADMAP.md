@@ -112,11 +112,15 @@ Keep fixed costs low while scaling usage-based COGS.
 - Metered usage reporting for voice overages.
 
 ### Security baseline (non-negotiable)
-- API rate limiting across public endpoints.
-- Strict CORS by tenant domain.
-- API key auth for embeddable widget traffic.
-- Input validation and sanitization on all ingestion points.
-- Audit logging for sensitive admin actions.
+- API rate limiting across public endpoints. ✅ (implemented)
+- Strict CORS by tenant domain. ✅ (implemented)
+- API key auth for embeddable widget traffic. 🚧 (next)
+- Input validation and sanitization on all ingestion points. ✅ (implemented baseline; continue hardening)
+- Audit logging for sensitive admin actions. ✅ (implemented baseline)
+
+### Progress update (current sprint)
+- Added widget-domain enforcement for public bot chat endpoints using bot `websiteUrl` host validation against `Origin`/`Referer` headers.
+- Added dedicated test coverage for origin validation rules.
 
 ### Reliability baseline
 - `/health` endpoint with DB/provider checks.
