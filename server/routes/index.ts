@@ -27,6 +27,7 @@ import teamRouter from './team';
 import templatesRouter from './templates';
 import toolsRouter from './tools';
 import { twilioWebhooksRouter } from './twilioWebhooks';
+import voiceAgentsRouter from './voiceAgents';
 import voiceRouter from './voice';
 import webhooksRouter from './webhooks';
 
@@ -56,5 +57,6 @@ export {
   integrationsRouter,
   phoneRouter,
   twilioWebhooksRouter,
+  voiceAgentsRouter,
   voiceRouter,
 };
