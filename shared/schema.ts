@@ -1,10 +1,13 @@
 import { relations } from 'drizzle-orm';
 import {
   boolean,
+  date,
   integer,
   json,
+  numeric,
   pgTable,
   real,
+  serial,
   text,
   timestamp,
   varchar,
@@ -1188,25 +1191,43 @@ export const voiceAgents = pgTable('voice_agents', {
   organizationId: text('organization_id')
     .notNull()
     .references(() => organizations.id, { onDelete: 'cascade' }),
+  provider: varchar('provider', { length: 20 }).notNull().default('vapi'),
+  providerAgentId: varchar('provider_agent_id', { length: 255 }),
   enabled: boolean('enabled').default(false),
   phoneNumber: varchar('phone_number', { length: 50 }), // Twilio phone number
   twilioSid: varchar('twilio_sid', { length: 255 }), // Twilio phone number SID
   voiceModel: varchar('voice_model', { length: 100 }).default('cartesia-sonic'), // Cartesia voice model
   voiceId: varchar('voice_id', { length: 255 }).default(''), // Cartesia voice ID
+  voiceName: varchar('voice_name', { length: 100 }),
   language: varchar('language', { length: 10 }).default('en'),
+  systemPrompt: text('system_prompt').notNull().default('You are a helpful AI receptionist.'),
   greeting: text('greeting').default('Hello! How can I help you today?'),
+  businessHours: json('business_hours').default({}),
+  afterHoursMessage: text('after_hours_message').default(
+    'We are currently closed. Please leave a message and we will get back to you.',
+  ),
   endCallPhrase: text('end_call_phrase').default(
     'Is there anything else I can help you with?',
   ),
+  endCallPhrases: json('end_call_phrases').default([
+    'goodbye',
+    'that is all',
+    'no more questions',
+  ]),
   transferEnabled: boolean('transfer_enabled').default(false),
   transferNumber: varchar('transfer_number', { length: 50 }),
   transferTriggers: json('transfer_triggers').default([]), // Keywords that trigger transfer
   leadCaptureEnabled: boolean('lead_capture_enabled').default(true),
+  calendarBookingUrl: varchar('calendar_booking_url', { length: 500 }),
+  maxCallDuration: integer('max_call_duration').default(600),
+  recordCalls: boolean('record_calls').default(true),
+  escalationRules: json('escalation_rules').default([]),
   // Voice plan tracking
   plan: varchar('plan', { length: 50 }).default('VOICE_BASIC'), // VOICE_BASIC, VOICE_STANDARD, VOICE_PROFESSIONAL
   minutesUsed: integer('minutes_used').default(0),
   minutesLimit: integer('minutes_limit').default(150), // Based on plan
   billingCycle: timestamp('billing_cycle').defaultNow(),
+  isActive: boolean('is_active').default(true),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });
@@ -1249,6 +1270,81 @@ export const voiceCallMessages = pgTable('voice_call_messages', {
   timestamp: timestamp('timestamp').defaultNow(),
   audioUrl: text('audio_url'), // URL to Cartesia-generated audio
   duration: real('duration'), // Duration in seconds
+});
+
+// Phone numbers assigned to voice agents
+export const phoneNumbers = pgTable('phone_numbers', {
+  id: serial('id').primaryKey(),
+  voiceAgentId: text('voice_agent_id').references(() => voiceAgents.id, {
+    onDelete: 'set null',
+  }),
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  provider: varchar('provider', { length: 20 }).notNull(),
+  providerNumberId: varchar('provider_number_id', { length: 255 }),
+  phoneNumber: varchar('phone_number', { length: 20 }).notNull().unique(),
+  friendlyName: varchar('friendly_name', { length: 100 }),
+  capabilities: json('capabilities').default({ voice: true, sms: true }),
+  monthlyCost: numeric('monthly_cost', { precision: 10, scale: 4 }),
+  status: varchar('status', { length: 20 }).default('active'),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+// Call logs for voice agents
+export const callLogs = pgTable('call_logs', {
+  id: serial('id').primaryKey(),
+  voiceAgentId: text('voice_agent_id')
+    .notNull()
+    .references(() => voiceAgents.id, { onDelete: 'cascade' }),
+  botId: text('bot_id')
+    .notNull()
+    .references(() => bots.id, { onDelete: 'cascade' }),
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  callSid: varchar('call_sid', { length: 255 }).unique(),
+  provider: varchar('provider', { length: 20 }).notNull(),
+  direction: varchar('direction', { length: 10 }).notNull(), // inbound or outbound
+  callerNumber: varchar('caller_number', { length: 20 }),
+  calledNumber: varchar('called_number', { length: 20 }),
+  status: varchar('status', { length: 20 }).default('initiated'),
+  duration: integer('duration'),
+  cost: numeric('cost', { precision: 10, scale: 4 }),
+  transcript: json('transcript').default([]),
+  summary: text('summary'),
+  sentiment: varchar('sentiment', { length: 20 }),
+  leadScore: integer('lead_score').default(0),
+  leadId: text('lead_id').references(() => leads.id),
+  recordingUrl: text('recording_url'),
+  metadata: json('metadata').default({}),
+  startedAt: timestamp('started_at'),
+  endedAt: timestamp('ended_at'),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+// Voice usage tracking for billing
+export const voiceUsage = pgTable('voice_usage', {
+  id: serial('id').primaryKey(),
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  voiceAgentId: text('voice_agent_id')
+    .notNull()
+    .references(() => voiceAgents.id, { onDelete: 'cascade' }),
+  callLogId: integer('call_log_id').references(() => callLogs.id, {
+    onDelete: 'set null',
+  }),
+  minutesUsed: numeric('minutes_used', { precision: 10, scale: 2 }).notNull(),
+  costPerMinute: numeric('cost_per_minute', {
+    precision: 10,
+    scale: 4,
+  }).notNull(),
+  totalCost: numeric('total_cost', { precision: 10, scale: 4 }).notNull(),
+  billingPeriodStart: date('billing_period_start').notNull(),
+  billingPeriodEnd: date('billing_period_end').notNull(),
+  reportedToStripe: boolean('reported_to_stripe').default(false),
+  createdAt: timestamp('created_at').defaultNow(),
 });
 
 // Voice Agent Relations
@@ -1384,3 +1480,9 @@ export type VoiceCall = typeof voiceCalls.$inferSelect;
 export type InsertVoiceCall = typeof voiceCalls.$inferInsert;
 export type VoiceCallMessage = typeof voiceCallMessages.$inferSelect;
 export type InsertVoiceCallMessage = typeof voiceCallMessages.$inferInsert;
+export type PhoneNumber = typeof phoneNumbers.$inferSelect;
+export type InsertPhoneNumber = typeof phoneNumbers.$inferInsert;
+export type CallLog = typeof callLogs.$inferSelect;
+export type InsertCallLog = typeof callLogs.$inferInsert;
+export type VoiceUsage = typeof voiceUsage.$inferSelect;
+export type InsertVoiceUsage = typeof voiceUsage.$inferInsert;
