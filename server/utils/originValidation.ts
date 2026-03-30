@@ -40,12 +40,12 @@ export function isWidgetOriginAllowed({
     }
   }
 
-  additionalAllowedOrigins.forEach((origin) => {
+  for (const origin of additionalAllowedOrigins) {
     const host = normalizeHost(origin);
     if (host) {
       allowedHosts.add(host);
     }
-  });
+  }
 
   if (allowedHosts.size === 0) {
     return false;
