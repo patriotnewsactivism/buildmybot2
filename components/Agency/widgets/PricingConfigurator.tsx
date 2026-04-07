@@ -10,6 +10,7 @@ import {
 import type React from 'react';
 import { useCallback, useEffect, useState } from 'react';
 import { MetricCard } from '../../UI/MetricCard';
+import { buildApiUrl } from '../../../services/apiConfig';
 
 interface PricingTier {
   id: string;
@@ -48,7 +49,7 @@ export const PricingConfigurator: React.FC = () => {
   const fetchPricingConfig = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/agency/pricing');
+      const response = await fetch(buildApiUrl('/agency/pricing'));
       if (!response.ok) throw new Error('Failed to fetch pricing');
 
       const data = await response.json();
@@ -79,7 +80,7 @@ export const PricingConfigurator: React.FC = () => {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const response = await fetch('/api/agency/pricing', {
+      const response = await fetch(buildApiUrl('/agency/pricing'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

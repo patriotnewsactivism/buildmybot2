@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import type React from 'react';
 import { useCallback, useEffect, useState } from 'react';
+import { buildApiUrl } from '../../services/apiConfig';
 
 interface NotificationStats {
   totalReceipts: number;
@@ -109,7 +110,7 @@ export const NotificationComposer: React.FC = () => {
 
   const fetchNotifications = useCallback(async () => {
     try {
-      const response = await fetch('/api/admin/notifications', {
+      const response = await fetch(buildApiUrl('/admin/notifications'), {
         credentials: 'include',
       });
       if (!response.ok) throw new Error('Failed to fetch notifications');
@@ -151,7 +152,7 @@ export const NotificationComposer: React.FC = () => {
         payload.publishAt = new Date(form.publishAt).toISOString();
       }
 
-      const response = await fetch('/api/admin/notifications', {
+      const response = await fetch(buildApiUrl('/admin/notifications'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

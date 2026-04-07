@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import type React from 'react';
 import { useCallback, useEffect, useState } from 'react';
+import { buildApiUrl } from '../../../services/apiConfig';
 
 interface TestExecutionPanelProps {
   botId: string;
@@ -62,7 +63,7 @@ export const TestExecutionPanel: React.FC<TestExecutionPanelProps> = ({
     setError(null);
 
     try {
-      const response = await fetch('/api/tools/execute', {
+      const response = await fetch(buildApiUrl('/tools/execute'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

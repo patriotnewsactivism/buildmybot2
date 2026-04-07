@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import type React from 'react';
 import { useEffect, useState } from 'react';
+import { buildApiUrl } from '../../services/apiConfig';
 
 interface PrebuiltKnowledgeBase {
   id: string;
@@ -74,7 +75,7 @@ export const PrebuiltKnowledgeSelector: React.FC<
   useEffect(() => {
     const fetchKnowledgeBases = async () => {
       try {
-        const response = await fetch('/api/knowledge/prebuilt', {
+        const response = await fetch(buildApiUrl('/knowledge/prebuilt'), {
           credentials: 'include',
         });
         if (response.ok) {

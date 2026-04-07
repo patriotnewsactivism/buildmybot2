@@ -13,6 +13,7 @@ import type React from 'react';
 import { useCallback, useEffect, useState } from 'react';
 import { type Column, DataTable } from '../../UI/DataTable';
 import { MetricCard } from '../../UI/MetricCard';
+import { buildApiUrl } from '../../../services/apiConfig';
 
 interface WalletData {
   balanceCents: number;
@@ -54,7 +55,7 @@ export const WalletManagement: React.FC = () => {
   const fetchWalletData = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/agency/wallet');
+      const response = await fetch(buildApiUrl('/agency/wallet'));
       if (!response.ok) throw new Error('Failed to fetch wallet');
 
       const data = await response.json();
@@ -75,7 +76,7 @@ export const WalletManagement: React.FC = () => {
 
   const handleRecharge = async () => {
     try {
-      const response = await fetch('/api/agency/wallet/recharge', {
+      const response = await fetch(buildApiUrl('/agency/wallet/recharge'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -96,7 +97,7 @@ export const WalletManagement: React.FC = () => {
 
   const handleAutoRechargeToggle = async () => {
     try {
-      const response = await fetch('/api/agency/wallet/auto-recharge', {
+      const response = await fetch(buildApiUrl('/agency/wallet/auto-recharge'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

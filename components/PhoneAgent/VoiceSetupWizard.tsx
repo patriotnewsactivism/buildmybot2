@@ -18,6 +18,7 @@ import {
 import type React from 'react';
 import { useState } from 'react';
 import type { User } from '../../types';
+import { buildApiUrl } from '../../services/apiConfig';
 
 interface VoiceSetupWizardProps {
   user: User;
@@ -263,7 +264,7 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
     setPurchaseError(null);
 
     try {
-      const response = await fetch('/api/phone/purchase', {
+      const response = await fetch(buildApiUrl('/phone/purchase'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -301,7 +302,7 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
     }
 
     try {
-      const response = await fetch('/api/phone/release', { method: 'POST' });
+      const response = await fetch(buildApiUrl('/phone/release'), { method: 'POST' });
       if (!response.ok) throw new Error('Failed to release number');
       setConfig({ ...config, phoneNumber: '', twilioSid: '' });
       setAvailableNumbers([]);

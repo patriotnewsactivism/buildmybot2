@@ -11,6 +11,7 @@ import {
 import type React from 'react';
 import { useCallback, useEffect, useState } from 'react';
 import { SEO, SEOConfig } from '../SEO/SEO';
+import { buildApiUrl } from '../../services/apiConfig';
 
 interface ServiceStatus {
   status: 'up' | 'down' | 'unknown';
@@ -46,7 +47,7 @@ export const StatusPage: React.FC = () => {
 
   const fetchHealth = useCallback(async () => {
     try {
-      const response = await fetch('/api/health');
+      const response = await fetch(buildApiUrl('/health'));
       const data = await response.json();
       setHealth(data);
       setError(null);

@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import type React from 'react';
 import { useEffect, useState } from 'react';
+import { buildApiUrl } from '../../services/apiConfig';
 
 interface QuickMetrics {
   totalConversations: number;
@@ -30,7 +31,7 @@ export const QuickMetricsWidget: React.FC<QuickMetricsWidgetProps> = ({
   useEffect(() => {
     const fetchMetrics = async () => {
       try {
-        const response = await fetch('/api/clients/overview', {
+        const response = await fetch(buildApiUrl('/clients/overview'), {
           credentials: 'include',
         });
         if (response.ok) {

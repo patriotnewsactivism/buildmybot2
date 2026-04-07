@@ -12,6 +12,7 @@ import type React from 'react';
 import { useCallback, useEffect, useState } from 'react';
 import { PlayfulMetricCard } from '../UI/PlayfulMetricCard';
 import { PartnerDetailModal } from './PartnerDetailModal';
+import { buildApiUrl } from '../../services/apiConfig';
 
 interface PartnerRow {
   partner: {
@@ -39,7 +40,7 @@ export const PartnerOverviewAdmin: React.FC = () => {
   const fetchPartners = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/admin/partners');
+      const response = await fetch(buildApiUrl('/admin/partners'));
       if (response.ok) {
         const data = await response.json();
         setPartners(data);
