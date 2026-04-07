@@ -194,14 +194,33 @@ export const AdminDashboard: React.FC = () => {
           partnerCount: partnerList.length,
         });
 
-        setRevenueData([
-          { month: 'Jan', amount: mrr * 0.4 },
-          { month: 'Feb', amount: mrr * 0.55 },
-          { month: 'Mar', amount: mrr * 0.7 },
-          { month: 'Apr', amount: mrr * 0.85 },
-          { month: 'May', amount: mrr * 0.92 },
-          { month: 'Jun', amount: mrr },
-        ]);
+        // Build revenue chart from real user data by signup month
+        const monthlyRevenue: Record<string, number> = {};
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const now = new Date();
+        // Show last 6 months
+        for (let i = 5; i >= 0; i--) {
+          const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+          const key = `${monthNames[d.getMonth()]} ${d.getFullYear()}`;
+          monthlyRevenue[key] = 0;
+        }
+        // Accumulate MRR: each user contributes their plan price for every month after signup
+        for (const u of allUsers) {
+          const planPrice = PLANS[u.plan]?.price || 0;
+          if (planPrice === 0) continue;
+          const signup = new Date(u.createdAt || now);
+          for (const key of Object.keys(monthlyRevenue)) {
+            const [mon, yr] = key.split(' ');
+            const monthIdx = monthNames.indexOf(mon);
+            const chartDate = new Date(Number(yr), monthIdx, 1);
+            if (signup <= chartDate) {
+              monthlyRevenue[key] += planPrice;
+            }
+          }
+        }
+        setRevenueData(
+          Object.entries(monthlyRevenue).map(([month, amount]) => ({ month, amount })),
+        );
       } catch (e) {
         console.error('Admin Load Error:', e);
       } finally {

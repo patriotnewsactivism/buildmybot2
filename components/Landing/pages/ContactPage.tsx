@@ -36,15 +36,11 @@ export const ContactPage: React.FC = () => {
       />
       <div className="max-w-7xl mx-auto px-6 lg:px-12 py-16 space-y-16">
         <section className="text-center space-y-6">
-          <div className="inline-flex items-center gap-2 bg-yellow-400 text-slate-900 px-6 py-2 rounded-full text-sm font-bold mb-4">
-            <span className="w-2 h-2 bg-slate-900 rounded-full animate-pulse"></span>
-            BETA TESTING IN PROGRESS
-          </div>
           <h1 className="text-4xl md:text-5xl font-extrabold text-slate-900">
             Contact Us
           </h1>
           <p className="text-xl text-slate-600 max-w-3xl mx-auto">
-            Interested in beta testing? Have questions? We're here for you. Reach out and our
+            Have questions or need help getting started? We're here for you. Reach out and our
             team will get back to you within 24 hours.
           </p>
         </section>
@@ -184,11 +180,11 @@ export const ContactPage: React.FC = () => {
                         htmlFor="contact-beta"
                         className="text-sm font-semibold text-blue-900"
                       >
-                        I'm interested in beta testing
+                        I'd like a demo or walkthrough
                       </label>
                       <p className="text-xs text-blue-700">
-                        Get early access to BuildMyBot before our official launch.
-                        Beta testers receive exclusive benefits and priority support.
+                        Schedule a personalized demo to see how BuildMyBot can
+                        work for your business.
                       </p>
                     </div>
                   </div>
@@ -335,13 +331,13 @@ export const ContactPage: React.FC = () => {
 
             <div className="bg-blue-50 rounded-2xl p-6 border-2 border-blue-200">
               <h3 className="font-bold text-lg text-slate-900 mb-2">
-                Beta Testing Program
+                Get a Personalized Demo
               </h3>
               <p className="text-slate-600 text-sm mb-3">
-                Join our exclusive beta program and get early access to cutting-edge AI technology.
+                See how BuildMyBot can automate your customer conversations and capture more leads.
               </p>
               <p className="text-blue-700 font-medium text-sm">
-                Check the beta testing box above to express your interest!
+                Check the demo box above and we'll schedule a walkthrough!
               </p>
             </div>
           </div>

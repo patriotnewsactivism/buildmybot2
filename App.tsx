@@ -438,7 +438,6 @@ function App() {
     const refCode = params.get('ref');
     if (refCode) {
       localStorage.setItem('bmb_ref_code', refCode);
-      console.log('Referral captured:', refCode);
     }
 
     setTimeout(() => setIsBooting(false), 500);
