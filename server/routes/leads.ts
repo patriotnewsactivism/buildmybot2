@@ -1,8 +1,10 @@
 import { type SQL, and, desc, eq } from 'drizzle-orm';
 import { type Request, type Response, Router } from 'express';
+import nodemailer from 'nodemailer';
 import { v4 as uuidv4 } from 'uuid';
 import { bots, leads } from '../../shared/schema';
 import { db } from '../db';
+import { env } from '../env';
 import {
   applyImpersonation,
   authenticate,
@@ -287,5 +289,65 @@ router.delete('/:id', ...apiAuthStack, async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Failed to delete lead' });
   }
 });
+
+/**
+ * POST /api/leads/:id/email — Send an email to a lead from the CRM
+ */
+router.post(
+  '/:id/email',
+  authenticate,
+  strictLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const { subject, body } = req.body;
+      if (!subject || !body) {
+        return res.status(400).json({ error: 'Missing subject or body' });
+      }
+
+      const [lead] = await db
+        .select()
+        .from(leads)
+        .where(eq(leads.id, req.params.id));
+      if (!lead) {
+        return res.status(404).json({ error: 'Lead not found' });
+      }
+      if (!lead.email) {
+        return res.status(400).json({ error: 'Lead has no email address' });
+      }
+
+      if (!env.SMTP_HOST) {
+        return res
+          .status(503)
+          .json({ error: 'Email sending is not configured (SMTP_HOST missing)' });
+      }
+
+      const transporter = nodemailer.createTransport({
+        host: env.SMTP_HOST,
+        port: Number(env.SMTP_PORT) || 587,
+        secure: env.SMTP_SECURE === 'true',
+        auth: { user: env.SMTP_USER, pass: env.SMTP_PASS },
+      });
+
+      await transporter.sendMail({
+        from: env.SMTP_FROM || env.SMTP_USER || 'noreply@buildmybot.app',
+        to: lead.email,
+        subject,
+        text: body,
+      });
+
+      // Update lead status to Contacted
+      await db
+        .update(leads)
+        .set({ status: 'Contacted' })
+        .where(eq(leads.id, req.params.id));
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error sending email to lead:', error);
+      res.status(500).json({ error: 'Failed to send email' });
+    }
+  },
+);
 
 export default router;
