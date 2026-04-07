@@ -60,19 +60,25 @@ type MarketingSection =
   | 'industries'
   | 'downloads';
 
-const mockEarnings = [
-  { month: 'Jan', amount: 1200 },
-
-  { month: 'Feb', amount: 1900 },
-
-  { month: 'Mar', amount: 2400 },
-
-  { month: 'Apr', amount: 3100 },
-
-  { month: 'May', amount: 4500 },
-
-  { month: 'Jun', amount: 5200 },
-];
+// Build earnings chart from referred users' signup dates
+function buildEarningsChart(referredUsers: User[]): { month: string; amount: number }[] {
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const now = new Date();
+  const chart: { month: string; amount: number }[] = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() - i + 1, 0);
+    let monthRevenue = 0;
+    for (const u of referredUsers) {
+      const signup = new Date(u.createdAt || now);
+      if (signup <= endOfMonth) {
+        monthRevenue += PLANS[u.plan as keyof typeof PLANS]?.price || 0;
+      }
+    }
+    chart.push({ month: `${monthNames[d.getMonth()]}`, amount: monthRevenue });
+  }
+  return chart;
+}
 
 export const ResellerDashboard: React.FC<ResellerProps> = ({
   user,
@@ -596,7 +602,7 @@ export const ResellerDashboard: React.FC<ResellerProps> = ({
         <h3 className="font-semibold text-slate-800 mb-6">Revenue Growth</h3>
 
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={mockEarnings}>
+          <BarChart data={buildEarningsChart(referredUsers)}>
             <XAxis
               dataKey="month"
               axisLine={false}

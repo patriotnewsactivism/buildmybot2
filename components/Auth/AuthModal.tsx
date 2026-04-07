@@ -207,16 +207,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       })
                         .then(async (res) => {
                           const data = await res.json();
-                          if (data.debug_temp_pass) {
-                            alert(
-                              `Password reset! Your temporary password is: ${data.debug_temp_pass}\n\nPlease use this to log in and change it immediately.`,
-                            );
-                          } else {
-                            alert(
-                              data.message ||
-                                'If an account exists with this email, a password reset link has been sent.',
-                            );
-                          }
+                          alert(
+                            data.message ||
+                              'If an account exists with this email, you will receive reset instructions.',
+                          );
                         })
                         .catch(() => {
                           alert('Unable to process request. Please try again.');

@@ -143,24 +143,6 @@ export const AVAILABLE_MODELS = [
   },
 ];
 
-// ========================================
-// VOICE AGENT LAUNCH PROMOTION
-// ========================================
-export const VOICE_LAUNCH_PROMO = {
-  code: 'VALAUNCH50',
-  discount: 50, // 50% off
-  duration: 3, // months
-  description: '50% OFF for 3 months + FREE phone number',
-  benefits: [
-    '50% off your first 3 months',
-    'FREE phone number assignment ($25 value)',
-    'No setup fees',
-    'Cancel anytime',
-  ],
-  announcement: '🚀 GRAND LAUNCH SPECIAL - Limited Time Only!',
-  expires: 'March 31, 2026',
-};
-
 export const VOICE_AGENT_PRICING = [
   {
     id: 'voice_basic',

@@ -57,21 +57,18 @@ router.post('/login', async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    // Check if user has a password set
+    // Verify password
     const userWithPassword = user as any;
     if (!userWithPassword.passwordHash) {
-      // For users without password, allow login by email only (demo mode)
-      // In production, you'd want proper password requirements
-      console.warn(`User ${email} has no password hash, allowing demo login`);
-    } else {
-      // Verify password
-      const isValid = await bcrypt.compare(
-        password,
-        userWithPassword.passwordHash,
-      );
-      if (!isValid) {
-        return res.status(401).json({ error: 'Invalid email or password' });
-      }
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    const isValid = await bcrypt.compare(
+      password,
+      userWithPassword.passwordHash,
+    );
+    if (!isValid) {
+      return res.status(401).json({ error: 'Invalid email or password' });
     }
 
     // Check if user is suspended
@@ -235,9 +232,6 @@ router.post('/forgot-password', async (req: Request, res: Response) => {
       const passwordHash = await bcrypt.hash(tempPassword, 12);
 
       await db.update(users).set({ passwordHash }).where(eq(users.id, user.id));
-
-      // Log the temporary password for development/debugging
-      console.log(`TEMPORARY PASSWORD FOR ${email}: ${tempPassword}`);
 
       // In production, send email via SMTP
       const smtpHost = process.env.SMTP_HOST;
