@@ -158,19 +158,37 @@ export const scrapeWebsiteContent = async (url: string): Promise<string> => {
       targetUrl = `https://${targetUrl}`;
     }
 
-    const proxyUrl = 'https://corsproxy.io/?';
-    const jinaUrl = `https://r.jina.ai/${targetUrl}`;
+    // Use server-side scraping endpoint instead of unreliable client-side proxies
+    const scrapeResponse = await fetch(
+      buildApiUrl('/knowledge/scrape-preview'),
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ url: targetUrl }),
+      },
+    );
 
-    const scrapeResponse = await fetch(proxyUrl + encodeURIComponent(jinaUrl));
-
-    if (!scrapeResponse.ok)
+    if (!scrapeResponse.ok) {
+      const err = await scrapeResponse.json().catch(() => ({}));
       throw new Error(
-        'Failed to scrape website. The URL might be blocked or invalid.',
+        err.error ||
+          'Failed to scrape website. The URL might be blocked or invalid.',
       );
+    }
 
-    const rawText = await scrapeResponse.text();
+    const scrapeData = await scrapeResponse.json();
+    const rawText = scrapeData.content || '';
+
+    if (!rawText || rawText.trim().length < 50) {
+      throw new Error(
+        'Could not extract meaningful content from this website.',
+      );
+    }
+
     const truncatedText = rawText.substring(0, 15000);
 
+    // Summarize extracted content with AI
     const response = await fetch(buildApiUrl('/chat/demo'), {
       method: 'POST',
       headers: {
