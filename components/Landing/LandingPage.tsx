@@ -530,7 +530,7 @@ export const LandingPage: React.FC<LandingProps> = ({
         keywords={SEOConfig.home.keywords}
         structuredData={faqStructuredData}
       />
-      <div className="min-h-screen bg-slate-50 overflow-x-hidden">
+      <div className="min-h-screen bg-slate-50 text-slate-900 overflow-x-hidden">
         {/* Floating Hover Widget */}
         <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-4">
           {isHoverOpen && (
