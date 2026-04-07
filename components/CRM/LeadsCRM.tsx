@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import type React from 'react';
 import { useState } from 'react';
+import { buildApiUrl } from '../../services/apiConfig';
 import type { Lead } from '../../types';
 
 interface LeadsCRMProps {
@@ -100,13 +101,29 @@ export const LeadsCRM: React.FC<LeadsCRMProps> = ({ leads, onUpdateLead }) => {
     setEmailSent(false);
   };
 
-  const handleSendEmail = () => {
-    // Mock send
+  const handleSendEmail = async () => {
+    if (!selectedLead) return;
     setEmailSent(true);
-    setTimeout(() => {
-      setEmailModalOpen(false);
-      if (selectedLead) handleStatusChange(selectedLead.id, 'Contacted');
-    }, 1500);
+    try {
+      const res = await fetch(buildApiUrl(`/leads/${selectedLead.id}/email`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ subject: emailSubject, body: emailBody }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: 'Send failed' }));
+        throw new Error(data.error || 'Send failed');
+      }
+      setTimeout(() => {
+        setEmailModalOpen(false);
+        handleStatusChange(selectedLead.id, 'Contacted');
+      }, 1200);
+    } catch (err) {
+      console.error('Email send error:', err);
+      alert(err instanceof Error ? err.message : 'Failed to send email');
+      setEmailSent(false);
+    }
   };
 
   const handleExportCSV = () => {

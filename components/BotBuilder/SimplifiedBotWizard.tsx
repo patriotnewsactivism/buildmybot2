@@ -12,6 +12,7 @@ import {
   User,
 } from 'lucide-react';
 import React, { useState } from 'react';
+import { buildApiUrl } from '../../services/apiConfig';
 
 // --- Types ---
 interface BotFormData {
@@ -94,7 +95,7 @@ export default function SimplifiedBotWizard({
 
       // If you want to use the API fetch:
       /*
-        const response = await fetch('/api/bots', {
+        const response = await fetch(buildApiUrl('/bots'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),

@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import type React from 'react';
 import { useEffect, useState } from 'react';
+import { buildApiUrl } from '../../services/apiConfig';
 
 interface Webhook {
   id: string;
@@ -53,7 +54,7 @@ export const WebhookManagement: React.FC = () => {
 
   const fetchWebhooks = async () => {
     try {
-      const res = await fetch('/api/webhooks');
+      const res = await fetch(buildApiUrl('/webhooks'));
       const data = await res.json();
       setWebhooks(data);
       // Fetch logs for each webhook
@@ -75,7 +76,7 @@ export const WebhookManagement: React.FC = () => {
 
   const handleAddWebhook = async () => {
     try {
-      await fetch('/api/webhooks', {
+      await fetch(buildApiUrl('/webhooks'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newWebhook),

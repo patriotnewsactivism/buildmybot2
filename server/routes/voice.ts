@@ -545,4 +545,27 @@ router.post('/agents/:botId/provision', authenticate, async (req, res) => {
   }
 });
 
+/**
+ * Public API: Voice preview (used by landing page demo)
+ * Proxies Cartesia TTS so the API key stays server-side.
+ */
+router.post('/preview', async (req, res) => {
+  try {
+    const audio = await cartesiaService.generateSpeech(
+      'Hello! This is Sarah, your AI assistant. I noticed you were looking for information about our services. How can I help you today?',
+      'f786b574-daa5-4673-aa0c-cbe3e8534c02',
+      { language: 'en' },
+    );
+    res.set({
+      'Content-Type': 'audio/wav',
+      'Content-Length': audio.length.toString(),
+      'Cache-Control': 'public, max-age=3600',
+    });
+    res.send(audio);
+  } catch (error) {
+    console.error('Voice preview error:', error);
+    res.status(500).json({ error: 'Voice preview unavailable' });
+  }
+});
+
 export default router;

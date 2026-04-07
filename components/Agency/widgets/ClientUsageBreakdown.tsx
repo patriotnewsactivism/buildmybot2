@@ -23,6 +23,7 @@ import {
   YAxis,
 } from 'recharts';
 import { type Column, DataTable } from '../../UI/DataTable';
+import { buildApiUrl } from '../../../services/apiConfig';
 
 interface ClientUsage {
   id: string;
@@ -53,7 +54,7 @@ export const ClientUsageBreakdown: React.FC = () => {
   const fetchClientUsage = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/agency/client-usage');
+      const response = await fetch(buildApiUrl('/agency/client-usage'));
       if (!response.ok) throw new Error('Failed to fetch client usage');
 
       const data = await response.json();

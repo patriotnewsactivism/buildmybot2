@@ -13,14 +13,7 @@ export default defineConfig(({ mode }) => {
         '@shared': path.resolve('./shared'),
       },
     },
-    define: {
-      'import.meta.env.VITE_OPENAI_API_KEY': JSON.stringify(
-        env.VITE_OPENAI_API_KEY || env.OPENAI_API_KEY || '',
-      ),
-      'import.meta.env.VITE_CARTESIA_API_KEY': JSON.stringify(
-        env.VITE_CARTESIA_API_KEY || env.CARTESIA_API_KEY || '',
-      ),
-    },
+    // Note: API keys are server-side only — never expose them to the browser bundle.
     build: {
       outDir: 'dist',
       sourcemap: false,
