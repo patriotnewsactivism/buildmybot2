@@ -290,7 +290,7 @@ export const ClientOverview: React.FC<ClientOverviewProps> = ({
             value={stats.leadCount}
             gradient="from-pink-500 to-rose-600"
             illustration="💼"
-            trend={stats.leadCount > 0 ? '+15%' : undefined}
+            trend={stats.leadCount > 0 ? `${stats.leadCount} captured` : undefined}
             loading={loading}
             onClick={onOpenLeads}
           />
