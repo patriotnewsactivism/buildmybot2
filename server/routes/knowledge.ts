@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { bots, knowledgeChunks, knowledgeSources } from '../../shared/schema';
 import { db } from '../db';
 import { authenticate, loadOrganizationContext } from '../middleware';
+import { strictLimiter } from '../middleware/security';
 import {
   INDUSTRY_KNOWLEDGE_BASES,
   formatKnowledgeBaseAsText,
@@ -710,6 +711,49 @@ router.post(
     } catch (error: any) {
       console.error('Cache clear error:', error);
       res.status(500).json({ error: error.message });
+    }
+  },
+);
+
+// Public scrape-preview endpoint for BotBuilder and demo page
+// Uses server-side WebScraperService instead of unreliable client-side proxies
+router.post(
+  '/scrape-preview',
+  strictLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const { url } = req.body;
+
+      if (!url || typeof url !== 'string') {
+        return res.status(400).json({ error: 'URL is required' });
+      }
+
+      let targetUrl = url.trim();
+      if (!targetUrl.startsWith('http')) {
+        targetUrl = `https://${targetUrl}`;
+      }
+
+      // Validate URL
+      try {
+        new URL(targetUrl);
+      } catch {
+        return res.status(400).json({ error: 'Invalid URL format' });
+      }
+
+      const scraped = await WebScraperService.scrapeUrl(targetUrl);
+
+      res.json({
+        url: scraped.url,
+        title: scraped.title,
+        content: scraped.content,
+        description: scraped.description,
+      });
+    } catch (error: any) {
+      console.error('Scrape preview error:', error.message);
+      res.status(502).json({
+        error:
+          'Failed to scrape website. The URL might be blocked, invalid, or the site may be down.',
+      });
     }
   },
 );
