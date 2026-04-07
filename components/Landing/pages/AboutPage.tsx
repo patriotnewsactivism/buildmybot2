@@ -80,23 +80,19 @@ export const AboutPage: React.FC = () => {
         </section>
 
         <section className="bg-gradient-to-br from-blue-600 to-blue-900 rounded-3xl p-12 text-center text-white">
-          <div className="inline-flex items-center gap-2 bg-yellow-400 text-slate-900 px-6 py-2 rounded-full text-sm font-bold mb-6">
-            <span className="w-2 h-2 bg-slate-900 rounded-full animate-pulse"></span>
-            BETA TESTING IN PROGRESS
-          </div>
           <h2 className="text-3xl md:text-4xl font-bold mb-4">
-            Be Part of the Future
+            Ready to Get Started?
           </h2>
           <p className="text-blue-100 mb-8 max-w-2xl mx-auto text-lg">
-            We're currently in beta testing, preparing for our official launch.
-            Join our exclusive beta testing program and get early access to
-            cutting-edge AI technology.
+            Join thousands of businesses using AI to automate customer
+            conversations, capture more leads, and grow revenue — all on
+            autopilot.
           </p>
           <a
-            href="/contact"
+            href="/?auth=signup"
             className="inline-flex items-center gap-2 bg-white text-blue-900 px-8 py-4 rounded-xl font-bold hover:bg-blue-50 transition shadow-xl"
           >
-            Request Beta Access
+            Start Building Free
           </a>
         </section>
       </div>
