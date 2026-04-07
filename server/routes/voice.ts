@@ -13,6 +13,7 @@ import {
 } from '../../shared/schema';
 import { db } from '../db';
 import { env } from '../env';
+import { authenticate } from '../middleware';
 import { cartesiaService } from '../services/voice/CartesiaService';
 import { twilioService } from '../services/voice/TwilioService';
 
@@ -104,7 +105,15 @@ router.post('/process', async (req, res) => {
     if (!SpeechResult) {
       const twiml = new twilio.twiml.VoiceResponse();
       twiml.say('I did not catch that. Could you please repeat?');
-      twiml.redirect(`/api/voice/process?callId=${callId}`);
+      twiml.gather({
+        input: ['speech'],
+        action: `/api/voice/process?callId=${callId}`,
+        method: 'POST',
+        speechTimeout: 'auto',
+        speechModel: 'phone_call',
+      });
+      twiml.say('I still did not hear anything. Goodbye.');
+      twiml.hangup();
       return res.type('text/xml').send(twiml.toString());
     }
 
@@ -357,7 +366,7 @@ async function attemptLeadCapture(
 /**
  * Management API: Get voice agent configuration for a bot
  */
-router.get('/agents/:botId', async (req, res) => {
+router.get('/agents/:botId', authenticate, async (req, res) => {
   try {
     const { botId } = req.params;
 
@@ -399,7 +408,7 @@ router.get('/agents/:botId', async (req, res) => {
 /**
  * Management API: Create voice agent configuration
  */
-router.post('/agents/:botId', async (req, res) => {
+router.post('/agents/:botId', authenticate, async (req, res) => {
   try {
     const { botId } = req.params;
     const config = req.body;
@@ -446,7 +455,7 @@ router.post('/agents/:botId', async (req, res) => {
 /**
  * Management API: Update voice agent configuration
  */
-router.put('/agents/:botId', async (req, res) => {
+router.put('/agents/:botId', authenticate, async (req, res) => {
   try {
     const { botId } = req.params;
     const config = req.body;
@@ -484,7 +493,7 @@ router.put('/agents/:botId', async (req, res) => {
 /**
  * Management API: Provision phone number for voice agent
  */
-router.post('/agents/:botId/provision', async (req, res) => {
+router.post('/agents/:botId/provision', authenticate, async (req, res) => {
   try {
     const { botId } = req.params;
     const { areaCode } = req.body;

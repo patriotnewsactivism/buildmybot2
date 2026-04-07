@@ -21,13 +21,20 @@ export const CARTESIA_VOICES = {
 };
 
 export class CartesiaService {
-  private apiKey: string;
+  private apiKey: string | undefined;
 
   constructor() {
-    if (!CARTESIA_API_KEY) {
-      throw new Error('CARTESIA_API_KEY environment variable is required');
-    }
     this.apiKey = CARTESIA_API_KEY;
+    if (!this.apiKey) {
+      console.warn('CARTESIA_API_KEY not configured — Cartesia TTS will be unavailable');
+    }
+  }
+
+  private ensureApiKey(): string {
+    if (!this.apiKey) {
+      throw new Error('CARTESIA_API_KEY environment variable is required for TTS');
+    }
+    return this.apiKey;
   }
 
   /**
@@ -43,6 +50,7 @@ export class CartesiaService {
       emotion?: string;
     },
   ): Promise<Buffer> {
+    const apiKey = this.ensureApiKey();
     try {
       const response = await axios.post(
         CARTESIA_API_URL,
@@ -56,8 +64,8 @@ export class CartesiaService {
           language: options?.language || 'en',
           output_format: {
             container: 'wav',
-            encoding: 'pcm_f32le',
-            sample_rate: 22050,
+            encoding: 'pcm_s16le',
+            sample_rate: 8000,
           },
           ...(options?.speed && { speed: options.speed }),
           ...(options?.emotion && { emotion: options.emotion }),
@@ -65,7 +73,7 @@ export class CartesiaService {
         {
           headers: {
             'Cartesia-Version': '2024-06-10',
-            'X-API-Key': this.apiKey,
+            'X-API-Key': apiKey,
             'Content-Type': 'application/json',
           },
           responseType: 'arraybuffer',
@@ -114,6 +122,7 @@ export class CartesiaService {
    * Streams audio directly (for real-time responses)
    */
   async streamSpeech(text: string, voiceId: string): Promise<ReadableStream> {
+    const apiKey = this.ensureApiKey();
     try {
       const response = await axios.post(
         CARTESIA_API_URL,
@@ -133,7 +142,7 @@ export class CartesiaService {
         {
           headers: {
             'Cartesia-Version': '2024-06-10',
-            'X-API-Key': this.apiKey,
+            'X-API-Key': apiKey,
             'Content-Type': 'application/json',
           },
           responseType: 'stream',

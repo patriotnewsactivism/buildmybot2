@@ -25,13 +25,13 @@ const providerConfigs = [
     provider: 'vapi' as const,
     apiKey: env.VAPI_API_KEY || '',
     defaultVoiceId: env.VAPI_DEFAULT_VOICE_ID || '',
-    webhookUrl: `${env.APP_BASE_URL}/api/voice/webhooks/vapi`,
+    webhookUrl: `${env.APP_BASE_URL}/api/voice-providers/webhooks/vapi`,
   },
   {
     provider: 'retell' as const,
     apiKey: env.RETELL_API_KEY || '',
     defaultVoiceId: env.VAPI_DEFAULT_VOICE_ID || '',
-    webhookUrl: `${env.APP_BASE_URL}/api/voice/webhooks/retell`,
+    webhookUrl: `${env.APP_BASE_URL}/api/voice-providers/webhooks/retell`,
   },
   {
     provider: 'custom' as const,
