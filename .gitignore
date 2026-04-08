@@ -23,6 +23,8 @@ uploads/
 *.njsproj
 *.sln
 *.sw?
+.env
+.env*.production
 
 .vercel
 .env*.local
