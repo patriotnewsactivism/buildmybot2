@@ -20,6 +20,7 @@ COPY --from=build /app/shared ./shared
 COPY --from=build /app/public ./public
 COPY --from=build /app/index.html ./index.html
 COPY --from=build /app/constants.ts ./constants.ts
+COPY --from=build /app/types ./types
 COPY --from=build /app/tsconfig.json ./tsconfig.json
 EXPOSE 5000
 CMD ["npm", "run", "start"]
