@@ -15,7 +15,14 @@ import {
 } from 'lucide-react';
 import type React from 'react';
 import { useState } from 'react';
-import { RESELLER_TIERS, WHITELABEL_FEE } from '../../constants';
+import {
+  COMMISSION_ACCELERATORS,
+  PREMIUM_ADDONS,
+  PREMIUM_SERVICES,
+  RESELLER_TIERS,
+  SALES_AGENT_TIERS,
+  WHITELABEL_FEE,
+} from '../../constants';
 import { SEO, SEOConfig } from '../SEO/SEO';
 
 interface PartnerProps {
@@ -556,13 +563,124 @@ export const PartnerProgramPage: React.FC<PartnerProps> = ({
           </div>
         </section>
 
+        {/* Milestone Bonuses */}
+        <section className="py-20 px-6 bg-gradient-to-b from-slate-900 to-slate-800 text-white">
+          <div className="max-w-6xl mx-auto">
+            <div className="text-center mb-12">
+              <div className="inline-flex items-center gap-2 bg-yellow-500/20 text-yellow-300 px-4 py-2 rounded-full text-sm font-bold mb-4">
+                <Rocket size={16} />
+                Milestone Rewards
+              </div>
+              <h2 className="text-3xl md:text-4xl font-extrabold mb-3">
+                Revenue Milestone Bonuses
+              </h2>
+              <p className="text-slate-300 max-w-2xl mx-auto">
+                Hit revenue targets and earn one-time bonus payouts on top of your recurring commissions.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+              {COMMISSION_ACCELERATORS.milestones.map((m) => (
+                <div key={m.id} className="bg-white/10 backdrop-blur rounded-xl p-5 text-center hover:bg-white/15 transition">
+                  <div className="text-4xl mb-2">{m.badge}</div>
+                  <div className="font-bold text-lg">{m.label}</div>
+                  <div className="text-3xl font-extrabold text-yellow-400 my-2">${m.bonus.toLocaleString()}</div>
+                  <div className="text-xs text-slate-300">at ${(m.revenueTarget / 1000).toFixed(0)}K MRR</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Deal Spiffs & Add-On Commissions */}
+        <section className="py-20 px-6 bg-white">
+          <div className="max-w-6xl mx-auto">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl md:text-4xl font-extrabold text-slate-900 mb-3">
+                Stack Your Earnings
+              </h2>
+              <p className="text-lg text-slate-600 max-w-3xl mx-auto">
+                Every add-on, service, and upsell earns you commissions. The more you sell, the more you make.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
+              {/* Commission rates */}
+              <div className="bg-slate-50 rounded-2xl p-6 border border-slate-200">
+                <h3 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
+                  <DollarSign size={20} className="text-emerald-600" />
+                  Commission Rates
+                </h3>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-slate-200">
+                    <span className="text-sm font-medium text-slate-700">Core Plans</span>
+                    <span className="font-bold text-emerald-700">20-50% recurring</span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-slate-200">
+                    <span className="text-sm font-medium text-slate-700">Premium Add-Ons ({PREMIUM_ADDONS.length} available)</span>
+                    <span className="font-bold text-emerald-700">Same as your tier %</span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-slate-200">
+                    <span className="text-sm font-medium text-slate-700">Voice Agent Plans</span>
+                    <span className="font-bold text-emerald-700">Same as your tier %</span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-slate-200">
+                    <span className="text-sm font-medium text-slate-700">Professional Services</span>
+                    <span className="font-bold text-emerald-700">25% flat</span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <span className="text-sm font-medium text-slate-700">Annual Plan Upsell Bonus</span>
+                    <span className="font-bold text-blue-700">+5% extra</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Deal spiffs */}
+              <div className="bg-slate-50 rounded-2xl p-6 border border-slate-200">
+                <h3 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
+                  <Zap size={20} className="text-amber-500" />
+                  Deal Spiffs (Bonus Payouts)
+                </h3>
+                <div className="space-y-3">
+                  {COMMISSION_ACCELERATORS.spiffs.map((s) => (
+                    <div key={s.id} className="flex items-center justify-between p-3 bg-white rounded-lg border border-slate-200">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">{s.name}</div>
+                        <div className="text-xs text-slate-500">{s.condition}</div>
+                      </div>
+                      <span className="text-lg font-extrabold text-emerald-600 whitespace-nowrap">+${s.bonus}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Earnings scenarios */}
+            <div className="bg-gradient-to-r from-emerald-50 to-emerald-100 rounded-2xl p-8 border border-emerald-200">
+              <h3 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-2">
+                <TrendingUp size={20} className="text-emerald-600" />
+                Real Earnings Scenarios
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                {COMMISSION_ACCELERATORS.earningsExamples.map((ex) => (
+                  <div key={ex.scenario} className="bg-white rounded-xl p-4 text-center shadow-sm">
+                    <div className="text-sm font-semibold text-slate-600 mb-1">{ex.scenario}</div>
+                    <div className="text-2xl font-extrabold text-emerald-700">${ex.monthlyEarnings.toLocaleString()}/mo</div>
+                    <div className="text-xs text-slate-400 mb-2">${ex.annualEarnings.toLocaleString()}/yr</div>
+                    <div className="text-xs text-slate-500">{ex.description}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* Footer */}
         <footer className="bg-slate-50 border-t border-slate-200 py-12 px-6 text-center">
           <h2 className="text-2xl font-bold text-slate-900 mb-4">
             Ready to launch?
           </h2>
           <p className="text-slate-500 mb-8">
-            Join our growing network of partner agencies.
+            Join our growing network of partner agencies and start earning up to 50% recurring commissions.
           </p>
           <button
             type="button"
