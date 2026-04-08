@@ -7,7 +7,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://buildmybot2-production.up.railway.app/api/:path*"
+      "destination": "https://buildmybot2-production-0aff.up.railway.app/api/:path*"
     },
     {
       "source": "/(.*)",
