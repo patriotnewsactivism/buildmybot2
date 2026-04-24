@@ -86,16 +86,7 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadsDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-    cb(null, `${uniqueSuffix}-${file.originalname}`);
-  },
-});
-
+// Use memory storage — disk storage is ephemeral on Railway/Vercel and loses files on restart
 const fileFilter = (
   req: Express.Request,
   file: Express.Multer.File,
@@ -117,9 +108,9 @@ const fileFilter = (
 };
 
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   fileFilter,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20MB limit
 });
 
 const __filename = fileURLToPath(import.meta.url);
@@ -210,6 +201,8 @@ app.use(
       'Authorization',
       'X-Requested-With',
       'X-Organization-Id',
+      'x-user-id',
+      'x-impersonation-token',
     ],
   }),
 );
@@ -1797,3 +1790,4 @@ if (!isVercel) {
 }
 
 export { app, server };
+
