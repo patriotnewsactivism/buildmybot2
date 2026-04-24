@@ -11,10 +11,28 @@ import {
   formatKnowledgeBaseAsText,
 } from '../seeds/industryKnowledgeBases';
 import { DocumentProcessorService } from '../services/DocumentProcessorService';
+import { lt } from 'drizzle-orm';
 import { KnowledgeService } from '../services/KnowledgeService';
 import { WebScraperService } from '../services/WebScraperService';
 
 const router = Router();
+
+// On startup / route load: repair any sources stuck in 'processing' for > 10 minutes
+const TEN_MINUTES_AGO = () => new Date(Date.now() - 10 * 60 * 1000);
+(async () => {
+  try {
+    await db.update(knowledgeSources).set({
+      status: 'failed',
+      errorMessage: 'Processing timed out — please retry',
+      updatedAt: new Date(),
+    }).where(
+      and(
+        eq(knowledgeSources.status, 'processing'),
+        lt(knowledgeSources.updatedAt, TEN_MINUTES_AGO()),
+      )
+    );
+  } catch (e) { /* ignore on startup */ }
+})();
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -96,13 +114,30 @@ router.post(
         updatedAt: new Date(),
       });
 
+      // Timeout: auto-fail stuck sources after 5 minutes
+      const crawlTimeout = setTimeout(async () => {
+        try {
+          const [src] = await db.select().from(knowledgeSources).where(eq(knowledgeSources.id, sourceId)).limit(1);
+          if (src && src.status === 'processing') {
+            await db.update(knowledgeSources).set({
+              status: 'failed',
+              errorMessage: 'Crawl timed out after 5 minutes',
+              updatedAt: new Date(),
+            }).where(eq(knowledgeSources.id, sourceId));
+          }
+        } catch (e) { /* ignore */ }
+      }, 5 * 60 * 1000);
+
       WebScraperService.crawlWebsite(
         url,
         maxPages,
         sourceId,
         botId,
         organizationId,
-      ).catch(async (error) => {
+      ).then(() => {
+        clearTimeout(crawlTimeout);
+      }).catch(async (error) => {
+        clearTimeout(crawlTimeout);
         console.error('Crawl error:', error);
         await db
           .update(knowledgeSources)
@@ -759,3 +794,4 @@ router.post(
 );
 
 export default router;
+
