@@ -25,3 +25,4 @@ export { metricsMiddleware } from './metrics';
 export { applyImpersonation } from './impersonation';
 export { requestLogger } from './logger';
 export { subdomainResolution } from './subdomain';
+export { requireLaunchGateOpen, isLaunchGateActive } from './launchGate';

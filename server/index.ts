@@ -34,9 +34,11 @@ import {
   applyImpersonation,
   authenticate,
   authorize,
+  isLaunchGateActive,
   loadOrganizationContext,
   metricsMiddleware,
   requestLogger,
+  requireLaunchGateOpen,
   securityHeaders,
   subdomainResolution,
   tenantIsolation,
@@ -312,6 +314,18 @@ const cacheControl = (maxAge: number, isPublic = true) => {
 // ETag support for efficient caching
 app.set('etag', 'strong');
 
+// ========================================
+// LAUNCH GATE STATUS
+// ========================================
+app.get('/api/launch-gate/status', (_req, res) => {
+  res.json({
+    gateActive: isLaunchGateActive(),
+    message: isLaunchGateActive()
+      ? 'Platform is in pre-launch mode. Purchases are disabled.'
+      : 'Platform is live. Purchases are enabled.',
+  });
+});
+
 app.get('/api/stripe/publishable-key', async (req, res) => {
   try {
     const key = await getStripePublishableKey();
@@ -362,7 +376,7 @@ app.post('/api/stripe/sync-plans', async (req, res) => {
   }
 });
 
-app.post('/api/stripe/checkout', async (req, res) => {
+app.post('/api/stripe/checkout', requireLaunchGateOpen, async (req, res) => {
   try {
     const { userId, priceId } = req.body;
     if (!userId || !priceId) {
@@ -407,7 +421,7 @@ app.post('/api/stripe/checkout', async (req, res) => {
   }
 });
 
-app.post('/api/stripe/whitelabel/checkout', async (req, res) => {
+app.post('/api/stripe/whitelabel/checkout', requireLaunchGateOpen, async (req, res) => {
   try {
     const { userId } = req.body;
     if (!userId) {
