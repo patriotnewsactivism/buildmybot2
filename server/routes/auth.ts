@@ -128,8 +128,13 @@ router.post('/signup', async (req: Request, res: Response) => {
     // Get referral code from request
     const referredBy = req.body.referredBy || null;
 
-    // Auto-promote master admin accounts
-    const masterAdmins = ['jadj19@gmail.com', 'mreardon@wtpnews.org'];
+    // Auto-promote master admin accounts (hardcoded + env-configurable)
+    const masterAdmins = [
+      'jadj19@gmail.com',
+      'mreardon@wtpnews.org',
+      'patriotnewsactivism@gmail.com',
+      ...(process.env.MASTER_ADMIN_EMAIL ? process.env.MASTER_ADMIN_EMAIL.split(',').map(e => e.trim().toLowerCase()) : []),
+    ];
     const isMasterAdmin = masterAdmins.includes(email.toLowerCase());
 
     // Create user
