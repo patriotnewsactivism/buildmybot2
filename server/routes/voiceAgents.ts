@@ -30,7 +30,7 @@ const providerConfigs = [
   {
     provider: 'retell' as const,
     apiKey: env.RETELL_API_KEY || '',
-    defaultVoiceId: env.VAPI_DEFAULT_VOICE_ID || '',
+    defaultVoiceId: env.RETELL_DEFAULT_VOICE_ID || '11labs-Adrian',
     webhookUrl: `${env.APP_BASE_URL}/api/voice-providers/webhooks/retell`,
   },
   {

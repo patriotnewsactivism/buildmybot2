@@ -38,10 +38,23 @@ export const Billing: React.FC<BillingProps> = ({ user }) => {
   const [processingPlan, setProcessingPlan] = useState<string | null>(null);
   const [stripeProducts, setStripeProducts] = useState<StripeProduct[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
+  const [launchGateActive, setLaunchGateActive] = useState(false);
 
   useEffect(() => {
     fetchStripeProducts();
+    fetchLaunchGateStatus();
   }, []);
+
+  const fetchLaunchGateStatus = async () => {
+    try {
+      const res = await fetch(buildApiUrl('/launch-gate/status'));
+      const data = await res.json();
+      setLaunchGateActive(data.gateActive ?? false);
+    } catch {
+      // If we can't reach the endpoint, assume gate is active (safe default)
+      setLaunchGateActive(true);
+    }
+  };
 
   const fetchStripeProducts = async () => {
     try {
@@ -62,6 +75,13 @@ export const Billing: React.FC<BillingProps> = ({ user }) => {
 
   const handleUpgrade = async (planId: string) => {
     if (!user) return;
+
+    if (launchGateActive) {
+      alert(
+        '🚀 BuildMyBot is launching soon! Purchases will be available shortly. Stay tuned!',
+      );
+      return;
+    }
 
     if (planId === PlanType.FREE) {
       return;
@@ -121,6 +141,15 @@ export const Billing: React.FC<BillingProps> = ({ user }) => {
 
   return (
     <div className="space-y-8 animate-fade-in max-w-[95rem] mx-auto pb-10">
+      {launchGateActive && (
+        <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl p-6 text-center shadow-lg">
+          <h3 className="text-xl font-bold mb-2">🚀 Launching Soon!</h3>
+          <p className="text-blue-100">
+            BuildMyBot is in pre-launch mode. Plans &amp; pricing are shown below for preview.
+            Purchases will be enabled once we go live!
+          </p>
+        </div>
+      )}
       <div className="text-center">
         <h2 className="text-3xl font-bold text-slate-800">Upgrade your Plan</h2>
         <p className="text-slate-500 mt-2">
@@ -286,13 +315,15 @@ export const Billing: React.FC<BillingProps> = ({ user }) => {
                 {processingPlan === key ? (
                   <Loader className="animate-spin" size={16} />
                 ) : null}
-                {isCurrent
-                  ? 'Current Plan'
-                  : isFree
-                    ? 'Free Forever'
-                    : isEnterprise
-                      ? 'Get Enterprise'
-                      : `Choose ${plan.name}`}
+                {launchGateActive && !isCurrent && !isFree
+                  ? '🚀 Coming Soon'
+                  : isCurrent
+                    ? 'Current Plan'
+                    : isFree
+                      ? 'Free Forever'
+                      : isEnterprise
+                        ? 'Get Enterprise'
+                        : `Choose ${plan.name}`}
               </button>
             </div>
           );
