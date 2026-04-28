@@ -1609,7 +1609,7 @@ app.use(
   '/api/agency',
   authenticate,
   loadOrganizationContext,
-  tenantIsolation,
+  tenantIsolation(),
   agencyRouter,
 );
 
@@ -1619,7 +1619,7 @@ app.use(
   authenticate,
   applyImpersonation,
   loadOrganizationContext,
-  tenantIsolation,
+  tenantIsolation(),
   clientsRouter,
 );
 
@@ -1672,7 +1672,7 @@ app.use(
   authenticate,
   applyImpersonation,
   loadOrganizationContext,
-  tenantIsolation,
+  tenantIsolation(),
   templatesRouter,
 );
 
@@ -1714,7 +1714,7 @@ app.use(
   '/api/tools',
   authenticate,
   loadOrganizationContext,
-  tenantIsolation,
+  tenantIsolation(),
   toolsRouter,
 );
 
