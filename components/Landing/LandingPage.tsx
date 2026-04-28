@@ -881,7 +881,7 @@ export const LandingPage: React.FC<LandingProps> = ({
                   <span className="bg-gradient-to-r from-blue-400 to-cyan-300 bg-clip-text text-transparent">Your Callers Won't Know It's AI</span>
                 </h2>
                 <p className="text-slate-300 text-lg max-w-3xl mx-auto leading-relaxed">
-                  Powered by Cartesia's neural voice synthesis — the same technology used in Hollywood.
+                  Powered by next-generation neural voice synthesis — the same technology used in Hollywood.
                   Answers calls, qualifies leads, books appointments, and transfers when needed. No scripts. No robots.
                 </p>
               </div>
@@ -894,7 +894,7 @@ export const LandingPage: React.FC<LandingProps> = ({
                   onClick={onLogin}
                   className="bg-blue-600 text-white px-8 py-4 rounded-xl font-bold text-lg hover:bg-blue-700 transition-all shadow-xl shadow-blue-600/30 hover:shadow-2xl hover:-translate-y-0.5 flex items-center gap-3 mx-auto"
                 >
-                  Get Started — Voice Agent Included <ArrowRight size={20} />
+                  Get Your AI Receptionist <ArrowRight size={20} />
                 </button>
               </div>
             </div>
@@ -1278,9 +1278,106 @@ export const LandingPage: React.FC<LandingProps> = ({
             </div>
 
             <p className="text-xs text-slate-400 text-center">
-              All plans include AI chatbot. Voice agent available on Executive and above, or as an add-on.
+              All plans include AI chatbot. Voice agent available on Executive and above, or as a standalone product.
               14-day money-back guarantee on all paid plans.
             </p>
+          </section>
+
+          {/* ──── 8b. AI RECEPTIONIST STANDALONE ──── */}
+          <section id="receptionist" className="relative bg-gradient-to-br from-emerald-900 via-teal-900 to-cyan-900 rounded-2xl sm:rounded-3xl p-6 sm:p-10 md:p-16 text-white shadow-2xl overflow-hidden">
+            <div className="absolute inset-0 opacity-5">
+              <div className="absolute top-10 left-10 w-72 h-72 bg-emerald-400 rounded-full blur-3xl" />
+              <div className="absolute bottom-10 right-10 w-96 h-96 bg-cyan-500 rounded-full blur-3xl" />
+            </div>
+            <div className="relative z-10">
+              <div className="text-center mb-10 sm:mb-14">
+                <div className="inline-flex items-center gap-2 bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 px-4 py-2 rounded-full text-sm font-bold mb-6">
+                  <Phone size={16} /> 🆕 NEW — Standalone AI Receptionist
+                </div>
+                <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-4 leading-tight">
+                  Just Need A Phone Agent?
+                  <br className="hidden sm:block" />{' '}
+                  <span className="bg-gradient-to-r from-emerald-400 to-cyan-300 bg-clip-text text-transparent">We've Got You.</span>
+                </h2>
+                <p className="text-slate-300 text-lg max-w-3xl mx-auto leading-relaxed">
+                  Don't need a chatbot? No problem. Get a standalone AI receptionist that answers your phones 24/7,
+                  qualifies leads, books appointments, and transfers calls — for less than $3/day.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8 mb-10">
+                {[
+                  {
+                    name: 'Lite',
+                    price: 79,
+                    minutes: '150',
+                    subtitle: 'Solopreneurs & Side Hustles',
+                    features: ['150 minutes/month', 'Ultra-realistic AI voice', 'Basic call routing', 'Call transcripts', 'Email support', '$0.50/min overage'],
+                  },
+                  {
+                    name: 'Pro',
+                    price: 174,
+                    minutes: '450',
+                    subtitle: 'Small Businesses',
+                    popular: true,
+                    features: ['450 minutes/month', 'All premium voices', 'Advanced call routing', 'Call transfers', 'Scheduling workflows', 'Analytics dashboard', '$0.50/min overage'],
+                  },
+                  {
+                    name: 'Max',
+                    price: 279,
+                    minutes: '1,000',
+                    subtitle: 'Multi-Location Businesses',
+                    features: ['1,000 minutes/month', 'CRM integration', 'Priority routing rules', 'API webhooks', 'Advanced analytics', 'Priority support', '$0.50/min overage'],
+                  },
+                ].map((tier) => (
+                  <div
+                    key={tier.name}
+                    className={`relative rounded-2xl p-6 sm:p-8 transition-all duration-300 hover:-translate-y-1 ${
+                      tier.popular
+                        ? 'bg-white/15 border-2 border-emerald-400/50 shadow-xl shadow-emerald-500/10 scale-[1.02]'
+                        : 'bg-white/10 border border-white/10'
+                    }`}
+                  >
+                    {tier.popular && (
+                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-emerald-500 text-white text-xs font-bold px-4 py-1 rounded-full whitespace-nowrap">
+                        ⭐ MOST POPULAR
+                      </div>
+                    )}
+                    <h3 className="font-bold text-xl mb-1">AI Receptionist {tier.name}</h3>
+                    <p className="text-emerald-300 text-sm mb-3">{tier.subtitle}</p>
+                    <div className="flex items-baseline gap-1 mb-1">
+                      <span className="text-4xl sm:text-5xl font-extrabold tracking-tight">${tier.price}</span>
+                      <span className="text-slate-400 text-sm font-semibold">/mo</span>
+                    </div>
+                    <p className="text-emerald-300 text-sm mb-4">{tier.minutes} minutes included</p>
+                    <ul className="space-y-2 mb-6">
+                      {tier.features.map((f) => (
+                        <li key={f} className="flex items-start gap-2 text-sm text-slate-200">
+                          <CheckCircle size={16} className="text-emerald-400 shrink-0 mt-0.5" />
+                          {f}
+                        </li>
+                      ))}
+                    </ul>
+                    <button
+                      type="button"
+                      onClick={onLogin}
+                      className={`w-full py-3 rounded-xl font-bold text-base transition ${
+                        tier.popular
+                          ? 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-lg shadow-emerald-500/25'
+                          : 'bg-white/20 text-white hover:bg-white/30'
+                      }`}
+                    >
+                      Get Started
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <div className="text-center text-sm text-slate-400">
+                <p>All voice plans include a dedicated phone number, call recording, and real-time transcripts.</p>
+                <p className="mt-1">Want chatbots too? <a href="#pricing" className="text-emerald-400 font-semibold hover:underline">Bundle with any chatbot plan →</a></p>
+              </div>
+            </div>
           </section>
 
           {/* ──── 9. INDUSTRIES ──── */}
@@ -1357,6 +1454,77 @@ export const LandingPage: React.FC<LandingProps> = ({
                   )}
                 </div>
               ))}
+            </div>
+          </section>
+
+          {/* ──── 10b. BETA TESTERS + PARTNERS CTA ──── */}
+          <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
+            {/* Beta Testers */}
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-6 sm:p-8 border-2 border-blue-200 relative overflow-hidden">
+              <div className="absolute top-0 right-0 bg-blue-600 text-white text-xs font-bold px-4 py-1 rounded-bl-xl">
+                🧪 BETA
+              </div>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center text-white">
+                  <Sparkles size={24} />
+                </div>
+                <h3 className="text-xl font-extrabold text-slate-900">Become a Beta Tester</h3>
+              </div>
+              <p className="text-slate-600 mb-4 leading-relaxed">
+                Get early access to our AI chatbot and voice receptionist platform. 
+                Help shape the product, get priority support, and lock in founder pricing.
+              </p>
+              <ul className="space-y-2 mb-6">
+                {['Early access to all features', 'Direct line to the dev team', 'Founder pricing locked in forever', 'Your feedback shapes the roadmap'].map((f) => (
+                  <li key={f} className="flex items-center gap-2 text-sm text-slate-700">
+                    <CheckCircle size={16} className="text-blue-500 shrink-0" />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              <a
+                href="mailto:support@buildmybot.app?subject=Beta%20Tester%20Application"
+                className="inline-flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 transition shadow-lg shadow-blue-600/25"
+              >
+                <Mail size={18} /> Apply for Beta Access
+              </a>
+              <p className="text-xs text-slate-500 mt-3">
+                Or email <a href="mailto:support@buildmybot.app" className="text-blue-600 font-semibold hover:underline">support@buildmybot.app</a>
+              </p>
+            </div>
+
+            {/* Partners / Agents / White-Label */}
+            <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl p-6 sm:p-8 border-2 border-amber-200 relative overflow-hidden">
+              <div className="absolute top-0 right-0 bg-amber-600 text-white text-xs font-bold px-4 py-1 rounded-bl-xl">
+                💰 PARTNER
+              </div>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 bg-amber-600 rounded-xl flex items-center justify-center text-white">
+                  <Users size={24} />
+                </div>
+                <h3 className="text-xl font-extrabold text-slate-900">Become a Partner or Sales Agent</h3>
+              </div>
+              <p className="text-slate-600 mb-4 leading-relaxed">
+                Resell AI chatbots and voice agents under your own brand. 
+                White-label the entire platform, earn up to 50% commission, and build a recurring revenue business.
+              </p>
+              <ul className="space-y-2 mb-6">
+                {['White-label under your brand', 'Up to 50% recurring commission', 'Full sales & marketing support', 'Dedicated partner success manager'].map((f) => (
+                  <li key={f} className="flex items-center gap-2 text-sm text-slate-700">
+                    <CheckCircle size={16} className="text-amber-500 shrink-0" />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              <a
+                href="mailto:president@buildmybot.app?subject=Partner%20%2F%20White-Label%20Inquiry"
+                className="inline-flex items-center gap-2 bg-amber-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-amber-700 transition shadow-lg shadow-amber-600/25"
+              >
+                <Briefcase size={18} /> Apply to Partner Program
+              </a>
+              <p className="text-xs text-slate-500 mt-3">
+                Or email <a href="mailto:president@buildmybot.app" className="text-amber-600 font-semibold hover:underline">president@buildmybot.app</a>
+              </p>
             </div>
           </section>
 
@@ -1465,8 +1633,13 @@ export const LandingPage: React.FC<LandingProps> = ({
                   </a>
                 </li>
                 <li>
-                  <a href="/contact" className="hover:text-white transition">
-                    Contact
+                  <a href="mailto:support@buildmybot.app" className="hover:text-white transition">
+                    support@buildmybot.app
+                  </a>
+                </li>
+                <li>
+                  <a href="mailto:sales@buildmybot.app" className="hover:text-white transition">
+                    sales@buildmybot.app
                   </a>
                 </li>
                 <li>
