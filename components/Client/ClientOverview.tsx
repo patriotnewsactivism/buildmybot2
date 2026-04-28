@@ -429,6 +429,63 @@ export const ClientOverview: React.FC<ClientOverviewProps> = ({
         />
       </div>
 
+      {/* Onboarding & Resources */}
+      <div className="bg-white rounded-xl border border-slate-200 p-4 md:p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <BookOpen size={20} className="text-blue-600" />
+          <h3 className="text-base md:text-lg font-semibold text-slate-900">
+            Getting Started &amp; Resources
+          </h3>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+          <button
+            type="button"
+            onClick={() => window.open('/marketing/quick-start-guide.pdf', '_blank')}
+            className="text-left bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                <BookOpen size={16} className="text-white" />
+              </div>
+              <span className="font-semibold text-slate-900 text-sm">Quick Start Guide</span>
+            </div>
+            <p className="text-xs text-slate-600">
+              Your first chatbot in 5 minutes — step-by-step setup, deployment, and voice agent activation.
+            </p>
+          </button>
+          <button
+            type="button"
+            onClick={() => window.open('/marketing/one-pager.pdf', '_blank')}
+            className="text-left bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center">
+                <Star size={16} className="text-white" />
+              </div>
+              <span className="font-semibold text-slate-900 text-sm">Product Overview</span>
+            </div>
+            <p className="text-xs text-slate-600">
+              One-page summary of everything BuildMyBot can do — features, pricing, and key stats.
+            </p>
+          </button>
+          <button
+            type="button"
+            onClick={() => window.open('/marketing/roi-calculator.xlsx', '_blank')}
+            className="text-left bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-8 h-8 bg-amber-600 rounded-lg flex items-center justify-center">
+                <TrendingUp size={16} className="text-white" />
+              </div>
+              <span className="font-semibold text-slate-900 text-sm">ROI Calculator</span>
+            </div>
+            <p className="text-xs text-slate-600">
+              See exactly how much BuildMyBot saves your business — plug in your numbers and get instant results.
+            </p>
+          </button>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
         <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 md:p-4">
           <div className="flex items-center gap-2 text-slate-700">

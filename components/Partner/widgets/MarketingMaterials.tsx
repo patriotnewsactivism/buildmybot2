@@ -19,7 +19,19 @@ export const MarketingMaterials: React.FC = () => {
   const [materials, setMaterials] = useState<MarketingMaterial[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const featuredDownloads = [
+  const partnerDownloads = [
+    {
+      title: 'Partner Program Overview',
+      description: 'Commission structure, tiers, and how to get started',
+      downloadUrl: '/marketing/partner-program-overview.pdf',
+      badge: 'NEW',
+    },
+    {
+      title: 'Partner Pitch Templates',
+      description: 'Ready-to-use email, LinkedIn, and SMS outreach templates',
+      downloadUrl: '/marketing/partner-pitch-templates.pdf',
+      badge: 'NEW',
+    },
     {
       title: 'Partner Playbook',
       description: 'Positioning, pricing, and sales motion',
@@ -30,6 +42,46 @@ export const MarketingMaterials: React.FC = () => {
       description: 'Enablement modules and scaling plan',
       downloadUrl: '/marketing/partner-course.pdf',
     },
+  ];
+
+  const salesDownloads = [
+    {
+      title: 'Sales Pitch Deck',
+      description: 'Full presentation deck for prospects — problem, solution, voice agent, pricing, ROI',
+      downloadUrl: '/marketing/sales-pitch-deck.pdf',
+      badge: 'NEW',
+    },
+    {
+      title: 'Sales Playbook',
+      description: 'Battle cards vs competitors, objection handling scripts, and 10-min demo walkthrough',
+      downloadUrl: '/marketing/sales-playbook.pdf',
+      badge: 'NEW',
+    },
+    {
+      title: 'One-Pager / Leave-Behind',
+      description: 'Single-page overview to email or print after meetings',
+      downloadUrl: '/marketing/one-pager.pdf',
+      badge: 'NEW',
+    },
+    {
+      title: 'ROI Calculator (Excel)',
+      description: 'Interactive spreadsheet — plug in leads, deal value, missed calls to show exact savings',
+      downloadUrl: '/marketing/roi-calculator.xlsx',
+      badge: 'NEW',
+    },
+    {
+      title: 'Demo Checklist',
+      description: 'Pre, during, and post-demo checklist',
+      downloadUrl: '/marketing/demo-checklist.pdf',
+    },
+    {
+      title: 'Case Study Template',
+      description: 'Fill-in success story template',
+      downloadUrl: '/marketing/case-study-template.pdf',
+    },
+  ];
+
+  const fieldOpsDownloads = [
     {
       title: 'Revenue Recovery Handbook',
       description: 'Master playbook for speed-to-lead recovery',
@@ -51,30 +103,26 @@ export const MarketingMaterials: React.FC = () => {
       downloadUrl: '/marketing/ghost-shopper-audit-template.csv',
     },
     {
-      title: 'Sales Deck',
-      description: 'Slide deck for prospect presentations',
-      downloadUrl: '/marketing/sales-deck.pdf',
-    },
-    {
-      title: 'ROI Calculator',
+      title: 'ROI Calculator (CSV)',
       description: 'Spreadsheet for projecting value',
       downloadUrl: '/marketing/roi-calculator.csv',
     },
+  ];
+
+  const clientDownloads = [
     {
-      title: 'Case Study Template',
-      description: 'Fill-in success story template',
-      downloadUrl: '/marketing/case-study-template.pdf',
+      title: 'Client Quick Start Guide',
+      description: 'Step-by-step: first chatbot in 5 minutes + voice agent setup',
+      downloadUrl: '/marketing/quick-start-guide.pdf',
+      badge: 'NEW',
     },
-    {
-      title: 'One-Pager',
-      description: 'Quick summary for prospects',
-      downloadUrl: '/marketing/one-pager.pdf',
-    },
-    {
-      title: 'Demo Checklist',
-      description: 'Pre, during, and post-demo checklist',
-      downloadUrl: '/marketing/demo-checklist.pdf',
-    },
+  ];
+
+  const downloadSections = [
+    { title: 'Partner Onboarding', items: partnerDownloads },
+    { title: 'Sales Agent Tools', items: salesDownloads },
+    { title: 'Client Resources', items: clientDownloads },
+    { title: 'Field Operations', items: fieldOpsDownloads },
   ];
 
   const fetchMaterials = useCallback(async () => {
@@ -232,37 +280,46 @@ export const MarketingMaterials: React.FC = () => {
         </button>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 p-4 md:p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm md:text-base font-semibold text-slate-800">
-            Featured downloads
-          </h3>
-          <span className="text-xs text-slate-400">PDF</span>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
-          {featuredDownloads.map((item) => (
-            <div
-              key={item.title}
-              className="flex items-center justify-between gap-3 bg-slate-50 border border-slate-200 rounded-lg p-3 md:p-4"
-            >
-              <div>
-                <div className="font-medium text-slate-900">{item.title}</div>
-                <div className="text-xs text-slate-500 mt-1">
-                  {item.description}
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => window.open(item.downloadUrl, '_blank')}
-                className="text-blue-700 hover:text-blue-800 text-xs flex items-center gap-1"
+      {downloadSections.map((section) => (
+        <div key={section.title} className="bg-white rounded-xl border border-slate-200 p-4 md:p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm md:text-base font-semibold text-slate-800">
+              {section.title}
+            </h3>
+            <span className="text-xs text-slate-400">{section.items.length} files</span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+            {section.items.map((item) => (
+              <div
+                key={item.title}
+                className="flex items-center justify-between gap-3 bg-slate-50 border border-slate-200 rounded-lg p-3 md:p-4"
               >
-                <Download size={14} />
-                Download
-              </button>
-            </div>
-          ))}
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-slate-900">{item.title}</span>
+                    {'badge' in item && item.badge && (
+                      <span className="px-1.5 py-0.5 bg-orange-100 text-orange-700 text-[10px] font-bold rounded">
+                        {item.badge}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xs text-slate-500 mt-1">
+                    {item.description}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => window.open(item.downloadUrl, '_blank')}
+                  className="text-blue-700 hover:text-blue-800 text-xs flex items-center gap-1 shrink-0"
+                >
+                  <Download size={14} />
+                  Download
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      ))}
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
