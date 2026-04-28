@@ -496,7 +496,7 @@ router.put('/agents/:botId', authenticate, async (req, res) => {
 router.post('/agents/:botId/provision', authenticate, async (req, res) => {
   try {
     const { botId } = req.params;
-    const { areaCode } = req.body;
+    const { areaCode } = req.body || {};
 
     // Don't allow provisioning for new/unsaved bots
     if (botId === 'new' || !botId) {
