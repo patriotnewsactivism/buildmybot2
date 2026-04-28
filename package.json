@@ -96,6 +96,7 @@
     "react-dom": "^18.2.0",
     "react-i18next": "^16.5.2",
     "recharts": "^2.12.2",
+    "retell-sdk": "^5.17.0",
     "stripe": "^20.1.0",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
