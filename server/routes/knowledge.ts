@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { type Request, type Response, Router } from 'express';
 import multer from 'multer';
 import { v4 as uuidv4 } from 'uuid';
@@ -12,6 +12,7 @@ import {
 } from '../seeds/industryKnowledgeBases';
 import { DocumentProcessorService } from '../services/DocumentProcessorService';
 import { lt } from 'drizzle-orm';
+import { FirecrawlService } from '../services/FirecrawlService';
 import { KnowledgeService } from '../services/KnowledgeService';
 import { WebScraperService } from '../services/WebScraperService';
 
@@ -128,31 +129,68 @@ router.post(
         } catch (e) { /* ignore */ }
       }, 5 * 60 * 1000);
 
-      WebScraperService.crawlWebsite(
-        url,
-        maxPages,
-        sourceId,
-        botId,
-        organizationId,
-      ).then(() => {
-        clearTimeout(crawlTimeout);
-      }).catch(async (error) => {
-        clearTimeout(crawlTimeout);
-        console.error('Crawl error:', error);
-        await db
-          .update(knowledgeSources)
-          .set({
-            status: 'failed',
-            errorMessage: error.message,
+      // Use Firecrawl when API key is configured (better JS rendering, cleaner output)
+      // Falls back to built-in WebScraperService if Firecrawl is unavailable
+      const useFirecrawl = FirecrawlService.isAvailable();
+      const scrapeEngine = useFirecrawl ? 'firecrawl' : 'built-in';
+
+      if (useFirecrawl) {
+        FirecrawlService.crawlAndIngest(
+          url,
+          maxPages,
+          sourceId,
+          botId,
+          organizationId,
+        ).then(() => {
+          clearTimeout(crawlTimeout);
+        }).catch(async (error) => {
+          clearTimeout(crawlTimeout);
+          console.error(`[Firecrawl] Crawl error, falling back to built-in scraper:`, error.message);
+
+          // Reset source status and fall back to WebScraperService
+          await db.update(knowledgeSources).set({
+            pagesCrawled: 0,
             updatedAt: new Date(),
-          })
-          .where(eq(knowledgeSources.id, sourceId));
-      });
+          }).where(eq(knowledgeSources.id, sourceId));
+
+          WebScraperService.crawlWebsite(url, maxPages, sourceId, botId, organizationId)
+            .catch(async (fallbackError) => {
+              console.error('Fallback crawl also failed:', fallbackError);
+              await db.update(knowledgeSources).set({
+                status: 'failed',
+                errorMessage: `Firecrawl: ${error.message}. Fallback: ${fallbackError.message}`,
+                updatedAt: new Date(),
+              }).where(eq(knowledgeSources.id, sourceId));
+            });
+        });
+      } else {
+        WebScraperService.crawlWebsite(
+          url,
+          maxPages,
+          sourceId,
+          botId,
+          organizationId,
+        ).then(() => {
+          clearTimeout(crawlTimeout);
+        }).catch(async (error) => {
+          clearTimeout(crawlTimeout);
+          console.error('Crawl error:', error);
+          await db
+            .update(knowledgeSources)
+            .set({
+              status: 'failed',
+              errorMessage: error.message,
+              updatedAt: new Date(),
+            })
+            .where(eq(knowledgeSources.id, sourceId));
+        });
+      }
 
       res.json({
         sourceId,
         status: 'processing',
-        message: `Crawling ${url} (up to ${maxPages} pages)`,
+        engine: scrapeEngine,
+        message: `Crawling ${url} (up to ${maxPages} pages) via ${scrapeEngine}`,
       });
     } catch (error: any) {
       console.error('Scrape error:', error);
@@ -340,12 +378,30 @@ router.post(
         .where(eq(knowledgeSources.id, sourceId));
 
       if (s.sourceType === 'url' && s.sourceUrl) {
-        WebScraperService.crawlWebsite(
-          s.sourceUrl,
-          s.pagesCrawled || 20,
-          sourceId,
-          s.botId!,
-        ).catch(console.error);
+        if (FirecrawlService.isAvailable()) {
+          FirecrawlService.crawlAndIngest(
+            s.sourceUrl,
+            s.pagesCrawled || 20,
+            sourceId,
+            s.botId!,
+            s.organizationId,
+          ).catch((err) => {
+            console.error(`[Firecrawl] Refresh failed, falling back:`, err.message);
+            WebScraperService.crawlWebsite(
+              s.sourceUrl!,
+              s.pagesCrawled || 20,
+              sourceId,
+              s.botId!,
+            ).catch(console.error);
+          });
+        } else {
+          WebScraperService.crawlWebsite(
+            s.sourceUrl,
+            s.pagesCrawled || 20,
+            sourceId,
+            s.botId!,
+          ).catch(console.error);
+        }
       }
 
       res.json({
@@ -590,16 +646,37 @@ router.post(
 
       // Trigger re-processing based on source type
       if (source.sourceType === 'url' && source.sourceUrl) {
-        // Re-crawl the URL
-        WebScraperService.crawlWebsite(
-          source.sourceUrl,
-          20,
-          sourceId,
-          source.botId!,
-          source.organizationId,
-        ).catch((err) =>
-          console.error(`Retry crawl failed for ${source.sourceUrl}:`, err),
-        );
+        // Re-crawl the URL — prefer Firecrawl when available
+        if (FirecrawlService.isAvailable()) {
+          FirecrawlService.crawlAndIngest(
+            source.sourceUrl,
+            20,
+            sourceId,
+            source.botId!,
+            source.organizationId,
+          ).catch((err) => {
+            console.error(`[Firecrawl] Retry failed, falling back:`, err.message);
+            WebScraperService.crawlWebsite(
+              source.sourceUrl!,
+              20,
+              sourceId,
+              source.botId!,
+              source.organizationId,
+            ).catch((fallbackErr) =>
+              console.error(`Retry fallback also failed for ${source.sourceUrl}:`, fallbackErr),
+            );
+          });
+        } else {
+          WebScraperService.crawlWebsite(
+            source.sourceUrl,
+            20,
+            sourceId,
+            source.botId!,
+            source.organizationId,
+          ).catch((err) =>
+            console.error(`Retry crawl failed for ${source.sourceUrl}:`, err),
+          );
+        }
       } else if (source.sourceType === 'document') {
         // For documents, user needs to re-upload
         return res.status(400).json({
@@ -773,6 +850,17 @@ router.post(
         new URL(targetUrl);
       } catch {
         return res.status(400).json({ error: 'Invalid URL format' });
+      }
+
+      // Prefer Firecrawl for scrape-preview (handles JS-rendered pages better)
+      if (FirecrawlService.isAvailable()) {
+        try {
+          const preview = await FirecrawlService.scrapePreview(targetUrl);
+          return res.json(preview);
+        } catch (err: any) {
+          console.warn(`[Firecrawl] Scrape preview failed, falling back:`, err.message);
+          // Fall through to WebScraperService
+        }
       }
 
       const scraped = await WebScraperService.scrapeUrl(targetUrl);
