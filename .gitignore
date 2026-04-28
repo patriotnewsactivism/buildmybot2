@@ -4,3 +4,5 @@
 .env.local
 .env.production
 .env.staging
+node_modules/
+dist/

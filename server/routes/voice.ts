@@ -1,11 +1,9 @@
 import { eq } from 'drizzle-orm';
 import { Router } from 'express';
-import OpenAI from 'openai';
 import twilio from 'twilio';
 import { v4 as uuidv4 } from 'uuid';
 import {
   bots,
-  knowledgeChunks,
   leads,
   voiceAgents,
   voiceCallMessages,
@@ -14,17 +12,14 @@ import {
 import { db } from '../db';
 import { env } from '../env';
 import { authenticate } from '../middleware';
-import { cartesiaService } from '../services/voice/CartesiaService';
+import { retellService } from '../services/voice/RetellService';
 import { twilioService } from '../services/voice/TwilioService';
 
 const router = Router();
-const openai = new OpenAI({
-  apiKey: env.OPENAI_API_KEY,
-});
 
 /**
- * Webhook: Incoming call from Twilio
- * This is called when someone calls a provisioned phone number
+ * Webhook: Incoming call from Twilio → Retell AI
+ * Registers the call with Retell and connects the media stream.
  */
 router.post('/webhook', async (req, res) => {
   try {
@@ -44,6 +39,15 @@ router.post('/webhook', async (req, res) => {
       return res.type('text/xml').send(twiml.toString());
     }
 
+    // Determine Retell agent to use
+    const retellAgentId = voiceAgent.providerAgentId || env.RETELL_DEFAULT_VOICE_ID;
+    if (!retellAgentId) {
+      const twiml = new twilio.twiml.VoiceResponse();
+      twiml.say('This line is not yet configured. Please try again later.');
+      twiml.hangup();
+      return res.type('text/xml').send(twiml.toString());
+    }
+
     // Create call record
     const callId = uuidv4();
     await db.insert(voiceCalls).values({
@@ -59,29 +63,34 @@ router.post('/webhook', async (req, res) => {
       startedAt: new Date(),
     });
 
-    // Generate greeting audio with Cartesia
-    const audioUrl = await cartesiaService.generateSpeechFile(
-      voiceAgent.greeting,
-      voiceAgent.voiceId,
-      callId,
+    // Build dynamic variables from config
+    const dynamicVars: Record<string, string> = {};
+    if (voiceAgent.greeting) dynamicVars.greeting = voiceAgent.greeting;
+    if (voiceAgent.systemPrompt) dynamicVars.system_prompt = voiceAgent.systemPrompt;
+    if (voiceAgent.transferNumber) dynamicVars.transfer_number = voiceAgent.transferNumber;
+
+    // Register call with Retell
+    const retellCall = await retellService.registerTwilioCall(
+      retellAgentId,
+      From,
+      To,
+      {
+        voiceAgentId: voiceAgent.id,
+        callId,
+        organizationId: voiceAgent.organizationId,
+      },
+      Object.keys(dynamicVars).length > 0 ? dynamicVars : undefined,
     );
 
-    // Create TwiML response with Cartesia audio
+    console.log(`Retell call registered: ${retellCall.call_id} for voiceAgent ${voiceAgent.id}`);
+
+    // Create TwiML response connecting Twilio → Retell WebSocket
     const twiml = new twilio.twiml.VoiceResponse();
-    twiml.play(`${env.APP_BASE_URL}${audioUrl}`);
+    const connect = twiml.connect();
+    connect.stream({ url: retellCall.websocket_url });
 
-    // Gather speech input
-    twiml.gather({
-      input: ['speech'],
-      action: `/api/voice/process?callId=${callId}`,
-      method: 'POST',
-      speechTimeout: 'auto',
-      speechModel: 'phone_call',
-      language: voiceAgent.language || 'en-US',
-    });
-
-    // Fallback if no input
-    twiml.say('I did not hear anything. Please call back.');
+    // Fallback
+    twiml.say('We are having trouble connecting to the AI agent. Please try again later.');
     twiml.hangup();
 
     res.type('text/xml').send(twiml.toString());
@@ -95,181 +104,161 @@ router.post('/webhook', async (req, res) => {
 });
 
 /**
- * Process speech input and generate AI response
+ * Retell Webhook: Post-call data (transcript, analysis, recording)
+ * Configure this URL in the Retell dashboard under webhook settings.
  */
-router.post('/process', async (req, res) => {
+router.post('/retell-webhook', async (req, res) => {
   try {
-    const { SpeechResult, CallSid } = req.body;
-    const callId = req.query.callId as string;
+    const { event, call } = req.body;
 
-    if (!SpeechResult) {
-      const twiml = new twilio.twiml.VoiceResponse();
-      twiml.say('I did not catch that. Could you please repeat?');
-      twiml.gather({
-        input: ['speech'],
-        action: `/api/voice/process?callId=${callId}`,
-        method: 'POST',
-        speechTimeout: 'auto',
-        speechModel: 'phone_call',
-      });
-      twiml.say('I still did not hear anything. Goodbye.');
-      twiml.hangup();
-      return res.type('text/xml').send(twiml.toString());
-    }
-
-    // Get voice call details
-    const [voiceCall] = await db
-      .select()
-      .from(voiceCalls)
-      .where(eq(voiceCalls.id, callId))
-      .limit(1);
-
-    if (!voiceCall) {
-      throw new Error('Voice call not found');
-    }
-
-    // Get voice agent config
-    const [voiceAgent] = await db
-      .select()
-      .from(voiceAgents)
-      .where(eq(voiceAgents.id, voiceCall.voiceAgentId))
-      .limit(1);
-
-    // Get bot configuration
-    const [bot] = await db
-      .select()
-      .from(bots)
-      .where(eq(bots.id, voiceAgent.botId))
-      .limit(1);
-
-    // Save user message
-    await db.insert(voiceCallMessages).values({
-      id: uuidv4(),
-      voiceCallId: callId,
-      role: 'user',
-      content: SpeechResult,
-      timestamp: new Date(),
-    });
-
-    // Check for transfer triggers
-    if (voiceAgent.transferEnabled && voiceAgent.transferTriggers) {
-      const triggers = voiceAgent.transferTriggers as string[];
-      const shouldTransfer = triggers.some((trigger) =>
-        SpeechResult.toLowerCase().includes(trigger.toLowerCase()),
+    // Optionally verify webhook signature
+    const signature = req.headers['x-retell-signature'] as string;
+    if (env.RETELL_WEBHOOK_SECRET && signature) {
+      const isValid = retellService.verifyWebhookSignature(
+        JSON.stringify(req.body),
+        signature,
       );
-
-      if (shouldTransfer && voiceAgent.transferNumber) {
-        await twilioService.transferToHuman(CallSid, voiceAgent.transferNumber);
-        await db
-          .update(voiceCalls)
-          .set({
-            transferredToHuman: true,
-            transferredAt: new Date(),
-          })
-          .where(eq(voiceCalls.id, callId));
-        return;
+      if (!isValid) {
+        console.error('Invalid Retell webhook signature');
+        return res.status(401).json({ error: 'Invalid signature' });
       }
     }
 
-    // Get conversation history
-    const messages = await db
-      .select()
-      .from(voiceCallMessages)
-      .where(eq(voiceCallMessages.voiceCallId, callId))
-      .orderBy(voiceCallMessages.timestamp);
+    console.log(`Retell webhook: ${event} for call ${call?.call_id}`);
 
-    // Search knowledge base for relevant context
-    let contextText = '';
-    if (bot.knowledgeBase && Array.isArray(bot.knowledgeBase)) {
-      const knowledgeIds = bot.knowledgeBase as string[];
-      if (knowledgeIds.length > 0) {
-        const relevantChunks = await db
-          .select()
-          .from(knowledgeChunks)
-          .where(eq(knowledgeChunks.sourceId, knowledgeIds[0]))
-          .limit(3);
-
-        contextText = relevantChunks.map((chunk) => chunk.content).join('\n\n');
+    switch (event) {
+      case 'call_started': {
+        // Call has been connected
+        break;
       }
+
+      case 'call_ended': {
+        // Call finished — save transcript and update records
+        if (call?.metadata?.callId) {
+          const callId = call.metadata.callId;
+          const durationMs = call.duration_ms || 0;
+          const durationSeconds = Math.ceil(durationMs / 1000);
+
+          // Update call record
+          await db
+            .update(voiceCalls)
+            .set({
+              status: 'completed',
+              endedAt: new Date(),
+              durationSeconds,
+              transcript: call.transcript || null,
+              sentiment: call.call_analysis?.user_sentiment || 'neutral',
+              recordingUrl: call.recording_url || null,
+            })
+            .where(eq(voiceCalls.id, callId));
+
+          // Save individual messages from transcript
+          if (call.transcript_object && Array.isArray(call.transcript_object)) {
+            for (const msg of call.transcript_object) {
+              await db.insert(voiceCallMessages).values({
+                id: uuidv4(),
+                voiceCallId: callId,
+                role: msg.role === 'agent' ? 'assistant' : 'user',
+                content: msg.content,
+                timestamp: new Date(),
+              });
+            }
+          }
+
+          // Update voice agent minutes used
+          const [voiceCall] = await db
+            .select()
+            .from(voiceCalls)
+            .where(eq(voiceCalls.id, callId))
+            .limit(1);
+
+          if (voiceCall) {
+            const minutesUsed = Math.ceil(durationSeconds / 60);
+            const [voiceAgent] = await db
+              .select()
+              .from(voiceAgents)
+              .where(eq(voiceAgents.id, voiceCall.voiceAgentId))
+              .limit(1);
+
+            if (voiceAgent) {
+              await db
+                .update(voiceAgents)
+                .set({
+                  minutesUsed: (voiceAgent.minutesUsed || 0) + minutesUsed,
+                })
+                .where(eq(voiceAgents.id, voiceAgent.id));
+            }
+          }
+        }
+        break;
+      }
+
+      case 'call_analyzed': {
+        // Post-call analysis ready
+        if (call?.metadata?.callId && call.call_analysis) {
+          await db
+            .update(voiceCalls)
+            .set({
+              sentiment: call.call_analysis.user_sentiment || 'neutral',
+            })
+            .where(eq(voiceCalls.id, call.metadata.callId));
+        }
+        break;
+      }
+
+      default:
+        console.log(`Unhandled Retell webhook event: ${event}`);
     }
 
-    // Generate AI response using OpenAI
-    const contextSection = contextText
-      ? `\n\nContext from knowledge base:\n${contextText}`
-      : '';
-    const systemPrompt = `${bot.systemPrompt}${contextSection}
-
-You are a professional voice assistant. Keep responses concise and conversational (2-3 sentences max).
-${voiceAgent.leadCaptureEnabled ? 'If the caller seems interested, ask for their name, email, and phone number.' : ''}`;
-
-    const completion = await openai.chat.completions.create({
-      model: bot.model || 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        ...messages.map((msg) => ({
-          role: msg.role as 'user' | 'assistant',
-          content: msg.content,
-        })),
-        { role: 'user', content: SpeechResult },
-      ],
-      temperature: bot.temperature || 0.7,
-      max_tokens: 150, // Keep responses concise for voice
-    });
-
-    const aiResponse =
-      completion.choices[0].message.content ||
-      'I apologize, I did not understand that.';
-
-    // Save AI response
-    await db.insert(voiceCallMessages).values({
-      id: uuidv4(),
-      voiceCallId: callId,
-      role: 'assistant',
-      content: aiResponse,
-      timestamp: new Date(),
-    });
-
-    // Check for lead capture in response
-    if (voiceAgent.leadCaptureEnabled) {
-      await attemptLeadCapture(SpeechResult, voiceCall, voiceAgent);
-    }
-
-    // Generate speech with Cartesia
-    const audioUrl = await cartesiaService.generateSpeechFile(
-      aiResponse,
-      voiceAgent.voiceId,
-      callId,
-    );
-
-    // Create TwiML response
-    const twiml = new twilio.twiml.VoiceResponse();
-    twiml.play(`${env.APP_BASE_URL}${audioUrl}`);
-
-    // Check if we should end the call
-    if (
-      aiResponse.toLowerCase().includes(voiceAgent.endCallPhrase.toLowerCase())
-    ) {
-      twiml.say('Thank you for calling. Goodbye!');
-      twiml.hangup();
-    } else {
-      // Continue conversation
-      twiml.gather({
-        input: ['speech'],
-        action: `/api/voice/process?callId=${callId}`,
-        method: 'POST',
-        speechTimeout: 'auto',
-        speechModel: 'phone_call',
-        language: voiceAgent.language || 'en-US',
-      });
-    }
-
-    res.type('text/xml').send(twiml.toString());
+    res.sendStatus(200);
   } catch (error) {
-    console.error('Voice processing error:', error);
-    const twiml = new twilio.twiml.VoiceResponse();
-    twiml.say('Sorry, I encountered an error. Please try again.');
-    twiml.hangup();
-    res.type('text/xml').send(twiml.toString());
+    console.error('Retell webhook error:', error);
+    res.sendStatus(500);
+  }
+});
+
+/**
+ * API: Create a web call (browser voice session via Retell)
+ * Frontend calls this, gets an access_token, then uses Retell Web SDK.
+ */
+router.post('/web-call', authenticate, async (req, res) => {
+  try {
+    const { agentId, botId, metadata } = req.body;
+
+    // Determine Retell agent to use
+    let retellAgentId = agentId;
+
+    if (!retellAgentId && botId) {
+      const [voiceAgent] = await db
+        .select()
+        .from(voiceAgents)
+        .where(eq(voiceAgents.botId, botId))
+        .limit(1);
+
+      retellAgentId = voiceAgent?.providerAgentId;
+    }
+
+    if (!retellAgentId) {
+      retellAgentId = env.RETELL_DEFAULT_VOICE_ID;
+    }
+
+    if (!retellAgentId) {
+      return res.status(400).json({ error: 'No Retell agent configured' });
+    }
+
+    const webCall = await retellService.createWebCall({
+      agent_id: retellAgentId,
+      metadata: metadata || {},
+    });
+
+    res.json({
+      callId: webCall.call_id,
+      accessToken: webCall.access_token,
+      agentId: webCall.agent_id,
+    });
+  } catch (error) {
+    console.error('Error creating web call:', error);
+    res.status(500).json({ error: 'Failed to create web call' });
   }
 });
 
@@ -324,44 +313,46 @@ router.post('/status', async (req, res) => {
 });
 
 /**
- * Helper: Attempt to capture lead information from conversation
+ * Public API: Voice preview — returns Retell voices info
  */
-async function attemptLeadCapture(
-  speechResult: string,
-  voiceCall: any,
-  voiceAgent: any,
-) {
-  // Simple pattern matching for email and phone
-  const emailRegex = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/;
-  const phoneRegex = /(\d{3}[-.]?\d{3}[-.]?\d{4})/;
-
-  const email = speechResult.match(emailRegex)?.[1];
-  const phone = speechResult.match(phoneRegex)?.[1];
-
-  // If we captured email or phone, create a lead
-  if (email || phone) {
-    const leadId = uuidv4();
-    await db.insert(leads).values({
-      id: leadId,
-      name: 'Voice Call Lead', // Can be extracted with NLP
-      email: email || 'unknown@voice.call',
-      phone: phone || voiceCall.fromNumber,
-      sourceBotId: voiceAgent.botId,
-      organizationId: voiceAgent.organizationId,
-      status: 'New',
-      score: 50,
-      createdAt: new Date(),
+router.post('/preview', async (_req, res) => {
+  try {
+    // For now return a preview using Retell's demo web call
+    // In production, this could create a short demo web call
+    res.json({
+      message: 'Voice preview available via web call',
+      voices: retellService.getAvailableVoices(),
     });
-
-    await db
-      .update(voiceCalls)
-      .set({
-        leadCaptured: true,
-        leadId,
-      })
-      .where(eq(voiceCalls.id, voiceCall.id));
+  } catch (error) {
+    console.error('Voice preview error:', error);
+    res.status(500).json({ error: 'Voice preview unavailable' });
   }
-}
+});
+
+/**
+ * API: List available Retell voices
+ */
+router.get('/voices', async (_req, res) => {
+  try {
+    const voices = retellService.getAvailableVoices();
+    res.json({ voices });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch voices' });
+  }
+});
+
+/**
+ * API: List Retell agents
+ */
+router.get('/retell-agents', authenticate, async (_req, res) => {
+  try {
+    const agents = await retellService.listAgents();
+    res.json({ agents });
+  } catch (error) {
+    console.error('Error listing Retell agents:', error);
+    res.status(500).json({ error: 'Failed to list agents' });
+  }
+});
 
 /**
  * Management API: Get voice agent configuration for a bot
@@ -374,7 +365,8 @@ router.get('/agents/:botId', authenticate, async (req, res) => {
     if (botId === 'new') {
       return res.json({
         enabled: false,
-        voiceId: 'professional-female-us',
+        provider: 'retell',
+        voiceId: 'retell-Marissa',
         greeting: 'Hello! How can I help you today?',
         transferEnabled: false,
         transferNumber: '',
@@ -431,9 +423,13 @@ router.post('/agents/:botId', authenticate, async (req, res) => {
         id: voiceAgentId,
         botId,
         organizationId: bot.organizationId,
+        provider: 'retell',
+        providerAgentId: config.providerAgentId || null,
         enabled: config.enabled || false,
-        voiceId: config.voiceId || 'professional-female-us',
+        voiceId: config.voiceId || 'retell-Marissa',
+        voiceName: config.voiceName || 'Marissa',
         greeting: config.greeting || 'Hello! How can I help you today?',
+        systemPrompt: config.systemPrompt || 'You are a helpful AI receptionist.',
         transferEnabled: config.transferEnabled || false,
         transferNumber: config.transferNumber || null,
         transferTriggers: config.transferTriggers || [],
@@ -463,9 +459,13 @@ router.put('/agents/:botId', authenticate, async (req, res) => {
     const [voiceAgent] = await db
       .update(voiceAgents)
       .set({
+        provider: 'retell',
+        providerAgentId: config.providerAgentId,
         enabled: config.enabled,
         voiceId: config.voiceId,
+        voiceName: config.voiceName,
         greeting: config.greeting,
+        systemPrompt: config.systemPrompt,
         transferEnabled: config.transferEnabled,
         transferNumber: config.transferNumber,
         transferTriggers: config.transferTriggers,
@@ -498,14 +498,12 @@ router.post('/agents/:botId/provision', authenticate, async (req, res) => {
     const { botId } = req.params;
     const { areaCode } = req.body || {};
 
-    // Don't allow provisioning for new/unsaved bots
     if (botId === 'new' || !botId) {
       return res
         .status(400)
         .json({ error: 'Bot must be saved before provisioning phone number' });
     }
 
-    // Get voice agent
     const [voiceAgent] = await db
       .select()
       .from(voiceAgents)
@@ -525,7 +523,6 @@ router.post('/agents/:botId/provision', authenticate, async (req, res) => {
         areaCode,
       );
 
-      // Update voice agent with phone number
       await db
         .update(voiceAgents)
         .set({ phoneNumber, updatedAt: new Date() })
@@ -542,29 +539,6 @@ router.post('/agents/:botId/provision', authenticate, async (req, res) => {
   } catch (error) {
     console.error('Error provisioning phone number:', error);
     res.status(500).json({ error: 'Failed to provision phone number' });
-  }
-});
-
-/**
- * Public API: Voice preview (used by landing page demo)
- * Proxies Cartesia TTS so the API key stays server-side.
- */
-router.post('/preview', async (req, res) => {
-  try {
-    const audio = await cartesiaService.generateSpeech(
-      'Hello! This is Sarah, your AI assistant. I noticed you were looking for information about our services. How can I help you today?',
-      'f786b574-daa5-4673-aa0c-cbe3e8534c02',
-      { language: 'en' },
-    );
-    res.set({
-      'Content-Type': 'audio/wav',
-      'Content-Length': audio.length.toString(),
-      'Cache-Control': 'public, max-age=3600',
-    });
-    res.send(audio);
-  } catch (error) {
-    console.error('Voice preview error:', error);
-    res.status(500).json({ error: 'Voice preview unavailable' });
   }
 });
 

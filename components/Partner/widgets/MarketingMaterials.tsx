@@ -297,14 +297,14 @@ export const MarketingMaterials: React.FC = () => {
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-slate-900">{item.title}</span>
-                    {'badge' in item && item.badge && (
+                    {'badge' in item && (item as any).badge && (
                       <span className="px-1.5 py-0.5 bg-orange-100 text-orange-700 text-[10px] font-bold rounded">
-                        {item.badge}
+                        {String((item as any).badge)}
                       </span>
                     )}
                   </div>
                   <div className="text-xs text-slate-500 mt-1">
-                    {item.description}
+                    {String(item.description)}
                   </div>
                 </div>
                 <button

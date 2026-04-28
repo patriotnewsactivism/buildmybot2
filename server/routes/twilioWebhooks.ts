@@ -1,67 +1,106 @@
 import { eq, sql } from 'drizzle-orm';
 import express from 'express';
 import twilio from 'twilio';
-import { users } from '../../shared/schema';
+import { users, voiceAgents, voiceCalls } from '../../shared/schema';
 import { db } from '../db';
 import { env } from '../env';
+import { retellService } from '../services/voice/RetellService';
+import { v4 as uuidv4 } from 'uuid';
 
 const router = express.Router();
 
-// Handle incoming voice calls
+// Handle incoming voice calls — Retell AI integration
 router.post('/voice/twilio', async (req, res) => {
   try {
-    const { To } = req.body;
-
-    // Find the user who owns this phone number
-    // Note: We're searching in the JSONB column phoneConfig
-    const [user] = await db
-      .select()
-      .from(users)
-      .where(sql`phone_config->>'twilioPhoneNumber' = ${To}`);
-
+    const { To, From, CallSid } = req.body;
     const VoiceResponse = twilio.twiml.VoiceResponse;
     const response = new VoiceResponse();
 
-    if (!user) {
+    // ── 1. Find voice agent by phone number ──────────────────────────────────
+    const [voiceAgent] = await db
+      .select()
+      .from(voiceAgents)
+      .where(eq(voiceAgents.phoneNumber, To))
+      .limit(1);
+
+    // Fall back to legacy user-level phone config
+    const [user] = !voiceAgent
+      ? await db
+          .select()
+          .from(users)
+          .where(sql`phone_config->>'twilioPhoneNumber' = ${To}`)
+      : [null];
+
+    if (!voiceAgent && !user) {
       console.warn(`Incoming call to unassigned number: ${To}`);
       response.say('This number is not currently assigned to an active agent.');
       res.type('text/xml');
       return res.send(response.toString());
     }
 
-    const config = (user.phoneConfig as any) || {};
+    // ── 2. Determine which Retell agent to use ───────────────────────────────
+    const retellAgentId =
+      voiceAgent?.providerAgentId || env.RETELL_DEFAULT_VOICE_ID;
 
-    // If delegation link is set, forward the call
-    if (config.delegationLink?.startsWith('tel:')) {
-      const forwardNumber = config.delegationLink.replace('tel:', '');
-      response.dial(forwardNumber);
-    } else {
-      // Connect to Media Stream for AI Voice Agent
-      // This connects the call to our WebSocket server
-      const connect = response.connect();
-      const stream = connect.stream({
-        url: `wss://${req.headers.host}/api/ws/voice`,
-        track: 'inbound_track', // we might change this based on bidirectional needs
-      });
-      // Pass metadata to the stream so we know which user/voice to load
-      stream.parameter({
-        name: 'userId',
-        value: user.id,
-      });
-      stream.parameter({
-        name: 'introMessage',
-        value: config.introMessage || 'Hello, how can I help you?',
-      });
-      stream.parameter({
-        name: 'voiceId',
-        value: config.voiceId || 'a0e99841-438c-4a64-b679-ae501e7d6091',
-      });
-
-      // Fallback if stream fails
+    if (!retellAgentId) {
+      console.error('No Retell agent ID configured for incoming call to', To);
       response.say(
-        'We are having trouble connecting to the AI agent. Please try again later.',
+        'This line is not yet configured. Please try again later.',
       );
+      res.type('text/xml');
+      return res.send(response.toString());
     }
+
+    // ── 3. Build dynamic variables from voice agent config ───────────────────
+    const dynamicVars: Record<string, string> = {};
+    if (voiceAgent?.greeting) dynamicVars.greeting = voiceAgent.greeting;
+    if (voiceAgent?.systemPrompt)
+      dynamicVars.system_prompt = voiceAgent.systemPrompt;
+    if (voiceAgent?.transferNumber)
+      dynamicVars.transfer_number = voiceAgent.transferNumber;
+
+    // ── 4. Register the call with Retell AI ──────────────────────────────────
+    const retellCall = await retellService.registerTwilioCall(
+      retellAgentId,
+      From,
+      To,
+      {
+        voiceAgentId: voiceAgent?.id || 'legacy',
+        userId: user?.id || voiceAgent?.organizationId || 'unknown',
+        twilioCallSid: CallSid,
+      },
+      Object.keys(dynamicVars).length > 0 ? dynamicVars : undefined,
+    );
+
+    console.log(
+      `Retell call registered: ${retellCall.call_id} → agent ${retellAgentId}`,
+    );
+
+    // ── 5. Create call record in our DB ──────────────────────────────────────
+    if (voiceAgent) {
+      const callId = uuidv4();
+      await db.insert(voiceCalls).values({
+        id: callId,
+        voiceAgentId: voiceAgent.id,
+        organizationId: voiceAgent.organizationId,
+        botId: voiceAgent.botId,
+        twilioCallSid: CallSid,
+        fromNumber: From,
+        toNumber: To,
+        direction: 'inbound',
+        status: 'in-progress',
+        startedAt: new Date(),
+      });
+    }
+
+    // ── 6. Connect Twilio stream → Retell WebSocket ──────────────────────────
+    const connect = response.connect();
+    connect.stream({ url: retellCall.websocket_url });
+
+    // Fallback if the stream connection fails
+    response.say(
+      'We are having trouble connecting to the AI agent. Please try again later.',
+    );
 
     res.type('text/xml');
     res.send(response.toString());
@@ -75,7 +114,7 @@ router.post('/voice/twilio', async (req, res) => {
   }
 });
 
-// Handle incoming SMS
+// Handle incoming SMS (unchanged)
 router.post('/sms/twilio', async (req, res) => {
   try {
     const { To, From, Body } = req.body;
@@ -91,13 +130,7 @@ router.post('/sms/twilio', async (req, res) => {
     if (!user) {
       response.message('This number is not assigned.');
     } else {
-      // Here we would typically trigger the text bot logic
-      // For now, simple auto-response or nothing
-      // We could also forward to the user's lead CRM
       console.log(`Received SMS for user ${user.id} from ${From}: ${Body}`);
-
-      // Optional: Check if we should forward or reply
-      // response.message('Thanks for your message. An agent will be with you shortly.');
     }
 
     res.type('text/xml');
