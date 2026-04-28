@@ -1,0 +1,15 @@
+# Embed script - allow cross-origin
+/embed.js
+  Access-Control-Allow-Origin: *
+  Cache-Control: public, max-age=3600
+
+# Chat widget iframe - allow framing from anywhere
+/chat/*
+  X-Frame-Options: ALLOWALL
+  Content-Security-Policy: frame-ancestors *
+
+# Global security headers
+/*
+  X-Content-Type-Options: nosniff
+  X-XSS-Protection: 1; mode=block
+  Referrer-Policy: strict-origin-when-cross-origin
