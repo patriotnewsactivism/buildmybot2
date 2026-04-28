@@ -322,24 +322,32 @@ export const LandingPage: React.FC<LandingProps> = ({
 
   const faqs = [
     {
-      q: 'How quickly can I get started?',
-      a: "Most businesses are up and running in under 5 minutes. Just paste your website URL, customize your bot's personality, and copy one line of code to your site. No technical expertise required.",
+      q: 'How realistic does the voice agent actually sound?',
+      a: "This is our biggest differentiator. We use Cartesia's cutting-edge neural voice synthesis — the same caliber of technology used in Hollywood productions. In real-world calls, the vast majority of callers cannot tell they're speaking with AI. It has natural inflection, appropriate pauses, and emotional warmth. It's not the robotic voice you've heard from other services.",
     },
     {
-      q: 'Will the AI sound robotic to my customers?',
-      a: "Not at all. Our AI uses advanced language models and optional voice synthesis (powered by Cartesia) that sounds indistinguishable from a real human. Customers often can't tell they're talking to an AI.",
+      q: 'How quickly can I get started?',
+      a: "Most businesses have their voice agent and chatbot live in under 5 minutes. Paste your website URL, the AI learns your business instantly, then configure your voice agent's personality and phone number. No technical expertise required.",
+    },
+    {
+      q: 'What can the voice agent actually do on a call?',
+      a: "It answers incoming calls with a natural greeting, asks qualification questions you define, captures caller information, books appointments directly into your calendar, provides information about your services, handles objections with trained responses, and transfers to your team when a caller needs a real person. It's a full AI receptionist.",
     },
     {
       q: "What happens if the AI can't answer a question?",
-      a: "The AI is trained to gracefully hand off to a human when needed. It will capture the lead's information and notify you immediately, so no opportunity is ever lost.",
+      a: "The AI gracefully hands off to a human — it can transfer the call to your team in real-time, or capture the lead's details and send you an instant notification. No opportunity is ever lost.",
     },
     {
       q: 'Can I integrate with my existing CRM and tools?',
       a: 'Yes! We integrate with popular CRMs like Salesforce, HubSpot, and Zoho, plus calendar tools like Calendly and Google Calendar. API access is available on Professional plans and above.',
     },
     {
+      q: 'How is this different from other AI phone services?',
+      a: "Most AI phone solutions use basic text-to-speech that sounds obviously robotic. BuildMyBot uses Cartesia's state-of-the-art voice synthesis with sub-second latency, natural breathing patterns, and human-like inflection. Combined with advanced AI understanding, our voice agents have real conversations — not scripted responses. The quality difference is immediately obvious when you hear it.",
+    },
+    {
       q: 'Is my data secure?',
-      a: 'Absolutely. We use enterprise-grade encryption, SOC 2 compliance, and never train our models on your data. Your business information stays yours.',
+      a: 'Absolutely. We use enterprise-grade encryption and never train our models on your data. Your business information and call recordings stay yours.',
     },
     {
       q: 'What if I need to cancel?',
@@ -348,42 +356,80 @@ export const LandingPage: React.FC<LandingProps> = ({
   ];
 
   const VoicePreview = () => (
-    <div className="bg-slate-900 text-white p-8 rounded-3xl border border-slate-800 shadow-2xl relative overflow-hidden group">
-      <div className="absolute top-0 right-0 p-4 opacity-20 group-hover:opacity-40 transition-opacity">
-        <Mic size={120} />
-      </div>
+    <div className="bg-gradient-to-br from-slate-800 to-slate-900 text-white p-6 sm:p-10 rounded-3xl border border-blue-500/20 shadow-2xl relative overflow-hidden group">
+      <div className="absolute inset-0 bg-gradient-to-r from-blue-600/5 to-purple-600/5" />
       <div className="relative z-10">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center animate-pulse">
-            <Phone size={24} />
-          </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
           <div>
-            <h3 className="text-xl font-bold">Cartesia Voice Agent</h3>
-            <p className="text-blue-400 text-sm font-medium">
-              Ultra-Realistic Preview
-            </p>
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-700 rounded-full flex items-center justify-center shadow-lg shadow-blue-500/30">
+                <Phone size={28} className={isVoiceActive ? 'animate-pulse' : ''} />
+              </div>
+              <div>
+                <h3 className="text-2xl font-extrabold">Hear It For Yourself</h3>
+                <p className="text-blue-400 text-sm font-semibold">
+                  Real AI voice — not a recording
+                </p>
+              </div>
+            </div>
+            <div className="bg-white/5 rounded-2xl p-5 mb-6 border border-white/10">
+              <div className="flex items-start gap-3 mb-3">
+                <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center shrink-0 mt-0.5">
+                  <Phone size={14} />
+                </div>
+                <div>
+                  <p className="text-xs text-blue-400 font-semibold mb-1">AI VOICE AGENT — SARAH</p>
+                  <p className="text-slate-200 leading-relaxed italic">
+                    "Hello! This is Sarah from Riverside Dental. I see you're calling about scheduling an appointment.
+                    I'd love to help you find a time that works. Are you looking for a general checkup or something specific?"
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 bg-slate-600 rounded-full flex items-center justify-center shrink-0 mt-0.5">
+                  <Users size={14} />
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400 font-semibold mb-1">CALLER</p>
+                  <p className="text-slate-300 leading-relaxed italic">
+                    "Yeah, I need a cleaning. Do you have anything this Thursday?"
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-4">
+              <button
+                type="button"
+                onClick={handleVoicePreview}
+                className="flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 rounded-xl font-bold text-lg transition-all transform hover:scale-105 shadow-xl shadow-blue-600/30"
+              >
+                {isVoiceActive ? (
+                  <Loader className="animate-spin" size={22} />
+                ) : (
+                  <Play size={22} />
+                )}
+                {isVoiceActive ? 'Playing...' : 'Play Voice Demo'}
+              </button>
+            </div>
           </div>
-        </div>
-        <p className="text-slate-300 mb-8 leading-relaxed max-w-lg text-lg italic">
-          "Hello! This is Sarah, your AI assistant. I noticed you were looking
-          for information about our services. How can I help you today?"
-        </p>
-        <div className="flex flex-wrap gap-4">
-          <button
-            type="button"
-            onClick={handleVoicePreview}
-            className="flex items-center gap-3 px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-xl font-bold transition-all transform hover:scale-105"
-          >
-            {isVoiceActive ? (
-              <Loader className="animate-spin" size={20} />
-            ) : (
-              <Play size={20} />
-            )}
-            {isVoiceActive ? 'Voice Active...' : 'Hear Real Preview'}
-          </button>
-          <div className="flex items-center gap-2 text-slate-500 text-sm">
-            <CheckCircle size={16} className="text-emerald-500" />
-            Powered by Cartesia Turbo
+          <div className="space-y-4">
+            <div className="text-center mb-4">
+              <p className="text-slate-400 text-sm font-semibold uppercase tracking-wider">Why businesses choose our voice</p>
+            </div>
+            {[
+              { label: 'Voice Realism', value: '99%', desc: 'Callers can\'t tell it\'s AI' },
+              { label: 'Response Speed', value: '<1s', desc: 'Natural conversation flow' },
+              { label: 'Call Handling', value: '24/7', desc: 'Never miss another call' },
+              { label: 'Lead Capture', value: '100%', desc: 'Every caller\'s info collected' },
+            ].map((stat) => (
+              <div key={stat.label} className="flex items-center gap-4 bg-white/5 rounded-xl p-4 border border-white/5 hover:bg-white/10 transition-colors">
+                <div className="text-2xl font-extrabold text-blue-400 w-16 text-right">{stat.value}</div>
+                <div>
+                  <p className="font-bold text-sm">{stat.label}</p>
+                  <p className="text-slate-400 text-xs">{stat.desc}</p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -588,6 +634,12 @@ export const LandingPage: React.FC<LandingProps> = ({
             </div>
             <div className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-600">
               <a
+                href="#voice"
+                className="hover:text-blue-700 transition-colors font-bold text-blue-700"
+              >
+                Voice Agent
+              </a>
+              <a
                 href="/features"
                 className="hover:text-blue-700 transition-colors"
               >
@@ -635,6 +687,13 @@ export const LandingPage: React.FC<LandingProps> = ({
           <div className="md:hidden fixed inset-0 top-16 bg-white z-30 animate-in slide-in-from-top-2">
             <div className="flex flex-col p-6 space-y-4">
               <a
+                href="#voice"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="text-lg font-bold text-blue-700 hover:text-blue-800 py-3 border-b border-slate-100"
+              >
+                🎙️ Voice Agent
+              </a>
+              <a
                 href="/features"
                 onClick={() => setIsMobileMenuOpen(false)}
                 className="text-lg font-medium text-slate-700 hover:text-blue-700 py-3 border-b border-slate-100"
@@ -680,23 +739,23 @@ export const LandingPage: React.FC<LandingProps> = ({
         )}
 
         <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14 md:py-20 space-y-12 sm:space-y-16 md:space-y-24">
-          {/* 1. Hero Section */}
+          {/* 1. Hero Section — Chatbot Platform Lead */}
           <section className="text-center space-y-8 pt-6">
             <div className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 px-4 py-2 rounded-full text-xs sm:text-sm font-semibold border border-blue-100 shadow-sm">
-              <Sparkles size={16} className="text-blue-500" /> AI That Never
-              Sleeps, Never Misses a Lead
+              <Sparkles size={16} className="text-blue-500" /> Intelligent AI — Deployed In Minutes, Not Months
             </div>
             <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-slate-900 leading-[1.1] tracking-tight px-2">
-              Stop Losing Leads to
-              <br className="hidden sm:block" /> Slow Response
+              The Easiest Way to Deploy
+              <br className="hidden sm:block" />{' '}
+              <span className="bg-gradient-to-r from-blue-700 to-indigo-600 bg-clip-text text-transparent">AI That Works For You</span>
             </h1>
             <p className="text-lg sm:text-xl font-semibold text-blue-700 mt-2">
-              Close 3x More Deals on Autopilot
+              Intelligent AI Chatbots &amp; Voice Agents for Businesses, Firms &amp; Platforms
             </p>
             <p className="text-base sm:text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed">
-              Your AI sales agent works 24/7, responds in seconds, and never
-              takes a day off. Convert website visitors into paying customers
-              while you sleep.
+              Build and deploy smart AI chatbots that learn your business instantly — plus
+              a lifelike AI voice receptionist that answers calls and sounds indistinguishable
+              from a real person. Affordable, easy to set up, and ready out of the box.
             </p>
             <div className="flex flex-col sm:flex-row justify-center gap-4 pt-4">
               <button
@@ -704,27 +763,24 @@ export const LandingPage: React.FC<LandingProps> = ({
                 onClick={onLogin}
                 className="w-full sm:w-auto bg-blue-700 text-white px-8 py-3 rounded-xl font-bold text-base sm:text-lg hover:bg-blue-800 transition-all shadow-xl shadow-blue-700/30 hover:shadow-2xl hover:shadow-blue-700/40 hover:-translate-y-0.5 flex items-center justify-center gap-3"
               >
-                Start Free <ArrowRight size={20} />
+                Start Building Free <ArrowRight size={20} />
               </button>
               <a
-                href="/demo"
+                href="#voice"
                 className="w-full sm:w-auto bg-white text-slate-700 border-2 border-slate-200 px-8 py-3 rounded-xl font-bold text-base sm:text-lg hover:border-blue-300 hover:text-blue-700 transition-all flex items-center justify-center gap-3 shadow-sm"
               >
-                <Play size={20} /> See It In Action
+                <Phone size={20} /> Hear Our Voice Agent
               </a>
             </div>
             <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 pt-6 text-sm text-slate-500">
               <span className="flex items-center gap-2">
-                <CheckCircle size={16} className="text-emerald-500" /> No credit
-                card required
+                <CheckCircle size={16} className="text-emerald-500" /> No credit card required
               </span>
               <span className="flex items-center gap-2">
-                <CheckCircle size={16} className="text-emerald-500" /> 5-minute
-                setup
+                <CheckCircle size={16} className="text-emerald-500" /> 5-minute setup
               </span>
               <span className="flex items-center gap-2">
-                <CheckCircle size={16} className="text-emerald-500" /> Cancel
-                anytime
+                <CheckCircle size={16} className="text-emerald-500" /> Lifelike AI voice included
               </span>
             </div>
           </section>
@@ -752,6 +808,93 @@ export const LandingPage: React.FC<LandingProps> = ({
                   allowFullScreen
                   className="absolute inset-0 w-full h-full"
                 />
+              </div>
+            </div>
+          </section>
+
+          {/* Voice Agent Showcase — Featured Highlight */}
+          <section id="voice" className="relative bg-gradient-to-br from-slate-900 via-slate-800 to-blue-900 rounded-2xl sm:rounded-3xl p-6 sm:p-10 md:p-16 text-white shadow-2xl overflow-hidden">
+            <div className="absolute inset-0 opacity-5">
+              <div className="absolute top-10 left-10 w-72 h-72 bg-blue-400 rounded-full blur-3xl" />
+              <div className="absolute bottom-10 right-10 w-96 h-96 bg-indigo-500 rounded-full blur-3xl" />
+            </div>
+            <div className="relative z-10">
+              <div className="text-center mb-10 sm:mb-14">
+                <div className="inline-flex items-center gap-2 bg-blue-500/20 border border-blue-400/30 text-blue-300 px-4 py-2 rounded-full text-sm font-bold mb-6">
+                  <Mic size={16} /> ⭐ Featured: AI Voice Receptionist
+                </div>
+                <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-4 leading-tight">
+                  Plus a Lifelike AI Voice Agent
+                  <br className="hidden sm:block" />{' '}
+                  <span className="bg-gradient-to-r from-blue-400 to-cyan-300 bg-clip-text text-transparent">95% Ready Out of the Box</span>
+                </h2>
+                <p className="text-slate-300 text-lg max-w-3xl mx-auto leading-relaxed">
+                  Every BuildMyBot account includes access to our AI voice receptionist — powered by the most
+                  advanced neural voice synthesis available. Your callers hear a warm, natural human conversation.
+                  It answers calls, qualifies leads, books appointments, and transfers when needed. No scripts. No robots.
+                </p>
+              </div>
+
+              <VoicePreview />
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mt-10 sm:mt-14">
+                <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10 text-center hover:bg-white/10 transition-colors">
+                  <Mic className="mx-auto mb-4 text-blue-400" size={32} />
+                  <h4 className="font-bold text-lg mb-2">Natural Inflection</h4>
+                  <p className="text-slate-400 text-sm leading-relaxed">
+                    Real pauses, emphasis, and emotion — not monotone text-to-speech
+                  </p>
+                </div>
+                <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10 text-center hover:bg-white/10 transition-colors">
+                  <Zap className="mx-auto mb-4 text-amber-400" size={32} />
+                  <h4 className="font-bold text-lg mb-2">Sub-Second Response</h4>
+                  <p className="text-slate-400 text-sm leading-relaxed">
+                    No awkward delays — responds as fast as a real person in conversation
+                  </p>
+                </div>
+                <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10 text-center hover:bg-white/10 transition-colors">
+                  <Phone className="mx-auto mb-4 text-emerald-400" size={32} />
+                  <h4 className="font-bold text-lg mb-2">24/7 Live Calls</h4>
+                  <p className="text-slate-400 text-sm leading-relaxed">
+                    Answers every call instantly — 3am Sunday or noon Monday, no difference
+                  </p>
+                </div>
+                <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10 text-center hover:bg-white/10 transition-colors">
+                  <Target className="mx-auto mb-4 text-purple-400" size={32} />
+                  <h4 className="font-bold text-lg mb-2">Smart Qualification</h4>
+                  <p className="text-slate-400 text-sm leading-relaxed">
+                    Asks the right questions, captures info, and books appointments automatically
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-10 sm:mt-14 bg-white/5 backdrop-blur-sm rounded-2xl p-6 sm:p-8 border border-white/10">
+                <h3 className="text-xl sm:text-2xl font-bold mb-6 text-center">What Your Voice Agent Can Do</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {[
+                    { icon: PhoneCall, text: 'Answer inbound calls and greet callers by context' },
+                    { icon: Users, text: 'Qualify leads with custom intake questions' },
+                    { icon: Clock, text: 'Book appointments directly into your calendar' },
+                    { icon: RefreshCcw, text: 'Transfer calls to your team when needed' },
+                    { icon: Bell, text: 'Send instant notifications for hot leads' },
+                    { icon: Shield, text: 'Handle objections with trained responses' },
+                  ].map((item) => (
+                    <div key={item.text} className="flex items-start gap-3 bg-white/5 rounded-xl p-4 border border-white/5">
+                      <item.icon size={20} className="text-blue-400 shrink-0 mt-0.5" />
+                      <span className="text-sm text-slate-200">{item.text}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="text-center mt-10">
+                <button
+                  type="button"
+                  onClick={onLogin}
+                  className="bg-blue-600 text-white px-8 py-4 rounded-xl font-bold text-lg hover:bg-blue-700 transition-all shadow-xl shadow-blue-600/30 hover:shadow-2xl hover:-translate-y-0.5 flex items-center gap-3 mx-auto"
+                >
+                  Get Started — Voice Agent Included <ArrowRight size={20} />
+                </button>
               </div>
             </div>
           </section>
@@ -970,12 +1113,12 @@ export const LandingPage: React.FC<LandingProps> = ({
               </div>
               <ul className="space-y-4">
                 {[
+                  'Missed calls go straight to voicemail — and never call back',
+                  'After-hours callers hang up and call your competitor',
+                  'Hiring receptionists costs $3,000+/month with turnover',
                   'Leads wait hours or days for a response',
-                  'Missed calls during evenings and weekends',
                   'Staff overwhelmed with repetitive questions',
-                  'Leads go cold before follow-up',
-                  'No visibility into conversation quality',
-                  'Competitors steal your hot leads',
+                  'No idea how many leads you\'re losing every week',
                 ].map((item) => (
                   <li
                     key={item}
@@ -996,11 +1139,11 @@ export const LandingPage: React.FC<LandingProps> = ({
               </div>
               <ul className="space-y-4">
                 {[
-                  'Instant responses 24/7/365',
-                  'Every lead qualified automatically',
-                  'Human-like conversations that convert',
-                  'Automatic follow-up sequences',
-                  'Full analytics and lead scoring',
+                  'AI voice agent answers every call — sounds 100% human',
+                  'AI chatbot engages every website visitor instantly',
+                  'Every lead qualified and captured automatically',
+                  'Appointments booked directly into your calendar',
+                  'Fraction of the cost of a human receptionist',
                   'Never lose a lead to competition again',
                 ].map((item) => (
                   <li
@@ -1015,40 +1158,57 @@ export const LandingPage: React.FC<LandingProps> = ({
             </div>
           </section>
 
-          {/* 7. Voice AI Preview */}
-          <section id="voice" className="space-y-8 sm:space-y-12">
+          {/* 7. Chatbot + Voice — Two Ways to Connect (replaced old voice-only section) */}
+          <section className="space-y-8 sm:space-y-12">
             <div className="text-center">
               <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4">
-                AI Phone Receptionist
+                Two Powerful AI Channels
               </h2>
               <p className="text-slate-600 text-lg max-w-2xl mx-auto">
-                When your chat leads want to talk, your AI is ready.
-                Ultra-realistic voice technology handles calls, books
-                appointments, and never puts anyone on hold.
+                Text and voice working together — your AI chatbot handles website visitors
+                while your voice agent answers every phone call.
               </p>
             </div>
-            <VoicePreview />
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
-              <div className="bg-slate-100 p-6 rounded-xl text-center overflow-hidden">
-                <Phone className="mx-auto mb-3 text-blue-900" size={28} />
-                <h4 className="font-bold mb-1">24/7 Availability</h4>
-                <p className="text-slate-600 text-sm leading-relaxed">
-                  Never miss another call, even at 3am
-                </p>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
+              <div className="bg-white rounded-2xl p-8 border-2 border-slate-200 shadow-lg">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                    <MessageSquare size={20} className="text-blue-700" />
+                  </div>
+                  <h3 className="text-xl font-bold">AI Chatbot</h3>
+                </div>
+                <p className="text-slate-600 mb-4">Embed on any website in seconds. Captures leads, answers questions, and books meetings — while you focus on closing deals.</p>
+                <ul className="space-y-2">
+                  {['Drag-and-drop builder — no code', 'Learns from your website automatically', 'Custom personality and branding', 'Lead capture and CRM integration'].map((item) => (
+                    <li key={item} className="flex items-center gap-2 text-sm text-slate-700">
+                      <CheckCircle size={16} className="text-emerald-500 shrink-0" /> {item}
+                    </li>
+                  ))}
+                </ul>
               </div>
-              <div className="bg-slate-100 p-6 rounded-xl text-center overflow-hidden">
-                <Mic className="mx-auto mb-3 text-blue-900" size={28} />
-                <h4 className="font-bold mb-1">Human-Like Voice</h4>
-                <p className="text-slate-600 text-sm leading-relaxed">
-                  Callers won't know it's AI
-                </p>
-              </div>
-              <div className="bg-slate-100 p-6 rounded-xl text-center overflow-hidden">
-                <Target className="mx-auto mb-3 text-blue-900" size={28} />
-                <h4 className="font-bold mb-1">Lead Qualification</h4>
-                <p className="text-slate-600 text-sm leading-relaxed">
-                  Ask intake questions, book appointments
-                </p>
+              <div className="bg-gradient-to-br from-slate-900 to-blue-900 rounded-2xl p-8 text-white border-2 border-blue-700 shadow-lg relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-4 opacity-10">
+                  <Phone size={100} />
+                </div>
+                <div className="relative z-10">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center animate-pulse">
+                      <PhoneCall size={20} className="text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold">AI Voice Agent</h3>
+                      <span className="text-xs text-blue-300 font-semibold uppercase tracking-wider">⭐ Flagship Feature</span>
+                    </div>
+                  </div>
+                  <p className="text-blue-100 mb-4">Handles real phone calls with voices so natural your callers won't know it's AI. Books appointments, qualifies leads, transfers calls — all on autopilot.</p>
+                  <ul className="space-y-2">
+                    {['Ultra-realistic human voice synthesis', 'Answers calls 24/7 — never on hold', 'Books appointments and qualifies leads', 'Transfers to your team when needed'].map((item) => (
+                      <li key={item} className="flex items-center gap-2 text-sm text-blue-100">
+                        <CheckCircle size={16} className="text-emerald-400 shrink-0" /> {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               </div>
             </div>
           </section>
@@ -1499,39 +1659,46 @@ export const LandingPage: React.FC<LandingProps> = ({
           </section>
 
           {/* 12. Final CTA */}
-          <section className="bg-gradient-to-br from-blue-900 to-blue-800 rounded-2xl sm:rounded-3xl p-6 sm:p-10 md:p-16 text-white text-center">
-            <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-extrabold mb-4 sm:mb-6">
-              Ready to Stop Losing Leads?
-            </h2>
-            <p className="text-xl text-blue-200 mb-8 max-w-2xl mx-auto">
-              Start using BuildMyBot today to capture, qualify, and convert
-              leads 24/7. Start free today - no credit card required.
-            </p>
-            <div className="flex flex-col sm:flex-row justify-center gap-4">
-              <button
-                type="button"
-                onClick={onLogin}
-                className="w-full sm:w-auto bg-white text-blue-900 px-8 py-4 rounded-xl font-bold text-lg hover:bg-blue-50 transition flex items-center justify-center gap-2"
-              >
-                Start Free Now <ArrowRight size={20} />
-              </button>
-              <a
-                href="/demo"
-                className="w-full sm:w-auto border-2 border-white text-white px-8 py-4 rounded-xl font-bold text-lg hover:bg-white/10 transition flex items-center justify-center gap-2"
-              >
-                <Play size={20} /> Watch Demo
-              </a>
+          <section className="bg-gradient-to-br from-blue-900 to-blue-800 rounded-2xl sm:rounded-3xl p-6 sm:p-10 md:p-16 text-white text-center relative overflow-hidden">
+            <div className="absolute inset-0 opacity-10">
+              <div className="absolute top-0 left-1/4 w-64 h-64 bg-blue-400 rounded-full blur-3xl" />
+              <div className="absolute bottom-0 right-1/4 w-80 h-80 bg-indigo-400 rounded-full blur-3xl" />
             </div>
-            <div className="mt-8 flex flex-wrap justify-center gap-6 text-blue-200 text-sm">
-              <span className="flex items-center gap-2">
-                <CheckCircle size={16} /> No credit card required
-              </span>
-              <span className="flex items-center gap-2">
-                <CheckCircle size={16} /> 5-minute setup
-              </span>
-              <span className="flex items-center gap-2">
-                <CheckCircle size={16} /> Cancel anytime
-              </span>
+            <div className="relative z-10">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-extrabold mb-4 sm:mb-6">
+                Deploy Intelligent AI For Your Business
+                <br className="hidden sm:block" /> In Minutes — Not Months
+              </h2>
+              <p className="text-xl text-blue-200 mb-8 max-w-3xl mx-auto">
+                AI chatbots that learn your business instantly, plus a lifelike voice receptionist
+                that sounds indistinguishable from a real person. Easy, affordable, and ready today.
+              </p>
+              <div className="flex flex-col sm:flex-row justify-center gap-4">
+                <button
+                  type="button"
+                  onClick={onLogin}
+                  className="w-full sm:w-auto bg-white text-blue-900 px-8 py-4 rounded-xl font-bold text-lg hover:bg-blue-50 transition flex items-center justify-center gap-2 shadow-xl"
+                >
+                  Start Building Free <ArrowRight size={20} />
+                </button>
+                <a
+                  href="#voice"
+                  className="w-full sm:w-auto border-2 border-white text-white px-8 py-4 rounded-xl font-bold text-lg hover:bg-white/10 transition flex items-center justify-center gap-2"
+                >
+                  <Phone size={20} /> Hear The Voice Agent
+                </a>
+              </div>
+              <div className="mt-8 flex flex-wrap justify-center gap-6 text-blue-200 text-sm">
+                <span className="flex items-center gap-2">
+                  <CheckCircle size={16} /> No credit card required
+                </span>
+                <span className="flex items-center gap-2">
+                  <CheckCircle size={16} /> Ultra-realistic voice quality
+                </span>
+                <span className="flex items-center gap-2">
+                  <CheckCircle size={16} /> Live in 5 minutes
+                </span>
+              </div>
             </div>
           </section>
         </main>
@@ -1543,8 +1710,8 @@ export const LandingPage: React.FC<LandingProps> = ({
                 <Bot size={24} /> BuildMyBot
               </div>
               <p className="text-sm">
-                The AI workforce that never sleeps. Convert more leads, close
-                more deals, grow your business.
+                Intelligent AI chatbots and lifelike voice agents for businesses,
+                firms, and platforms. Deploy in minutes.
               </p>
             </div>
             <div>
