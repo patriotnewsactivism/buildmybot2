@@ -128,7 +128,7 @@ export const VoiceAgentConfigComponent: React.FC<VoiceAgentConfigProps> = ({
   }, [bot.id]);
 
   const handleSave = async () => {
-    if (!bot.id) {
+    if (!bot.id || bot.id === 'new') {
       setError('Please save the bot first before configuring voice agent');
       return;
     }
@@ -166,13 +166,20 @@ export const VoiceAgentConfigComponent: React.FC<VoiceAgentConfigProps> = ({
 
     if (newEnabled && !config.phoneNumber) {
       // If enabling and no phone number, provision one
+      if (!bot.id || bot.id === 'new') {
+        setError('Please save the bot first before enabling voice agent');
+        setConfig({ ...config, enabled: false });
+        return;
+      }
       setSaving(true);
       try {
         const response = await fetch(
           buildApiUrl(`/voice/agents/${bot.id}/provision`),
           {
             method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
+            body: JSON.stringify({ areaCode: '855' }),
           },
         );
         if (response.ok) {
