@@ -63,6 +63,7 @@ import {
   partnersRouter,
   phoneRouter,
   revenueRouter,
+  salesAgentsRouter,
   searchRouter,
   teamRouter,
   templatesRouter,
@@ -1600,8 +1601,16 @@ app.use(
 app.use(
   '/api/partners',
   authenticate,
-  authorize(['RESELLER', 'Admin', 'ADMIN', 'MasterAdmin']),
+  authorize(['RESELLER', 'PARTNER', 'Admin', 'ADMIN', 'MasterAdmin']),
   partnersRouter,
+);
+
+// Sales Agent dashboard APIs
+app.use(
+  '/api/agents',
+  authenticate,
+  authorize(['SALES_AGENT', 'RESELLER', 'PARTNER', 'Admin', 'ADMIN', 'MasterAdmin']),
+  salesAgentsRouter,
 );
 
 // Agency billing APIs (for billing arbitrage features)

@@ -97,6 +97,15 @@ export const RESELLER_TIERS = [
   { min: 251, max: 999999, commission: 0.5, label: 'Platinum' },
 ];
 
+/** Affiliate program: 20% lifetime commission on referred accounts */
+export const AFFILIATE_COMMISSION = {
+  rate: 0.20,
+  label: '20% Lifetime',
+  description: 'Earn 20% of every referred account subscription — for life.',
+  minPayoutCents: 2500, // $25 minimum payout
+  payoutFrequency: 'monthly',
+};
+
 export const WHITELABEL_FEE = {
   price: 499,
   intervalDays: 30,
