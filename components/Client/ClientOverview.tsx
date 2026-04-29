@@ -1,12 +1,16 @@
 import {
+  ArrowUpRight,
   BookOpen,
   Bot,
   MessageCircle,
   MessageSquare,
+  Mic,
+  Phone,
   Plus,
   RefreshCw,
   Star,
   TrendingUp,
+  Zap,
 } from 'lucide-react';
 import type React from 'react';
 import { useCallback, useEffect, useState } from 'react';
@@ -32,6 +36,25 @@ interface ClientStats {
   averageLeadScore: number;
 }
 
+interface UsageData {
+  plan: string;
+  conversationsUsed: number;
+  conversationsLimit: number;
+  botsUsed: number;
+  botsLimit: number;
+}
+
+interface VoiceStatus {
+  enabled: boolean;
+  minutesUsed: number;
+  minutesLimit: number;
+}
+
+interface TrendPoint {
+  date: string;
+  count: number;
+}
+
 interface BotData {
   id: string;
   name: string;
@@ -50,12 +73,73 @@ interface LeadData {
   createdAt: string;
 }
 
+/** Tiny inline sparkline component — pure SVG, no dependencies */
+const Sparkline: React.FC<{ data: number[]; color?: string; height?: number }> = ({
+  data,
+  color = '#3b82f6',
+  height = 40,
+}) => {
+  if (!data.length) return null;
+  const max = Math.max(...data, 1);
+  const width = 120;
+  const pts = data.map((v, i) => {
+    const x = (i / Math.max(data.length - 1, 1)) * width;
+    const y = height - (v / max) * (height - 4) - 2;
+    return `${x},${y}`;
+  });
+  return (
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="overflow-visible">
+      <polyline fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" points={pts.join(' ')} />
+      {/* Dot on last point */}
+      {pts.length > 0 && (() => {
+        const [lx, ly] = pts[pts.length - 1].split(',');
+        return <circle cx={lx} cy={ly} r="3" fill={color} />;
+      })()}
+    </svg>
+  );
+};
+
+/** Usage bar component */
+const UsageBar: React.FC<{
+  label: string;
+  used: number;
+  limit: number;
+  icon: React.ElementType;
+  unit?: string;
+}> = ({ label, used, limit, icon: Icon, unit = '' }) => {
+  const pct = limit > 0 ? Math.min((used / limit) * 100, 100) : 0;
+  const isHigh = pct >= 80;
+  const isFull = pct >= 100;
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
+          <Icon size={14} className={isFull ? 'text-red-500' : isHigh ? 'text-amber-500' : 'text-slate-400'} />
+          {label}
+        </div>
+        <span className={`text-xs font-semibold ${isFull ? 'text-red-600' : isHigh ? 'text-amber-600' : 'text-slate-500'}`}>
+          {used.toLocaleString()}{unit} / {limit >= 9999 ? '∞' : limit.toLocaleString()}{unit}
+        </span>
+      </div>
+      <div className="w-full bg-slate-100 rounded-full h-2">
+        <div
+          className={`h-2 rounded-full transition-all ${isFull ? 'bg-red-500' : isHigh ? 'bg-amber-500' : 'bg-blue-500'}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  );
+};
+
 export const ClientOverview: React.FC<ClientOverviewProps> = ({
   user,
   onCreateBot,
   onOpenLeads,
 }) => {
   const [stats, setStats] = useState<ClientStats | null>(null);
+  const [usage, setUsage] = useState<UsageData | null>(null);
+  const [voice, setVoice] = useState<VoiceStatus | null>(null);
+  const [conversationTrend, setConversationTrend] = useState<TrendPoint[]>([]);
   const [recentBots, setRecentBots] = useState<BotData[]>([]);
   const [recentLeads, setRecentLeads] = useState<LeadData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -67,6 +151,9 @@ export const ClientOverview: React.FC<ClientOverviewProps> = ({
     try {
       const data = await dbService.getClientOverview();
       setStats(data.stats);
+      setUsage(data.usage || null);
+      setVoice(data.voice || null);
+      setConversationTrend(data.conversationTrend || []);
       setRecentBots(data.recentBots);
       setRecentLeads(data.recentLeads);
       setLoading(false);
@@ -317,6 +404,96 @@ export const ClientOverview: React.FC<ClientOverviewProps> = ({
             illustration="⭐"
             loading={loading}
           />
+        </div>
+      )}
+
+      {/* Plan Usage & Activity */}
+      {usage && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
+          {/* Usage Meters */}
+          <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-4 md:p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Zap size={18} className="text-blue-600" />
+                <h3 className="text-sm md:text-base font-semibold text-slate-900">Plan Usage</h3>
+              </div>
+              <span className="px-2.5 py-1 bg-blue-50 text-blue-700 text-xs font-semibold rounded-full">
+                {usage.plan} Plan
+              </span>
+            </div>
+            <div className="space-y-4">
+              <UsageBar
+                label="Conversations"
+                used={usage.conversationsUsed}
+                limit={usage.conversationsLimit}
+                icon={MessageSquare}
+                unit=""
+              />
+              <UsageBar
+                label="Bots"
+                used={usage.botsUsed}
+                limit={usage.botsLimit}
+                icon={Bot}
+                unit=""
+              />
+              {voice && (
+                <UsageBar
+                  label="Voice Minutes"
+                  used={voice.minutesUsed}
+                  limit={voice.minutesLimit}
+                  icon={Phone}
+                  unit=" min"
+                />
+              )}
+            </div>
+            {usage.conversationsUsed >= usage.conversationsLimit * 0.8 && (
+              <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center justify-between">
+                <p className="text-xs text-amber-800">
+                  You're approaching your conversation limit. Upgrade for more.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => (window.location.pathname = '/billing')}
+                  className="text-xs font-semibold text-amber-700 hover:text-amber-900 flex items-center gap-1"
+                >
+                  Upgrade <ArrowUpRight size={12} />
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Conversation Trend (7-day sparkline) */}
+          <div className="bg-white rounded-xl border border-slate-200 p-4 md:p-6 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <TrendingUp size={18} className="text-emerald-600" />
+                <h3 className="text-sm md:text-base font-semibold text-slate-900">7-Day Activity</h3>
+              </div>
+              <p className="text-xs text-slate-500 mb-4">Conversations per day</p>
+            </div>
+            <div className="flex items-end justify-between gap-4">
+              <Sparkline data={conversationTrend.map((t) => t.count)} color="#10b981" height={48} />
+              <div className="text-right">
+                <div className="text-2xl font-bold text-slate-900">
+                  {conversationTrend.reduce((s, t) => s + t.count, 0)}
+                </div>
+                <div className="text-xs text-slate-500">this week</div>
+              </div>
+            </div>
+            {voice && (
+              <div className="mt-4 pt-4 border-t border-slate-100 flex items-center gap-2">
+                <div className={`w-2 h-2 rounded-full ${voice.enabled ? 'bg-green-500' : 'bg-slate-300'}`} />
+                <span className="text-xs text-slate-600">
+                  Voice Agent {voice.enabled ? 'Active' : 'Inactive'}
+                </span>
+                {voice.enabled && (
+                  <span className="text-xs text-slate-400 ml-auto">
+                    {voice.minutesUsed}/{voice.minutesLimit} min
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
 

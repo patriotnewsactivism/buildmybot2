@@ -17,9 +17,19 @@ import {
   conversations,
   leads,
   users,
+  voiceAgents,
 } from '../../shared/schema';
 import { db } from '../db';
 import { AnalyticsService } from '../services/AnalyticsService';
+
+/** Plan limits (mirrored from client-side constants for server use) */
+const PLAN_LIMITS: Record<string, { bots: number; conversations: number }> = {
+  FREE: { bots: 1, conversations: 60 },
+  STARTER: { bots: 1, conversations: 750 },
+  PROFESSIONAL: { bots: 5, conversations: 5000 },
+  EXECUTIVE: { bots: 10, conversations: 30000 },
+  ENTERPRISE: { bots: 9999, conversations: 50000 },
+};
 
 const router = Router();
 const analyticsService = new AnalyticsService();
@@ -32,23 +42,78 @@ router.get('/overview', async (req, res) => {
     }
 
     const organizationId = user.organizationId;
-    const [botCount] = await db
-      .select({ count: sql<number>`COUNT(*)` })
-      .from(bots)
-      .where(
-        organizationId
-          ? eq(bots.organizationId, organizationId)
-          : eq(bots.userId, user.id),
-      );
+    const scope = (table: any) =>
+      organizationId
+        ? eq(table.organizationId, organizationId)
+        : eq(table.userId, user.id);
 
-    const [leadCount] = await db
+    // --- Core counts (parallel) ---
+    const [
+      [botCount],
+      [leadCount],
+      recentBots,
+      recentLeads,
+    ] = await Promise.all([
+      db.select({ count: sql<number>`COUNT(*)` }).from(bots).where(scope(bots)),
+      db.select({ count: sql<number>`COUNT(*)` }).from(leads).where(scope(leads)),
+      db.select().from(bots).where(scope(bots)).orderBy(desc(bots.createdAt)).limit(6),
+      db.select().from(leads).where(scope(leads)).orderBy(desc(leads.createdAt)).limit(10),
+    ]);
+
+    // --- Plan usage: conversations this billing month ---
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const [conversationsThisMonth] = await db
       .select({ count: sql<number>`COUNT(*)` })
-      .from(leads)
-      .where(
-        organizationId
-          ? eq(leads.organizationId, organizationId)
-          : eq(leads.userId, user.id),
-      );
+      .from(conversations)
+      .where(and(scope(conversations), gte(conversations.timestamp, monthStart)));
+
+    const plan = (user.plan || 'FREE').toUpperCase();
+    const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.FREE;
+
+    // --- 7-day conversation trend (for sparkline) ---
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const dailyConversations = await db
+      .select({
+        date: sql<string>`TO_CHAR(${conversations.timestamp}, 'YYYY-MM-DD')`,
+        count: sql<number>`COUNT(*)`,
+      })
+      .from(conversations)
+      .where(and(scope(conversations), gte(conversations.timestamp, sevenDaysAgo)))
+      .groupBy(sql`TO_CHAR(${conversations.timestamp}, 'YYYY-MM-DD')`)
+      .orderBy(sql`TO_CHAR(${conversations.timestamp}, 'YYYY-MM-DD')`);
+
+    // Fill in missing days for a complete 7-day series
+    const trend: { date: string; count: number }[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const key = d.toISOString().slice(0, 10);
+      const found = dailyConversations.find((r) => r.date === key);
+      trend.push({ date: key, count: found ? Number(found.count) : 0 });
+    }
+
+    // --- Voice agent status ---
+    let voiceStatus: { enabled: boolean; minutesUsed: number; minutesLimit: number } | null = null;
+    if (organizationId) {
+      const [va] = await db
+        .select({
+          enabled: voiceAgents.enabled,
+          minutesUsed: voiceAgents.minutesUsed,
+          minutesLimit: voiceAgents.minutesLimit,
+        })
+        .from(voiceAgents)
+        .where(eq(voiceAgents.organizationId, organizationId))
+        .limit(1);
+      if (va) {
+        voiceStatus = {
+          enabled: va.enabled ?? false,
+          minutesUsed: va.minutesUsed ?? 0,
+          minutesLimit: va.minutesLimit ?? 150,
+        };
+      }
+    }
 
     const conversion = organizationId
       ? await analyticsService.getConversionMetrics(organizationId)
@@ -59,28 +124,6 @@ router.get('/overview', async (req, res) => {
           averageScore: 0,
         };
 
-    const recentBots = await db
-      .select()
-      .from(bots)
-      .where(
-        organizationId
-          ? eq(bots.organizationId, organizationId)
-          : eq(bots.userId, user.id),
-      )
-      .orderBy(desc(bots.createdAt))
-      .limit(6);
-
-    const recentLeads = await db
-      .select()
-      .from(leads)
-      .where(
-        organizationId
-          ? eq(leads.organizationId, organizationId)
-          : eq(leads.userId, user.id),
-      )
-      .orderBy(desc(leads.createdAt))
-      .limit(10);
-
     res.json({
       stats: {
         botCount: botCount?.count || 0,
@@ -88,6 +131,15 @@ router.get('/overview', async (req, res) => {
         conversionRate: conversion.conversionRate,
         averageLeadScore: conversion.averageScore,
       },
+      usage: {
+        plan,
+        conversationsUsed: Number(conversationsThisMonth?.count || 0),
+        conversationsLimit: limits.conversations,
+        botsUsed: Number(botCount?.count || 0),
+        botsLimit: limits.bots,
+      },
+      voice: voiceStatus,
+      conversationTrend: trend,
       recentBots,
       recentLeads,
     });
