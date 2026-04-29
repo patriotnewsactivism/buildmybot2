@@ -23,6 +23,8 @@ import {
   YAxis,
 } from 'recharts';
 import { AdminDashboard } from './components/Admin/AdminDashboard';
+import { AffiliateDashboard } from './components/Affiliate/AffiliateDashboard';
+import { AgentDashboard } from './components/Agent/AgentDashboard';
 import {
   AdminDashboardV2,
   AdminTab,
@@ -201,8 +203,12 @@ function App() {
         mappedUser.role === UserRole.ADMIN
       ) {
         setCurrentView('admin');
-      } else if (mappedUser.role === UserRole.RESELLER) {
+      } else if (mappedUser.role === UserRole.PARTNER || mappedUser.role === UserRole.RESELLER) {
         setCurrentView('reseller');
+      } else if (mappedUser.role === UserRole.SALES_AGENT) {
+        setCurrentView('agent');
+      } else if (mappedUser.role === UserRole.AFFILIATE) {
+        setCurrentView('affiliate');
       } else if (mappedUser.role === UserRole.CLIENT) {
         setCurrentView('client');
       }
@@ -789,6 +795,10 @@ function App() {
                     // Map URL paths to tab state
                     if (path === '/partner/clients')
                       setPartnerActiveTab('clients');
+                    else if (path === '/partner/agents')
+                      setPartnerActiveTab('agents');
+                    else if (path === '/partner/conversations')
+                      setPartnerActiveTab('conversations');
                     else if (path === '/partner/commissions')
                       setPartnerActiveTab('commissions');
                     else if (path === '/partner/marketing')
@@ -859,6 +869,34 @@ function App() {
                   />
                 </DashboardShell>
               </RouteGuard>
+            )}
+
+            {/* Sales Agent Dashboard */}
+            {currentView === 'agent' && (
+              <DashboardShell
+                currentPath="/agent"
+                onNavigate={(path) => {
+                  // Agent views are handled internally by the dashboard
+                }}
+                onLogout={handleLogout}
+                onSettingsClick={() => setCurrentView('settings')}
+              >
+                <AgentDashboard />
+              </DashboardShell>
+            )}
+
+            {/* Affiliate Dashboard */}
+            {currentView === 'affiliate' && (
+              <DashboardShell
+                currentPath="/affiliate"
+                onNavigate={(path) => {
+                  // Affiliate views are handled internally by the dashboard
+                }}
+                onLogout={handleLogout}
+                onSettingsClick={() => setCurrentView('settings')}
+              >
+                <AffiliateDashboard />
+              </DashboardShell>
             )}
 
             {/* Legacy views - not using DashboardShell yet */}
