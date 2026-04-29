@@ -294,6 +294,64 @@ router.post('/events', async (req, res) => {
   }
 });
 
+// ========================================
+// CLIENT CONVERSATION AUDIT LOG
+// ========================================
+
+/** Client views their own conversations with full transcripts */
+router.get('/conversations', async (req, res) => {
+  try {
+    const user = (req as any).user;
+    if (!user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const organizationId = user.organizationId;
+    const { limit = '50', offset = '0', sentiment, botId } = req.query;
+
+    const scope = organizationId
+      ? eq(conversations.organizationId, organizationId)
+      : eq(conversations.userId, user.id);
+
+    const conditions: SQL[] = [scope];
+
+    if (sentiment && sentiment !== 'all') {
+      conditions.push(eq(conversations.sentiment, sentiment as string));
+    }
+    if (botId) {
+      conditions.push(eq(conversations.botId, botId as string));
+    }
+
+    const results = await db
+      .select({
+        id: conversations.id,
+        botId: conversations.botId,
+        botName: bots.name,
+        messages: conversations.messages,
+        sentiment: conversations.sentiment,
+        timestamp: conversations.timestamp,
+        sessionId: conversations.sessionId,
+        organizationId: conversations.organizationId,
+      })
+      .from(conversations)
+      .leftJoin(bots, eq(conversations.botId, bots.id))
+      .where(and(...conditions))
+      .orderBy(desc(conversations.timestamp))
+      .limit(Number(limit))
+      .offset(Number(offset));
+
+    const [{ count: total }] = await db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(conversations)
+      .where(and(...conditions));
+
+    res.json({ conversations: results, total: Number(total) });
+  } catch (error) {
+    console.error('Client conversations error:', error);
+    res.status(500).json({ error: 'Failed to fetch conversations' });
+  }
+});
+
 router.get('/analytics/dashboard', async (req, res) => {
   try {
     const user = (req as any).user;

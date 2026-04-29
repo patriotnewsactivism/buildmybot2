@@ -21,6 +21,7 @@ import notificationsRouter from './notifications';
 import organizationsRouter from './organizations';
 import partnersRouter from './partners';
 import { phoneRouter } from './phone';
+import salesAgentsRouter from './salesAgents';
 import revenueRouter from './revenue';
 import searchRouter from './search';
 import teamRouter from './team';
@@ -57,6 +58,7 @@ export {
   integrationsRouter,
   phoneRouter,
   twilioWebhooksRouter,
+  salesAgentsRouter,
   voiceAgentsRouter,
   voiceRouter,
 };

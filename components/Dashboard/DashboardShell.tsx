@@ -60,14 +60,16 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
     return <div>Loading...</div>;
   }
 
-  // Determine role and navigation
+  // Determine role and navigation (4-tier hierarchy + affiliate)
   const getRole = (): DashboardRole => {
     const isAdmin =
       user.role === UserRole.ADMIN ||
       user.role === UserRole.MASTER_ADMIN ||
       user.role === UserRole.ADMIN_LEGACY;
     if (isAdmin) return 'admin';
-    if (user.role === UserRole.RESELLER) return 'reseller';
+    if (user.role === UserRole.PARTNER || user.role === UserRole.RESELLER) return 'partner';
+    if (user.role === UserRole.SALES_AGENT) return 'sales_agent';
+    if (user.role === UserRole.AFFILIATE) return 'affiliate';
     if (user.role === UserRole.CLIENT) return 'client';
     return 'owner';
   };

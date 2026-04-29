@@ -5,6 +5,9 @@ export enum UserRole {
   MASTER_ADMIN = 'MasterAdmin',
   RESELLER = 'RESELLER',
   CLIENT = 'CLIENT',
+  SALES_AGENT = 'SALES_AGENT',
+  PARTNER = 'PARTNER',
+  AFFILIATE = 'AFFILIATE',
 }
 
 export enum PlanType {
