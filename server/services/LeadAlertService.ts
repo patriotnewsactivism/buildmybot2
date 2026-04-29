@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import nodemailer from 'nodemailer';
-import { bots, users } from '../../shared/schema';
+import { bots, users, voiceAgents } from '../../shared/schema';
 import { db } from '../db';
 import { env } from '../env';
 import { whitelabelService } from './WhitelabelService';
@@ -203,24 +203,69 @@ export class LeadAlertService {
   }
 
   /**
+   * Resolve the best available phone number for the bot owner.
+   *
+   * Priority:
+   *   1. user.phone_config.notification_phone (explicit SMS opt-in)
+   *   2. voice_agent.transfer_number for the same organization
+   *      (this is the number calls get forwarded to — typically the owner)
+   *   3. null — no phone available
+   */
+  private async resolveOwnerPhone(
+    userId: string,
+    organizationId?: string | null,
+  ): Promise<string | null> {
+    // 1. Check user's phone_config
+    const [owner] = await db
+      .select({ phoneConfig: users.phoneConfig })
+      .from(users)
+      .where(eq(users.id, userId));
+
+    if (owner?.phoneConfig) {
+      const config = owner.phoneConfig as Record<string, unknown>;
+      const notifPhone = config.notification_phone || config.phone;
+      if (typeof notifPhone === 'string' && notifPhone.length >= 10) {
+        // Ensure E.164 format
+        return notifPhone.startsWith('+') ? notifPhone : `+1${notifPhone.replace(/\D/g, '')}`;
+      }
+    }
+
+    // 2. Fall back to the org's voice agent transfer_number
+    if (organizationId) {
+      const [va] = await db
+        .select({ transferNumber: voiceAgents.transferNumber })
+        .from(voiceAgents)
+        .where(eq(voiceAgents.organizationId, organizationId));
+      if (va?.transferNumber) {
+        const num = va.transferNumber.replace(/\D/g, '');
+        return num.startsWith('1') ? `+${num}` : `+1${num}`;
+      }
+    }
+
+    return null;
+  }
+
+  /**
    * Send SMS alert for hot leads (requires Twilio)
    */
   async sendSmsAlert(data: LeadAlertData): Promise<boolean> {
     if (!env.TWILIO_ACCOUNT_SID || !env.TWILIO_PHONE_NUMBER) {
+      console.warn('[SMS Alert] Twilio not configured — skipping SMS alert');
       return false;
     }
 
-    const { leadName, leadEmail, leadScore, botName } = data;
+    const { leadName, leadEmail, leadPhone, leadScore, botName, conversationContext } = data;
 
-    // Get bot owner's phone
+    // Get bot owner
     const [bot] = await db.select().from(bots).where(eq(bots.id, data.botId));
     if (!bot?.userId) return false;
 
-    const [owner] = await db
-      .select()
-      .from(users)
-      .where(eq(users.id, bot.userId));
-    if (!owner?.phone) return false;
+    // Resolve the best phone number for the owner
+    const ownerPhone = await this.resolveOwnerPhone(bot.userId, data.organizationId);
+    if (!ownerPhone) {
+      console.warn(`[SMS Alert] No phone number found for bot owner ${bot.userId} — skipping SMS`);
+      return false;
+    }
 
     const twilio = await import('twilio');
     const client = twilio.default(
@@ -228,18 +273,26 @@ export class LeadAlertService {
       env.TWILIO_AUTH_TOKEN,
     );
 
-    const message = `🔥 HOT LEAD from ${botName}!\n\nName: ${leadName}\nEmail: ${leadEmail}\nScore: ${leadScore}/100\n\nView: ${env.APP_BASE_URL}/leads/${data.leadId}`;
+    // Build a concise but informative SMS (stay under 3 segments / 480 chars)
+    let message = `🔥 HOT LEAD from ${botName}!\n\nName: ${leadName}\nEmail: ${leadEmail}`;
+    if (leadPhone) message += `\nPhone: ${leadPhone}`;
+    message += `\nScore: ${leadScore}/100`;
+    if (conversationContext) {
+      const snippet = conversationContext.substring(0, 120).replace(/\n/g, ' ');
+      message += `\n\n"${snippet}${conversationContext.length > 120 ? '…' : ''}"`;
+    }
+    message += `\n\nView: ${env.APP_BASE_URL}/leads/${data.leadId}`;
 
     try {
       await client.messages.create({
         body: message,
         from: env.TWILIO_PHONE_NUMBER,
-        to: owner.phone,
+        to: ownerPhone,
       });
-      console.log(`SMS alert sent to ${owner.phone} for lead ${data.leadId}`);
+      console.log(`[SMS Alert] Sent to ${ownerPhone} for lead ${data.leadId} (score: ${leadScore})`);
       return true;
     } catch (error) {
-      console.error('Failed to send SMS alert:', error);
+      console.error('[SMS Alert] Failed to send:', error);
       return false;
     }
   }
