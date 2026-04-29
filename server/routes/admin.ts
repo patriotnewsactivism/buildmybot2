@@ -12,6 +12,7 @@ import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { PLANS, RESELLER_TIERS } from '../../constants';
 import {
+  affiliateReferrals,
   botDocuments,
   bots,
   conversations,
@@ -27,6 +28,8 @@ import {
   organizations,
   partnerClients,
   partnerPayouts,
+  salesAgentClients,
+  salesAgentPartners,
   supportTickets,
   systemSettings,
   users,
@@ -1784,5 +1787,146 @@ router.delete(
     }
   },
 );
+
+// ========================================
+// CONVERSATION AUDIT LOG (Admin sees ALL)
+// ========================================
+
+router.get('/conversations', async (req, res) => {
+  try {
+    const { limit = '50', offset = '0', sentiment, botId, clientId, search } = req.query;
+    const conditions: SQL[] = [];
+
+    if (sentiment && sentiment !== 'all') {
+      conditions.push(eq(conversations.sentiment, sentiment as string));
+    }
+    if (botId) {
+      conditions.push(eq(conversations.botId, botId as string));
+    }
+    if (clientId) {
+      conditions.push(eq(conversations.userId, clientId as string));
+    }
+
+    const results = await db
+      .select({
+        id: conversations.id,
+        botId: conversations.botId,
+        botName: bots.name,
+        messages: conversations.messages,
+        sentiment: conversations.sentiment,
+        timestamp: conversations.timestamp,
+        sessionId: conversations.sessionId,
+        organizationId: conversations.organizationId,
+        clientName: users.name,
+      })
+      .from(conversations)
+      .leftJoin(bots, eq(conversations.botId, bots.id))
+      .leftJoin(users, eq(conversations.userId, users.id))
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(conversations.timestamp))
+      .limit(Number(limit))
+      .offset(Number(offset));
+
+    // Get total count
+    const [{ count: total }] = await db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(conversations)
+      .where(conditions.length > 0 ? and(...conditions) : undefined);
+
+    res.json({ conversations: results, total: Number(total) });
+  } catch (error) {
+    console.error('Admin conversations error:', error);
+    res.status(500).json({ error: 'Failed to fetch conversations' });
+  }
+});
+
+// ========================================
+// SALES AGENT MANAGEMENT
+// ========================================
+
+/** List all sales agents with their partner assignments */
+router.get('/agents', async (req, res) => {
+  try {
+    const agents = await db
+      .select()
+      .from(users)
+      .where(and(eq(users.role, 'SALES_AGENT'), isNull(users.deletedAt)))
+      .orderBy(desc(users.createdAt));
+
+    // Get partner assignments
+    const agentIds = agents.map((a) => a.id);
+    const assignments = agentIds.length > 0
+      ? await db
+          .select()
+          .from(salesAgentPartners)
+          .where(inArray(salesAgentPartners.agentId, agentIds))
+      : [];
+
+    // Get client counts per agent
+    const clientCounts = agentIds.length > 0
+      ? await db
+          .select({
+            agentId: salesAgentClients.agentId,
+            count: sql<number>`COUNT(*)`,
+          })
+          .from(salesAgentClients)
+          .where(inArray(salesAgentClients.agentId, agentIds))
+          .groupBy(salesAgentClients.agentId)
+      : [];
+
+    const enriched = agents.map((agent) => ({
+      ...agent,
+      partnerAssignment: assignments.find((a) => a.agentId === agent.id),
+      clientCount: Number(clientCounts.find((c) => c.agentId === agent.id)?.count || 0),
+    }));
+
+    res.json(enriched);
+  } catch (error) {
+    console.error('Admin agents error:', error);
+    res.status(500).json({ error: 'Failed to fetch agents' });
+  }
+});
+
+// ========================================
+// AFFILIATE MANAGEMENT
+// ========================================
+
+/** List all affiliates with referral stats */
+router.get('/affiliates', async (req, res) => {
+  try {
+    const affiliates = await db
+      .select()
+      .from(users)
+      .where(and(eq(users.role, 'AFFILIATE'), isNull(users.deletedAt)))
+      .orderBy(desc(users.createdAt));
+
+    const affiliateIds = affiliates.map((a) => a.id);
+    const referralStats = affiliateIds.length > 0
+      ? await db
+          .select({
+            affiliateId: affiliateReferrals.affiliateId,
+            referralCount: sql<number>`COUNT(*)`,
+            totalEarned: sql<number>`SUM(${affiliateReferrals.totalEarnedCents})`,
+          })
+          .from(affiliateReferrals)
+          .where(inArray(affiliateReferrals.affiliateId, affiliateIds))
+          .groupBy(affiliateReferrals.affiliateId)
+      : [];
+
+    const enriched = affiliates.map((aff) => {
+      const stats = referralStats.find((r) => r.affiliateId === aff.id);
+      return {
+        ...aff,
+        referralCount: Number(stats?.referralCount || 0),
+        totalEarnedCents: Number(stats?.totalEarned || 0),
+      };
+    });
+
+    res.json(enriched);
+  } catch (error) {
+    console.error('Admin affiliates error:', error);
+    res.status(500).json({ error: 'Failed to fetch affiliates' });
+  }
+});
 
 export default router;
