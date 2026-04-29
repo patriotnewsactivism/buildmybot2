@@ -1,16 +1,19 @@
-import { type SQL, and, count, desc, eq, inArray } from 'drizzle-orm';
+import { type SQL, and, count, desc, eq, inArray, sql } from 'drizzle-orm';
 import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { PLANS, RESELLER_TIERS, WHITELABEL_FEE } from '../../constants';
 import {
   analyticsEvents,
   bots,
+  conversations,
   leads,
   marketingMaterials,
   partnerClients,
   partnerNotes,
   partnerPayouts,
   partnerTasks,
+  salesAgentClients,
+  salesAgentPartners,
   users,
 } from '../../shared/schema';
 import { db } from '../db';
@@ -415,6 +418,139 @@ router.post('/communications/email', async (req, res) => {
   } catch (error) {
     console.error('Partner email log error:', error);
     res.status(500).json({ error: 'Failed to log email' });
+  }
+});
+
+// ========================================
+// PARTNER → AGENT MANAGEMENT
+// ========================================
+
+/** List sales agents under this partner */
+router.get('/agents', async (req: any, res) => {
+  try {
+    const partnerId = req.user?.id;
+    if (!partnerId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const agentLinks = await db
+      .select()
+      .from(salesAgentPartners)
+      .where(eq(salesAgentPartners.partnerId, partnerId));
+
+    if (agentLinks.length === 0) {
+      return res.json([]);
+    }
+
+    const agentIds = agentLinks.map((l) => l.agentId);
+    const agents = await db
+      .select()
+      .from(users)
+      .where(inArray(users.id, agentIds))
+      .orderBy(desc(users.createdAt));
+
+    // Get client counts per agent
+    const clientCounts = await db
+      .select({
+        agentId: salesAgentClients.agentId,
+        count: sql<number>`COUNT(*)`,
+      })
+      .from(salesAgentClients)
+      .where(inArray(salesAgentClients.agentId, agentIds))
+      .groupBy(salesAgentClients.agentId);
+
+    const enriched = agents.map((agent) => ({
+      ...agent,
+      clientCount: Number(clientCounts.find((c) => c.agentId === agent.id)?.count || 0),
+      overrideRate: agentLinks.find((l) => l.agentId === agent.id)?.commissionOverrideRate || 0,
+    }));
+
+    res.json(enriched);
+  } catch (error) {
+    console.error('Partner agents error:', error);
+    res.status(500).json({ error: 'Failed to fetch agents' });
+  }
+});
+
+// ========================================
+// PARTNER → CONVERSATIONS (across all agents' clients)
+// ========================================
+
+/** Partner can view all conversations from their agents' clients */
+router.get('/conversations', async (req: any, res) => {
+  try {
+    const partnerId = req.user?.id;
+    if (!partnerId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const { limit = '50', offset = '0', sentiment } = req.query;
+
+    // Get all agent IDs under this partner
+    const agentLinks = await db
+      .select({ agentId: salesAgentPartners.agentId })
+      .from(salesAgentPartners)
+      .where(eq(salesAgentPartners.partnerId, partnerId));
+
+    // Get all client IDs from partner_clients + agent clients
+    const directClients = await db
+      .select({ clientId: partnerClients.clientId })
+      .from(partnerClients)
+      .where(eq(partnerClients.partnerId, partnerId));
+
+    const agentIds = agentLinks.map((l) => l.agentId);
+    const agentClients = agentIds.length > 0
+      ? await db
+          .select({ clientId: salesAgentClients.clientId })
+          .from(salesAgentClients)
+          .where(inArray(salesAgentClients.agentId, agentIds))
+      : [];
+
+    const allClientIds = [
+      ...new Set([
+        ...directClients.map((c) => c.clientId),
+        ...agentClients.map((c) => c.clientId),
+      ]),
+    ];
+
+    if (allClientIds.length === 0) {
+      return res.json({ conversations: [], total: 0 });
+    }
+
+    const conditions: SQL[] = [inArray(conversations.userId, allClientIds)];
+    if (sentiment && sentiment !== 'all') {
+      conditions.push(eq(conversations.sentiment, sentiment as string));
+    }
+
+    const results = await db
+      .select({
+        id: conversations.id,
+        botId: conversations.botId,
+        botName: bots.name,
+        messages: conversations.messages,
+        sentiment: conversations.sentiment,
+        timestamp: conversations.timestamp,
+        sessionId: conversations.sessionId,
+        organizationId: conversations.organizationId,
+        clientName: users.name,
+      })
+      .from(conversations)
+      .leftJoin(bots, eq(conversations.botId, bots.id))
+      .leftJoin(users, eq(conversations.userId, users.id))
+      .where(and(...conditions))
+      .orderBy(desc(conversations.timestamp))
+      .limit(Number(limit))
+      .offset(Number(offset));
+
+    const [{ count: total }] = await db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(conversations)
+      .where(and(...conditions));
+
+    res.json({ conversations: results, total: Number(total) });
+  } catch (error) {
+    console.error('Partner conversations error:', error);
+    res.status(500).json({ error: 'Failed to fetch conversations' });
   }
 });
 

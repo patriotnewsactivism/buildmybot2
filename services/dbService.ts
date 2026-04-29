@@ -898,6 +898,125 @@ export const dbService = {
     return response.json();
   },
 
+  /** Fetch client's own conversations (audit log) */
+  getClientConversations: async (params?: {
+    limit?: number;
+    offset?: number;
+    sentiment?: string;
+    botId?: string;
+  }) => {
+    const qs = new URLSearchParams();
+    if (params?.limit) qs.set('limit', String(params.limit));
+    if (params?.offset) qs.set('offset', String(params.offset));
+    if (params?.sentiment) qs.set('sentiment', params.sentiment);
+    if (params?.botId) qs.set('botId', params.botId);
+    const response = await request(
+      `/clients/conversations?${qs.toString()}`,
+      { method: 'GET' },
+      false,
+    );
+    if (!response.ok) throw new Error('Failed to load conversations');
+    return response.json();
+  },
+
+  /** Sales Agent: get overview metrics */
+  getAgentOverview: async () => {
+    const response = await request('/agents/overview', { method: 'GET' }, false);
+    if (!response.ok) throw new Error('Failed to load agent overview');
+    return response.json();
+  },
+
+  /** Sales Agent: get assigned clients */
+  getAgentClients: async () => {
+    const response = await request('/agents/clients', { method: 'GET' }, false);
+    if (!response.ok) throw new Error('Failed to load agent clients');
+    return response.json();
+  },
+
+  /** Sales Agent: get conversations across assigned clients */
+  getAgentConversations: async (params?: {
+    limit?: number;
+    offset?: number;
+    sentiment?: string;
+    clientId?: string;
+  }) => {
+    const qs = new URLSearchParams();
+    if (params?.limit) qs.set('limit', String(params.limit));
+    if (params?.offset) qs.set('offset', String(params.offset));
+    if (params?.sentiment) qs.set('sentiment', params.sentiment);
+    if (params?.clientId) qs.set('clientId', params.clientId);
+    const response = await request(
+      `/agents/conversations?${qs.toString()}`,
+      { method: 'GET' },
+      false,
+    );
+    if (!response.ok) throw new Error('Failed to load agent conversations');
+    return response.json();
+  },
+
+  /** Partner: get agents under this partner */
+  getPartnerAgents: async () => {
+    const response = await request('/partners/agents', { method: 'GET' }, false);
+    if (!response.ok) throw new Error('Failed to load partner agents');
+    return response.json();
+  },
+
+  /** Partner: get conversations across all agents' clients */
+  getPartnerConversations: async (params?: {
+    limit?: number;
+    offset?: number;
+    sentiment?: string;
+  }) => {
+    const qs = new URLSearchParams();
+    if (params?.limit) qs.set('limit', String(params.limit));
+    if (params?.offset) qs.set('offset', String(params.offset));
+    if (params?.sentiment) qs.set('sentiment', params.sentiment);
+    const response = await request(
+      `/partners/conversations?${qs.toString()}`,
+      { method: 'GET' },
+      false,
+    );
+    if (!response.ok) throw new Error('Failed to load partner conversations');
+    return response.json();
+  },
+
+  /** Admin: get all conversations (full audit) */
+  getAdminConversations: async (params?: {
+    limit?: number;
+    offset?: number;
+    sentiment?: string;
+    botId?: string;
+    clientId?: string;
+  }) => {
+    const qs = new URLSearchParams();
+    if (params?.limit) qs.set('limit', String(params.limit));
+    if (params?.offset) qs.set('offset', String(params.offset));
+    if (params?.sentiment) qs.set('sentiment', params.sentiment);
+    if (params?.botId) qs.set('botId', params.botId);
+    if (params?.clientId) qs.set('clientId', params.clientId);
+    const response = await request(
+      `/admin/conversations?${qs.toString()}`,
+      { method: 'GET' },
+      false,
+    );
+    if (!response.ok) throw new Error('Failed to load admin conversations');
+    return response.json();
+  },
+
+  /** Admin: list all sales agents */
+  getAdminAgents: async () => {
+    const response = await request('/admin/agents', { method: 'GET' }, false);
+    if (!response.ok) throw new Error('Failed to load agents');
+    return response.json();
+  },
+
+  /** Admin: list all affiliates */
+  getAdminAffiliates: async () => {
+    const response = await request('/admin/affiliates', { method: 'GET' }, false);
+    if (!response.ok) throw new Error('Failed to load affiliates');
+    return response.json();
+  },
+
   completeOnboarding: async () => {
     const response = await request('/clients/onboarding/complete', {
       method: 'POST',

@@ -151,6 +151,84 @@ export const partnerPayouts = pgTable('partner_payouts', {
 });
 
 // ========================================
+// SALES AGENT → PARTNER HIERARCHY
+// ========================================
+
+/**
+ * Links a sales agent to their supervising partner.
+ * Partner → Agent → Client is the 3-level sales hierarchy.
+ */
+export const salesAgentPartners = pgTable('sales_agent_partners', {
+  id: text('id').primaryKey(),
+  agentId: text('agent_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  partnerId: text('partner_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  commissionOverrideRate: real('commission_override_rate').default(0.0), // Partner's override on agent sales
+  status: varchar('status', { length: 50 }).default('active'), // active, suspended, terminated
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+/**
+ * Links a client to the sales agent who sold/manages them.
+ * Extends partnerClients (which tracks partner→client) with the agent layer.
+ */
+export const salesAgentClients = pgTable('sales_agent_clients', {
+  id: text('id').primaryKey(),
+  agentId: text('agent_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  clientId: text('client_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  organizationId: text('organization_id').references(() => organizations.id, {
+    onDelete: 'cascade',
+  }),
+  commissionRate: real('commission_rate').default(0.0),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+// ========================================
+// AFFILIATE REFERRAL TRACKING
+// ========================================
+
+/**
+ * Tracks affiliate referrals and their lifetime commissions.
+ * Affiliates earn 20% of the referred account's subscription for life.
+ */
+export const affiliateReferrals = pgTable('affiliate_referrals', {
+  id: text('id').primaryKey(),
+  affiliateId: text('affiliate_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  referredUserId: text('referred_user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  referralCode: varchar('referral_code', { length: 50 }).notNull(),
+  commissionRate: real('commission_rate').default(0.20), // 20% lifetime
+  status: varchar('status', { length: 50 }).default('active'), // active, cancelled, paused
+  totalEarnedCents: integer('total_earned_cents').default(0),
+  lastPaidAt: timestamp('last_paid_at'),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+export const affiliatePayouts = pgTable('affiliate_payouts', {
+  id: text('id').primaryKey(),
+  affiliateId: text('affiliate_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  amountCents: integer('amount_cents').notNull(),
+  referralCount: integer('referral_count').default(0),
+  periodStart: timestamp('period_start'),
+  periodEnd: timestamp('period_end'),
+  status: varchar('status', { length: 50 }).default('pending'), // pending, processing, paid
+  method: varchar('method', { length: 50 }).default('bank_transfer'),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+// ========================================
 // IMPERSONATION SESSIONS
 // ========================================
 
