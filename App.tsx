@@ -162,7 +162,7 @@ function App() {
     | 'system'
   >('metrics');
   const [partnerActiveTab, setPartnerActiveTab] = useState<
-    'clients' | 'commissions' | 'marketing' | 'analytics' | 'collaboration'
+    'clients' | 'agents' | 'conversations' | 'commissions' | 'marketing' | 'analytics' | 'collaboration'
   >('clients');
 
   useEffect(() => {
