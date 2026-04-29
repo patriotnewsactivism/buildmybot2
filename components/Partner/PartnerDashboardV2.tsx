@@ -14,15 +14,114 @@ import {
   Users,
   Zap,
 } from 'lucide-react';
+import { MessageSquare } from 'lucide-react';
 import type React from 'react';
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { dbService } from '../../services/dbService';
 import type { User } from '../../types';
+import {
+  ConversationTranscript,
+  type Conversation,
+} from '../UI/ConversationTranscript';
 import { ClientManagement } from './widgets/ClientManagement';
 import { CommissionsEarnings } from './widgets/CommissionsEarnings';
 import { MarketingMaterials } from './widgets/MarketingMaterials';
 
+/** Partner view: list sales agents */
+const PartnerAgentsView: React.FC = () => {
+  const [agents, setAgents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    dbService
+      .getPartnerAgents()
+      .then(setAgents)
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-12">
+        <div className="animate-spin w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
+        <Users size={18} className="text-blue-600" />
+        <h3 className="text-base font-semibold text-slate-900">My Sales Agents</h3>
+        <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
+          {agents.length}
+        </span>
+      </div>
+      {agents.length === 0 ? (
+        <div className="p-8 text-center text-sm text-slate-500">
+          No sales agents assigned yet.
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-100 bg-slate-50">
+                <th className="text-left px-4 py-3 font-medium text-slate-600">Agent</th>
+                <th className="text-center px-4 py-3 font-medium text-slate-600">Clients</th>
+                <th className="text-right px-4 py-3 font-medium text-slate-600">Override %</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {agents.map((agent: any) => (
+                <tr key={agent.id} className="hover:bg-slate-50">
+                  <td className="px-4 py-3">
+                    <p className="font-medium text-slate-900">{agent.name || 'Unnamed'}</p>
+                    <p className="text-xs text-slate-400">{agent.email}</p>
+                  </td>
+                  <td className="text-center px-4 py-3 text-slate-600">{agent.clientCount}</td>
+                  <td className="text-right px-4 py-3">
+                    <span className="text-emerald-600 font-medium">
+                      {((agent.overrideRate || 0) * 100).toFixed(0)}%
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+};
+
+/** Partner view: conversations across all agents' clients */
+const PartnerConversationsView: React.FC = () => {
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    dbService
+      .getPartnerConversations({ limit: 100 })
+      .then((data: any) => setConversations(data.conversations || []))
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <ConversationTranscript
+      conversations={conversations}
+      loading={loading}
+      showClientColumn={true}
+      showBotColumn={true}
+      title="All Client Conversations"
+    />
+  );
+};
+
 export type PartnerTab =
   | 'clients'
+  | 'agents'
+  | 'conversations'
   | 'commissions'
   | 'marketing'
   | 'analytics'
@@ -142,6 +241,12 @@ export const PartnerDashboardV2: React.FC<PartnerDashboardV2Props> = ({
 
   const tabs = [
     { id: 'clients' as PartnerTab, label: 'Client Management', icon: Users },
+    { id: 'agents' as PartnerTab, label: 'My Sales Agents', icon: UserCheck },
+    {
+      id: 'conversations' as PartnerTab,
+      label: 'Conversations',
+      icon: MessageSquare,
+    },
     {
       id: 'commissions' as PartnerTab,
       label: 'Commissions & Earnings',
@@ -229,6 +334,12 @@ export const PartnerDashboardV2: React.FC<PartnerDashboardV2Props> = ({
       <div className="animate-fade-in">
         {activeTab === 'clients' && (
           <ClientManagement onImpersonate={onImpersonate} />
+        )}
+        {activeTab === 'agents' && (
+          <PartnerAgentsView />
+        )}
+        {activeTab === 'conversations' && (
+          <PartnerConversationsView />
         )}
         {activeTab === 'commissions' && <CommissionsEarnings />}
         {activeTab === 'marketing' && <MarketingMaterials />}
