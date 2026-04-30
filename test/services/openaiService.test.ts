@@ -1,6 +1,6 @@
 /**
  * OpenAI Service Tests
- * Tests for GPT-5o Mini model migration verification
+ * Tests for AI model integration (backend-driven default model)
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -13,13 +13,13 @@ import {
 // Mock fetch globally
 global.fetch = vi.fn();
 
-describe('OpenAI Service - Model Migration', () => {
+describe('OpenAI Service - Model Configuration', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.OPENAI_API_KEY = 'test-key';
   });
 
-  it('uses gpt-5o-mini as default model', async () => {
+  it('omits model field when no model specified (backend decides)', async () => {
     const mockResponse = {
       ok: true,
       json: async () => ({
@@ -34,36 +34,11 @@ describe('OpenAI Service - Model Migration', () => {
     const fetchCall = vi.mocked(global.fetch).mock.calls[0];
     const requestBody = JSON.parse(fetchCall[1]?.body as string);
 
-    expect(requestBody.model).toBe('gpt-5o-mini');
+    // Model should not be in the request body — backend uses DEFAULT_AI_MODEL
+    expect(requestBody.model).toBeUndefined();
   });
 
-  it('uses gpt-5o-mini for website scraping', async () => {
-    const mockResponse = {
-      ok: true,
-      text: async () => 'Scraped raw text content',
-      json: async () => ({
-        choices: [{ message: { content: 'Scraped content' } }],
-      }),
-    };
-
-    vi.mocked(global.fetch).mockResolvedValue(mockResponse as Response);
-
-    await scrapeWebsiteContent('https://example.com');
-
-    // First call is to proxy/jina, second is to OpenAI
-    const fetchCalls = vi.mocked(global.fetch).mock.calls;
-    const openAiCall = fetchCalls.find((call) =>
-      (call[0] as string).includes('/chat/demo'),
-    );
-
-    expect(openAiCall).toBeDefined();
-    if (openAiCall) {
-      const requestBody = JSON.parse(openAiCall[1]?.body as string);
-      expect(requestBody.model).toBe('gpt-5o-mini');
-    }
-  });
-
-  it('uses gpt-5o-mini for marketing content generation', async () => {
+  it('omits model for marketing content generation', async () => {
     const mockResponse = {
       ok: true,
       json: async () => ({
@@ -78,7 +53,7 @@ describe('OpenAI Service - Model Migration', () => {
     const fetchCall = vi.mocked(global.fetch).mock.calls[0];
     const requestBody = JSON.parse(fetchCall[1]?.body as string);
 
-    expect(requestBody.model).toBe('gpt-5o-mini');
+    expect(requestBody.model).toBeUndefined();
   });
 
   it('allows override to different model', async () => {
@@ -95,13 +70,13 @@ describe('OpenAI Service - Model Migration', () => {
       'Test prompt',
       [],
       'User message',
-      'gpt-4o', // Explicit model override
+      'grok-4-1-fast-reasoning', // Explicit model override
     );
 
     const fetchCall = vi.mocked(global.fetch).mock.calls[0];
     const requestBody = JSON.parse(fetchCall[1]?.body as string);
 
-    expect(requestBody.model).toBe('gpt-4o');
+    expect(requestBody.model).toBe('grok-4-1-fast-reasoning');
   });
 
   it('handles API errors gracefully', async () => {

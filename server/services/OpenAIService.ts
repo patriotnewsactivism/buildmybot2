@@ -1,5 +1,8 @@
 import OpenAI from 'openai';
 
+/** Configurable default model — set DEFAULT_AI_MODEL env var to override. */
+const DEFAULT_MODEL = process.env.DEFAULT_AI_MODEL || 'gpt-4o-mini';
+
 export class OpenAIService {
   private openai: OpenAI;
 
@@ -29,10 +32,10 @@ export class OpenAIService {
             .toLowerCase()
             .includes('model'));
 
-      if (params.model === 'gpt-5o-mini' && isModelNotFound) {
-        console.warn('GPT-5o Mini not found, falling back to GPT-4o Mini');
+      if (params.model !== DEFAULT_MODEL && isModelNotFound) {
+        console.warn(`Model "${params.model}" not found, falling back to DEFAULT_MODEL "${DEFAULT_MODEL}"`);
         try {
-          const fallbackParams = { ...params, model: 'gpt-4o-mini' };
+          const fallbackParams = { ...params, model: DEFAULT_MODEL };
           const response =
             await this.openai.chat.completions.create(fallbackParams);
           return response.choices[0]?.message?.content || '';
@@ -65,7 +68,7 @@ export class OpenAIService {
 
       // Use complete method to handle fallback
       const content = await this.complete({
-        model: 'gpt-5o-mini',
+        model: DEFAULT_MODEL,
         messages,
         temperature: 0.3,
         max_tokens: 10,
@@ -116,7 +119,7 @@ export class OpenAIService {
 
       // Use complete method to handle fallback
       const content = await this.complete({
-        model: 'gpt-5o-mini',
+        model: DEFAULT_MODEL,
         messages: [
           {
             role: 'system',

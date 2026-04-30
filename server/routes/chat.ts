@@ -42,6 +42,9 @@ const openai = new OpenAI({
   baseURL: env.AI_INTEGRATIONS_OPENAI_BASE_URL || 'https://api.openai.com/v1',
 });
 
+/** Configurable default model — set DEFAULT_AI_MODEL env var to override. */
+const DEFAULT_MODEL = env.DEFAULT_AI_MODEL || 'gpt-4o-mini';
+
 interface ChatMessage {
   role: 'user' | 'model';
   text: string;
@@ -61,7 +64,7 @@ async function handleChatCompletion(req: Request, res: Response) {
     const {
       messages,
       systemPrompt,
-      model = 'gpt-4o-mini',
+      model = DEFAULT_MODEL,
       context,
       botId,
       sessionId,
@@ -188,8 +191,9 @@ async function handleChatCompletion(req: Request, res: Response) {
             String(error?.message || '')
               .toLowerCase()
               .includes('model'));
-        if (finalModel === 'gpt-5o-mini' && isModelNotFound) {
-          finalModel = 'gpt-4o-mini';
+        if (finalModel !== DEFAULT_MODEL && isModelNotFound) {
+          console.warn(`Model "${finalModel}" not found, falling back to DEFAULT_MODEL "${DEFAULT_MODEL}"`);
+          finalModel = DEFAULT_MODEL;
           response = await openai.chat.completions.create({
             model: finalModel,
             messages: openAIMessages,
@@ -381,7 +385,7 @@ router.post(
         });
       }
 
-      let useModel = model || bot.model || 'gpt-4o-mini';
+      let useModel = model || bot.model || DEFAULT_MODEL;
       let baseSystemPrompt = bot.systemPrompt || 'You are a helpful assistant.';
 
       // Phase 5: A/B Testing Logic
@@ -488,8 +492,9 @@ router.post(
               String(error?.message || '')
                 .toLowerCase()
                 .includes('model'));
-          if (useModel === 'gpt-5o-mini' && isModelNotFound) {
-            useModel = 'gpt-4o-mini';
+          if (useModel !== DEFAULT_MODEL && isModelNotFound) {
+            console.warn(`Model "${useModel}" not found, falling back to DEFAULT_MODEL "${DEFAULT_MODEL}"`);
+            useModel = DEFAULT_MODEL;
             response = await openai.chat.completions.create({
               model: useModel,
               messages: openAIMessages,
