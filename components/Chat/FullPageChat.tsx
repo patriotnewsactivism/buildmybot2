@@ -251,7 +251,7 @@ export const FullPageChat: React.FC<FullPageChatProps> = ({ botId }) => {
         botId,
         messages,
         userMsg.text,
-        bot.model || 'gpt-5o-mini',
+        bot.model,
       );
 
       const delay = bot.responseDelay || 1000;

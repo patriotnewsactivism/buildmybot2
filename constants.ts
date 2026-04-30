@@ -141,9 +141,14 @@ export const REFERRAL_REWARDS = {
 
 export const AVAILABLE_MODELS = [
   {
+    id: 'grok-4-1-fast-reasoning',
+    name: 'Grok 4.1 Fast Reasoning',
+    description: 'Fast, intelligent reasoning. Recommended for most chatbots.',
+  },
+  {
     id: 'gpt-4o-mini',
     name: 'GPT-4o Mini',
-    description: 'Fast, cost-effective. Recommended for most chatbots.',
+    description: 'Fast, cost-effective OpenAI model.',
   },
   {
     id: 'gpt-4o',
