@@ -815,7 +815,7 @@ export const LandingPage: React.FC<LandingProps> = ({
             </div>
             <div className="mt-6 pt-6 border-t border-slate-100 flex flex-wrap justify-center gap-4 sm:gap-8 text-xs text-slate-400">
               <span className="flex items-center gap-2">
-                <Sparkles size={14} className="text-blue-500" /> Powered by GPT-4o
+                <Sparkles size={14} className="text-blue-500" /> Powered by Grok 4.1
               </span>
               <span className="flex items-center gap-2">
                 <Mic size={14} className="text-purple-500" /> Cartesia Neural Voice
@@ -916,7 +916,7 @@ export const LandingPage: React.FC<LandingProps> = ({
                 </p>
                 <ul className="space-y-3">
                   <li className="flex items-center gap-3 text-slate-700">
-                    <CheckCircle className="text-emerald-500 shrink-0" size={20} /> Instant responses powered by GPT-4o
+                    <CheckCircle className="text-emerald-500 shrink-0" size={20} /> Instant responses powered by Grok 4.1 Fast
                   </li>
                   <li className="flex items-center gap-3 text-slate-700">
                     <CheckCircle className="text-emerald-500 shrink-0" size={20} /> Learns your business from your website
