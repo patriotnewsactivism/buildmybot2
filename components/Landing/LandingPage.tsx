@@ -189,29 +189,26 @@ export const LandingPage: React.FC<LandingProps> = ({
     setIsVoiceActive(true);
 
     try {
-      const response = await fetch(buildApiUrl('/voice/preview'), {
-        method: 'POST',
-      });
-
-      if (!response.ok) {
-        throw new Error('Voice preview unavailable');
-      }
-
-      const audioBlob = await response.blob();
-      const audioUrl = URL.createObjectURL(audioBlob);
-      const audio = new Audio(audioUrl);
-      audio.onended = () => {
-        setIsVoiceActive(false);
-        URL.revokeObjectURL(audioUrl);
-      };
-      audio.onerror = () => {
-        setIsVoiceActive(false);
-        URL.revokeObjectURL(audioUrl);
-      };
-      await audio.play();
+      // Use browser SpeechSynthesis for instant voice demo
+      const utterance = new SpeechSynthesisUtterance(
+        "Hi there! I'm your AI receptionist from BuildMyBot. I can answer questions, book appointments, and capture leads — all without missing a beat. How can I help you today?"
+      );
+      
+      // Try to use a natural-sounding voice
+      const voices = window.speechSynthesis.getVoices();
+      const preferred = voices.find(v => 
+        v.name.includes('Samantha') || v.name.includes('Google') || v.name.includes('Natural') || v.lang === 'en-US'
+      );
+      if (preferred) utterance.voice = preferred;
+      utterance.rate = 1.0;
+      utterance.pitch = 1.0;
+      
+      utterance.onend = () => setIsVoiceActive(false);
+      utterance.onerror = () => setIsVoiceActive(false);
+      
+      window.speechSynthesis.speak(utterance);
     } catch (err) {
       console.error(err);
-      alert('Voice preview is temporarily unavailable.');
       setIsVoiceActive(false);
     }
   };
