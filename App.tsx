@@ -527,7 +527,7 @@ function App() {
       name: template.name,
       type: category === 'All' ? 'Custom' : category,
       systemPrompt: `You are a helpful assistant specialized in ${category}. ${description}. Act professionally and help the user achieve their goals.`,
-      model: 'gpt-5o-mini',
+      model: 'grok-4-1-fast-reasoning',
       temperature: 0.7,
       knowledgeBase: [],
       active: true,

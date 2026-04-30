@@ -21,34 +21,64 @@ export interface AdminConfig {
 }
 
 /**
+ * Parse a comma-separated email string into individual entries.
+ * e.g. "a@x.com, b@x.com" → ["a@x.com", "b@x.com"]
+ */
+function parseEmails(raw: string): string[] {
+  return raw
+    .split(',')
+    .map((e) => e.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Build AdminConfig entries for a role, supporting comma-separated emails.
+ */
+function buildAdminEntries(
+  envEmails: string | undefined,
+  fallback: string,
+  role: AdminConfig['role'],
+  description: string,
+  plan: string,
+): AdminConfig[] {
+  const emails = parseEmails(envEmails || fallback);
+  return emails.map((email) => ({ email, role, description, plan }));
+}
+
+/**
  * Admin users configuration
- * Loaded from environment variables with fallback defaults
+ * Loaded from environment variables with fallback defaults.
+ * Each env var supports comma-separated emails for multiple users per role.
  */
 export const ADMIN_USERS: AdminConfig[] = [
-  {
-    email: env.MASTER_ADMIN_EMAIL || 'mreardon@wtpnews.org',
-    role: 'MasterAdmin',
-    description: 'Master Admin',
-    plan: env.MASTER_ADMIN_PLAN || 'ENTERPRISE',
-  },
-  {
-    email: env.ADMIN_EMAIL || 'jadj19@gmail.com',
-    role: 'ADMIN',
-    description: 'Admin',
-    plan: env.ADMIN_PLAN || 'ENTERPRISE',
-  },
-  {
-    email: env.RESELLER_EMAIL || 'patriotnewsactivism@gmail.com',
-    role: 'RESELLER',
-    description: 'Reseller/Partner',
-    plan: env.RESELLER_PLAN || 'PROFESSIONAL',
-  },
-  {
-    email: env.CLIENT_EMAIL || 'news@wtpnews.org',
-    role: 'CLIENT',
-    description: 'Client',
-    plan: env.CLIENT_PLAN || 'FREE',
-  },
+  ...buildAdminEntries(
+    env.MASTER_ADMIN_EMAIL,
+    'mreardon@wtpnews.org',
+    'MasterAdmin',
+    'Master Admin',
+    env.MASTER_ADMIN_PLAN || 'ENTERPRISE',
+  ),
+  ...buildAdminEntries(
+    env.ADMIN_EMAIL,
+    'jadj19@gmail.com',
+    'ADMIN',
+    'Admin',
+    env.ADMIN_PLAN || 'ENTERPRISE',
+  ),
+  ...buildAdminEntries(
+    env.RESELLER_EMAIL,
+    'patriotnewsactivism@gmail.com',
+    'RESELLER',
+    'Reseller/Partner',
+    env.RESELLER_PLAN || 'PROFESSIONAL',
+  ),
+  ...buildAdminEntries(
+    env.CLIENT_EMAIL,
+    'news@wtpnews.org',
+    'CLIENT',
+    'Client',
+    env.CLIENT_PLAN || 'FREE',
+  ),
 ];
 
 /**
