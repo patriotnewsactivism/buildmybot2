@@ -37,9 +37,12 @@ const botChatLimiter = rateLimit({
   validate: { xForwardedForHeader: false },
 });
 
+const aiBaseURL = env.AI_INTEGRATIONS_OPENAI_BASE_URL || 'https://api.openai.com/v1';
+const isAzureAI = aiBaseURL.includes('.services.ai.azure.com');
 const openai = new OpenAI({
   apiKey: env.AI_INTEGRATIONS_OPENAI_API_KEY || env.OPENAI_API_KEY,
-  baseURL: env.AI_INTEGRATIONS_OPENAI_BASE_URL || 'https://api.openai.com/v1',
+  baseURL: aiBaseURL,
+  ...(isAzureAI ? { defaultQuery: { 'api-version': '2024-05-01-preview' } } : {}),
 });
 
 /** Configurable default model — set DEFAULT_AI_MODEL env var to override. */
