@@ -14,7 +14,7 @@ export const generateBotResponse = async (
   systemPrompt: string,
   history: { role: 'user' | 'model'; text: string }[],
   lastMessage: string,
-  modelName = 'gpt-5o-mini',
+  modelName?: string,
   context?: string,
 ): Promise<string> => {
   const messages = [...history, { role: 'user' as const, text: lastMessage }];
@@ -29,7 +29,7 @@ export const generateBotResponse = async (
       body: JSON.stringify({
         messages,
         systemPrompt,
-        model: modelName,
+        ...(modelName ? { model: modelName } : {}),
         context,
         sessionId: getSessionId(),
       }),
@@ -111,7 +111,7 @@ export const generateBotResponseDemo = async (
   systemPrompt: string,
   history: { role: 'user' | 'model'; text: string }[],
   lastMessage: string,
-  modelName = 'gpt-5o-mini',
+  modelName?: string,
   context?: string,
 ): Promise<string> => {
   const messages = [...history, { role: 'user' as const, text: lastMessage }];
@@ -125,7 +125,7 @@ export const generateBotResponseDemo = async (
       body: JSON.stringify({
         messages,
         systemPrompt,
-        model: modelName,
+        ...(modelName ? { model: modelName } : {}),
         context,
         sessionId: getSessionId(),
       }),
@@ -203,7 +203,7 @@ export const scrapeWebsiteContent = async (url: string): Promise<string> => {
         ],
         systemPrompt:
           'You are a precise Data Extractor. Extract business facts.',
-        model: 'gpt-5o-mini',
+        /* model omitted — server uses DEFAULT_AI_MODEL */
       }),
     });
 
@@ -235,7 +235,7 @@ export const generateMarketingContent = async (
           },
         ],
         systemPrompt: `You are an expert Copywriter. Tone: ${tone}.`,
-        model: 'gpt-5o-mini',
+        /* model omitted — server uses DEFAULT_AI_MODEL */
       }),
     });
     const data = await response.json();
@@ -264,7 +264,7 @@ export const generateWebsiteStructure = async (
         ],
         systemPrompt:
           'You are a Website Builder AI. Output JSON only with keys: headline, subheadline, features (array of strings), ctaText.',
-        model: 'gpt-5o-mini',
+        /* model omitted — server uses DEFAULT_AI_MODEL */
       }),
     });
     const data = await response.json();

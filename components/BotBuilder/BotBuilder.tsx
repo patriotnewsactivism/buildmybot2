@@ -194,7 +194,7 @@ export const BotBuilder: React.FC<BotBuilderProps> = ({
       name: 'New Assistant',
       type: 'Customer Support',
       systemPrompt: 'You are a helpful customer support assistant.',
-      model: 'gpt-4o-mini',
+      model: 'grok-4-1-fast-reasoning',
       temperature: 0.9,
       knowledgeBase: [],
       active: true,

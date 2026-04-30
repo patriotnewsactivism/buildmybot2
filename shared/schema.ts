@@ -502,7 +502,7 @@ export const bots = pgTable('bots', {
   name: varchar('name', { length: 255 }).notNull(),
   type: varchar('type', { length: 100 }).default('customer_support'),
   systemPrompt: text('system_prompt').default(''),
-  model: varchar('model', { length: 100 }).default('gpt-5o-mini'),
+  model: varchar('model', { length: 100 }).default('gpt-4o-mini'),
   temperature: real('temperature').default(0.7),
   knowledgeBase: json('knowledge_base').default([]),
   active: boolean('active').default(true),

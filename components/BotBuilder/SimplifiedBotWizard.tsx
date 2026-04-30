@@ -23,7 +23,7 @@ interface BotFormData {
   welcomeMessage: string;
   systemPrompt: string;
   tone: 'professional' | 'friendly' | 'witty' | 'authoritative';
-  model: 'gpt-4o-mini' | 'gpt-4o' | 'gpt-4' | 'gpt-3.5-turbo';
+  model: string;
   temperature: number;
   knowledgeSources: {
     type: 'url' | 'file';
@@ -40,7 +40,7 @@ const INITIAL_DATA: BotFormData = {
   welcomeMessage: 'Hello! How can I help you today?',
   systemPrompt: 'You are a helpful AI assistant.',
   tone: 'professional',
-  model: 'gpt-4o-mini',
+  model: 'grok-4-1-fast-reasoning',
   temperature: 0.7,
   knowledgeSources: [],
   isPublic: false,
@@ -288,12 +288,11 @@ export default function SimplifiedBotWizard({
                         onChange={(e) => updateField('model', e.target.value)}
                         className="w-full px-4 py-3 rounded-lg border border-gray-200 outline-none"
                       >
-                        <option value="gpt-4o-mini">
-                          GPT-4o Mini (Recommended)
+                        <option value="grok-4-1-fast-reasoning">
+                          Grok 4.1 Fast Reasoning (Recommended)
                         </option>
+                        <option value="gpt-4o-mini">GPT-4o Mini</option>
                         <option value="gpt-4o">GPT-4o (Most Capable)</option>
-                        <option value="gpt-4">GPT-4 (Classic)</option>
-                        <option value="gpt-3.5-turbo">GPT-3.5 (Fastest)</option>
                       </select>
                     </div>
                   </div>

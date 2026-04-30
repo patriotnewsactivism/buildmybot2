@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { botTemplates, bots } from '../../shared/schema';
 import { db } from '../db';
+import { env } from '../env';
 
 const router = Router();
 
@@ -78,7 +79,7 @@ router.post('/:id/install', async (req, res) => {
         name: `${template.name} (Copy)`,
         type: template.category || 'custom',
         systemPrompt: template.systemPrompt || '',
-        model: 'gpt-5o-mini',
+        model: env.DEFAULT_AI_MODEL || 'gpt-4o-mini',
         temperature: 0.7,
         knowledgeBase: [],
         active: true,
