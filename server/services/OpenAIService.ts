@@ -7,13 +7,14 @@ export class OpenAIService {
   private openai: OpenAI;
 
   constructor() {
+    const aiBaseURL = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || 'https://api.openai.com/v1';
+    const isAzureAI = aiBaseURL.includes('.services.ai.azure.com');
     this.openai = new OpenAI({
       apiKey:
         process.env.AI_INTEGRATIONS_OPENAI_API_KEY ||
         process.env.OPENAI_API_KEY,
-      baseURL:
-        process.env.AI_INTEGRATIONS_OPENAI_BASE_URL ||
-        'https://api.openai.com/v1',
+      baseURL: aiBaseURL,
+      ...(isAzureAI ? { defaultQuery: { 'api-version': '2024-05-01-preview' } } : {}),
     });
   }
 
