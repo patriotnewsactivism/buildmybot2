@@ -116,37 +116,52 @@ export const generateBotResponseDemo = async (
 ): Promise<string> => {
   const messages = [...history, { role: 'user' as const, text: lastMessage }];
 
-  try {
-    const response = await fetch(buildApiUrl('/chat/demo'), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        messages,
-        systemPrompt,
-        ...(modelName ? { model: modelName } : {}),
-        context,
-        sessionId: getSessionId(),
-      }),
-    });
+  const maxRetries = 2;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 30000);
+      
+      const response = await fetch(buildApiUrl('/chat/demo'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messages,
+          systemPrompt,
+          ...(modelName ? { model: modelName } : {}),
+          context,
+          sessionId: getSessionId(),
+        }),
+        signal: controller.signal,
+      });
 
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      console.error('Chat API Error:', err);
+      clearTimeout(timeout);
 
-      if (response.status === 429) {
-        return 'Too many requests. Please wait a moment and try again.';
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        console.error('Chat API Error:', err);
+
+        if (response.status === 429) {
+          return 'Too many requests. Please wait a moment and try again.';
+        }
+        if (attempt < maxRetries) continue;
+        return err.error || 'Failed to get response from AI.';
       }
-      return err.error || 'Failed to get response from AI.';
-    }
 
-    const data = await response.json();
-    return data.response || '';
-  } catch (error: any) {
-    console.error('OpenAI Service Error:', error);
-    return "I'm having trouble connecting to my AI brain right now. Please check your internet connection.";
+      const data = await response.json();
+      return data.response || '';
+    } catch (error: any) {
+      console.error(`Chat attempt ${attempt + 1} failed:`, error);
+      if (attempt < maxRetries) {
+        await new Promise(r => setTimeout(r, 1000));
+        continue;
+      }
+      return "I'm having trouble connecting right now. Please try again in a moment.";
+    }
   }
+  return "Something went wrong. Please try again.";
 };
 
 export const scrapeWebsiteContent = async (url: string): Promise<string> => {
