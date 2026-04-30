@@ -26,7 +26,7 @@ export const PLANS = {
       'Multi-page training (URLs, PDFs)',
       '750 conversations/month',
       '500MB knowledge base storage',
-      'GPT-4o Mini model',
+      'Grok 4.1 Fast Reasoning model',
       'Lead capture via email & SMS alerts',
       'Office-hours & scheduling rules',
       'Basic analytics dashboard',
