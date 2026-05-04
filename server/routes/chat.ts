@@ -37,16 +37,28 @@ const botChatLimiter = rateLimit({
   validate: { xForwardedForHeader: false },
 });
 
-const aiBaseURL = env.AI_INTEGRATIONS_OPENAI_BASE_URL || 'https://api.openai.com/v1';
+// DeepSeek V4 Flash preferred — OpenAI-compatible, $0.14/M input tokens
+// Set DEEPSEEK_API_KEY to use DeepSeek. Falls back to OpenAI if not set.
+const deepSeekKey = (process.env.DEEPSEEK_API_KEY || '').trim();
+const useDeepSeek = deepSeekKey.length > 10;
+
+const aiBaseURL = useDeepSeek
+  ? 'https://api.deepseek.com/v1'
+  : (env.AI_INTEGRATIONS_OPENAI_BASE_URL || 'https://api.openai.com/v1');
+
+const aiApiKey = useDeepSeek
+  ? deepSeekKey
+  : (env.AI_INTEGRATIONS_OPENAI_API_KEY || env.OPENAI_API_KEY || '');
+
 const isAzureAI = aiBaseURL.includes('.services.ai.azure.com');
 const openai = new OpenAI({
-  apiKey: env.AI_INTEGRATIONS_OPENAI_API_KEY || env.OPENAI_API_KEY,
+  apiKey: aiApiKey,
   baseURL: aiBaseURL,
   ...(isAzureAI ? { defaultQuery: { 'api-version': '2024-05-01-preview' } } : {}),
 });
 
-/** Configurable default model — set DEFAULT_AI_MODEL env var to override. */
-const DEFAULT_MODEL = env.DEFAULT_AI_MODEL || 'gpt-4o-mini';
+/** Default model: DeepSeek V4 Flash when key is set, otherwise gpt-4o-mini. Override with DEFAULT_AI_MODEL env var. */
+const DEFAULT_MODEL = env.DEFAULT_AI_MODEL || (useDeepSeek ? 'deepseek-v4-flash' : 'gpt-4o-mini');
 
 interface ChatMessage {
   role: 'user' | 'model';
