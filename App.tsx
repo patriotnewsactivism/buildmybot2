@@ -769,6 +769,14 @@ function App() {
                       setAdminActiveTab('support');
                     else if (path === '/admin/system')
                       setAdminActiveTab('system');
+                    else if (path === '/admin/affiliates')
+                      setAdminActiveTab('affiliates');
+                    else if (path === '/admin/agents')
+                      setAdminActiveTab('agents');
+                    else if (path === '/admin/clients')
+                      setAdminActiveTab('clients');
+                    else if (path === '/admin/conversations')
+                      setAdminActiveTab('conversations');
                     else if (path.startsWith('/app/bots'))
                       setCurrentView('bots');
                     else if (path.startsWith('/app/leads'))
