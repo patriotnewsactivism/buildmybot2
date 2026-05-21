@@ -359,7 +359,7 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
               className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 sm:w-auto"
               disabled={scraping}
             >
-              {[1, 2, 3, 5, 10].map((n) => (
+              {[1, 3, 5, 10, 20, 50].map((n) => (
                 <option key={n} value={n}>
                   {n} page{n > 1 ? 's' : ''}
                 </option>

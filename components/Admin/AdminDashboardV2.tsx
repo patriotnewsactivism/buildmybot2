@@ -6,10 +6,15 @@ import {
   Briefcase,
   CheckCircle,
   Clock,
+  Copy,
   Database,
   DollarSign,
   Eye,
+  Gift,
   Headphones,
+  Link2,
+  Loader,
+  MessageSquare,
   Server,
   Settings,
   Shield,
@@ -21,7 +26,8 @@ import {
   Zap,
 } from 'lucide-react';
 import type React from 'react';
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { buildApiUrl } from '../../services/apiConfig';
 import AdminFeaturesOverview from '../Analytics/AdminFeaturesOverview';
 import { ComprehensiveAnalytics } from '../Analytics/ComprehensiveAnalytics';
 import { NotificationComposer } from './NotificationComposer';
@@ -39,7 +45,11 @@ export type AdminTab =
   | 'analytics'
   | 'notifications'
   | 'support'
-  | 'system';
+  | 'system'
+  | 'affiliates'
+  | 'agents'
+  | 'clients'
+  | 'conversations';
 
 interface AdminDashboardV2Props {
   onImpersonate: (userId: string, reason: string) => void;
@@ -312,6 +322,58 @@ export const AdminDashboardV2: React.FC<AdminDashboardV2Props> = ({
           </div>
         )}
 
+        {activeTab === 'affiliates' && <AffiliateManagement />}
+
+        {activeTab === 'agents' && (
+          <PremiumCard className="p-6">
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <div className="p-4 bg-blue-50 rounded-full mb-4">
+                <Users className="text-blue-500" size={28} />
+              </div>
+              <h4 className="text-lg font-semibold text-slate-900 mb-2">
+                Sales Agent Management
+              </h4>
+              <p className="text-slate-500 max-w-md">
+                View and manage sales agents, their clients, and commission structures.
+                This section shows all agents across your partner network.
+              </p>
+            </div>
+          </PremiumCard>
+        )}
+
+        {activeTab === 'clients' && (
+          <PremiumCard className="p-6">
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <div className="p-4 bg-green-50 rounded-full mb-4">
+                <Users className="text-green-500" size={28} />
+              </div>
+              <h4 className="text-lg font-semibold text-slate-900 mb-2">
+                All Clients
+              </h4>
+              <p className="text-slate-500 max-w-md">
+                View all clients across your platform, their bots, usage, and subscription status.
+              </p>
+            </div>
+          </PremiumCard>
+        )}
+
+        {activeTab === 'conversations' && (
+          <PremiumCard className="p-6">
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <div className="p-4 bg-purple-50 rounded-full mb-4">
+                <MessageSquare className="text-purple-500" size={28} />
+              </div>
+              <h4 className="text-lg font-semibold text-slate-900 mb-2">
+                All Conversations
+              </h4>
+              <p className="text-slate-500 max-w-md">
+                Monitor all bot conversations across the platform. View transcripts, 
+                sentiment analysis, and conversation metrics.
+              </p>
+            </div>
+          </PremiumCard>
+        )}
+
         {activeTab === 'system' && (
           <div className="space-y-4 md:space-y-6">
             <PremiumCard className="p-4 md:p-6">
@@ -428,6 +490,192 @@ export const AdminDashboardV2: React.FC<AdminDashboardV2Props> = ({
           </div>
         )}
       </div>
+    </div>
+  );
+};
+
+// ─── Affiliate Management Sub-Component ─────────────────────────
+interface AffiliateData {
+  id: string;
+  email: string;
+  name: string;
+  resellerCode: string | null;
+  status: string;
+  createdAt: string;
+  referralCount: number;
+  totalEarned: number;
+}
+
+const AffiliateManagement: React.FC = () => {
+  const [affiliates, setAffiliates] = useState<AffiliateData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchAffiliates = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(buildApiUrl('/admin/affiliates'), {
+        credentials: 'include',
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setAffiliates(data.affiliates || data || []);
+      } else {
+        setError('Failed to load affiliates');
+      }
+    } catch (err) {
+      setError('Failed to connect to server');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchAffiliates();
+  }, [fetchAffiliates]);
+
+  const totalEarnings = affiliates.reduce((sum, a) => sum + (a.totalEarned || 0), 0);
+  const totalReferrals = affiliates.reduce((sum, a) => sum + (a.referralCount || 0), 0);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader className="animate-spin text-slate-400" size={24} />
+        <span className="ml-3 text-slate-500">Loading affiliates...</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Stats Row */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <PremiumCard className="p-6">
+          <div className="flex items-center space-x-3 mb-3">
+            <div className="p-2 bg-purple-100 rounded-lg">
+              <Gift className="text-purple-600" size={18} />
+            </div>
+            <span className="font-semibold text-slate-900">Total Affiliates</span>
+          </div>
+          <div className="text-3xl font-bold text-slate-900">{affiliates.length}</div>
+          <div className="text-sm text-slate-500">Registered affiliate accounts</div>
+        </PremiumCard>
+
+        <PremiumCard className="p-6">
+          <div className="flex items-center space-x-3 mb-3">
+            <div className="p-2 bg-blue-100 rounded-lg">
+              <Link2 className="text-blue-600" size={18} />
+            </div>
+            <span className="font-semibold text-slate-900">Total Referrals</span>
+          </div>
+          <div className="text-3xl font-bold text-blue-600">{totalReferrals}</div>
+          <div className="text-sm text-slate-500">Referred signups</div>
+        </PremiumCard>
+
+        <PremiumCard className="p-6">
+          <div className="flex items-center space-x-3 mb-3">
+            <div className="p-2 bg-green-100 rounded-lg">
+              <DollarSign className="text-green-600" size={18} />
+            </div>
+            <span className="font-semibold text-slate-900">Total Paid Out</span>
+          </div>
+          <div className="text-3xl font-bold text-green-600">
+            ${(totalEarnings / 100).toFixed(2)}
+          </div>
+          <div className="text-sm text-slate-500">Commission earnings</div>
+        </PremiumCard>
+      </div>
+
+      {/* Affiliates Table */}
+      <PremiumCard className="p-6">
+        <div className="mb-6">
+          <h3 className="text-xl font-bold text-slate-900">All Affiliates</h3>
+          <p className="text-sm text-slate-500 mt-1">
+            Manage affiliate accounts and view their referral performance
+          </p>
+        </div>
+
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+
+        {affiliates.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <div className="p-4 bg-purple-50 rounded-full mb-4">
+              <Gift className="text-purple-500" size={28} />
+            </div>
+            <h4 className="text-lg font-semibold text-slate-900 mb-2">
+              No Affiliates Yet
+            </h4>
+            <p className="text-slate-500 max-w-md">
+              When users sign up as affiliates, they'll appear here. Affiliates earn
+              20% lifetime commission on every referred account.
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-slate-200">
+                  <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide pb-3 pr-4">
+                    Affiliate
+                  </th>
+                  <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide pb-3 pr-4">
+                    Code
+                  </th>
+                  <th className="text-center text-xs font-semibold text-slate-500 uppercase tracking-wide pb-3 pr-4">
+                    Referrals
+                  </th>
+                  <th className="text-right text-xs font-semibold text-slate-500 uppercase tracking-wide pb-3 pr-4">
+                    Earned
+                  </th>
+                  <th className="text-center text-xs font-semibold text-slate-500 uppercase tracking-wide pb-3">
+                    Status
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {affiliates.map((aff) => (
+                  <tr key={aff.id} className="border-b border-slate-100 last:border-0">
+                    <td className="py-3 pr-4">
+                      <div className="font-medium text-slate-900 text-sm">{aff.name}</div>
+                      <div className="text-xs text-slate-500">{aff.email}</div>
+                    </td>
+                    <td className="py-3 pr-4">
+                      <code className="text-xs bg-slate-100 px-2 py-1 rounded">
+                        {aff.resellerCode || '—'}
+                      </code>
+                    </td>
+                    <td className="py-3 pr-4 text-center">
+                      <span className="text-sm font-semibold text-slate-700">
+                        {aff.referralCount || 0}
+                      </span>
+                    </td>
+                    <td className="py-3 pr-4 text-right">
+                      <span className="text-sm font-semibold text-green-600">
+                        ${((aff.totalEarned || 0) / 100).toFixed(2)}
+                      </span>
+                    </td>
+                    <td className="py-3 text-center">
+                      <span
+                        className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          aff.status === 'Active'
+                            ? 'bg-emerald-50 text-emerald-700'
+                            : 'bg-slate-100 text-slate-600'
+                        }`}
+                      >
+                        {aff.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </PremiumCard>
     </div>
   );
 };

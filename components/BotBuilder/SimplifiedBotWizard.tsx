@@ -5,13 +5,17 @@ import {
   BookOpen,
   CheckCircle,
   Globe,
+  Link,
+  Loader,
   MessageSquare,
   Save,
   Settings,
+  Trash2,
   Upload,
   User,
+  X,
 } from 'lucide-react';
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { buildApiUrl } from '../../services/apiConfig';
 
 // --- Types ---
@@ -63,9 +67,74 @@ export default function SimplifiedBotWizard({
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>(
     'idle',
   );
+  const [showUrlInput, setShowUrlInput] = useState(false);
+  const [urlValue, setUrlValue] = useState('');
+  const [urlError, setUrlError] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const updateField = (field: keyof BotFormData, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleAddUrl = () => {
+    setUrlError('');
+    const trimmed = urlValue.trim();
+    if (!trimmed) return;
+
+    try {
+      new URL(trimmed.startsWith('http') ? trimmed : `https://${trimmed}`);
+    } catch {
+      setUrlError('Please enter a valid URL (e.g., https://example.com)');
+      return;
+    }
+
+    const normalizedUrl = trimmed.startsWith('http') ? trimmed : `https://${trimmed}`;
+
+    // Check for duplicates
+    if (formData.knowledgeSources.some((s) => s.value === normalizedUrl)) {
+      setUrlError('This URL is already added');
+      return;
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      knowledgeSources: [
+        ...prev.knowledgeSources,
+        { type: 'url' as const, value: normalizedUrl, status: 'pending' as const },
+      ],
+    }));
+    setUrlValue('');
+    setShowUrlInput(false);
+  };
+
+  const handleRemoveSource = (index: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      knowledgeSources: prev.knowledgeSources.filter((_, i) => i !== index),
+    }));
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    Array.from(files).forEach((file) => {
+      // Check for duplicates
+      if (formData.knowledgeSources.some((s) => s.value === file.name)) return;
+
+      setFormData((prev) => ({
+        ...prev,
+        knowledgeSources: [
+          ...prev.knowledgeSources,
+          { type: 'file' as const, value: file.name, status: 'pending' as const },
+        ],
+      }));
+    });
+
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   const handleSave = async () => {
@@ -307,46 +376,146 @@ export default function SimplifiedBotWizard({
                       Knowledge Base
                     </h3>
                     <p className="text-sm text-blue-600 mt-1">
-                      Upload documents or add website links. The bot will use
-                      this data to answer questions.
+                      Add your website URL and we'll crawl all its pages and posts.
+                      You can also upload documents. The bot uses this data to answer questions.
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <button
-                      type="button"
-                      className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-300 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-all group"
-                    >
-                      <Upload
-                        className="text-gray-400 group-hover:text-blue-500 mb-2"
-                        size={32}
-                      />
-                      <span className="font-medium text-gray-600 group-hover:text-blue-600">
-                        Upload PDF/Doc
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-300 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-all group"
-                    >
-                      <Globe
-                        className="text-gray-400 group-hover:text-blue-500 mb-2"
-                        size={32}
-                      />
-                      <span className="font-medium text-gray-600 group-hover:text-blue-600">
-                        Add Website URL
-                      </span>
-                    </button>
-                  </div>
+                  {/* Hidden file input */}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    className="hidden"
+                    accept=".pdf,.doc,.docx,.txt,.csv,.md"
+                    multiple
+                    onChange={handleFileUpload}
+                  />
 
-                  {/* Placeholder for list of added files */}
+                  {/* URL Input Form */}
+                  {showUrlInput && (
+                    <div className="bg-white border-2 border-blue-200 rounded-xl p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                          <Globe size={16} className="text-blue-500" />
+                          Add Website URL
+                        </h4>
+                        <button
+                          type="button"
+                          onClick={() => { setShowUrlInput(false); setUrlError(''); setUrlValue(''); }}
+                          className="p-1 text-gray-400 hover:text-gray-600"
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+                      <p className="text-xs text-slate-500">
+                        Enter your website URL. We'll crawl all pages and posts automatically after the bot is created.
+                      </p>
+                      <div className="flex gap-2">
+                        <input
+                          type="url"
+                          value={urlValue}
+                          onChange={(e) => { setUrlValue(e.target.value); setUrlError(''); }}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddUrl(); } }}
+                          placeholder="https://yourwebsite.com"
+                          className="flex-1 px-4 py-2.5 border border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-sm"
+                          autoFocus
+                        />
+                        <button
+                          type="button"
+                          onClick={handleAddUrl}
+                          className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium flex items-center gap-1.5"
+                        >
+                          <Link size={14} />
+                          Add
+                        </button>
+                      </div>
+                      {urlError && (
+                        <p className="text-xs text-red-500">{urlError}</p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Action Buttons */}
+                  {!showUrlInput && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-300 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-all group"
+                      >
+                        <Upload
+                          className="text-gray-400 group-hover:text-blue-500 mb-2"
+                          size={32}
+                        />
+                        <span className="font-medium text-gray-600 group-hover:text-blue-600">
+                          Upload PDF/Doc
+                        </span>
+                        <span className="text-xs text-gray-400 mt-1">
+                          PDF, DOC, DOCX, TXT, CSV
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowUrlInput(true)}
+                        className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-300 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-all group"
+                      >
+                        <Globe
+                          className="text-gray-400 group-hover:text-blue-500 mb-2"
+                          size={32}
+                        />
+                        <span className="font-medium text-gray-600 group-hover:text-blue-600">
+                          Add Website URL
+                        </span>
+                        <span className="text-xs text-gray-400 mt-1">
+                          We'll crawl all pages & posts
+                        </span>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Active Sources List */}
                   <div className="mt-4">
                     <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
-                      Active Sources
+                      Active Sources ({formData.knowledgeSources.length})
                     </p>
-                    <div className="mt-2 p-3 bg-white border rounded-lg text-sm text-gray-500 text-center italic">
-                      No sources added yet.
-                    </div>
+                    {formData.knowledgeSources.length === 0 ? (
+                      <div className="mt-2 p-3 bg-white border rounded-lg text-sm text-gray-500 text-center italic">
+                        No sources added yet. Add a website URL or upload documents above.
+                      </div>
+                    ) : (
+                      <div className="mt-2 space-y-2">
+                        {formData.knowledgeSources.map((source, index) => (
+                          <div
+                            key={`${source.type}-${source.value}`}
+                            className="flex items-center justify-between p-3 bg-white border rounded-lg hover:border-blue-200 transition-colors"
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              {source.type === 'url' ? (
+                                <Globe size={16} className="text-blue-500 flex-shrink-0" />
+                              ) : (
+                                <Upload size={16} className="text-green-500 flex-shrink-0" />
+                              )}
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-slate-700 truncate">
+                                  {source.value}
+                                </p>
+                                <p className="text-xs text-slate-400">
+                                  {source.type === 'url' ? 'Website — will crawl after creation' : 'Document'}
+                                </p>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveSource(index)}
+                              className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors flex-shrink-0"
+                              title="Remove source"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -379,13 +548,34 @@ export default function SimplifiedBotWizard({
                         {formData.model}
                       </span>
                     </div>
-                    <div className="flex justify-between py-2">
+                    <div className="flex justify-between py-2 border-b">
                       <span className="text-gray-500">Visibility</span>
                       <span className="font-medium">
                         {formData.isPublic ? 'Public' : 'Private'}
                       </span>
                     </div>
+                    <div className="flex justify-between py-2">
+                      <span className="text-gray-500">Knowledge Sources</span>
+                      <span className="font-medium">
+                        {formData.knowledgeSources.length > 0
+                          ? `${formData.knowledgeSources.filter((s) => s.type === 'url').length} URL(s), ${formData.knowledgeSources.filter((s) => s.type === 'file').length} file(s)`
+                          : 'None'}
+                      </span>
+                    </div>
                   </div>
+
+                  {formData.knowledgeSources.length > 0 && (
+                    <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
+                      <p className="text-xs text-blue-700 font-medium mb-2">
+                        📡 After creation, we'll automatically crawl these sources:
+                      </p>
+                      {formData.knowledgeSources.map((source, i) => (
+                        <p key={i} className="text-xs text-blue-600 truncate">
+                          {source.type === 'url' ? '🌐' : '📄'} {source.value}
+                        </p>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </motion.div>
