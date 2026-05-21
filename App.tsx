@@ -151,16 +151,7 @@ function App() {
   };
 
   // Dashboard tab state for controlled navigation
-  const [adminActiveTab, setAdminActiveTab] = useState<
-    | 'metrics'
-    | 'users'
-    | 'partners'
-    | 'financial'
-    | 'analytics'
-    | 'notifications'
-    | 'support'
-    | 'system'
-  >('metrics');
+  const [adminActiveTab, setAdminActiveTab] = useState<AdminTab>('metrics');
   const [partnerActiveTab, setPartnerActiveTab] = useState<
     'clients' | 'agents' | 'conversations' | 'commissions' | 'marketing' | 'analytics' | 'collaboration'
   >('clients');
