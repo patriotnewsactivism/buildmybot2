@@ -5,51 +5,44 @@
     {
       "idx": 0,
       "version": "5",
-      "when": 1709927161000,
-      "tag": "0000_parallel_whiplash",
-      "breakpoints": true
+      "when": 1709867050000,
+      "tag": "0000_parallel_whiplash.sql"
     },
     {
       "idx": 1,
       "version": "5",
-      "when": 1709927162000,
-      "tag": "0001_fix_bots_schema",
-      "breakpoints": true
+      "when": 1709867050000,
+      "tag": "0001_fix_bots_schema.sql"
     },
     {
       "idx": 2,
       "version": "5",
-      "when": 1709927163000,
-      "tag": "0002_knowledge_sources_processing",
-      "breakpoints": true
+      "when": 1709867050000,
+      "tag": "0002_knowledge_sources_processing.sql"
     },
     {
       "idx": 3,
       "version": "5",
-      "when": 1709927164000,
-      "tag": "0003_knowledge_chunks_embeddings",
-      "breakpoints": true
+      "when": 1709867050000,
+      "tag": "0003_knowledge_chunks_embeddings.sql"
     },
     {
       "idx": 4,
       "version": "5",
-      "when": 1709927165000,
-      "tag": "0004_voice_agent_extension",
-      "breakpoints": true
+      "when": 1709867050000,
+      "tag": "0004_voice_agent_extension.sql"
     },
     {
       "idx": 5,
       "version": "5",
-      "when": 1717616656702,
-      "tag": "0005_bot_templates",
-      "breakpoints": true
+      "when": 1710604800000,
+      "tag": "0005_bot_templates.sql"
     },
     {
       "idx": 6,
       "version": "5",
-      "when": 1717616656702,
-      "tag": "0006_error_recovery_system",
-      "breakpoints": true
+      "when": 1710604800000,
+      "tag": "0006_error_recovery_system.sql"
     }
   ]
 }
