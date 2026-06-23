@@ -1,12 +1,41 @@
 import { and, eq, isNull, desc } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
-import { botTemplates, bots, botVersions, type Bot, type InsertBot, type BotVersion, type InsertBotVersion } from '../../shared/schema';
+import { botTemplates, bots, type Bot, type InsertBot, botVersions, type BotVersion, type InsertBotVersion } from '../../shared/schema';
 import { db } from '../db';
 import { AuditService } from './AuditService';
 import { logger } from '../utils/logger';
 import * as Sentry from '@sentry/node';
 import { BotDeploymentStatus } from '../../shared/types';
-import { notFoundError, databaseError, authorizationError } from '../utils/errorHandler';
+import { notFoundError, databaseError, authorizationError, validationError } from '../utils/errorHandler';
+import { z } from 'zod';
+
+// Zod schema for validating bot configuration
+const botConfigSchema = z.object({
+  systemPrompt: z.string().min(100, 'System prompt must be at least 100 characters long.'),
+  knowledgeSources: z.array(z.object({
+    id: z.string(),
+    type: z.enum(['website', 'pdf', 'text']),
+    content: z.string().min(1, 'Knowledge source content cannot be empty.'),
+  })).max(5, 'A bot can have a maximum of 5 knowledge sources.').optional(),
+  voiceConfig: z.object({
+    enabled: z.boolean(),
+    apiKey: z.string().regex(/^sk-[a-zA-Z0-9]{32,}$/, 'Invalid API Key format. Must start with "sk-" followed by alphanumeric characters.').optional(), // Example for a generic API key format
+    voiceId: z.string().min(1, 'Voice ID is required when voice is enabled.').optional(),
+    model: z.string().optional(),
+    temperature: z.number().min(0).max(1).optional(),
+    maxTokens: z.number().min(1).optional(),
+  }).partial().refine(data => {
+    if (data.enabled) {
+      return data.apiKey && data.voiceId; // apiKey and voiceId are required if voice is enabled
+    }
+    return true;
+  }, { message: 'API Key and Voice ID are required when voice is enabled.', path: ['voiceConfig'] }).optional(),
+  // Add other bot configuration fields as needed
+  model: z.string().optional(),
+  temperature: z.number().min(0).max(1).optional(),
+  maxTokens: z.number().min(1).optional(),
+  // Add any other top-level config properties here
+}).partial(); // Allow partial updates
 
 export class BotService {
   private auditService: AuditService;
@@ -21,6 +50,11 @@ export class BotService {
     organizationId?: string,
   ): Promise<Bot> {
     try {
+      // Validate bot configuration before creation
+      if (botData.configJson) {
+        await this.validateBotConfig(botData.configJson);
+      }
+
       const newBot = await db
         .insert(bots)
         .values({
@@ -52,6 +86,9 @@ export class BotService {
     } catch (error) {
       logger.error('Error creating bot:', error);
       Sentry.captureException(error);
+      if (error instanceof z.ZodError) {
+        throw validationError('Bot configuration validation failed: ' + error.errors.map(e => e.message).join(', '));
+      }
       throw databaseError('Failed to create bot');
     }
   }
@@ -120,6 +157,12 @@ export class BotService {
           throw notFoundError('Bot not found or not authorized to update');
         }
 
+        // Merge existing config with new data for validation
+        const mergedConfig = { ...existingBot.configJson, ...botData.configJson };
+        if (botData.configJson) {
+          await this.validateBotConfig(mergedConfig);
+        }
+
         // Create a new version before updating the bot
         await this.createBotVersion(
           existingBot.id,
@@ -151,6 +194,9 @@ export class BotService {
       } catch (error) {
         logger.error(`Error updating bot ${botId}:`, error);
         Sentry.captureException(error);
+        if (error instanceof z.ZodError) {
+          throw validationError('Bot configuration validation failed: ' + error.errors.map(e => e.message).join(', '));
+        }
         throw error; // Re-throw to ensure transaction rollback
       }
     });
@@ -213,7 +259,15 @@ export class BotService {
     organizationId?: string,
   ): Promise<Bot> {
     try {
-      // Simulate deployment process
+      // Retrieve the bot to get its current configuration for validation
+      const botToDeploy = await this.getBotById(botId, organizationId);
+      if (!botToDeploy) {
+        throw notFoundError('Bot not found for deployment');
+      }
+
+      // Perform final validation check on the bot's configuration before deployment
+      await this.validateBotConfig(botToDeploy.configJson || {});
+
       logger.info(`Attempting to deploy bot ${botId} for user ${userId}`);
 
       // Perform environment validation (example: check for required API keys, integrations)
@@ -338,6 +392,21 @@ export class BotService {
       let status: 'loading' | 'deployed' | 'error' = 'loading';
       const errors: { code: string; message: string; fixAction?: string }[] = [];
 
+      // Perform real-time validation here as well for deployment status checks
+      try {
+        botConfigSchema.parse(bot.configJson || {});
+      } catch (validationError) {
+        if (validationError instanceof z.ZodError) {
+          validationError.errors.forEach(err => {
+            errors.push({
+              code: `CONFIG_VALIDATION_ERROR_${err.path.join('_').toUpperCase()}`,
+              message: err.message,
+              fixAction: `Review and correct the '${err.path.join('.')}' setting in your bot configuration.`
+            });
+          });
+        }
+      }
+
       switch (bot.deploymentStatus) {
         case BotDeploymentStatus.DEPLOYING:
           status = 'loading';
@@ -347,7 +416,7 @@ export class BotService {
           break;
         case BotDeploymentStatus.FAILED:
           status = 'error';
-          // Simulate common error patterns
+          // Add existing simulated errors, potentially filtered by validation errors
           if (bot.lastDeploymentError?.includes('knowledge base')) {
             errors.push({
               code: 'KB_PROCESSING_FAILED',
@@ -360,7 +429,7 @@ export class BotService {
               message: 'Embed script conflict detected. Check for multiple bot scripts or incompatible third-party scripts.',
               fixAction: 'Verify your website embed code and remove any conflicting scripts.'
             });
-          } else {
+          } else if (errors.length === 0) { // Only add general error if no specific validation errors were found
             errors.push({
               code: 'DEPLOYMENT_GENERAL_ERROR',
               message: bot.lastDeploymentError || 'An unknown error occurred during deployment.',
@@ -372,6 +441,11 @@ export class BotService {
         default:
           status = 'loading'; // Or 'not_deployed' if we want a distinct initial state
           break;
+      }
+
+      // If there are validation errors, force status to 'error' if not already failed
+      if (errors.length > 0 && status !== 'error') {
+        status = 'error';
       }
 
       return {
@@ -522,7 +596,7 @@ export class BotService {
 
   /**
    * Rolls back a bot to a specific version.
-   * @param botId The ID of the bot to rollback.
+   * @param botId The ID of the bot to rollback.f
    * @param versionId The ID of the version to rollback to.
    * @param userId The user ID performing the rollback.
    * @param organizationId The organization ID the bot belongs to.
@@ -559,6 +633,9 @@ export class BotService {
         if (!targetVersion) {
           throw notFoundError('Bot version not found or does not belong to this bot/organization');
         }
+
+        // Validate the target version's config before rolling back
+        await this.validateBotConfig(targetVersion.configJson || {});
 
         // Create a new version of the current bot state before rolling back
         // This allows rolling back the rollback if needed
@@ -608,8 +685,25 @@ export class BotService {
       } catch (error) {
         logger.error(`Error rolling back bot ${botId} to version ${versionId}:`, error);
         Sentry.captureException(error);
+        if (error instanceof z.ZodError) {
+          throw validationError('Bot configuration validation failed during rollback: ' + error.errors.map(e => e.message).join(', '));
+        }
         throw error; // Re-throw to ensure transaction rollback
       }
     });
+  }
+
+  /**
+   * Validates a bot's configuration against the defined Zod schema.
+   * @param config The bot's configuration object.
+   * @throws {z.ZodError} if validation fails.
+   */
+  async validateBotConfig(config: object): Promise<void> {
+    try {
+      botConfigSchema.parse(config);
+    } catch (error) {
+      logger.warn('Bot configuration validation failed:', error);
+      throw error; // Re-throw ZodError for upstream handling
+    }
   }
 }
