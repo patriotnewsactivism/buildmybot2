@@ -25,8 +25,10 @@ import {
 import { AdminDashboard } from './components/Admin/AdminDashboard';
 import { AffiliateDashboard } from './components/Affiliate/AffiliateDashboard';
 import { AgentDashboard } from './components/Agent/AgentDashboard';
-import { AdminDashboardV2 } from './components/Admin/AdminDashboardV2';
-import type { AdminTab } from './components/Admin/AdminDashboardV2';
+import {
+  AdminDashboardV2,
+  AdminTab,
+} from './components/Admin/AdminDashboardV2';
 import { AdvancedAnalytics } from './components/Analytics/AdvancedAnalytics';
 import { AuthModal } from './components/Auth/AuthModal';
 import { PartnerSignup } from './components/Auth/PartnerSignup';
