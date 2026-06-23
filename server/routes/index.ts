@@ -8,6 +8,7 @@ import agencyRouter from './agency';
 import analyticsRouter from './analytics';
 import auditRouter from './audit';
 import { authRouter } from './auth';
+import botsRouter from './bots'; // Import the new bots router
 import channelsRouter from './channels';
 import chatRouter from './chat';
 import clientsRouter from './clients';
@@ -21,44 +22,45 @@ import notificationsRouter from './notifications';
 import organizationsRouter from './organizations';
 import partnersRouter from './partners';
 import { phoneRouter } from './phone';
-import salesAgentsRouter from './salesAgents';
 import revenueRouter from './revenue';
+import salesAgentsRouter from './salesAgents';
 import searchRouter from './search';
 import teamRouter from './team';
 import templatesRouter from './templates';
 import toolsRouter from './tools';
-import { twilioWebhooksRouter } from './twilioWebhooks';
-import voiceAgentsRouter from './voiceAgents';
+import twilioWebhooksRouter from './twilioWebhooks';
 import voiceRouter from './voice';
+import voiceAgentsRouter from './voiceAgents';
 import webhooksRouter from './webhooks';
 
-export {
-  organizationsRouter,
-  auditRouter,
-  analyticsRouter,
-  adminRouter,
-  agencyRouter,
-  partnersRouter,
-  clientsRouter,
-  impersonationRouter,
-  templatesRouter,
-  toolsRouter,
-  webhooksRouter,
-  channelsRouter,
-  searchRouter,
-  teamRouter,
-  knowledgeRouter,
-  revenueRouter,
-  chatRouter,
-  leadsRouter,
-  landingPagesRouter,
-  notificationsRouter,
-  authRouter,
-  healthRouter,
-  integrationsRouter,
-  phoneRouter,
-  twilioWebhooksRouter,
-  salesAgentsRouter,
-  voiceAgentsRouter,
-  voiceRouter,
+export { 
+  adminRouter, 
+  agencyRouter, 
+  analyticsRouter, 
+  auditRouter, 
+  authRouter, 
+  botsRouter, // Export the new bots router
+  channelsRouter, 
+  chatRouter, 
+  clientsRouter, 
+  healthRouter, 
+  impersonationRouter, 
+  integrationsRouter, 
+  knowledgeRouter, 
+  landingPagesRouter, 
+  leadsRouter, 
+  notificationsRouter, 
+  organizationsRouter, 
+  partnersRouter, 
+  phoneRouter, 
+  revenueRouter, 
+  salesAgentsRouter, 
+  searchRouter, 
+  teamRouter, 
+  templatesRouter, 
+  toolsRouter, 
+  twilioWebhooksRouter, 
+  voiceRouter, 
+  voiceAgentsRouter, 
+  webhooksRouter 
 };
