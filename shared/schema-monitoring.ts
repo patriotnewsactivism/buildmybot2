@@ -20,6 +20,77 @@ import {
 import { auditLogs, organizations, users } from './schema';
 
 // ========================================
+// REPAIR LOGS
+// ========================================
+
+/**
+ * Repair Logs Table
+ *
+ * Tracks automated and manual repairs performed on bots
+ * and their components.
+ */
+export const repairLogs = pgTable('repair_logs', {
+  /**
+   * Unique identifier for this repair record
+   */
+  id: text('id').primaryKey(),
+
+  /**
+   * Bot being repaired
+   */
+  botId: text('bot_id')
+    .notNull()
+    .references(() => bots.id, { onDelete: 'cascade' }),
+
+  /**
+   * Type of repair performed
+   * Values: 'url_fix', 'response_quality', 'configuration', 'self_healing'
+   */
+  repairType: varchar('repair_type', { length: 50 }).notNull(),
+
+  /**
+   * Status of the repair
+   * Values: 'pending', 'in_progress', 'completed', 'failed'
+   */
+  status: varchar('status', { length: 20 }).notNull(),
+
+  /**
+   * Detailed description of the issue
+   */
+  issueDescription: text('issue_description'),
+
+  /**
+   * Steps taken to repair
+   */
+  repairSteps: text('repair_steps'),
+
+  /**
+   * Whether repair was successful
+   */
+  success: boolean('success'),
+
+  /**
+   * Error message if repair failed
+   */
+  errorMessage: text('error_message'),
+
+  /**
+   * Additional metadata about the repair
+   */
+  metadata: json('metadata').default({}),
+
+  /**
+   * Timestamp when repair was initiated
+   */
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+
+  /**
+   * Timestamp when repair was completed
+   */
+  completedAt: timestamp('completed_at'),
+});
+
+// ========================================
 // ENHANCED AUDIT LOGGING
 // ========================================
 
