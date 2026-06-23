@@ -4,6 +4,8 @@ import {
   Target,
   TrendingUp,
   Users,
+  Loader,
+  AlertCircle,
 } from 'lucide-react';
 import type React from 'react';
 import { useEffect, useState } from 'react';
@@ -20,145 +22,126 @@ interface QuickMetrics {
 
 interface QuickMetricsWidgetProps {
   averageLeadValue?: number;
+  totalConversations?: number;
+  totalLeads?: number;
+  conversionRate?: number;
+  estimatedValue?: number;
+  loading?: boolean;
+  error?: string | null;
 }
 
 export const QuickMetricsWidget: React.FC<QuickMetricsWidgetProps> = ({
   averageLeadValue = 100,
+  totalConversations: propTotalConversations,
+  totalLeads: propTotalLeads,
+  conversionRate: propConversionRate,
+  estimatedValue: propEstimatedValue,
+  loading: propLoading = false,
+  error: propError = null,
 }) => {
   const [metrics, setMetrics] = useState<QuickMetrics | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // If props are provided, use them directly and skip API call
+    if (propTotalConversations !== undefined && propTotalLeads !== undefined && propConversionRate !== undefined && propEstimatedValue !== undefined) {
+      setMetrics({
+        totalConversations: propTotalConversations,
+        totalLeads: propTotalLeads,
+        conversionRate: propConversionRate,
+        estimatedValue: propEstimatedValue,
+      });
+      setLoading(false);
+      setError(propError);
+      return;
+    }
+
     const fetchMetrics = async () => {
+      setLoading(true);
+      setError(null);
       try {
-        const response = await fetch(buildApiUrl('/clients/overview'), {
-          credentials: 'include',
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setMetrics({
-            totalConversations: data.stats?.totalConversations || 0,
-            totalLeads: data.stats?.leadCount || 0,
-            conversionRate: data.stats?.conversionRate || 0,
-            estimatedValue: (data.stats?.leadCount || 0) * averageLeadValue,
-            conversationGrowth: data.stats?.conversationGrowth,
-            leadGrowth: data.stats?.leadGrowth,
-          });
+        const response = await fetch(buildApiUrl('/analytics/quick-metrics'));
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Failed to fetch quick metrics');
         }
-      } catch (error) {
-        console.error('Failed to fetch metrics:', error);
+        const data: QuickMetrics = await response.json();
+        setMetrics(data);
+      } catch (err) {
+        console.error('Error fetching quick metrics:', err);
+        setError(err instanceof Error ? err.message : 'An unknown error occurred');
       } finally {
         setLoading(false);
       }
     };
 
     fetchMetrics();
-  }, [averageLeadValue]);
+  }, [propTotalConversations, propTotalLeads, propConversionRate, propEstimatedValue, propError]);
 
-  if (loading) {
-    return (
-      <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-xl p-6 animate-pulse">
-        <div className="h-6 bg-slate-700 rounded w-1/3 mb-4" />
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-20 bg-slate-700 rounded" />
-          ))}
+  const currentLoading = propLoading || loading;
+  const currentError = propError || error;
+  const currentMetrics = metrics || { totalConversations: 0, totalLeads: 0, conversionRate: 0, estimatedValue: 0 };
+
+  const formatValue = (value: number | undefined, prefix = '', suffix = '') => {
+    if (value === undefined || currentLoading) return '...';
+    return `${prefix}${value.toLocaleString()}${suffix}`;
+  };
+
+  const formatPercentage = (value: number | undefined) => {
+    if (value === undefined || currentLoading) return '...';
+    return `${value.toFixed(2)}%`;
+  };
+
+  const renderMetric = (Icon: React.ElementType, title: string, value: string, growth?: number) => (
+    <div className="rounded-lg bg-white p-5 shadow-sm">
+      <div className="flex items-center justify-between">
+        <Icon className="h-6 w-6 text-blue-500" />
+        <span className="text-2xl font-bold text-gray-800">{value}</span>
+      </div>
+      <h3 className="mt-3 text-lg font-medium text-gray-700">{title}</h3>
+      {growth !== undefined && growth !== null && (
+        <div className={`mt-1 flex items-center text-sm ${growth >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+          {growth >= 0 ? <TrendingUp className="mr-1 h-4 w-4" /> : <TrendingUp className="mr-1 h-4 w-4 rotate-180" />}
+          {Math.abs(growth).toFixed(2)}% {growth >= 0 ? 'increase' : 'decrease'}
         </div>
+      )}
+    </div>
+  );
+
+  if (currentError) {
+    return (
+      <div className="col-span-full flex items-center justify-center rounded-lg bg-red-100 p-5 text-red-700 shadow-sm">
+        <AlertCircle className="mr-2 h-5 w-5" />
+        <p>Error loading quick metrics: {currentError}</p>
       </div>
     );
   }
 
-  const metricCards = [
-    {
-      label: 'Conversations',
-      value: metrics?.totalConversations?.toLocaleString() || '0',
-      icon: MessageSquare,
-      color: 'from-blue-500 to-blue-600',
-      growth: metrics?.conversationGrowth,
-    },
-    {
-      label: 'Leads Captured',
-      value: metrics?.totalLeads?.toLocaleString() || '0',
-      icon: Users,
-      color: 'from-emerald-500 to-emerald-600',
-      growth: metrics?.leadGrowth,
-    },
-    {
-      label: 'Conversion Rate',
-      value: `${(metrics?.conversionRate || 0).toFixed(1)}%`,
-      icon: Target,
-      color: 'from-purple-500 to-purple-600',
-    },
-    {
-      label: 'Est. Lead Value',
-      value: `$${(metrics?.estimatedValue || 0).toLocaleString()}`,
-      icon: DollarSign,
-      color: 'from-amber-500 to-amber-600',
-    },
-  ];
-
   return (
-    <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-xl p-4 md:p-6 text-white">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <TrendingUp size={20} className="text-emerald-400" />
-          <h3 className="font-bold text-lg">Performance Snapshot</h3>
-        </div>
-        <span className="text-xs text-slate-400">Last 30 days</span>
-      </div>
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-        {metricCards.map((metric) => (
-          <div
-            key={metric.label}
-            className="bg-white/5 rounded-lg p-3 md:p-4 border border-white/10"
-          >
-            <div className="flex items-center gap-2 mb-2">
-              <div
-                className={`p-1.5 rounded-lg bg-gradient-to-br ${metric.color}`}
-              >
-                <metric.icon size={14} className="text-white" />
-              </div>
-              <span className="text-xs text-slate-400">{metric.label}</span>
-            </div>
-            <div className="flex items-baseline justify-between">
-              <span className="text-xl md:text-2xl font-bold">
-                {metric.value}
-              </span>
-              {metric.growth !== undefined && (
-                <span
-                  className={`text-xs font-medium ${
-                    metric.growth > 0
-                      ? 'text-emerald-400'
-                      : metric.growth < 0
-                        ? 'text-red-400'
-                        : 'text-slate-400'
-                  }`}
-                >
-                  {metric.growth > 0 ? '+' : ''}
-                  {metric.growth.toFixed(1)}%
-                </span>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="mt-4 pt-4 border-t border-white/10">
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-slate-400">
-            Your bots are generating value for your business
-          </span>
-          <a
-            href="/analytics"
-            className="text-blue-400 hover:text-blue-300 font-medium"
-          >
-            View Details
-          </a>
-        </div>
-      </div>
-    </div>
+    <>
+      {renderMetric(
+        MessageSquare,
+        'Total Conversations',
+        formatValue(currentMetrics.totalConversations),
+        currentMetrics.conversationGrowth,
+      )}
+      {renderMetric(
+        Users,
+        'Total Leads',
+        formatValue(currentMetrics.totalLeads),
+        currentMetrics.leadGrowth,
+      )}
+      {renderMetric(
+        Target,
+        'Conversion Rate',
+        formatPercentage(currentMetrics.conversionRate),
+      )}
+      {renderMetric(
+        DollarSign,
+        'Estimated Value',
+        formatValue(currentMetrics.estimatedValue, '$'),
+      )}
+    </>
   );
 };
-
-export default QuickMetricsWidget;
