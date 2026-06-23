@@ -49,7 +49,31 @@ interface AdminDashboardMetrics {
   totalConversations: number;
 }
 
-export const AdminDashboardV2: React.FC = () => {
+export type AdminTab =
+  | 'metrics'
+  | 'users'
+  | 'partners'
+  | 'financial'
+  | 'analytics'
+  | 'notifications'
+  | 'support'
+  | 'system'
+  | 'affiliates'
+  | 'agents'
+  | 'clients'
+  | 'conversations';
+
+export interface AdminDashboardV2Props {
+  onImpersonate?: (userId: string, reason: string) => void;
+  activeTab?: AdminTab;
+  onTabChange?: (tab: AdminTab) => void;
+}
+
+export const AdminDashboardV2: React.FC<AdminDashboardV2Props> = ({
+  onImpersonate,
+  activeTab,
+  onTabChange,
+}) => {
   const [metrics, setMetrics] = useState<AdminDashboardMetrics | null>(null);
   const [loadingMetrics, setLoadingMetrics] = useState<boolean>(true);
   const [errorMetrics, setErrorMetrics] = useState<string | null>(null);
