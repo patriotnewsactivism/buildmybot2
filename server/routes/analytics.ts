@@ -4,11 +4,54 @@ import { db } from '../db';
 import { organizations, users, bots, conversations, messages, knowledgeGaps } from '../../shared/schema';
 import { eq, count, sum, sql, gte, lte, and, desc } from 'drizzle-orm';
 import botPerformanceRouter from './analytics/bot-performance'; // Import the new router
+import { BenchmarkService } from '../services/BenchmarkService';
 
 const router = Router();
+const benchmarkService = new BenchmarkService();
 
 // Use the new bot performance router
 router.use(botPerformanceRouter);
+
+// New endpoint for comparative benchmarks
+router.get('/benchmarks', authenticateToken, async (req, res) => {
+  try {
+    const organizationId = req.organization?.id;
+    if (!organizationId) {
+      return res.status(403).json({ error: 'Organization not found' });
+    }
+
+    const { botId, currentPeriodStart, currentPeriodEnd, previousPeriodStart, previousPeriodEnd } = req.query;
+
+    if (!currentPeriodStart || !currentPeriodEnd || !previousPeriodStart || !previousPeriodEnd) {
+      return res.status(400).json({ error: 'Missing required date parameters for benchmarking.' });
+    }
+
+    const currentStart = new Date(currentPeriodStart as string);
+    const currentEnd = new Date(currentPeriodEnd as string);
+    const previousStart = new Date(previousPeriodStart as string);
+    const previousEnd = new Date(previousPeriodEnd as string);
+
+    const comparativeBenchmark = await benchmarkService.getComparativeBenchmark(
+      organizationId,
+      botId as string | undefined,
+      currentStart,
+      currentEnd,
+      previousStart,
+      previousEnd
+    );
+
+    const suggestions = benchmarkService.generateOptimizationSuggestions(comparativeBenchmark);
+
+    res.json({
+      ...comparativeBenchmark,
+      suggestions,
+    });
+
+  } catch (error) {
+    console.error('Error fetching comparative benchmarks:', error);
+    res.status(500).json({ error: 'Failed to fetch comparative benchmarks' });
+  }
+});
 
 // Example: Get overall analytics for an organization
 router.get('/', authenticateToken, async (req, res) => {
