@@ -1,12 +1,132 @@
 import React, { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { CalendarDays, Smile, Frown, Meh, Lightbulb, TrendingUp, BarChart3 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { useQuery } from '@tanstack/react-query';
-import api from '@/services/apiConfig';
+import { buildApiUrl } from '../../services/apiConfig';
+
+// Simple UI components to replace missing shadcn-ui imports
+const Button: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { size?: 'sm' | 'md' | 'lg' }> = ({
+  children,
+  className = '',
+  size = 'md',
+  ...props
+}) => {
+  const sizeClasses = size === 'sm' ? 'px-3 py-1.5 text-sm' : size === 'lg' ? 'px-6 py-3 text-lg' : 'px-4 py-2';
+  return (
+    <button
+      className={`inline-flex items-center justify-center font-medium rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${sizeClasses} ${className}`}
+      {...props}
+    >
+      {children}
+    </button>
+  );
+};
+
+const Card: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ children, className = '', ...props }) => (
+  <div className={`bg-white rounded-lg border border-gray-200 shadow-sm ${className}`} {...props}>
+    {children}
+  </div>
+);
+
+const CardHeader: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ children, className = '', ...props }) => (
+  <div className={`flex flex-col space-y-1.5 p-6 ${className}`} {...props}>
+    {children}
+  </div>
+);
+
+const CardTitle: React.FC<React.HTMLAttributes<HTMLHeadingElement>> = ({ children, className = '', ...props }) => (
+  <h3 className={`text-2xl font-semibold leading-none tracking-tight text-gray-900 ${className}`} {...props}>
+    {children}
+  </h3>
+);
+
+const CardDescription: React.FC<React.HTMLAttributes<HTMLParagraphElement>> = ({ children, className = '', ...props }) => (
+  <p className={`text-sm text-gray-500 ${className}`} {...props}>
+    {children}
+  </p>
+);
+
+const CardContent: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ children, className = '', ...props }) => (
+  <div className={`p-6 pt-0 ${className}`} {...props}>
+    {children}
+  </div>
+);
+
+const Skeleton: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className = '', ...props }) => (
+  <div className={`animate-pulse rounded bg-gray-200 ${className}`} {...props} />
+);
+
+const Alert: React.FC<React.HTMLAttributes<HTMLDivElement> & { variant?: 'default' | 'destructive' }> = ({
+  children,
+  className = '',
+  variant = 'default',
+  ...props
+}) => {
+  const variantClasses = variant === 'destructive' ? 'bg-red-50 border-red-200 text-red-800' : 'bg-gray-50 border-gray-200 text-gray-800';
+  return (
+    <div className={`relative w-full rounded-lg border p-4 [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg~*]:pl-7 ${variantClasses} ${className}`} {...props}>
+      {children}
+    </div>
+  );
+};
+
+const AlertTitle: React.FC<React.HTMLAttributes<HTMLHeadingElement>> = ({ children, className = '', ...props }) => (
+  <h5 className={`mb-1 font-medium leading-none tracking-tight ${className}`} {...props}>
+    {children}
+  </h5>
+);
+
+const AlertDescription: React.FC<React.HTMLAttributes<HTMLParagraphElement>> = ({ children, className = '', ...props }) => (
+  <div className={`text-sm [&_p]:leading-relaxed ${className}`} {...props}>
+    {children}
+  </div>
+);
+
+// Custom simple useQuery stub to avoid external react-query dependency
+function useQuery<T, E = Error>(
+  queryKey: any[],
+  queryFn: () => Promise<T>,
+  options?: { enabled?: boolean; staleTime?: number }
+) {
+  const [data, setData] = useState<T | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isError, setIsError] = useState(false);
+  const [error, setError] = useState<E | null>(null);
+
+  const enabled = options?.enabled !== false;
+
+  useEffect(() => {
+    if (!enabled) return;
+
+    let isMounted = true;
+    const fetchData = async () => {
+      setIsLoading(true);
+      setIsError(false);
+      try {
+        const result = await queryFn();
+        if (isMounted) {
+          setData(result);
+        }
+      } catch (err) {
+        if (isMounted) {
+          setIsError(true);
+          setError(err as E);
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    fetchData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [enabled, JSON.stringify(queryKey)]);
+
+  return { data, isLoading, isError, error };
+}
 
 interface CompletionRateData {
   date: string;
@@ -38,17 +158,18 @@ const BotImpactDashboard: React.FC = () => {
   // Mock botId for demonstration. Replace with actual bot selection logic.
   useEffect(() => {
     // For demonstration, assume a botId is available or selected
-    setBotId('bot-123'); 
+    setBotId('bot-123');
   }, []);
 
   const { data, isLoading, isError, error } = useQuery<BotPerformanceData, Error>(
     ['botPerformance', botId],
     async () => {
-      if (!botId) return { hasData: false, completionRates: [], sentimentDistribution: [], knowledgeGaps: [] };
-      const response = await api.get(`/analytics/bot-performance/${botId}`);
-      return response.data;
+      if (!botId) return { hasData: false, completionRates: [], sentimentDistribution: [], knowledgeGaps: [] }; 
+      const response = await fetch(buildApiUrl(`/analytics/bot-performance/${botId}`));
+      if (!response.ok) throw new Error('Failed to fetch analytics');
+      return response.json();
     },
-    { enabled: !!botId, staleTime: 5 * 60 * 1000 } // Cache data for 5 minutes
+    { enabled: !!botId }
   );
 
   const renderSentimentLegend = (value: string) => {
@@ -76,7 +197,7 @@ const BotImpactDashboard: React.FC = () => {
       <Alert variant="destructive" className="m-4">
         <Frown className="h-4 w-4" />
         <AlertTitle>Error</AlertTitle>
-        <AlertDescription>Failed to load bot analytics: {error?.message || 'Unknown error'}</AlertDescription>
+        <AlertDescription>Failed to load bot analytics: {error?.message || 'Unknown error'}</AlertDescription>  
       </Alert>
     );
   }
@@ -85,7 +206,7 @@ const BotImpactDashboard: React.FC = () => {
     return (
       <div className="flex flex-col items-center justify-center p-8 bg-gray-50 dark:bg-gray-900 rounded-lg shadow-inner m-4 min-h-[400px]">
         <BarChart3 className="h-16 w-16 text-gray-400 mb-4" />
-        <h2 className="text-2xl font-semibold text-gray-800 dark:text-gray-200 mb-2">No Analytics Data Yet</h2>
+        <h2 className="text-2xl font-semibold text-gray-800 dark:text-gray-200 mb-2">No Analytics Data Yet</h2> 
         <p className="text-gray-600 dark:text-gray-400 text-center mb-6 max-w-md">
           It looks like your bot hasn't generated enough conversation data to display analytics. Start engaging with your customers to unlock powerful insights!
         </p>
@@ -110,12 +231,12 @@ const BotImpactDashboard: React.FC = () => {
           </CardHeader>
           <CardContent className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={data.completionRates} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+              <LineChart data={data.completionRates} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>       
                 <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
                 <XAxis dataKey="date" stroke="#888" tickFormatter={(tick) => new Date(tick).toLocaleDateString()} />
                 <YAxis stroke="#888" domain={[0, 100]} tickFormatter={(tick) => `${tick}%`} />
                 <Tooltip formatter={(value: number) => [`${value.toFixed(2)}%`, 'Completion Rate']} />
-                <Line type="monotone" dataKey="completionRate" stroke="#82ca9d" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="completionRate" stroke="#82ca9d" strokeWidth={2} dot={false} />  
               </LineChart>
             </ResponsiveContainer>
           </CardContent>
@@ -139,7 +260,7 @@ const BotImpactDashboard: React.FC = () => {
                   fill="#8884d8"
                   dataKey="count"
                 >
-                  {data.sentimentDistribution.map((entry, index) => (
+                  {data.sentimentDistribution.map((entry: SentimentData, index: number) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
@@ -154,15 +275,15 @@ const BotImpactDashboard: React.FC = () => {
         <Card className="md:col-span-full lg:col-span-full">
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><Lightbulb className="h-5 w-5 text-purple-500" /> Top Knowledge Gaps</CardTitle>
-            <CardDescription>Frequently asked questions your bot couldn't answer effectively.</CardDescription>
+            <CardDescription>Frequently asked questions your bot couldn't answer effectively.</CardDescription> 
           </CardHeader>
           <CardContent>
             {data.knowledgeGaps.length > 0 ? (
               <ul className="space-y-2">
-                {data.knowledgeGaps.slice(0, 5).map((gap, index) => (
+                {data.knowledgeGaps.slice(0, 5).map((gap: KnowledgeGapData, index: number) => (
                   <li key={index} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded-md">
-                    <span className="text-gray-800 dark:text-gray-200 font-medium">{gap.question}</span>
-                    <span className="text-sm text-gray-500 dark:text-gray-400">Asked {gap.count} times</span>
+                    <span className="text-gray-800 dark:text-gray-200 font-medium">{gap.question}</span>        
+                    <span className="text-sm text-gray-500 dark:text-gray-400">Asked {gap.count} times</span>   
                   </li>
                 ))}
               </ul>
