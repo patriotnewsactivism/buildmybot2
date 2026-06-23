@@ -63,6 +63,7 @@ export const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser }) => {
             { id: 'integrations', label: 'Integrations', icon: Plug },
             { id: 'notifications', label: 'Notifications', icon: Bell },
             { id: 'developers', label: 'Developer API', icon: Webhook },
+            { id: 'diagnostics', label: 'Bot Diagnostics', icon: Server },
           ].map((item) => (
             <button
               type="button"
@@ -230,7 +231,7 @@ export const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser }) => {
               <div>
                 <label
                   htmlFor="settings-industry"
-                  className="block text-sm font-medium text-slate-700 mb-2"
+                    className="block text-sm font-medium text-slate-700 mb-2"
                 >
                   Industry
                 </label>
@@ -349,6 +350,48 @@ export const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser }) => {
                 <p className="text-xs text-slate-500 mt-2">
                   Use this token to authenticate requests to the BuildMyBot API.
                 </p>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'diagnostics' && (
+            <div className="space-y-6">
+              <h3 className="text-lg font-semibold text-slate-800 border-b border-slate-100 pb-4">
+                Bot Diagnostics
+              </h3>
+              <div className="bg-slate-50 p-6 rounded-lg border border-slate-200">
+                <div className="flex items-center gap-2 mb-4">
+                  <Server size={18} className="text-blue-900" />
+                  <h4 className="font-semibold text-slate-800">
+                    Automated Bot Health Checks
+                  </h4>
+                </div>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-600">Knowledge Base URLs</span>
+                    <span className="text-sm font-medium text-emerald-600">
+                      All URLs valid
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-600">Response Quality</span>
+                    <span className="text-sm font-medium text-amber-600">
+                      2 warnings
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-600">Configuration</span>
+                    <span className="text-sm font-medium text-emerald-600">
+                      No issues
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="mt-4 w-full px-4 py-2 bg-blue-900 text-white rounded-lg font-medium hover:bg-blue-950 shadow-sm transition flex items-center justify-center gap-2"
+                >
+                  Run Full Diagnostics
+                </button>
               </div>
             </div>
           )}
