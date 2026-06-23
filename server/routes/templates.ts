@@ -4,8 +4,10 @@ import { v4 as uuidv4 } from 'uuid';
 import { botTemplates, bots } from '../../shared/schema';
 import { db } from '../db';
 import { env } from '../env';
+import { BotService } from '../services/BotService';
 
 const router = Router();
+const botService = new BotService();
 
 // Cache templates for 2 minutes - public data that rarely changes
 router.get(
@@ -55,7 +57,7 @@ router.get(
   },
 );
 
-router.post('/:id/install', async (req, res) => {
+router.post('/:id/deploy', async (req, res) => {
   try {
     const user = (req as any).user;
     if (!user) {
@@ -72,26 +74,12 @@ router.post('/:id/install', async (req, res) => {
       return res.status(404).json({ error: 'Template not found' });
     }
 
-    const [newBot] = await db
-      .insert(bots)
-      .values({
-        id: uuidv4(),
-        name: `${template.name} (Copy)`,
-        type: template.category || 'custom',
-        systemPrompt: template.systemPrompt || '',
-        model: env.DEFAULT_AI_MODEL || 'gpt-4o-mini',
-        temperature: 0.7,
-        knowledgeBase: [],
-        active: true,
-        themeColor: '#1e3a8a',
-        maxMessages: 200,
-        randomizeIdentity: false,
-        embedType: 'hover',
-        userId: user.id,
-        organizationId: user.organizationId,
-        createdAt: new Date(),
-      })
-      .returning();
+    // Use the BotService to clone the bot from the template
+    const newBot = await botService.cloneBotFromTemplate(
+      template,
+      user.id,
+      user.organizationId,
+    );
 
     await db
       .update(botTemplates)
@@ -100,10 +88,10 @@ router.post('/:id/install', async (req, res) => {
 
     res.json(newBot);
   } catch (error: any) {
-    console.error('Template install error:', error);
+    console.error('Template deploy error:', error);
     res
       .status(500)
-      .json({ error: `Failed to install template: ${error.message}` });
+      .json({ error: `Failed to deploy template: ${error.message}` });
   }
 });
 
