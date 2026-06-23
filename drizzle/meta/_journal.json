@@ -1,12 +1,54 @@
 {
-  "version": "7",
-  "dialect": "postgresql",
+  "version": "5",
+  "dialect": "pg",
   "entries": [
     {
       "idx": 0,
-      "version": "7",
-      "when": 1768170013503,
+      "version": "5",
+      "when": 1709927161000,
       "tag": "0000_parallel_whiplash",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1709927162000,
+      "tag": "0001_fix_bots_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1709927163000,
+      "tag": "0002_knowledge_sources_processing",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1709927164000,
+      "tag": "0003_knowledge_chunks_embeddings",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1709927165000,
+      "tag": "0004_voice_agent_extension",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1717616656702,
+      "tag": "0005_bot_templates",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1717616656702,
+      "tag": "0006_error_recovery_system",
       "breakpoints": true
     }
   ]
