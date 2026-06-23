@@ -19,10 +19,13 @@ import {
   Users,
   X,
   Zap,
+  AlertTriangle,
 } from 'lucide-react';
 import type React from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { PLANS } from '../../constants';
 import { PlanType, type User, UserRole } from '../../types';
+import { buildApiUrl } from '../../services/apiConfig';
 
 interface SidebarProps {
   currentView: string;
@@ -45,6 +48,37 @@ export const Sidebar: React.FC<SidebarProps> = ({
   user,
   usage = 0,
 }) => {
+  const [unresolvedErrorCount, setUnresolvedErrorCount] = useState<number>(0);
+
+  const fetchUnresolvedErrorCount = useCallback(async () => {
+    try {
+      const response = await fetch(buildApiUrl('/admin/repair-logs'));
+      if (!response.ok) {
+        throw new Error('Failed to fetch repair logs');
+      }
+      const data = await response.json();
+      if (data && Array.isArray(data.logs)) {
+        const pendingCount = data.logs.filter(
+          (log: { status: string }) => log.status === 'pending' || log.status === 'in_progress'
+        ).length;
+        setUnresolvedErrorCount(pendingCount);
+      }
+    } catch (error) {
+      console.error('Error fetching unresolved error count:', error);
+      // Don't update count on error to avoid flickering
+    }
+  }, []);
+
+  useEffect(() => {
+    // Initial fetch
+    fetchUnresolvedErrorCount();
+
+    // Poll every 30 seconds
+    const interval = setInterval(fetchUnresolvedErrorCount, 30000);
+
+    return () => clearInterval(interval);
+  }, [fetchUnresolvedErrorCount]);
+
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'bots', label: 'My Bots', icon: Bot },
@@ -79,7 +113,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   // Admin has a special separate dashboard, but can access it via sidebar if logged in as admin context
   if (isAdmin) {
-    menuItems.push({ id: 'admin', label: 'Master Admin', icon: TrendingUp });
+    menuItems.push({ 
+      id: 'admin', 
+      label: 'Master Admin', 
+      icon: TrendingUp,
+      badge: unresolvedErrorCount > 0 ? unresolvedErrorCount : undefined,
+    });
   }
 
   const handleNavigation = (viewId: string) => {
@@ -143,7 +182,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 size={20}
                 className={`flex-shrink-0 ${currentView === item.id ? 'text-white' : 'text-slate-500 group-hover:text-slate-300'}`}
               />
-              <span className="font-medium text-sm">{item.label}</span>
+              <span className="font-medium text-sm flex-1 text-left">{item.label}</span>
+              {'badge' in item && item.badge && (
+                <span className="inline-flex items-center justify-center w-6 h-6 text-xs font-bold text-white bg-red-500 rounded-full">
+                  {item.badge}
+                </span>
+              )}
             </button>
           ))}
         </nav>
