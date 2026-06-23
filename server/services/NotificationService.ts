@@ -20,6 +20,7 @@ export interface CreateNotificationParams {
   targetUserId?: string;
   createdBy?: string;
   actionUrl?: string;
+  recipientEmail?: string; // Added for direct email notifications
 }
 
 export class NotificationService {
@@ -52,7 +53,7 @@ export class NotificationService {
     // If targeting specific organization, create receipts for all members
     if (params.audienceType === 'organization' && params.targetOrganizationId) {
       const members = await db
-        .select({ id: users.id })
+        .select({ id: users.id, email: users.email })
         .from(users)
         .where(eq(users.organizationId, params.targetOrganizationId));
 
@@ -64,11 +65,16 @@ export class NotificationService {
           deliveredAt: now,
           createdAt: now,
         });
+        // Optionally send email to organization members
+        if (member.email) {
+          await this.sendEmailNotification(member.email, params.title, params.body, params.actionUrl);
+        }
       }
     }
 
     // If targeting specific user
     if (params.audienceType === 'user' && params.targetUserId) {
+      const [user] = await db.select({ email: users.email }).from(users).where(eq(users.id, params.targetUserId));
       await db.insert(notificationReceipts).values({
         id: uuidv4(),
         notificationId,
@@ -76,6 +82,15 @@ export class NotificationService {
         deliveredAt: now,
         createdAt: now,
       });
+      // Optionally send email to specific user
+      if (user?.email) {
+        await this.sendEmailNotification(user.email, params.title, params.body, params.actionUrl);
+      }
+    }
+
+    // If a direct recipient email is provided, send an email notification
+    if (params.recipientEmail) {
+      await this.sendEmailNotification(params.recipientEmail, params.title, params.body, params.actionUrl);
     }
 
     return notification;
@@ -229,6 +244,27 @@ export class NotificationService {
       );
 
     return receipts.length;
+  }
+
+  /**
+   * Sends an email notification.
+   * This is a placeholder for actual email sending logic.
+   * @param to The recipient's email address.
+   * @param subject The subject of the email.
+   * @param body The body of the email (can be HTML).
+   * @param actionUrl An optional URL for a call to action.
+   */
+  async sendEmailNotification(to: string, subject: string, body: string, actionUrl?: string) {
+    // In a real application, this would integrate with an email service (e.g., SendGrid, Mailgun, AWS SES)
+    console.log(`
+--- SIMULATING EMAIL SEND ---
+To: ${to}
+Subject: ${subject}
+Body: ${body}
+${actionUrl ? `Action URL: ${actionUrl}` : ''}
+-----------------------------
+    `);
+    // TODO: Integrate with actual email sending service
   }
 }
 
