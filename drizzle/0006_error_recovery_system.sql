@@ -10,7 +10,8 @@ CREATE TABLE IF NOT EXISTS "repair_logs" (
 	"last_attempt_at" timestamp,
 	"resolved_at" timestamp,
 	"metadata" jsonb DEFAULT '{}'::jsonb,
-	"created_at" timestamp DEFAULT now() NOT NULL
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 DO $$ BEGIN
