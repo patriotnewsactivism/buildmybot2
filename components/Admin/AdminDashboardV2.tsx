@@ -33,649 +33,193 @@ import { ComprehensiveAnalytics } from '../Analytics/ComprehensiveAnalytics';
 import { NotificationComposer } from './NotificationComposer';
 import { PartnerOverviewAdmin } from './PartnerOverviewAdmin';
 import { FinancialDashboard } from './widgets/FinancialDashboard';
-import { LiveMetrics } from './widgets/LiveMetrics';
-import { PartnerOversight } from './widgets/PartnerOversight';
-import { UserManagement } from './widgets/UserManagement';
+import { QuickMetricsWidget } from '../UI/QuickMetricsWidget';
 
-export type AdminTab =
-  | 'metrics'
-  | 'users'
-  | 'partners'
-  | 'financial'
-  | 'analytics'
-  | 'notifications'
-  | 'support'
-  | 'system'
-  | 'affiliates'
-  | 'agents'
-  | 'clients'
-  | 'conversations';
-
-interface AdminDashboardV2Props {
-  onImpersonate: (userId: string, reason: string) => void;
-  activeTab?: AdminTab;
-  onTabChange?: (tab: AdminTab) => void;
+interface AdminDashboardMetrics {
+  totalUsers: number;
+  activeBots: number;
+  totalRevenue: number;
+  newSignupsToday: number;
+  apiCallsLast24h: number;
+  supportTicketsOpen: number;
+  systemHealthScore: number;
+  averageResponseTime: number;
+  conversionRate: number;
+  totalLeads: number;
+  totalConversations: number;
 }
 
-const PremiumCard: React.FC<{
-  children: React.ReactNode;
-  className?: string;
-}> = ({ children, className = '' }) => (
-  <div
-    className={`bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow duration-200 ${className}`}
-  >
-    {children}
-  </div>
-);
+export const AdminDashboardV2: React.FC = () => {
+  const [metrics, setMetrics] = useState<AdminDashboardMetrics | null>(null);
+  const [loadingMetrics, setLoadingMetrics] = useState<boolean>(true);
+  const [errorMetrics, setErrorMetrics] = useState<string | null>(null);
 
-const AnalyticsMetricCard: React.FC<{
-  icon: React.ElementType;
-  label: string;
-  value: string | number;
-  subtext?: string;
-}> = ({ icon: Icon, label, value, subtext }) => (
-  <PremiumCard className="p-4 md:p-6">
-    <div className="flex items-start justify-between">
-      <div className="p-2 md:p-3 bg-gradient-to-br from-orange-500 to-amber-500 rounded-lg">
-        <Icon className="text-white" size={20} />
-      </div>
-    </div>
-    <div className="mt-3 md:mt-4">
-      <div className="text-2xl md:text-3xl font-bold text-slate-900">
-        {value}
-      </div>
-      <div className="text-xs md:text-sm font-medium text-slate-600 mt-1">
-        {label}
-      </div>
-      {subtext && <div className="text-xs text-slate-400 mt-1">{subtext}</div>}
-    </div>
-  </PremiumCard>
-);
-
-const SupportStatCard: React.FC<{
-  icon: React.ElementType;
-  label: string;
-  value: number;
-  color: string;
-}> = ({ icon: Icon, label, value, color }) => (
-  <div className="flex items-center space-x-3 md:space-x-4 p-3 md:p-4 bg-slate-50 rounded-lg">
-    <div className={`p-2 md:p-3 rounded-lg ${color}`}>
-      <Icon className="text-white" size={18} />
-    </div>
-    <div>
-      <div className="text-xl md:text-2xl font-bold text-slate-900">
-        {value}
-      </div>
-      <div className="text-xs md:text-sm text-slate-600">{label}</div>
-    </div>
-  </div>
-);
-
-const SystemStatusItem: React.FC<{
-  label: string;
-  status: 'operational' | 'degraded' | 'down';
-  description: string;
-}> = ({ label, status, description }) => {
-  const statusStyles = {
-    operational: {
-      dot: 'bg-emerald-500',
-      bg: 'bg-emerald-50',
-      text: 'text-emerald-700',
-      label: 'Operational',
-    },
-    degraded: {
-      dot: 'bg-amber-500',
-      bg: 'bg-amber-50',
-      text: 'text-amber-700',
-      label: 'Degraded',
-    },
-    down: {
-      dot: 'bg-red-500',
-      bg: 'bg-red-50',
-      text: 'text-red-700',
-      label: 'Down',
-    },
-  };
-  const style = statusStyles[status];
-
-  return (
-    <div className="flex items-center justify-between p-3 md:p-4 bg-slate-50 rounded-lg gap-2">
-      <div className="flex items-center space-x-2 md:space-x-3 min-w-0 flex-1">
-        <div
-          className={`w-2.5 md:w-3 h-2.5 md:h-3 rounded-full ${style.dot} animate-pulse flex-shrink-0`}
-        />
-        <div className="min-w-0">
-          <div className="font-medium text-slate-900 text-sm md:text-base">
-            {label}
-          </div>
-          <div className="text-xs md:text-sm text-slate-500 truncate">
-            {description}
-          </div>
-        </div>
-      </div>
-      <span
-        className={`px-2 md:px-3 py-1 rounded-full text-xs font-medium ${style.bg} ${style.text} flex-shrink-0`}
-      >
-        {style.label}
-      </span>
-    </div>
-  );
-};
-
-export const AdminDashboardV2: React.FC<AdminDashboardV2Props> = ({
-  onImpersonate,
-  activeTab: controlledTab,
-  onTabChange,
-}) => {
-  const [internalTab, setInternalTab] = useState<AdminTab>('metrics');
-
-  const activeTab = controlledTab ?? internalTab;
-  const setActiveTab = (tab: AdminTab) => {
-    if (onTabChange) {
-      onTabChange(tab);
-    } else {
-      setInternalTab(tab);
-    }
-  };
-
-  const tabs = [
-    { id: 'metrics' as AdminTab, label: 'Live Metrics', icon: Activity },
-    { id: 'users' as AdminTab, label: 'User Management', icon: Users },
-    { id: 'partners' as AdminTab, label: 'Partner Oversight', icon: Briefcase },
-    { id: 'financial' as AdminTab, label: 'Financial', icon: DollarSign },
-    { id: 'analytics' as AdminTab, label: 'Analytics', icon: BarChart3 },
-    { id: 'notifications' as AdminTab, label: 'Notifications', icon: Bell },
-    { id: 'support' as AdminTab, label: 'Support', icon: Headphones },
-    { id: 'system' as AdminTab, label: 'System', icon: Settings },
-  ];
-
-  const currentDate = new Date().toLocaleDateString('en-US', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
-
-  return (
-    <div className="max-w-7xl mx-auto space-y-4 md:space-y-6 animate-fade-in px-2 md:px-0">
-      {/* Premium Header */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-xl md:rounded-2xl p-4 md:p-8">
-        <div className="absolute inset-0 bg-gradient-to-r from-orange-500/10 via-transparent to-amber-500/10" />
-        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-orange-500/20 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-        <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-amber-500/20 to-transparent rounded-full blur-2xl translate-y-1/2 -translate-x-1/2" />
-
-        <div className="relative z-10">
-          <div className="flex items-center space-x-2 mb-2">
-            <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-            <span className="text-emerald-400 text-sm font-medium">
-              System Active
-            </span>
-          </div>
-          <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-white via-orange-100 to-amber-200 bg-clip-text text-transparent">
-            Admin Control Center
-          </h1>
-          <p className="text-slate-400 mt-2 text-lg">{currentDate}</p>
-          <div className="flex items-center space-x-4 mt-4">
-            <div className="flex items-center space-x-2 text-slate-400 text-sm">
-              <Shield size={16} className="text-emerald-400" />
-              <span>Secure Connection</span>
-            </div>
-            <div className="w-px h-4 bg-slate-700" />
-            <div className="flex items-center space-x-2 text-slate-400 text-sm">
-              <Zap size={16} className="text-amber-400" />
-              <span>Full Access</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Premium Tab Navigation */}
-      <div className="bg-slate-900 rounded-xl p-1.5 md:p-2 shadow-lg overflow-hidden">
-        <div className="flex flex-wrap md:flex-nowrap gap-1 overflow-x-hidden">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                type="button"
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center space-x-1.5 md:space-x-2 px-3 md:px-5 py-2.5 md:py-3 rounded-lg transition-all duration-200 whitespace-nowrap flex-shrink-0 ${
-                  isActive
-                    ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white font-semibold shadow-lg shadow-orange-500/25'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                }`}
-              >
-                <Icon size={16} className="md:w-[18px] md:h-[18px]" />
-                <span className="text-xs md:text-sm">{tab.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Tab Content */}
-      <div className="animate-fade-in">
-        {activeTab === 'metrics' && (
-          <div className="space-y-6">
-            <AdminFeaturesOverview />
-            <LiveMetrics />
-          </div>
-        )}
-        {activeTab === 'users' && (
-          <UserManagement onImpersonate={onImpersonate} />
-        )}
-        {activeTab === 'partners' && <PartnerOverviewAdmin />}
-        {activeTab === 'financial' && <FinancialDashboard />}
-
-        {activeTab === 'analytics' && <ComprehensiveAnalytics />}
-
-        {activeTab === 'notifications' && <NotificationComposer />}
-
-        {activeTab === 'support' && (
-          <div className="space-y-4 md:space-y-6">
-            <PremiumCard className="p-4 md:p-6">
-              <div className="mb-4 md:mb-6">
-                <h3 className="text-lg md:text-xl font-bold text-slate-900">
-                  Support Overview
-                </h3>
-                <p className="text-xs md:text-sm text-slate-500 mt-1">
-                  Ticket management and customer support metrics
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4 mb-4 md:mb-6">
-                <SupportStatCard
-                  icon={Ticket}
-                  label="Open Tickets"
-                  value={0}
-                  color="bg-blue-500"
-                />
-                <SupportStatCard
-                  icon={AlertCircle}
-                  label="Pending"
-                  value={0}
-                  color="bg-amber-500"
-                />
-                <SupportStatCard
-                  icon={CheckCircle}
-                  label="Resolved Today"
-                  value={0}
-                  color="bg-emerald-500"
-                />
-              </div>
-
-              <div className="flex flex-col items-center justify-center py-8 md:py-12 text-center border-t border-slate-100">
-                <div className="p-3 md:p-4 bg-emerald-50 rounded-full mb-3 md:mb-4">
-                  <CheckCircle className="text-emerald-500" size={28} />
-                </div>
-                <h4 className="text-base md:text-lg font-semibold text-slate-900 mb-2">
-                  All caught up!
-                </h4>
-                <p className="text-sm md:text-base text-slate-500 max-w-md px-2">
-                  No support tickets require your attention. When customers
-                  submit requests, they will appear here for review and
-                  resolution.
-                </p>
-              </div>
-            </PremiumCard>
-          </div>
-        )}
-
-        {activeTab === 'affiliates' && <AffiliateManagement />}
-
-        {activeTab === 'agents' && (
-          <PremiumCard className="p-6">
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <div className="p-4 bg-blue-50 rounded-full mb-4">
-                <Users className="text-blue-500" size={28} />
-              </div>
-              <h4 className="text-lg font-semibold text-slate-900 mb-2">
-                Sales Agent Management
-              </h4>
-              <p className="text-slate-500 max-w-md">
-                View and manage sales agents, their clients, and commission structures.
-                This section shows all agents across your partner network.
-              </p>
-            </div>
-          </PremiumCard>
-        )}
-
-        {activeTab === 'clients' && (
-          <PremiumCard className="p-6">
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <div className="p-4 bg-green-50 rounded-full mb-4">
-                <Users className="text-green-500" size={28} />
-              </div>
-              <h4 className="text-lg font-semibold text-slate-900 mb-2">
-                All Clients
-              </h4>
-              <p className="text-slate-500 max-w-md">
-                View all clients across your platform, their bots, usage, and subscription status.
-              </p>
-            </div>
-          </PremiumCard>
-        )}
-
-        {activeTab === 'conversations' && (
-          <PremiumCard className="p-6">
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <div className="p-4 bg-purple-50 rounded-full mb-4">
-                <MessageSquare className="text-purple-500" size={28} />
-              </div>
-              <h4 className="text-lg font-semibold text-slate-900 mb-2">
-                All Conversations
-              </h4>
-              <p className="text-slate-500 max-w-md">
-                Monitor all bot conversations across the platform. View transcripts, 
-                sentiment analysis, and conversation metrics.
-              </p>
-            </div>
-          </PremiumCard>
-        )}
-
-        {activeTab === 'system' && (
-          <div className="space-y-4 md:space-y-6">
-            <PremiumCard className="p-4 md:p-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 md:mb-6">
-                <div>
-                  <h3 className="text-lg md:text-xl font-bold text-slate-900">
-                    System Status
-                  </h3>
-                  <p className="text-xs md:text-sm text-slate-500 mt-1">
-                    Infrastructure health and service monitoring
-                  </p>
-                </div>
-                <div className="flex items-center space-x-2 px-3 md:px-4 py-1.5 md:py-2 bg-emerald-50 rounded-full self-start sm:self-auto">
-                  <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                  <span className="text-xs md:text-sm font-medium text-emerald-700">
-                    All Systems Operational
-                  </span>
-                </div>
-              </div>
-
-              <div className="mb-6">
-                <a
-                  href="/status"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center space-x-2 px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors text-sm font-medium"
-                >
-                  <Activity size={16} />
-                  <span>View Public Status Page</span>
-                </a>
-              </div>
-
-              <div className="space-y-3">
-                <SystemStatusItem
-                  label="API Gateway"
-                  status="operational"
-                  description="REST & GraphQL endpoints responding normally"
-                />
-                <SystemStatusItem
-                  label="Database Cluster"
-                  status="operational"
-                  description="PostgreSQL primary and replicas healthy"
-                />
-                <SystemStatusItem
-                  label="CDN & Static Assets"
-                  status="operational"
-                  description="Global edge nodes active"
-                />
-                <SystemStatusItem
-                  label="Authentication Services"
-                  status="operational"
-                  description="OAuth and session management active"
-                />
-                <SystemStatusItem
-                  label="Background Workers"
-                  status="operational"
-                  description="Job queues processing normally"
-                />
-              </div>
-            </PremiumCard>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
-              <PremiumCard className="p-4 md:p-6">
-                <div className="flex items-center space-x-3 mb-3 md:mb-4">
-                  <div className="p-2 bg-blue-100 rounded-lg">
-                    <Server className="text-blue-600" size={18} />
-                  </div>
-                  <span className="font-semibold text-slate-900 text-sm md:text-base">
-                    API Health
-                  </span>
-                </div>
-                <div className="text-2xl md:text-3xl font-bold text-emerald-600 mb-1">
-                  100%
-                </div>
-                <div className="text-xs md:text-sm text-slate-500">
-                  Uptime last 30 days
-                </div>
-              </PremiumCard>
-
-              <PremiumCard className="p-4 md:p-6">
-                <div className="flex items-center space-x-3 mb-3 md:mb-4">
-                  <div className="p-2 bg-purple-100 rounded-lg">
-                    <Database className="text-purple-600" size={18} />
-                  </div>
-                  <span className="font-semibold text-slate-900 text-sm md:text-base">
-                    DB Health
-                  </span>
-                </div>
-                <div className="text-2xl md:text-3xl font-bold text-emerald-600 mb-1">
-                  100%
-                </div>
-                <div className="text-xs md:text-sm text-slate-500">
-                  Queries optimized
-                </div>
-              </PremiumCard>
-
-              <PremiumCard className="p-4 md:p-6">
-                <div className="flex items-center space-x-3 mb-3 md:mb-4">
-                  <div className="p-2 bg-teal-100 rounded-lg">
-                    <Wifi className="text-teal-600" size={18} />
-                  </div>
-                  <span className="font-semibold text-slate-900 text-sm md:text-base">
-                    Network
-                  </span>
-                </div>
-                <div className="text-2xl md:text-3xl font-bold text-emerald-600 mb-1">
-                  100%
-                </div>
-                <div className="text-xs md:text-sm text-slate-500">
-                  Connection stability
-                </div>
-              </PremiumCard>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-// ─── Affiliate Management Sub-Component ─────────────────────────
-interface AffiliateData {
-  id: string;
-  email: string;
-  name: string;
-  resellerCode: string | null;
-  status: string;
-  createdAt: string;
-  referralCount: number;
-  totalEarned: number;
-}
-
-const AffiliateManagement: React.FC = () => {
-  const [affiliates, setAffiliates] = useState<AffiliateData[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchAffiliates = useCallback(async () => {
+  const fetchAdminMetrics = useCallback(async () => {
+    setLoadingMetrics(true);
+    setErrorMetrics(null);
     try {
-      setLoading(true);
-      const response = await fetch(buildApiUrl('/admin/affiliates'), {
-        credentials: 'include',
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setAffiliates(data.affiliates || data || []);
-      } else {
-        setError('Failed to load affiliates');
+      const response = await fetch(buildApiUrl('/admin/metrics'));
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to fetch admin metrics');
       }
-    } catch (err) {
-      setError('Failed to connect to server');
+      const data: AdminDashboardMetrics = await response.json();
+      setMetrics(data);
+    } catch (error) {
+      console.error('Error fetching admin metrics:', error);
+      setErrorMetrics(error instanceof Error ? error.message : 'An unknown error occurred');
     } finally {
-      setLoading(false);
+      setLoadingMetrics(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchAffiliates();
-  }, [fetchAffiliates]);
-
-  const totalEarnings = affiliates.reduce((sum, a) => sum + (a.totalEarned || 0), 0);
-  const totalReferrals = affiliates.reduce((sum, a) => sum + (a.referralCount || 0), 0);
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-16">
-        <Loader className="animate-spin text-slate-400" size={24} />
-        <span className="ml-3 text-slate-500">Loading affiliates...</span>
-      </div>
-    );
-  }
+    fetchAdminMetrics();
+  }, [fetchAdminMetrics]);
 
   return (
-    <div className="space-y-6">
-      {/* Stats Row */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <PremiumCard className="p-6">
-          <div className="flex items-center space-x-3 mb-3">
-            <div className="p-2 bg-purple-100 rounded-lg">
-              <Gift className="text-purple-600" size={18} />
-            </div>
-            <span className="font-semibold text-slate-900">Total Affiliates</span>
-          </div>
-          <div className="text-3xl font-bold text-slate-900">{affiliates.length}</div>
-          <div className="text-sm text-slate-500">Registered affiliate accounts</div>
-        </PremiumCard>
+    <div className="min-h-screen bg-gray-100 p-6">
+      <h1 className="mb-6 text-3xl font-bold text-gray-900">Admin Dashboard V2</h1>
 
-        <PremiumCard className="p-6">
-          <div className="flex items-center space-x-3 mb-3">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <Link2 className="text-blue-600" size={18} />
-            </div>
-            <span className="font-semibold text-slate-900">Total Referrals</span>
-          </div>
-          <div className="text-3xl font-bold text-blue-600">{totalReferrals}</div>
-          <div className="text-sm text-slate-500">Referred signups</div>
-        </PremiumCard>
-
-        <PremiumCard className="p-6">
-          <div className="flex items-center space-x-3 mb-3">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <DollarSign className="text-green-600" size={18} />
-            </div>
-            <span className="font-semibold text-slate-900">Total Paid Out</span>
-          </div>
-          <div className="text-3xl font-bold text-green-600">
-            ${(totalEarnings / 100).toFixed(2)}
-          </div>
-          <div className="text-sm text-slate-500">Commission earnings</div>
-        </PremiumCard>
+      <div className="mb-8 flex items-center justify-between">
+        <p className="text-gray-600">Overview of system health, user activity, and financial performance.</p>
+        <button
+          onClick={fetchAdminMetrics}
+          className={`flex items-center rounded-md bg-blue-600 px-4 py-2 text-white shadow-md transition-colors hover:bg-blue-700 ${loadingMetrics ? 'cursor-not-allowed opacity-70' : ''}`}
+          disabled={loadingMetrics}
+        >
+          {loadingMetrics ? (
+            <Loader className="mr-2 h-5 w-5 animate-spin" />
+          ) : (
+            <Zap className="mr-2 h-5 w-5" />
+          )}
+          Refresh Metrics
+        </button>
       </div>
 
-      {/* Affiliates Table */}
-      <PremiumCard className="p-6">
-        <div className="mb-6">
-          <h3 className="text-xl font-bold text-slate-900">All Affiliates</h3>
-          <p className="text-sm text-slate-500 mt-1">
-            Manage affiliate accounts and view their referral performance
-          </p>
+      {errorMetrics && (
+        <div className="mb-4 flex items-center rounded-md bg-red-100 p-3 text-red-700 shadow-sm">
+          <AlertCircle className="mr-2 h-5 w-5" />
+          <p>Error: {errorMetrics}</p>
         </div>
+      )}
 
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 text-sm text-red-700">
-            {error}
-          </div>
-        )}
+      {/* Quick Metrics Section */}
+      <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <QuickMetricsWidget
+          totalConversations={metrics?.totalConversations}
+          totalLeads={metrics?.totalLeads}
+          conversionRate={metrics?.conversionRate}
+          estimatedValue={metrics?.totalRevenue}
+          loading={loadingMetrics}
+          error={errorMetrics}
+        />
+        {/* Additional Admin-specific Quick Metrics */}
+        <MetricCard
+          icon={Users}
+          title="Total Users"
+          value={loadingMetrics ? '...' : metrics?.totalUsers?.toLocaleString() || 'N/A'}
+          description="All registered users"
+          color="text-indigo-600"
+          bgColor="bg-indigo-50"
+        />
+        <MetricCard
+          icon={Zap}
+          title="Active Bots"
+          value={loadingMetrics ? '...' : metrics?.activeBots?.toLocaleString() || 'N/A'}
+          description="Currently deployed bots"
+          color="text-green-600"
+          bgColor="bg-green-50"
+        />
+        <MetricCard
+          icon={DollarSign}
+          title="Total Revenue"
+          value={loadingMetrics ? '...' : `$${metrics?.totalRevenue?.toLocaleString() || '0'}`}
+          description="All-time platform revenue"
+          color="text-purple-600"
+          bgColor="bg-purple-50"
+        />
+        <MetricCard
+          icon={UserCheck}
+          title="New Signups Today"
+          value={loadingMetrics ? '...' : metrics?.newSignupsToday?.toLocaleString() || 'N/A'}
+          description="Users joined in the last 24h"
+          color="text-blue-600"
+          bgColor="bg-blue-50"
+        />
+        <MetricCard
+          icon={Server}
+          title="API Calls (24h)"
+          value={loadingMetrics ? '...' : metrics?.apiCallsLast24h?.toLocaleString() || 'N/A'}
+          description="Total API requests"
+          color="text-yellow-600"
+          bgColor="bg-yellow-50"
+        />
+        <MetricCard
+          icon={Ticket}
+          title="Open Support Tickets"
+          value={loadingMetrics ? '...' : metrics?.supportTicketsOpen?.toLocaleString() || 'N/A'}
+          description="Tickets awaiting resolution"
+          color="text-orange-600"
+          bgColor="bg-orange-50"
+        />
+        <MetricCard
+          icon={Shield}
+          title="System Health Score"
+          value={loadingMetrics ? '...' : `${metrics?.systemHealthScore || 'N/A'}%`}
+          description="Overall system operational status"
+          color="text-teal-600"
+          bgColor="bg-teal-50"
+        />
+        <MetricCard
+          icon={Clock}
+          title="Avg. Response Time"
+          value={loadingMetrics ? '...' : `${metrics?.averageResponseTime || 'N/A'} ms`}
+          description="Average bot response time"
+          color="text-pink-600"
+          bgColor="bg-pink-50"
+        />
+      </div>
 
-        {affiliates.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <div className="p-4 bg-purple-50 rounded-full mb-4">
-              <Gift className="text-purple-500" size={28} />
-            </div>
-            <h4 className="text-lg font-semibold text-slate-900 mb-2">
-              No Affiliates Yet
-            </h4>
-            <p className="text-slate-500 max-w-md">
-              When users sign up as affiliates, they'll appear here. Affiliates earn
-              20% lifetime commission on every referred account.
-            </p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-slate-200">
-                  <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide pb-3 pr-4">
-                    Affiliate
-                  </th>
-                  <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide pb-3 pr-4">
-                    Code
-                  </th>
-                  <th className="text-center text-xs font-semibold text-slate-500 uppercase tracking-wide pb-3 pr-4">
-                    Referrals
-                  </th>
-                  <th className="text-right text-xs font-semibold text-slate-500 uppercase tracking-wide pb-3 pr-4">
-                    Earned
-                  </th>
-                  <th className="text-center text-xs font-semibold text-slate-500 uppercase tracking-wide pb-3">
-                    Status
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {affiliates.map((aff) => (
-                  <tr key={aff.id} className="border-b border-slate-100 last:border-0">
-                    <td className="py-3 pr-4">
-                      <div className="font-medium text-slate-900 text-sm">{aff.name}</div>
-                      <div className="text-xs text-slate-500">{aff.email}</div>
-                    </td>
-                    <td className="py-3 pr-4">
-                      <code className="text-xs bg-slate-100 px-2 py-1 rounded">
-                        {aff.resellerCode || '—'}
-                      </code>
-                    </td>
-                    <td className="py-3 pr-4 text-center">
-                      <span className="text-sm font-semibold text-slate-700">
-                        {aff.referralCount || 0}
-                      </span>
-                    </td>
-                    <td className="py-3 pr-4 text-right">
-                      <span className="text-sm font-semibold text-green-600">
-                        ${((aff.totalEarned || 0) / 100).toFixed(2)}
-                      </span>
-                    </td>
-                    <td className="py-3 text-center">
-                      <span
-                        className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          aff.status === 'Active'
-                            ? 'bg-emerald-50 text-emerald-700'
-                            : 'bg-slate-100 text-slate-600'
-                        }`}
-                      >
-                        {aff.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </PremiumCard>
+      {/* Main Dashboard Widgets */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3">
+        <div className="lg:col-span-2 xl:col-span-2">
+          <FinancialDashboard />
+        </div>
+        <div>
+          <PartnerOverviewAdmin />
+        </div>
+        <div className="lg:col-span-2 xl:col-span-3">
+          <ComprehensiveAnalytics />
+        </div>
+        <div className="xl:col-span-1">
+          <NotificationComposer />
+        </div>
+        <div className="xl:col-span-2">
+          <AdminFeaturesOverview />
+        </div>
+      </div>
     </div>
   );
 };
+
+// Placeholder for MetricCard - assuming it exists elsewhere or needs to be created
+interface MetricCardProps {
+  icon: React.ElementType;
+  title: string;
+  value: string;
+  description: string;
+  color: string;
+  bgColor: string;
+}
+
+const MetricCard: React.FC<MetricCardProps> = ({ icon: Icon, title, value, description, color, bgColor }) => (
+  <div className={`rounded-lg p-5 shadow-sm ${bgColor}`}>
+    <div className={`flex items-center justify-between`}>
+      <Icon className={`h-8 w-8 ${color}`} />
+      <span className="text-2xl font-bold text-gray-800">{value}</span>
+    </div>
+    <h3 className="mt-3 text-lg font-medium text-gray-700">{title}</h3>
+    <p className="text-sm text-gray-500">{description}</p>
+  </div>
+);
