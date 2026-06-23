@@ -9,7 +9,6 @@
  */
 
 import {
-  boolean,
   integer,
   json,
   pgTable,
@@ -18,7 +17,7 @@ import {
   timestamp,
   varchar,
 } from 'drizzle-orm/pg-core';
-import { auditLogs, bots, organizations, users } from './schema';
+import { auditLogs, organizations, users } from './schema';
 
 // ========================================
 // REPAIR LOGS
