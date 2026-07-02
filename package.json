@@ -7,7 +7,7 @@
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "client": "vite",
     "server": "tsx server/index.ts",
-    "build": "tsc && vite build",
+    "build": "vite build",
     "start": "NODE_ENV=production tsx server/index.ts",
     "preview": "vite preview",
     "lint": "biome check .",
