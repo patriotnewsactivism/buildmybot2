@@ -33,7 +33,7 @@ import { AdvancedAnalytics } from './components/Analytics/AdvancedAnalytics';
 import { AuthModal } from './components/Auth/AuthModal';
 import { PartnerSignup } from './components/Auth/PartnerSignup';
 import { Billing } from './components/Billing/Billing';
-import { BotBuilder } from './components/BotBuilder/BotBuilder';
+import BotBuilder from './components/BotBuilder/BotBuilder';
 import { LeadsCRM } from './components/CRM/LeadsCRM';
 import { ChatLogs } from './components/Chat/ChatLogs';
 import { FullPageChat } from './components/Chat/FullPageChat';

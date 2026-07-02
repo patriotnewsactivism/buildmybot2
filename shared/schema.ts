@@ -3,7 +3,6 @@ import { relations } from 'drizzle-orm';
 
 // Utility for creating common fields
 const createBaseFields = () => ({
-  id: text('id').primaryKey(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
 });
@@ -183,3 +182,37 @@ export type NewBotTemplate = typeof botTemplates.$inferInsert;
 
 export type RepairLog = typeof repairLogs.$inferSelect;
 export type NewRepairLog = typeof repairLogs.$inferInsert;
+
+
+// Support Tickets Table
+export const supportTickets = pgTable('support_tickets', {
+  id: text('id').primaryKey(),
+  organizationId: text('organization_id').references(() => organizations.id, { onDelete: 'cascade' }),
+  userId: text('user_id').references(() => users.id),
+  subject: text('subject').notNull(),
+  message: text('message').notNull(),
+  status: varchar('status', { length: 50 }).default('open').notNull(),
+  priority: varchar('priority', { length: 20 }).default('normal'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// Audit Logs Table
+export const auditLogs = pgTable('audit_logs', {
+  id: text('id').primaryKey(),
+  organizationId: text('organization_id').references(() => organizations.id, { onDelete: 'cascade' }),
+  userId: text('user_id').references(() => users.id),
+  action: varchar('action', { length: 100 }).notNull(),
+  resourceType: varchar('resource_type', { length: 100 }),
+  resourceId: text('resource_id'),
+  oldValues: jsonb('old_values'),
+  newValues: jsonb('new_values'),
+  ipAddress: varchar('ip_address', { length: 50 }),
+  userAgent: text('user_agent'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+export type SupportTicket = typeof supportTickets.$inferSelect;
+export type NewSupportTicket = typeof supportTickets.$inferInsert;
+export type AuditLog = typeof auditLogs.$inferSelect;
+export type NewAuditLog = typeof auditLogs.$inferInsert;

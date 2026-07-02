@@ -13,11 +13,12 @@ import {
   json,
   pgTable,
   real,
+  boolean,
   text,
   timestamp,
   varchar,
 } from 'drizzle-orm/pg-core';
-import { auditLogs, organizations, users } from './schema';
+import { auditLogs, bots, organizations, users } from './schema';
 
 // ========================================
 // REPAIR LOGS

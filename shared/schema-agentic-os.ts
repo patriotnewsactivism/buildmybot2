@@ -644,3 +644,31 @@ export const byokConfigurations = pgTable('byok_configurations', {
 
 // Export all tables
 export * from './schema';
+
+// Bot Configuration Schema (Zod)
+import { z } from 'zod';
+
+export const botConfigSchema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  description: z.string().optional().default(''),
+  systemPrompt: z.string().optional().default(''),
+  model: z.string().optional().default('gpt-4o-mini'),
+  temperature: z.number().min(0).max(2).optional().default(0.7),
+  maxTokens: z.number().int().min(1).max(32000).optional().default(500),
+  voiceEnabled: z.boolean().optional().default(false),
+  voiceConfig: z.object({
+    voiceId: z.string().optional().default(''),
+    provider: z.string().optional().default(''),
+    speed: z.number().min(0.5).max(2).optional().default(1.0),
+    pitch: z.number().min(-12).max(12).optional().default(0),
+  }).optional().default({ voiceId: '', provider: '', speed: 1.0, pitch: 0 }),
+  knowledgeBaseConfig: z.object({
+    sources: z.array(z.string()).optional().default([]),
+    chunkSize: z.number().int().min(100).max(10000).optional().default(1000),
+    overlap: z.number().int().min(0).max(5000).optional().default(200),
+  }).optional().default({ sources: [], chunkSize: 1000, overlap: 200 }),
+  integrations: z.record(z.any()).optional().default({}),
+  tools: z.array(z.string()).optional().default([]),
+});
+
+export type BotConfig = z.infer<typeof botConfigSchema>;
