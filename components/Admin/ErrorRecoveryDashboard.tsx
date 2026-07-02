@@ -433,7 +433,7 @@ function ErrorRecoveryDashboardContent() {
   );
 }
 
-export default function ErrorRecoveryDashboard() {
+export function ErrorRecoveryDashboard() {
   return (
     <ErrorBoundary>
       <div className="p-6">

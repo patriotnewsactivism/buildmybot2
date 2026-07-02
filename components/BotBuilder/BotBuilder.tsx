@@ -11,9 +11,9 @@ import { Label } from '../UI/Label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../UI/Select';
 import { toast } from 'sonner';
 import { Loader2, Save, PlusCircle, Trash2, Settings, MessageSquare, BookOpen, Volume2, Zap, LayoutDashboard } from 'lucide-react';
-import KnowledgeBaseManager from './KnowledgeBaseManager';
-import VoiceAgentConfig from './VoiceAgentConfig';
-import ToolBuilder from './ToolBuilder';
+import { KnowledgeBaseManager } from './KnowledgeBaseManager';
+import { VoiceAgentConfigComponent as VoiceAgentConfig } from './VoiceAgentConfig';
+import { ToolBuilder } from './ToolBuilder';
 import { BotService } from '../../server/services/BotService'; // Assuming this path for client-side interaction
 import ConfigValidator from './ConfigValidator'; // Import the new validator component
 

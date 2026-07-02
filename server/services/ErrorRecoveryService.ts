@@ -1,7 +1,7 @@
 import { db } from '../db';
 import { eq, and } from 'drizzle-orm';
 import { repairLogs, NewRepairLog, RepairLog, bots } from '../../shared/schema';
-import { logger } from '../utils/logger';
+import logger from '../utils/logger';
 
 export type FailurePattern = 'KNOWLEDGE_SOURCE_BROKEN' | 'API_KEY_INVALID' | 'BOT_CONFIG_INVALID' | 'VOICE_AGENT_OFFLINE';
 export type FixAction = 'RESCAN_KNOWLEDGE_SOURCE' | 'PROMPT_API_KEY_UPDATE' | 'RESET_BOT_CONFIG' | 'RESTART_VOICE_AGENT';
@@ -36,13 +36,13 @@ class ErrorRecoveryService {
       keywords: ['knowledge source failed', 'rag processing error', 'document parse error'],
       prompt: (log: RepairLog) => ({
         title: 'Knowledge Source Processing Failed',
-        description: `The knowledge source '${log.metadata?.sourceName || 'unknown'}' for bot '${log.bot_id}' encountered an error during processing. This might affect your bot's ability to answer questions accurately.`,
+        description: `The knowledge source '${(log.metadata as Record<string, any>)?.sourceName || 'unknown'}' for bot '${log.botId}' encountered an error during processing. This might affect your bot's ability to answer questions accurately.`,
         actionLabel: 'Rescan Knowledge Source',
         fixAction: 'RESCAN_KNOWLEDGE_SOURCE',
-        metadata: { knowledgeSourceId: log.metadata?.knowledgeSourceId }
+        metadata: { knowledgeSourceId: (log.metadata as Record<string, any>)?.knowledgeSourceId }
       }),
       autoFix: async (log: RepairLog) => {
-        logger.info(`Attempting auto-fix for KNOWLEDGE_SOURCE_BROKEN for bot ${log.bot_id}, source ${log.metadata?.knowledgeSourceId}`);
+        logger.info(`Attempting auto-fix for KNOWLEDGE_SOURCE_BROKEN for bot ${log.botId}, source ${(log.metadata as Record<string, any>)?.knowledgeSourceId}`);
         // Simulate a fix, in a real scenario this would call a service to re-process the source
         await new Promise(resolve => setTimeout(resolve, 2000));
         // Placeholder for actual re-scan logic
@@ -55,10 +55,10 @@ class ErrorRecoveryService {
       keywords: ['invalid api key', 'authentication failed', 'openai key error'],
       prompt: (log: RepairLog) => ({
         title: 'Invalid API Key Detected',
-        description: `The API key configured for your bot '${log.bot_id}' appears to be invalid or expired. This prevents the bot from functioning correctly.`, 
+        description: `The API key configured for your bot '${log.botId}' appears to be invalid or expired. This prevents the bot from functioning correctly.`, 
         actionLabel: 'Update API Key',
         fixAction: 'PROMPT_API_KEY_UPDATE',
-        metadata: { apiKeyType: log.metadata?.apiKeyType }
+        metadata: { apiKeyType: (log.metadata as Record<string, any>)?.apiKeyType }
       })
     });
 
@@ -67,20 +67,20 @@ class ErrorRecoveryService {
       keywords: ['bot configuration error', 'malformed config', 'missing required field'],
       prompt: (log: RepairLog) => ({
         title: 'Bot Configuration Error',
-        description: `Bot '${log.bot_id}' has an invalid or incomplete configuration. This could lead to unexpected behavior.`, 
+        description: `Bot '${log.botId}' has an invalid or incomplete configuration. This could lead to unexpected behavior.`, 
         actionLabel: 'Review Bot Configuration',
         fixAction: 'RESET_BOT_CONFIG'
       }),
       autoFix: async (log: RepairLog) => {
-        logger.info(`Attempting auto-fix for BOT_CONFIG_INVALID for bot ${log.bot_id}`);
+        logger.info(`Attempting auto-fix for BOT_CONFIG_INVALID for bot ${log.botId}`);
         try {
           // In a real scenario, this would attempt to load a default config or fix common issues
           await db.update(bots)
             .set({ model: 'gpt-5o-mini', temperature: 0.7, voiceEnabled: false, voiceId: null })
-            .where(eq(bots.id, log.bot_id));
+            .where(eq(bots.id, log.botId));
           return true;
         } catch (error) {
-          logger.error(`Auto-fix failed for BOT_CONFIG_INVALID for bot ${log.bot_id}:`, error);
+          logger.error(`Auto-fix failed for BOT_CONFIG_INVALID for bot ${log.botId}:`, error);
           return false;
         }
       }
@@ -91,12 +91,12 @@ class ErrorRecoveryService {
       keywords: ['voice agent unreachable', 'call routing failed', 'twilio error'],
       prompt: (log: RepairLog) => ({
         title: 'Voice Agent Offline',
-        description: `The voice agent for bot '${log.bot_id}' appears to be offline or unreachable. Incoming calls may not be handled.`, 
+        description: `The voice agent for bot '${log.botId}' appears to be offline or unreachable. Incoming calls may not be handled.`, 
         actionLabel: 'Restart Voice Agent',
         fixAction: 'RESTART_VOICE_AGENT'
       }),
       autoFix: async (log: RepairLog) => {
-        logger.info(`Attempting auto-fix for VOICE_AGENT_OFFLINE for bot ${log.bot_id}`);
+        logger.info(`Attempting auto-fix for VOICE_AGENT_OFFLINE for bot ${log.botId}`);
         // Simulate restarting the voice agent service
         await new Promise(resolve => setTimeout(resolve, 3000));
         return Math.random() > 0.7; // Simulate higher chance of failure for complex fix
@@ -109,20 +109,20 @@ class ErrorRecoveryService {
    * @param newLog Data for the new repair log entry.
    * @returns The created RepairLog entry.
    */
-  public async logRepairEvent(newLog: Omit<NewRepairLog, 'id' | 'created_at' | 'status' | 'attempt_count'>): Promise<RepairLog> {
+  public async logRepairEvent(newLog: Omit<NewRepairLog, 'id' | 'createdAt' | 'status' | 'attemptCount'>): Promise<RepairLog> {
     const issueType = this.detectFailurePattern(newLog.description);
     const logToInsert: NewRepairLog = {
       ...newLog,
       id: `repair_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
-      issue_type: issueType || 'UNKNOWN_ERROR',
+      issueType: issueType || 'UNKNOWN_ERROR',
       status: 'pending',
-      attempt_count: 0,
-      created_at: new Date(),
+      attemptCount: 0,
+      createdAt: new Date(),
       metadata: newLog.metadata || {}
     };
 
     const [insertedLog] = await db.insert(repairLogs).values(logToInsert).returning();
-    logger.info(`Logged repair event: ${insertedLog.id} for bot ${insertedLog.bot_id}, type: ${insertedLog.issue_type}`);
+    logger.info(`Logged repair event: ${insertedLog.id} for bot ${insertedLog.botId}, type: ${insertedLog.issueType}`);
     return insertedLog;
   }
 
@@ -153,10 +153,10 @@ class ErrorRecoveryService {
   public async getPendingRepairLogs(botId?: string, organizationId?: string): Promise<RepairLog[]> {
     const conditions = [eq(repairLogs.status, 'pending')];
     if (botId) {
-      conditions.push(eq(repairLogs.bot_id, botId));
+      conditions.push(eq(repairLogs.botId, botId));
     }
     if (organizationId) {
-      conditions.push(eq(repairLogs.organization_id, organizationId));
+      conditions.push(eq(repairLogs.organizationId, organizationId));
     }
     return db.select().from(repairLogs).where(and(...conditions));
   }
@@ -172,20 +172,20 @@ class ErrorRecoveryService {
       return { success: false, message: 'Repair log not found.' };
     }
 
-    const patternDef = this.failurePatterns.get(log.issue_type as FailurePattern);
+    const patternDef = this.failurePatterns.get(log.issueType as FailurePattern);
     if (!patternDef || !patternDef.autoFix) {
-      return { success: false, message: `No automatic fix available for issue type: ${log.issue_type}` };
+      return { success: false, message: `No automatic fix available for issue type: ${log.issueType}` };
     }
 
     await db.update(repairLogs)
-      .set({ attempt_count: log.attempt_count + 1, last_attempt_at: new Date() })
+      .set({ attemptCount: log.attemptCount + 1, lastAttemptAt: new Date() })
       .where(eq(repairLogs.id, repairLogId));
 
     try {
       const fixSuccessful = await patternDef.autoFix(log);
       if (fixSuccessful) {
         await db.update(repairLogs)
-          .set({ status: 'resolved', resolved_at: new Date() })
+          .set({ status: 'resolved', resolvedAt: new Date() })
           .where(eq(repairLogs.id, repairLogId));
         logger.info(`Auto-fix successful for repair log ${repairLogId}`);
         return { success: true, message: 'Fix applied successfully.' };
@@ -198,7 +198,7 @@ class ErrorRecoveryService {
       await db.update(repairLogs)
         .set({ status: 'failed' })
         .where(eq(repairLogs.id, repairLogId));
-      return { success: false, message: `An error occurred during the fix: ${error.message}` };
+      return { success: false, message: `An error occurred during the fix: ${(error as Error).message}` };
     }
   }
 
@@ -208,7 +208,7 @@ class ErrorRecoveryService {
    */
   public async markAsResolved(repairLogId: string): Promise<void> {
     await db.update(repairLogs)
-      .set({ status: 'resolved', resolved_at: new Date() })
+      .set({ status: 'resolved', resolvedAt: new Date() })
       .where(eq(repairLogs.id, repairLogId));
     logger.info(`Repair log ${repairLogId} marked as resolved manually.`);
   }
@@ -219,7 +219,7 @@ class ErrorRecoveryService {
    * @returns A RecoveryPrompt object.
    */
   public getRecoveryPrompt(log: RepairLog): RecoveryPrompt | null {
-    const patternDef = this.failurePatterns.get(log.issue_type as FailurePattern);
+    const patternDef = this.failurePatterns.get(log.issueType as FailurePattern);
     if (patternDef && patternDef.prompt) {
       return patternDef.prompt(log);
     }
@@ -237,13 +237,13 @@ class ErrorRecoveryService {
 
     if (fixAction) {
       const attempts = await db.select().from(repairLogs)
-        .where(and(eq(repairLogs.suggested_fix, fixAction), eq(repairLogs.attempt_count, 1))); // Count initial attempts
+        .where(and(eq(repairLogs.suggestedFix, fixAction), eq(repairLogs.attemptCount, 1))); // Count initial attempts
       totalAttempts = attempts.length;
       successfulFixes = attempts.filter(log => log.status === 'resolved').length;
     } else {
       const allLogs = await db.select().from(repairLogs);
-      totalAttempts = allLogs.filter(log => log.attempt_count > 0).length;
-      successfulFixes = allLogs.filter(log => log.status === 'resolved' && log.attempt_count > 0).length;
+      totalAttempts = allLogs.filter(log => log.attemptCount > 0).length;
+      successfulFixes = allLogs.filter(log => log.status === 'resolved' && log.attemptCount > 0).length;
     }
 
     return totalAttempts > 0 ? (successfulFixes / totalAttempts) * 100 : 0;
@@ -261,9 +261,9 @@ class ErrorRecoveryService {
       return { success: false, message: 'Repair log not found.' };
     }
 
-    const patternDef = this.failurePatterns.get(log.issue_type as FailurePattern);
+    const patternDef = this.failurePatterns.get(log.issueType as FailurePattern);
     if (!patternDef || !patternDef.undo) {
-      return { success: false, message: `No undo function available for issue type: ${log.issue_type}` };
+      return { success: false, message: `No undo function available for issue type: ${log.issueType}` };
     }
 
     try {
@@ -279,7 +279,7 @@ class ErrorRecoveryService {
       }
     } catch (error) {
       logger.error(`Error during undo for repair log ${repairLogId}:`, error);
-      return { success: false, message: `An error occurred during undo: ${error.message}` };
+      return { success: false, message: `An error occurred during undo: ${(error as Error).message}` };
     }
   }
 }
