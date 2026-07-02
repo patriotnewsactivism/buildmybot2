@@ -186,3 +186,41 @@ select {
     -webkit-overflow-scrolling: touch;
   }
 }
+
+/* ===== White-Label Brand CSS Variables ===== */
+:root {
+  --brand-primary: #3B82F6;
+  --brand-secondary: #1E40AF;
+  --brand-accent: #F97316;
+}
+
+/* Apply brand colors to key UI elements */
+.bg-brand-primary { background-color: var(--brand-primary) !important; }
+.bg-brand-secondary { background-color: var(--brand-secondary) !important; }
+.bg-brand-accent { background-color: var(--brand-accent) !important; }
+.text-brand-primary { color: var(--brand-primary) !important; }
+.text-brand-accent { color: var(--brand-accent) !important; }
+.border-brand-primary { border-color: var(--brand-primary) !important; }
+.border-brand-accent { border-color: var(--brand-accent) !important; }
+
+/* Buttons that should use brand colors */
+.btn-brand-primary {
+  background-color: var(--brand-primary);
+  color: white;
+}
+.btn-brand-primary:hover {
+  background-color: var(--brand-secondary);
+}
+
+/* Hide "Built with BuildMyBot" badge when white-label is active */
+.hide-built-with-badge [data-built-with],
+.hide-built-with-badge .built-with-badge {
+  display: none !important;
+}
+
+/* Brand logo elements */
+[data-brand-logo] {
+  max-height: 40px;
+  max-width: 200px;
+  object-fit: contain;
+}
