@@ -80,6 +80,7 @@ import { WebScraperService } from './services/WebScraperService';
 import { getStripePublishableKey } from './stripeClient';
 import { stripeService } from './stripeService';
 import { WebhookHandlers } from './webhookHandlers';
+import { registerBrandingUploadRoutes } from './routes/brandingUpload';
 
 const isVercel = Boolean(process.env.VERCEL);
 const uploadsDir = isVercel
@@ -1693,6 +1694,9 @@ app.use('/api/phone', phoneRouter);
 
 // Twilio Webhooks (legacy WebSocket-based flow)
 app.use('/api/webhooks', twilioWebhooksRouter);
+
+// White-label branding upload routes
+registerBrandingUploadRoutes(app);
 
 // Voice Agent Core API — Twilio webhook + management (auth per-route inside)
 app.use('/api/voice', voiceRouter);
