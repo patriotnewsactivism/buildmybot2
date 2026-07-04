@@ -10,38 +10,34 @@ The system supports multiple admin levels:
 
 ## Setting Admin Permissions
 
-A script has been created to set admin permissions: `scripts/setAdminPermissions.ts`
+A script (`scripts/setAdminPermissions.ts`) previously managed admin permissions, but this method is now **DEPRECATED**.
 
 ### Current Admin Configuration
 
-The script is configured to set the following permissions:
+Admin permissions are now primarily managed as part of the database seeding process, specifically via the `user-roles` seed.
+
+The `scripts/seed.ts` file, when run with the `--only=user-roles` flag, will ensure the following default admin users are configured (if they exist or are created):
 
 1. **mreardon@wtpnews.org** - MasterAdmin role
 2. **jadj19@gmail.com** - ADMIN role
 
-### Running the Script
+To modify these default users or add new ones, you would typically edit the relevant seeding logic in `server/seeds/seedUserRoles.ts` (or the file referenced by the `user-roles` seed).
 
-To apply these admin permissions, run:
+### Running the Seed Script for Admin Permissions
 
-```bash
-npx tsx scripts/setAdminPermissions.ts
-```
-
-Or use the npm script:
+To apply or update admin permissions using the recommended method, run:
 
 ```bash
-npm run set-admin-permissions
+npm run db:seed -- --only=user-roles
 ```
 
-### What the Script Does
-
-The script will:
-1. Connect to the database using the DATABASE_URL environment variable
-2. For each configured admin user:
-   - Check if the user exists in the database
-   - If the user doesn't exist, create them with the specified admin role
-   - If the user exists, update their role to the specified admin level
-3. Verify and display the final admin configuration
+This command will:
+1. Connect to the database using the DATABASE_URL environment variable.
+2. For each configured admin user in the `user-roles` seed:
+   - Check if the user exists in the database.
+   - If the user doesn't exist, create them with the specified admin role.
+   - If the user exists, update their role to the specified admin level.
+3. Verify and display the final admin configuration (as implemented by the seed script).
 
 ### Requirements
 
@@ -50,14 +46,7 @@ The script will:
 
 ### Modifying Admin Users
 
-To add or modify admin users, edit the `adminUsers` array in `scripts/setAdminPermissions.ts`:
-
-```typescript
-const adminUsers = [
-  { email: 'user@example.com', role: 'MasterAdmin', description: 'Master Admin' },
-  { email: 'admin@example.com', role: 'ADMIN', description: 'Admin' }
-];
-```
+To add or modify admin users, you should primarily update the logic within the `user-roles` seed script (e.g., `server/seeds/seedUserRoles.ts` or similar files responsible for defining initial user roles during seeding).
 
 ## Admin Permissions in the System
 
