@@ -1,0 +1,28 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "dist-server",
+    "noEmit": false, // Override base tsconfig.json's noEmit: true
+    "module": "ESNext",
+    "moduleResolution": "NodeNext",
+    "target": "ES2022",
+    "sourceMap": true,
+    "composite": true
+  },
+  "include": [
+    "server/**/*.ts",
+    "scripts/**/*.ts",
+    "drizzle.config.ts",
+    "shared/**/*.ts",
+    "constants.ts",
+    "types.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist", // Exclude client build output
+    "vite-env.d.ts", // Client-specific declaration
+    "**/*.test.ts",
+    "**/*.spec.ts",
+    "**/*.tsx" // Exclude React components from server build
+  ]
+}
