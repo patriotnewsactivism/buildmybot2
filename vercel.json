@@ -14,6 +14,10 @@
   ],
   "rewrites": [
     {
+      "source": "/api/:path*",
+      "destination": "/api/gateway"
+    },
+    {
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
@@ -22,78 +26,39 @@
     {
       "source": "/embed.js",
       "headers": [
-        {
-          "key": "Access-Control-Allow-Origin",
-          "value": "*"
-        },
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=3600"
-        }
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Cache-Control", "value": "public, max-age=3600" }
       ]
     },
     {
       "source": "/chat/(.*)",
       "headers": [
-        {
-          "key": "X-Frame-Options",
-          "value": "ALLOWALL"
-        },
-        {
-          "key": "Content-Security-Policy",
-          "value": "frame-ancestors *"
-        }
+        { "key": "X-Frame-Options", "value": "ALLOWALL" },
+        { "key": "Content-Security-Policy", "value": "frame-ancestors *" }
       ]
     },
     {
       "source": "/index.html",
       "headers": [
-        {
-          "key": "CDN-Cache-Control",
-          "value": "no-store"
-        },
-        {
-          "key": "Surrogate-Control",
-          "value": "no-store"
-        },
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=0, must-revalidate"
-        }
+        { "key": "CDN-Cache-Control", "value": "no-store" },
+        { "key": "Surrogate-Control", "value": "no-store" },
+        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
       ]
     },
     {
       "source": "/((?!assets/).*)",
       "headers": [
-        {
-          "key": "CDN-Cache-Control",
-          "value": "max-age=0, must-revalidate"
-        },
-        {
-          "key": "X-Content-Type-Options",
-          "value": "nosniff"
-        },
-        {
-          "key": "X-Frame-Options",
-          "value": "SAMEORIGIN"
-        },
-        {
-          "key": "X-XSS-Protection",
-          "value": "1; mode=block"
-        }
+        { "key": "CDN-Cache-Control", "value": "max-age=0, must-revalidate" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "SAMEORIGIN" },
+        { "key": "X-XSS-Protection", "value": "1; mode=block" }
       ]
     },
     {
       "source": "/assets/(.*)",
       "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=31536000, immutable"
-        },
-        {
-          "key": "X-Content-Type-Options",
-          "value": "nosniff"
-        }
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" }
       ]
     }
   ]
