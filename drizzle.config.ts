@@ -6,7 +6,7 @@ if (!env.DATABASE_URL) {
 }
 
 export default defineConfig({
-  schema: './shared/schema.ts',
+  schema: ['./shared/schema.ts', './shared/schema-ai-employees.ts'],
   out: './drizzle',
   dialect: 'postgresql',
   dbCredentials: {

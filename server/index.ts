@@ -72,6 +72,7 @@ import {
   voiceAgentsRouter,
   voiceRouter,
   webhooksRouter,
+  aiEmployeesRouter,
 } from './routes';
 import { KnowledgeRepairService } from './services/KnowledgeRepairService';
 import { nurtureService } from './services/NurtureService';
@@ -1712,6 +1713,7 @@ app.use('/api/voice-providers', (req, res, next) => {
 
 // Webhook management
 app.use('/api/webhooks', webhooksRouter);
+app.use('/api/ai-employees', aiEmployeesRouter);
 
 // Unified Search
 app.use('/api/search', searchRouter);

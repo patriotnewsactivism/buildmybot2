@@ -22,6 +22,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { AITeamDashboard } from './components/Team/AITeamDashboard';
 import { AdminDashboard } from './components/Admin/AdminDashboard';
 import { AffiliateDashboard } from './components/Affiliate/AffiliateDashboard';
 import { AgentDashboard } from './components/Agent/AgentDashboard';
@@ -986,6 +987,9 @@ function App() {
               />
             )}
 
+            {currentView === 'ai-team' && (
+              <AITeamDashboard user={user} />
+            )}
             {currentView === 'support' && (
               <SupportTicketSystem user={activeUser || undefined} />
             )}

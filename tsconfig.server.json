@@ -3,7 +3,7 @@
   "compilerOptions": {
     "outDir": "dist-server",
     "noEmit": false, // Override base tsconfig.json's noEmit: true
-    "module": "ESNext",
+    "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "target": "ES2022",
     "sourceMap": true,

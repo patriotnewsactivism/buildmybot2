@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm';
 import { type Request, type Response, Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import OpenAI from 'openai';
+import { createWithFallback, buildProviderChain } from '../services/ai-fallback';
 import { bots } from '../../shared/schema';
 import { db } from '../db';
 import { env } from '../env';
@@ -17,17 +18,14 @@ import { chatService } from '../services/ChatService';
 import { KnowledgeService } from '../services/KnowledgeService';
 import { toolExecutionService } from '../services/ToolExecutionService';
 import { isWidgetOriginAllowed } from '../utils/originValidation';
-
 const router = Router();
 const isDevelopment = process.env.NODE_ENV !== 'production';
-
 const apiAuthStack = [
   authenticate,
   applyImpersonation,
   loadOrganizationContext,
   tenantIsolation,
 ];
-
 const botChatLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: isDevelopment ? 120 : 60,
@@ -36,20 +34,16 @@ const botChatLimiter = rateLimit({
   legacyHeaders: false,
   validate: { xForwardedForHeader: false },
 });
-
 // DeepSeek V4 Flash preferred — OpenAI-compatible, $0.14/M input tokens
 // Set DEEPSEEK_API_KEY to use DeepSeek. Falls back to OpenAI if not set.
 const deepSeekKey = (process.env.DEEPSEEK_API_KEY || '').trim();
 const useDeepSeek = deepSeekKey.length > 10;
-
 const aiBaseURL = useDeepSeek
   ? 'https://api.deepseek.com/v1'
   : (env.AI_INTEGRATIONS_OPENAI_BASE_URL || 'https://api.openai.com/v1');
-
 const aiApiKey = useDeepSeek
   ? deepSeekKey
   : (env.AI_INTEGRATIONS_OPENAI_API_KEY || env.OPENAI_API_KEY || '');
-
 const isAzureAI = aiBaseURL.includes('.services.ai.azure.com');
 const openai = new OpenAI({
   apiKey: aiApiKey,
@@ -57,14 +51,15 @@ const openai = new OpenAI({
   ...(isAzureAI ? { defaultQuery: { 'api-version': '2024-05-01-preview' } } : {}),
 });
 
+// Fallback chain — if primary provider hits quota, auto-switches to GitHub Models
+const aiFallbackChain = buildProviderChain();
+
 /** Default model: DeepSeek V4 Flash when key is set, otherwise gpt-4o-mini. Override with DEFAULT_AI_MODEL env var. */
 const DEFAULT_MODEL = env.DEFAULT_AI_MODEL || (useDeepSeek ? 'deepseek-v4-flash' : 'gpt-4o-mini');
-
 interface ChatMessage {
   role: 'user' | 'model';
   text: string;
 }
-
 interface ChatRequest {
   messages: ChatMessage[];
   systemPrompt?: string;
@@ -73,7 +68,6 @@ interface ChatRequest {
   botId?: string;
   sessionId?: string;
 }
-
 async function handleChatCompletion(req: Request, res: Response) {
   try {
     const {
@@ -84,24 +78,20 @@ async function handleChatCompletion(req: Request, res: Response) {
       botId,
       sessionId,
     } = req.body as ChatRequest;
-
     if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({ error: 'Messages array is required' });
     }
-
     let finalSystemPrompt = systemPrompt || '';
     let finalContext = context || '';
     let finalModel = model;
     let temperature = 0.7;
     let currentBot: any = null;
-
     if (botId) {
       const [bot] = await db
         .select()
         .from(bots)
         .where(eq(bots.id, botId))
         .limit(1);
-
       if (bot) {
         currentBot = bot;
         const user = (req as any).user;
@@ -113,12 +103,10 @@ async function handleChatCompletion(req: Request, res: Response) {
             bot.systemPrompt || 'You are a helpful assistant.';
           finalModel = bot.model || model;
           temperature = bot.temperature || 0.7;
-
           const lastUserMessage = messages
             .filter((m) => m.role === 'user')
             .pop();
           const userQuery = lastUserMessage?.text || '';
-
           if (userQuery) {
             const ragContext = await KnowledgeService.buildContext(
               botId,
@@ -132,9 +120,7 @@ async function handleChatCompletion(req: Request, res: Response) {
         }
       }
     }
-
     const openAIMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [];
-
     if (finalSystemPrompt) {
       let systemContent = finalSystemPrompt;
       if (finalContext) {
@@ -142,14 +128,12 @@ async function handleChatCompletion(req: Request, res: Response) {
       }
       openAIMessages.push({ role: 'system', content: systemContent });
     }
-
     messages.forEach((msg) => {
       openAIMessages.push({
         role: msg.role === 'model' ? 'assistant' : 'user',
         content: msg.text,
       });
     });
-
     // Get available tools for function calling
     let tools: any[] = [];
     const toolsMap: Map<string, any> = new Map();
@@ -175,12 +159,10 @@ async function handleChatCompletion(req: Request, res: Response) {
         console.error('Error fetching tools:', err);
       }
     }
-
     let response;
     let responseText = '';
     let functionCallAttempts = 0;
     const maxFunctionCalls = 5; // Prevent infinite loops
-
     // Function calling loop
     while (functionCallAttempts < maxFunctionCalls) {
       try {
@@ -190,14 +172,12 @@ async function handleChatCompletion(req: Request, res: Response) {
           temperature,
           max_tokens: 500,
         };
-
         // Add tools if available
         if (tools.length > 0) {
           completionParams.tools = tools;
           completionParams.tool_choice = 'auto';
         }
-
-        response = await openai.chat.completions.create(completionParams);
+        response = await createWithFallback(completionParams);
       } catch (error: any) {
         const isModelNotFound =
           error?.code === 'model_not_found' ||
@@ -209,7 +189,7 @@ async function handleChatCompletion(req: Request, res: Response) {
         if (finalModel !== DEFAULT_MODEL && isModelNotFound) {
           console.warn(`Model "${finalModel}" not found, falling back to DEFAULT_MODEL "${DEFAULT_MODEL}"`);
           finalModel = DEFAULT_MODEL;
-          response = await openai.chat.completions.create({
+          response = await createWithFallback({
             model: finalModel,
             messages: openAIMessages,
             temperature,
@@ -220,23 +200,18 @@ async function handleChatCompletion(req: Request, res: Response) {
           throw error;
         }
       }
-
       const choice = response.choices[0];
       const message = choice?.message;
-
       // Check if function call was requested
       if (message?.tool_calls && message.tool_calls.length > 0) {
         functionCallAttempts++;
-
         // Add assistant message with tool calls
         openAIMessages.push(message as any);
-
         // Execute each tool call
         for (const toolCall of message.tool_calls) {
           const functionName = toolCall.function.name;
           const functionArgs = JSON.parse(toolCall.function.arguments || '{}');
           const toolInfo = toolsMap.get(functionName);
-
           let toolResult: any;
           try {
             if (toolInfo) {
@@ -250,13 +225,11 @@ async function handleChatCompletion(req: Request, res: Response) {
                   userId: (req as any).user?.id,
                 },
               );
-
               if (executionResult.success) {
                 toolResult = {
                   success: true,
                   data: executionResult.data,
                 };
-
                 // Record usage for agency billing
                 if (currentBot.organizationId) {
                   try {
@@ -288,7 +261,6 @@ async function handleChatCompletion(req: Request, res: Response) {
               error: error.message || 'Tool execution error',
             };
           }
-
           // Add tool result to messages
           openAIMessages.push({
             role: 'tool',
@@ -296,22 +268,18 @@ async function handleChatCompletion(req: Request, res: Response) {
             content: JSON.stringify(toolResult),
           } as any);
         }
-
         // Continue loop to get next response
         continue;
       }
-
       // No function call, we have the final response
       responseText = message?.content || '';
       break;
     }
-
     // If we hit max function calls, use the last response
     if (functionCallAttempts >= maxFunctionCalls && !responseText) {
       responseText =
         'I apologize, but I encountered an issue while processing your request. Please try again.';
     }
-
     // Save conversation and analyze sentiment
     if (sessionId && botId && currentBot) {
       const updatedMessages = [
@@ -319,7 +287,6 @@ async function handleChatCompletion(req: Request, res: Response) {
         { role: 'model', text: responseText },
       ];
       const user = (req as any).user;
-
       await chatService.saveConversation(
         sessionId,
         botId,
@@ -327,17 +294,14 @@ async function handleChatCompletion(req: Request, res: Response) {
         user?.id,
         user?.organizationId || currentBot.organizationId,
       );
-
       const lastUserMessage = messages.filter((m) => m.role === 'user').pop();
       if (lastUserMessage) {
         chatService.updateSentiment(sessionId, lastUserMessage.text);
       }
     }
-
     res.json({ response: responseText });
   } catch (error: any) {
     console.error('Chat API Error:', error);
-
     if (error?.status === 429 || error?.code === 'rate_limit_exceeded') {
       return res.status(429).json({
         error: 'Too many requests. Please wait a moment and try again.',
@@ -349,15 +313,11 @@ async function handleChatCompletion(req: Request, res: Response) {
     if (error?.code === 'insufficient_quota') {
       return res.status(402).json({ error: 'AI service quota exceeded.' });
     }
-
     res.status(500).json({ error: 'Failed to process chat request' });
   }
 }
-
 router.post('/', ...apiAuthStack, handleChatCompletion);
-
 router.post('/demo', strictLimiter, handleChatCompletion);
-
 router.post(
   '/bot/:botId',
   botChatLimiter,
@@ -365,44 +325,35 @@ router.post(
     try {
       const { botId } = req.params;
       const { messages, model, sessionId } = req.body as ChatRequest;
-
       if (!messages || !Array.isArray(messages)) {
         return res.status(400).json({ error: 'Messages array is required' });
       }
-
       const [bot] = await db
         .select()
         .from(bots)
         .where(eq(bots.id, botId))
         .limit(1);
-
       if (!bot) {
         return res.status(404).json({ error: 'Bot not found' });
       }
-
       if (!bot.isPublic) {
         return res.status(403).json({ error: 'Bot is not available' });
       }
-
       if (!bot.active) {
         return res.status(403).json({ error: 'Bot is currently inactive' });
       }
-
       const hasAllowedOrigin = isWidgetOriginAllowed({
         originHeader: req.headers.origin,
         refererHeader: req.headers.referer,
         websiteUrl: bot.websiteUrl,
       });
-
       if (!hasAllowedOrigin) {
         return res.status(403).json({
           error: 'Origin is not allowed for this bot',
         });
       }
-
       let useModel = model || bot.model || DEFAULT_MODEL;
       let baseSystemPrompt = bot.systemPrompt || 'You are a helpful assistant.';
-
       // Phase 5: A/B Testing Logic
       if (
         bot.abTestConfig &&
@@ -415,7 +366,6 @@ router.post(
           0,
         );
         let random = Math.random() * totalWeight;
-
         for (const variant of variants) {
           random -= variant.weight || 0;
           if (random <= 0) {
@@ -425,10 +375,8 @@ router.post(
           }
         }
       }
-
       const lastUserMessage = messages.filter((m) => m.role === 'user').pop();
       const userQuery = lastUserMessage?.text || '';
-
       let ragContext = '';
       if (userQuery) {
         ragContext = await KnowledgeService.buildContext(
@@ -437,23 +385,18 @@ router.post(
           4000,
         );
       }
-
       let systemContent = baseSystemPrompt;
-
       if (ragContext) {
         systemContent += `\n\n---\n\nIMPORTANT: Use the following knowledge base information to answer questions accurately. Always prioritize this information over general knowledge:\n\n${ragContext}\n\n---\n\nWhen answering:\n1. Base your responses on the knowledge provided above\n2. If the information isn't in the knowledge base, say so honestly\n3. Cite the source when possible (e.g., "According to the documentation...")`;
       }
-
       const openAIMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [];
       openAIMessages.push({ role: 'system', content: systemContent });
-
       messages.forEach((msg) => {
         openAIMessages.push({
           role: msg.role === 'model' ? 'assistant' : 'user',
           content: msg.text,
         });
       });
-
       // Get available tools for function calling
       let tools: any[] = [];
       const toolsMap: Map<string, any> = new Map();
@@ -477,12 +420,10 @@ router.post(
       } catch (err) {
         console.error('Error fetching tools:', err);
       }
-
       let response;
       let responseText = '';
       let functionCallAttempts = 0;
       const maxFunctionCalls = 5;
-
       // Function calling loop
       while (functionCallAttempts < maxFunctionCalls) {
         try {
@@ -492,13 +433,11 @@ router.post(
             temperature: bot.temperature || 0.7,
             max_tokens: 500,
           };
-
           if (tools.length > 0) {
             completionParams.tools = tools;
             completionParams.tool_choice = 'auto';
           }
-
-          response = await openai.chat.completions.create(completionParams);
+          response = await createWithFallback(completionParams);
         } catch (error: any) {
           const isModelNotFound =
             error?.code === 'model_not_found' ||
@@ -510,7 +449,7 @@ router.post(
           if (useModel !== DEFAULT_MODEL && isModelNotFound) {
             console.warn(`Model "${useModel}" not found, falling back to DEFAULT_MODEL "${DEFAULT_MODEL}"`);
             useModel = DEFAULT_MODEL;
-            response = await openai.chat.completions.create({
+            response = await createWithFallback({
               model: useModel,
               messages: openAIMessages,
               temperature: bot.temperature || 0.7,
@@ -521,23 +460,18 @@ router.post(
             throw error;
           }
         }
-
         const choice = response.choices[0];
         const message = choice?.message;
-
         // Check if function call was requested
         if (message?.tool_calls && message.tool_calls.length > 0) {
           functionCallAttempts++;
-
           openAIMessages.push(message as any);
-
           for (const toolCall of message.tool_calls) {
             const functionName = toolCall.function.name;
             const functionArgs = JSON.parse(
               toolCall.function.arguments || '{}',
             );
             const toolInfo = toolsMap.get(functionName);
-
             let toolResult: any;
             try {
               if (toolInfo) {
@@ -549,13 +483,11 @@ router.post(
                     conversationId: sessionId || 'public-chat',
                   },
                 );
-
                 if (executionResult.success) {
                   toolResult = {
                     success: true,
                     data: executionResult.data,
                   };
-
                   // Record usage for agency billing (public bot usage)
                   if (bot.organizationId) {
                     try {
@@ -586,26 +518,21 @@ router.post(
                 error: error.message || 'Tool execution error',
               };
             }
-
             openAIMessages.push({
               role: 'tool',
               tool_call_id: toolCall.id,
               content: JSON.stringify(toolResult),
             } as any);
           }
-
           continue;
         }
-
         responseText = message?.content || '';
         break;
       }
-
       if (functionCallAttempts >= maxFunctionCalls && !responseText) {
         responseText =
           'I apologize, but I encountered an issue while processing your request. Please try again.';
       }
-
       // Save conversation and analyze sentiment
       if (sessionId) {
         const updatedMessages = [
@@ -621,19 +548,16 @@ router.post(
           undefined, // userId (anonymous)
           bot.organizationId || undefined,
         );
-
         if (userQuery) {
           chatService.updateSentiment(sessionId, userQuery);
         }
       }
-
       res.json({
         response: responseText,
         hasKnowledge: !!ragContext,
       });
     } catch (error: any) {
       console.error('Bot Chat API Error:', error);
-
       if (error?.status === 429 || error?.code === 'rate_limit_exceeded') {
         return res.status(429).json({
           error: 'Too many requests. Please wait a moment and try again.',
@@ -647,10 +571,8 @@ router.post(
       if (error?.code === 'insufficient_quota') {
         return res.status(402).json({ error: 'AI service quota exceeded.' });
       }
-
       res.status(500).json({ error: 'Failed to process chat request' });
     }
   },
 );
-
 export default router;
