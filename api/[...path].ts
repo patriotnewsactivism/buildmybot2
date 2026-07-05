@@ -53,11 +53,13 @@ async function getAuthUser(req: VercelRequest): Promise<AuthUser | null> {
 
   try {
     let payload: any;
-    if (token.split('.').length === 3) {
+    if (token.split('.').length >= 2) {
       const base64Payload = token.split('.')[1];
-      payload = JSON.parse(Buffer.from(base64Payload, 'base64').toString());
+      // Handle both base64url and base64
+      const decoded = Buffer.from(base64Payload.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString();
+      payload = JSON.parse(decoded);
     } else {
-      payload = JSON.parse(Buffer.from(token, 'base64').toString());
+      payload = JSON.parse(Buffer.from(token.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString());
     }
 
     if (payload.exp && Date.now() > payload.exp * 1000) return null;
