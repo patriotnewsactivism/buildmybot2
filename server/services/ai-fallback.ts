@@ -70,6 +70,8 @@ export function createOpenAIClient(cfg: ProviderConfig): OpenAI {
   return new OpenAI({
     apiKey: cfg.apiKey || 'missing',
     baseURL: cfg.baseURL,
+    timeout: 25000, // 25s per-provider timeout — don't let one slow provider eat the whole request
+    maxRetries: 0, // we handle retries ourselves in the fallback chain
     ...(cfg.isAzure
       ? { defaultQuery: { 'api-version': '2024-05-01-preview' } }
       : {}),
