@@ -53,12 +53,17 @@ async function getAuthUser(req: VercelRequest): Promise<AuthUser | null> {
 
   try {
     let payload: any;
-    if (token.split('.').length >= 2) {
-      const base64Payload = token.split('.')[1];
-      // Handle both base64url and base64
-      const decoded = Buffer.from(base64Payload.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString();
+    const parts = token.split('.');
+    if (parts.length === 3) {
+      // Standard JWT: header.payload.signature
+      const decoded = Buffer.from(parts[1].replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString();
+      payload = JSON.parse(decoded);
+    } else if (parts.length === 2) {
+      // Our custom format: payload.signature
+      const decoded = Buffer.from(parts[0].replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString();
       payload = JSON.parse(decoded);
     } else {
+      // Raw base64 JSON
       payload = JSON.parse(Buffer.from(token.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString());
     }
 
