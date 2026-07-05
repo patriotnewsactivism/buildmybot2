@@ -1,52 +1,28 @@
 import OpenAI from 'openai';
+import { buildProviderChain, createOpenAIClient, createWithFallback } from './ai-fallback';
 
 /** Configurable default model — set DEFAULT_AI_MODEL env var to override. */
 const DEFAULT_MODEL = process.env.DEFAULT_AI_MODEL || 'gpt-4o-mini';
+const providerChain = buildProviderChain();
 
 export class OpenAIService {
   private openai: OpenAI;
 
   constructor() {
-    const aiBaseURL = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || 'https://api.openai.com/v1';
-    const isAzureAI = aiBaseURL.includes('.services.ai.azure.com');
-    this.openai = new OpenAI({
-      apiKey:
-        process.env.AI_INTEGRATIONS_OPENAI_API_KEY ||
-        process.env.OPENAI_API_KEY,
-      baseURL: aiBaseURL,
-      ...(isAzureAI ? { defaultQuery: { 'api-version': '2024-05-01-preview' } } : {}),
-    });
+    this.openai =
+      providerChain.length > 0
+        ? createOpenAIClient(providerChain[0])
+        : new OpenAI({ apiKey: 'missing' });
   }
 
   async complete(
     params: OpenAI.Chat.ChatCompletionCreateParams,
   ): Promise<string> {
     try {
-      const response = await this.openai.chat.completions.create(params);
+      const response = await createWithFallback(params, providerChain);
       return response.choices[0]?.message?.content || '';
     } catch (error: any) {
-      const isModelNotFound =
-        error?.code === 'model_not_found' ||
-        error?.status === 404 ||
-        (error?.status === 400 &&
-          String(error?.message || '')
-            .toLowerCase()
-            .includes('model'));
-
-      if (params.model !== DEFAULT_MODEL && isModelNotFound) {
-        console.warn(`Model "${params.model}" not found, falling back to DEFAULT_MODEL "${DEFAULT_MODEL}"`);
-        try {
-          const fallbackParams = { ...params, model: DEFAULT_MODEL };
-          const response =
-            await this.openai.chat.completions.create(fallbackParams);
-          return response.choices[0]?.message?.content || '';
-        } catch (fallbackError) {
-          console.error('OpenAI Fallback Completion Error:', fallbackError);
-          throw fallbackError;
-        }
-      }
-
-      console.error('OpenAI Completion Error:', error);
+      console.error('[OpenAIService] All providers exhausted:', error?.message || error);
       throw error;
     }
   }
@@ -67,7 +43,6 @@ export class OpenAIService {
         },
       ];
 
-      // Use complete method to handle fallback
       const content = await this.complete({
         model: DEFAULT_MODEL,
         messages,
@@ -76,7 +51,6 @@ export class OpenAIService {
       });
 
       const sentiment = content.trim() || 'Neutral';
-      // Normalize response
       if (sentiment.toLowerCase().includes('positive')) return 'Positive';
       if (sentiment.toLowerCase().includes('negative')) return 'Negative';
       return 'Neutral';
@@ -118,7 +92,6 @@ export class OpenAIService {
         Return ONLY the number (0-100).
       `;
 
-      // Use complete method to handle fallback
       const content = await this.complete({
         model: DEFAULT_MODEL,
         messages: [

@@ -6,3 +6,6 @@
 .env.staging
 node_modules/
 dist/
+.env
+dist-server/
+supabase/.temp/

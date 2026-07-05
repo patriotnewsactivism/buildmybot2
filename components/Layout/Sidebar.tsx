@@ -93,6 +93,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'services', label: 'Pro Services', icon: Zap },
     { id: 'billing', label: 'Billing & Usage', icon: Shield },
     { id: 'support', label: 'Support', icon: Headphones },
+    { id: 'ai-team', label: 'AI Team', icon: Users },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 

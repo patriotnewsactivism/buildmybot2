@@ -32,6 +32,7 @@ import twilioWebhooksRouter from './twilioWebhooks';
 import voiceRouter from './voice';
 import voiceAgentsRouter from './voiceAgents';
 import webhooksRouter from './webhooks';
+import aiEmployeesRouter from './aiEmployees';
 
 export { 
   adminRouter, 
@@ -62,5 +63,6 @@ export {
   twilioWebhooksRouter, 
   voiceRouter, 
   voiceAgentsRouter, 
-  webhooksRouter 
+  webhooksRouter, 
+  aiEmployeesRouter 
 };
