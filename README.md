@@ -33,6 +33,25 @@ BuildMyBot is an all-in-one AI Operating System that empowers businesses to auto
 - **Commission Tracking:** Real-time dashboard for earnings, payouts, and client management.
 - **Tiered System:** Bronze, Silver, Gold, and Platinum tiers with increasing commission rates.
 
+## Deployment topology (read this first)
+
+There are two backend implementations in this repository, and only one of
+them is the production path:
+
+1. **Vercel (production)** — the Vite client plus the serverless functions in
+   `api/` (`api/gateway.ts` handles all `/api/*` routes, `api/auth/*.ts`
+   handles login/signup/session). These talk to Supabase over its REST API.
+   `vercel.json` builds with `npm run build:client`. Required env vars:
+   `SUPABASE_SERVICE_ROLE_KEY`, `SESSION_JWT_SECRET`, `VITE_SUPABASE_URL`
+   (see `.env.example`).
+2. **Express server (`server/`, incomplete)** — a Drizzle/Postgres API server
+   used for local development. It currently imports Drizzle tables (`leads`,
+   `conversations`, `voiceAgents`, `partnerClients`, …) and a `shared/types`
+   module that were never committed to this repo, so `npm start` /
+   `npm run server` fail at import time until `shared/schema.ts` is
+   completed. `npm run check:server` type-checks it. The Dockerfile and
+   railway.json target this server and inherit the same blocker.
+
 ## Tech Stack
 
 - **Frontend:** React, TypeScript, Vite, Tailwind CSS
