@@ -1733,8 +1733,9 @@ app.use(
   toolsRouter,
 );
 
-// Revenue and billing features
-app.use('/api/revenue', revenueRouter);
+// Revenue and billing features (plan management, API keys, branding,
+// commissions — all sensitive; nothing here is meant to be public)
+app.use('/api/revenue', authenticate, revenueRouter);
 
 // Chat API (proxies OpenAI requests)
 app.use('/api/chat', chatRouter);

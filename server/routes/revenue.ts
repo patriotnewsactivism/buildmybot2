@@ -2,11 +2,15 @@ import { eq } from 'drizzle-orm';
 import { type Request, type Response, Router } from 'express';
 import { partnerClients } from '../../shared/schema';
 import { db } from '../db';
+import { authorize } from '../middleware';
 import { apiKeyService } from '../services/ApiKeyService';
 import { billingService } from '../services/BillingService';
 import { whitelabelService } from '../services/WhitelabelService';
 
 const router = Router();
+
+// Platform-level plan definitions may only be changed by admins.
+const adminOnly = authorize(['ADMIN', 'Admin', 'MasterAdmin']);
 
 router.get('/plans', async (req: Request, res: Response) => {
   try {
@@ -27,7 +31,7 @@ router.get('/plans/:planId', async (req: Request, res: Response) => {
   }
 });
 
-router.post('/plans', async (req: Request, res: Response) => {
+router.post('/plans', adminOnly, async (req: Request, res: Response) => {
   try {
     const plan = await billingService.createPlan(req.body);
     res.json(plan);
@@ -36,7 +40,7 @@ router.post('/plans', async (req: Request, res: Response) => {
   }
 });
 
-router.put('/plans/:planId', async (req: Request, res: Response) => {
+router.put('/plans/:planId', adminOnly, async (req: Request, res: Response) => {
   try {
     const plan = await billingService.updatePlan(req.params.planId, req.body);
     res.json(plan);

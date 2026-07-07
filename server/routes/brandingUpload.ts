@@ -9,6 +9,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { v4 as uuid } from 'uuid';
+import { authenticate } from '../middleware';
 import { whitelabelService } from '../services/WhitelabelService';
 
 const storage = multer.diskStorage({
@@ -41,6 +42,7 @@ const upload = multer({
 export function registerBrandingUploadRoutes(app: Express.Application) {
   app.post(
     '/api/branding/upload',
+    authenticate,
     upload.single('file'),
     async (req: Request, res: Response) => {
       try {
