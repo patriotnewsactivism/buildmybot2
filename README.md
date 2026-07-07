@@ -208,3 +208,4 @@ buildmybot-2026/
 
 ---
 © 2025 BuildMyBot. All rights reserved.
+# Rebuild trigger
