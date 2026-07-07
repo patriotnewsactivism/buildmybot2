@@ -124,6 +124,70 @@ export const WHITELABEL_FEE = {
   ],
 };
 
+/**
+ * Commission sustainability safeguard.
+ *
+ * Added 2026-07-07: the commission calculation in server/routes/partners.ts
+ * previously paid RESELLER_TIERS / WHITELABEL_FEE / AFFILIATE_COMMISSION
+ * rates against raw gross plan price, with zero awareness of the variable
+ * AI cost (OpenAI + Cartesia + Twilio) that plan actually carries. At full
+ * conversation-quota utilization, that math goes net-negative on the
+ * Executive tier and thin-to-negative on Enterprise -- see
+ * PAYOUT_SUSTAINABILITY_AUDIT.md for the full derivation. This block adds
+ * the cost model + a hard cap so no payout can be computed that exceeds a
+ * safe share of estimated per-plan margin, without changing the advertised
+ * commission tiers/rates themselves.
+ *
+ * COST_PER_CONVERSATION_ESTIMATE_USD is a blended estimate (chat completion
+ * input+output tokens on gpt-4o-mini-class pricing + a trivial embedding
+ * call for RAG retrieval), priced at real OpenAI list rates as of July 2026
+ * ($0.40/1M input, $1.60/1M output, $0.02/1M embedding tokens), assuming
+ * ~9,000 input + ~900 output tokens per conversation with a buffer. This is
+ * an ESTIMATE, not a measurement -- there is no real conversation volume in
+ * production yet to calibrate against (see audit doc). Revisit once real
+ * usage data exists; a scheduled job re-deriving this from actual OpenAI
+ * billing + conversation counts would replace the hardcoded estimate below.
+ */
+export const COST_PER_CONVERSATION_ESTIMATE_USD = 0.008;
+
+/** Cap payouts at this share of estimated gross margin (price minus
+ * estimated AI cost at full quota utilization), leaving the remainder for
+ * hosting/support/overhead. Deliberately conservative -- worst-case quota
+ * utilization is the stress test, not the expected case. */
+export const MAX_COMMISSION_SHARE_OF_MARGIN = 0.7;
+
+/** Estimate variable AI cost for a plan at full conversation-quota
+ * utilization -- the worst case a payout safeguard needs to survive. */
+export function estimatePlanVariableCostUsd(plan: keyof typeof PLANS): number {
+  const conversations = PLANS[plan]?.conversations || 0;
+  return conversations * COST_PER_CONVERSATION_ESTIMATE_USD;
+}
+
+/** Estimated gross margin for a plan at full quota utilization (can be
+ * negative -- that's the point of surfacing it). */
+export function estimatePlanMarginUsd(plan: keyof typeof PLANS): number {
+  const price = PLANS[plan]?.price || 0;
+  return price - estimatePlanVariableCostUsd(plan);
+}
+
+/** Cap a computed commission dollar amount so it can never exceed
+ * MAX_COMMISSION_SHARE_OF_MARGIN of the plan's estimated margin. Returns
+ * both the capped amount and whether capping actually happened, so callers
+ * can log/flag it rather than silently changing numbers a rep might expect. */
+export function applyCommissionSafeguard(
+  plan: keyof typeof PLANS,
+  computedCommissionUsd: number,
+): { cappedCommissionUsd: number; wasCapped: boolean; estimatedMarginUsd: number } {
+  const estimatedMarginUsd = estimatePlanMarginUsd(plan);
+  const maxSafeCommissionUsd = Math.max(0, estimatedMarginUsd) * MAX_COMMISSION_SHARE_OF_MARGIN;
+  const cappedCommissionUsd = Math.min(computedCommissionUsd, maxSafeCommissionUsd);
+  return {
+    cappedCommissionUsd,
+    wasCapped: cappedCommissionUsd < computedCommissionUsd,
+    estimatedMarginUsd,
+  };
+}
+
 export const REFERRAL_REWARDS = {
   type: 'credit',
   description: 'Earn credits for each referral that subscribes',
