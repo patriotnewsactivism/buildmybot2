@@ -1,12 +1,17 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-const SUPABASE_URL = 'https://evkjlnbpntimbxklnhoz.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2a2psbmJwbnRpbWJ4a2xuaG96Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NzIwMzAyMSwiZXhwIjoyMDkyNzc5MDIxfQ.EStJlLR_jOLxTuTSs9Ll2hoqWNnyy5tXgIkklOgoFho';
-const JWT_SECRET = SUPABASE_KEY.slice(0, 32);
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://evkjlnbpntimbxklnhoz.supabase.co';
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const JWT_SECRET = process.env.SESSION_JWT_SECRET;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+
+  if (!SUPABASE_KEY || !JWT_SECRET) {
+    console.error('[auth/user] FATAL: SUPABASE_SERVICE_ROLE_KEY / SESSION_JWT_SECRET not set');
+    return res.status(500).json({ error: 'Server misconfigured' });
+  }
 
   try {
     // Get session token from cookie
@@ -18,10 +23,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const [encoded, signature] = token.split('.');
     if (!encoded || !signature) return res.status(401).json({ error: 'Not authenticated' });
 
-    // Verify JWT
+    // Verify JWT (constant-time comparison to avoid timing attacks)
     const crypto = await import('crypto');
     const expectedSig = crypto.default.createHmac('sha256', JWT_SECRET).update(encoded).digest('base64url');
-    if (signature !== expectedSig) return res.status(401).json({ error: 'Not authenticated' });
+    const sigBuf = Buffer.from(signature);
+    const expectedBuf = Buffer.from(expectedSig);
+    const sigValid = sigBuf.length === expectedBuf.length && crypto.default.timingSafeEqual(sigBuf, expectedBuf);
+    if (!sigValid) return res.status(401).json({ error: 'Not authenticated' });
 
     const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString());
     if (payload.exp < Math.floor(Date.now() / 1000)) {
