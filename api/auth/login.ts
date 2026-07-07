@@ -86,5 +86,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { password_hash, ...safeUser } = user;
     return res.json({ user: safeUser, message: 'Login successful' });
   } catch (error: any) {
-    console.error('Login error:', error.message, error.stack);
-  
+    console.error('Login error:', error);
+    return res.status(500).json({ error: 'Login failed' });
+  }
+}
