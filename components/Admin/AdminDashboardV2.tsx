@@ -1,6 +1,7 @@
 import {
   Activity,
   AlertCircle,
+  AlertTriangle,
   BarChart3,
   Bell,
   Briefcase,
@@ -15,6 +16,7 @@ import {
   Link2,
   Loader,
   MessageSquare,
+  RefreshCw,
   Server,
   Settings,
   Shield,
@@ -24,19 +26,17 @@ import {
   Users,
   Wifi,
   Zap,
-  AlertTriangle,
-  RefreshCw,
 } from 'lucide-react';
 import type React from 'react';
 import { useCallback, useEffect, useState } from 'react';
 import { buildApiUrl } from '../../services/apiConfig';
 import AdminFeaturesOverview from '../Analytics/AdminFeaturesOverview';
 import { ComprehensiveAnalytics } from '../Analytics/ComprehensiveAnalytics';
+import { QuickMetricsWidget } from '../UI/QuickMetricsWidget';
+import { ErrorRecoveryDashboard } from './ErrorRecoveryDashboard';
 import { NotificationComposer } from './NotificationComposer';
 import { PartnerOverviewAdmin } from './PartnerOverviewAdmin';
 import { FinancialDashboard } from './widgets/FinancialDashboard';
-import { QuickMetricsWidget } from '../UI/QuickMetricsWidget';
-import { ErrorRecoveryDashboard } from './ErrorRecoveryDashboard';
 
 interface AdminDashboardMetrics {
   totalUsers: number;
@@ -52,13 +52,49 @@ interface AdminDashboardMetrics {
   totalConversations: number;
 }
 
-type AdminTab = 'overview' | 'system-health';
+// The dashboard currently implements 'overview' and 'system-health'. The
+// remaining names exist because App.tsx maps admin URL paths onto tabs;
+// until those views are built, any unimplemented tab renders the overview.
+export type AdminTab =
+  | 'overview'
+  | 'system-health'
+  | 'metrics'
+  | 'users'
+  | 'partners'
+  | 'financial'
+  | 'analytics'
+  | 'support'
+  | 'system'
+  | 'affiliates'
+  | 'agents'
+  | 'clients'
+  | 'conversations';
 
-export const AdminDashboardV2: React.FC = () => {
+interface AdminDashboardV2Props {
+  /** Called when an admin starts impersonating a user (reserved for future
+   * drill-down UI; accepted so App can wire it without a type error). */
+  onImpersonate?: (
+    targetUserId: string,
+    reason: string,
+  ) => void | Promise<void>;
+  /** Controlled tab; when provided with onTabChange the parent owns tab state. */
+  activeTab?: AdminTab;
+  onTabChange?: (tab: AdminTab) => void;
+}
+
+export const AdminDashboardV2: React.FC<AdminDashboardV2Props> = ({
+  activeTab: controlledTab,
+  onTabChange,
+}) => {
   const [metrics, setMetrics] = useState<AdminDashboardMetrics | null>(null);
   const [loadingMetrics, setLoadingMetrics] = useState<boolean>(true);
   const [errorMetrics, setErrorMetrics] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<AdminTab>('overview');
+  const [internalTab, setInternalTab] = useState<AdminTab>('overview');
+  const activeTab = controlledTab ?? internalTab;
+  const setActiveTab = (tab: AdminTab) => {
+    setInternalTab(tab);
+    onTabChange?.(tab);
+  };
 
   const fetchAdminMetrics = useCallback(async () => {
     setLoadingMetrics(true);
@@ -73,7 +109,9 @@ export const AdminDashboardV2: React.FC = () => {
       setMetrics(data);
     } catch (error) {
       console.error('Error fetching admin metrics:', error);
-      setErrorMetrics(error instanceof Error ? error.message : 'An unknown error occurred');
+      setErrorMetrics(
+        error instanceof Error ? error.message : 'An unknown error occurred',
+      );
     } finally {
       setLoadingMetrics(false);
     }
@@ -90,13 +128,16 @@ export const AdminDashboardV2: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-100 p-6">
-      <h1 className="mb-6 text-3xl font-bold text-gray-900">Admin Dashboard V2</h1>
+      <h1 className="mb-6 text-3xl font-bold text-gray-900">
+        Admin Dashboard V2
+      </h1>
 
       {/* Tab Navigation */}
       <div className="mb-6 border-b border-gray-200">
         <nav className="flex space-x-4" aria-label="Tabs">
           {tabs.map((tab) => (
             <button
+              type="button"
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
@@ -112,11 +153,15 @@ export const AdminDashboardV2: React.FC = () => {
         </nav>
       </div>
 
-      {activeTab === 'overview' && (
+      {activeTab !== 'system-health' && (
         <>
           <div className="mb-8 flex items-center justify-between">
-            <p className="text-gray-600">Overview of system health, user activity, and financial performance.</p>
+            <p className="text-gray-600">
+              Overview of system health, user activity, and financial
+              performance.
+            </p>
             <button
+              type="button"
               onClick={fetchAdminMetrics}
               className={`flex items-center rounded-md bg-blue-600 px-4 py-2 text-white shadow-md transition-colors hover:bg-blue-700 ${loadingMetrics ? 'cursor-not-allowed opacity-70' : ''}`}
               disabled={loadingMetrics}
@@ -151,7 +196,11 @@ export const AdminDashboardV2: React.FC = () => {
             <MetricCard
               icon={Users}
               title="Total Users"
-              value={loadingMetrics ? '...' : metrics?.totalUsers?.toLocaleString() || 'N/A'}
+              value={
+                loadingMetrics
+                  ? '...'
+                  : metrics?.totalUsers?.toLocaleString() || 'N/A'
+              }
               description="All registered users"
               color="text-indigo-600"
               bgColor="bg-indigo-50"
@@ -159,7 +208,11 @@ export const AdminDashboardV2: React.FC = () => {
             <MetricCard
               icon={Zap}
               title="Active Bots"
-              value={loadingMetrics ? '...' : metrics?.activeBots?.toLocaleString() || 'N/A'}
+              value={
+                loadingMetrics
+                  ? '...'
+                  : metrics?.activeBots?.toLocaleString() || 'N/A'
+              }
               description="Currently deployed bots"
               color="text-green-600"
               bgColor="bg-green-50"
@@ -167,7 +220,11 @@ export const AdminDashboardV2: React.FC = () => {
             <MetricCard
               icon={DollarSign}
               title="Total Revenue"
-              value={loadingMetrics ? '...' : `$${metrics?.totalRevenue?.toLocaleString() || '0'}`}
+              value={
+                loadingMetrics
+                  ? '...'
+                  : `$${metrics?.totalRevenue?.toLocaleString() || '0'}`
+              }
               description="All-time platform revenue"
               color="text-purple-600"
               bgColor="bg-purple-50"
@@ -175,7 +232,11 @@ export const AdminDashboardV2: React.FC = () => {
             <MetricCard
               icon={UserCheck}
               title="New Signups Today"
-              value={loadingMetrics ? '...' : metrics?.newSignupsToday?.toLocaleString() || 'N/A'}
+              value={
+                loadingMetrics
+                  ? '...'
+                  : metrics?.newSignupsToday?.toLocaleString() || 'N/A'
+              }
               description="Users joined in the last 24h"
               color="text-blue-600"
               bgColor="bg-blue-50"
@@ -183,7 +244,11 @@ export const AdminDashboardV2: React.FC = () => {
             <MetricCard
               icon={Server}
               title="API Calls (24h)"
-              value={loadingMetrics ? '...' : metrics?.apiCallsLast24h?.toLocaleString() || 'N/A'}
+              value={
+                loadingMetrics
+                  ? '...'
+                  : metrics?.apiCallsLast24h?.toLocaleString() || 'N/A'
+              }
               description="Total API requests"
               color="text-yellow-600"
               bgColor="bg-yellow-50"
@@ -191,7 +256,11 @@ export const AdminDashboardV2: React.FC = () => {
             <MetricCard
               icon={Ticket}
               title="Open Support Tickets"
-              value={loadingMetrics ? '...' : metrics?.supportTicketsOpen?.toLocaleString() || 'N/A'}
+              value={
+                loadingMetrics
+                  ? '...'
+                  : metrics?.supportTicketsOpen?.toLocaleString() || 'N/A'
+              }
               description="Tickets awaiting resolution"
               color="text-orange-600"
               bgColor="bg-orange-50"
@@ -199,7 +268,11 @@ export const AdminDashboardV2: React.FC = () => {
             <MetricCard
               icon={Shield}
               title="System Health Score"
-              value={loadingMetrics ? '...' : `${metrics?.systemHealthScore || 'N/A'}%`}
+              value={
+                loadingMetrics
+                  ? '...'
+                  : `${metrics?.systemHealthScore || 'N/A'}%`
+              }
               description="Overall system operational status"
               color="text-teal-600"
               bgColor="bg-teal-50"
@@ -207,7 +280,11 @@ export const AdminDashboardV2: React.FC = () => {
             <MetricCard
               icon={Clock}
               title="Avg. Response Time"
-              value={loadingMetrics ? '...' : `${metrics?.averageResponseTime || 'N/A'} ms`}
+              value={
+                loadingMetrics
+                  ? '...'
+                  : `${metrics?.averageResponseTime || 'N/A'} ms`
+              }
               description="Average bot response time"
               color="text-pink-600"
               bgColor="bg-pink-50"
@@ -235,9 +312,7 @@ export const AdminDashboardV2: React.FC = () => {
         </>
       )}
 
-      {activeTab === 'system-health' && (
-        <ErrorRecoveryDashboard />
-      )}
+      {activeTab === 'system-health' && <ErrorRecoveryDashboard />}
     </div>
   );
 };
@@ -252,9 +327,16 @@ interface MetricCardProps {
   bgColor: string;
 }
 
-const MetricCard: React.FC<MetricCardProps> = ({ icon: Icon, title, value, description, color, bgColor }) => (
+const MetricCard: React.FC<MetricCardProps> = ({
+  icon: Icon,
+  title,
+  value,
+  description,
+  color,
+  bgColor,
+}) => (
   <div className={`rounded-lg p-5 shadow-sm ${bgColor}`}>
-    <div className={`flex items-center justify-between`}>
+    <div className="flex items-center justify-between">
       <Icon className={`h-8 w-8 ${color}`} />
       <span className="text-2xl font-bold text-gray-800">{value}</span>
     </div>

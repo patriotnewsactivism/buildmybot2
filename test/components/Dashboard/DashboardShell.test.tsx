@@ -86,7 +86,7 @@ describe('DashboardShell', () => {
 
     await waitFor(() => {
       expect(screen.getByText('BuildMyBot')).toBeInTheDocument();
-      expect(screen.getByText('Clients')).toBeInTheDocument();
+      expect(screen.getByText('All Clients')).toBeInTheDocument();
     });
 
     expect(screen.getByText('Partner Content')).toBeInTheDocument();

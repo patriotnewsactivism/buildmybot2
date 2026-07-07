@@ -171,7 +171,7 @@ function App() {
 
       const mappedUser: User = {
         id: authUser.id,
-        name: authUser.name,
+        name: authUser.name || authUser.email,
         email: authUser.email,
         role: effectiveRole,
         plan: (authUser.plan as PlanType) || PlanType.FREE,

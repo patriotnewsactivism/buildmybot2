@@ -370,68 +370,86 @@ export class DocumentProcessorService {
     console.log(`[OCR] Processing PDF: ${fileName}`);
 
     try {
-      // Parse PDF to get page count
-      const pdfData = await pdfParse(buffer);
-      const pageCount = pdfData.numpages;
-      console.log(`[OCR] PDF has ${pageCount} pages`);
-
-      // For now, extract text from first 10 pages to avoid excessive API calls
-      const maxPages = Math.min(pageCount, 10);
-      const extractedTexts: string[] = [];
-
-      // Use GPT-4o vision with the PDF file directly
-      // OpenAI now supports PDF files in vision API
-      const base64Pdf = buffer.toString('base64');
-
-      const response = await fetch(`${baseURL}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o',
-          messages: [
-            {
-              role: 'user',
-              content: [
-                {
-                  type: 'text',
-                  text: `Extract all text content from this PDF document. Return only the extracted text, preserving the original structure and formatting as much as possible. Process up to ${maxPages} pages. Do not add any commentary or explanations.`,
-                },
-                {
-                  type: 'image_url',
-                  image_url: {
-                    url: `data:application/pdf;base64,${base64Pdf}`,
-                  },
-                },
-              ],
-            },
-          ],
-          max_completion_tokens: 16000, // Increased for larger documents
-        }),
-      });
-
-      if (!response.ok) {
-        const error = await response.text();
-        console.error('[OCR] OpenAI API error:', error);
-        throw new Error(`OpenAI API error: ${response.status} ${error}`);
-      }
-
-      const data = await response.json();
-      const extractedText = data.choices?.[0]?.message?.content || '';
-
-      if (!extractedText || extractedText.trim().length < 50) {
-        console.warn(
-          `[OCR] Extraction produced minimal text (${extractedText.length} chars)`,
-        );
-        throw new Error('OCR produced insufficient text content');
-      }
-
-      console.log(
-        `[OCR] Successfully extracted ${extractedText.length} characters`,
+      // The chat completions vision endpoint does not accept PDFs (image_url
+      // only takes images), so upload the PDF via the Files API and reference
+      // it from the Responses API instead.
+      const form = new FormData();
+      form.append('purpose', 'user_data');
+      form.append(
+        'file',
+        new Blob([new Uint8Array(buffer)], { type: 'application/pdf' }),
+        fileName,
       );
-      return extractedText;
+
+      const uploadRes = await fetch(`${baseURL}/files`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}` },
+        body: form,
+      });
+      if (!uploadRes.ok) {
+        throw new Error(`File upload failed: ${uploadRes.status}`);
+      }
+      const uploaded = await uploadRes.json();
+
+      try {
+        const response = await fetch(`${baseURL}/responses`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o',
+            input: [
+              {
+                role: 'user',
+                content: [
+                  { type: 'input_file', file_id: uploaded.id },
+                  {
+                    type: 'input_text',
+                    text: 'Extract all text content from this PDF document. Return only the extracted text, preserving the original structure and formatting as much as possible. Do not add any commentary or explanations.',
+                  },
+                ],
+              },
+            ],
+            max_output_tokens: 16000,
+          }),
+        });
+
+        if (!response.ok) {
+          const error = await response.text();
+          console.error('[OCR] OpenAI API error:', error);
+          throw new Error(`OpenAI API error: ${response.status} ${error}`);
+        }
+
+        const data = await response.json();
+        // output_text is the SDK-style convenience field; fall back to the
+        // raw Responses API output structure.
+        const extractedText: string =
+          data.output_text ||
+          data.output?.[0]?.content?.[0]?.text ||
+          '';
+
+        if (!extractedText.trim()) {
+          throw new Error('OCR produced no text content');
+        }
+        if (extractedText.trim().length < 50) {
+          console.warn(
+            `[OCR] Extraction produced minimal text (${extractedText.length} chars)`,
+          );
+        }
+
+        console.log(
+          `[OCR] Successfully extracted ${extractedText.length} characters`,
+        );
+        return extractedText;
+      } finally {
+        // Best-effort cleanup of the uploaded file.
+        await fetch(`${baseURL}/files/${uploaded.id}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${apiKey}` },
+        }).catch(() => {});
+      }
     } catch (error: any) {
       console.error('[OCR] Failed to extract text from PDF:', error.message);
       throw new Error(`OCR failed: ${error.message}`);

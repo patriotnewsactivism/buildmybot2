@@ -1,422 +1,278 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
-import { useForm, Controller } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { BotConfig, botConfigSchema } from '../../shared/schema-agentic-os';
-import { Input } from '../UI/Input';
-import { Textarea } from '../UI/Textarea';
+import { Bot as BotIcon, Loader2, Plus, Save } from 'lucide-react';
+import type React from 'react';
+import { useEffect, useState } from 'react';
+import type { Bot } from '../../types';
 import { Button } from '../UI/Button';
-import { Checkbox } from '../UI/Checkbox';
+import { Input } from '../UI/Input';
 import { Label } from '../UI/Label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../UI/Select';
-import { toast } from 'sonner';
-import { Loader2, Save, PlusCircle, Trash2, Settings, MessageSquare, BookOpen, Volume2, Zap, LayoutDashboard } from 'lucide-react';
-import { KnowledgeBaseManager } from './KnowledgeBaseManager';
-import { VoiceAgentConfigComponent as VoiceAgentConfig } from './VoiceAgentConfig';
-import { ToolBuilder } from './ToolBuilder';
-import { BotService } from '../../server/services/BotService'; // Assuming this path for client-side interaction
-import ConfigValidator from './ConfigValidator'; // Import the new validator component
+import { Select } from '../UI/Select';
+import { Textarea } from '../UI/Textarea';
+import SimplifiedBotWizard from './SimplifiedBotWizard';
 
-// Mock API calls for demonstration. Replace with actual API integration.
-const mockFetchBotConfig = async (id: string): Promise<BotConfig | null> => {
-  console.log(`Fetching bot config for ID: ${id}`);
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      if (id === '123') {
-        resolve({
-          id: '123',
-          name: 'Customer Support Bot',
-          description: 'Handles common customer inquiries and routes complex issues.',
-          systemPrompt: 'You are a helpful customer support assistant. Your goal is to provide accurate information and assist users efficiently. Be polite and concise. If you cannot answer, escalate to a human.',
-          model: 'gpt-4o-mini',
-          temperature: 0.7,
-          maxTokens: 500,
-          voiceEnabled: true,
-          voiceConfig: {
-            voiceId: 'cartesia-female-1',
-            provider: 'Cartesia',
-            speed: 1.0,
-            pitch: 0,
-          },
-          knowledgeBaseConfig: {
-            sources: [
-              { type: 'URL', url: 'https://buildmybot.ai/faq', content: '', fileId: '' },
-              { type: 'TEXT', content: 'Our business hours are M-F, 9 AM - 5 PM EST.', url: '', fileId: '' },
-            ],
-            chunkSize: 1000,
-            overlap: 200,
-          },
-          integrations: {
-            crm: { enabled: true, type: 'HubSpot', config: { apiKey: 'mock-hubspot-key' } },
-            openaiApiKey: 'sk-mock-openai-key-1234567890',
-          },
-          tools: [
-            { name: 'create_ticket', description: 'Creates a support ticket in the CRM.', schema: '{}' },
-          ],
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          organizationId: 'org1',
-          userId: 'user1',
-        });
-      } else {
-        resolve(null);
-      }
-    }, 1000);
-  });
-};
+const MODEL_OPTIONS = [
+  { value: 'gpt-5o-mini', label: 'GPT-5o Mini (fast, default)' },
+  { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
+  { value: 'gpt-4o', label: 'GPT-4o (complex reasoning)' },
+];
 
-const mockSaveBotConfig = async (config: BotConfig): Promise<BotConfig> => {
-  console.log('Saving bot config:', config);
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve({ ...config, updatedAt: new Date() });
-    }, 1000);
-  });
-};
+interface BotBuilderProps {
+  bots: Bot[];
+  onSave: (bot: Bot) => Promise<Bot>;
+  customDomain?: string;
+  /** Reserved for the embedded chat preview; not used by the current editor. */
+  onLeadDetected?: (email: string) => void;
+  onRefresh?: () => Promise<void>;
+}
 
-type Tab = 'general' | 'knowledge' | 'voice' | 'tools' | 'integrations' | 'deployment';
+interface WizardPayload {
+  name?: string;
+  description?: string;
+  systemPrompt?: string;
+  welcomeMessage?: string;
+  configuration?: { model?: string; temperature?: number };
+  knowledgeBase?: { source: string; type: string }[];
+}
 
-const BotBuilder: React.FC = () => {
-  const { botId } = useParams<{ botId: string }>();
-  const [activeTab, setActiveTab] = useState<Tab>('general');
-  const [isLoading, setIsLoading] = useState(false);
+const BotBuilder: React.FC<BotBuilderProps> = ({
+  bots,
+  onSave,
+  customDomain,
+  onRefresh,
+}) => {
+  const [selectedId, setSelectedId] = useState<string | null>(
+    bots[0]?.id ?? null,
+  );
+  const [showWizard, setShowWizard] = useState(bots.length === 0);
+  const [draft, setDraft] = useState<Bot | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [validationErrors, setValidationErrors] = useState<any[]>([]); // State to hold validation errors from ConfigValidator
-  const [isConfigValid, setIsConfigValid] = useState(true); // State for overall config validity
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [savedAt, setSavedAt] = useState<number | null>(null);
 
-  const { control, handleSubmit, reset, watch, setValue, formState: { errors, isDirty } } = useForm<BotConfig>({
-    resolver: zodResolver(botConfigSchema),
-    defaultValues: {
-      name: '',
-      description: '',
-      systemPrompt: '',
-      model: 'gpt-4o-mini',
-      temperature: 0.7,
-      maxTokens: 500,
-      voiceEnabled: false,
-      voiceConfig: {
-        voiceId: '',
-        provider: '',
-        speed: 1.0,
-        pitch: 0,
-      },
-      knowledgeBaseConfig: {
-        sources: [],
-        chunkSize: 1000,
-        overlap: 200,
-      },
-      integrations: {},
-      tools: [],
-    },
-  });
-
-  const watchedBotConfig = watch(); // Watch all form values for real-time validation
-
+  // Load the selected bot into the edit form whenever selection changes or
+  // the bot list refreshes underneath us.
   useEffect(() => {
-    if (botId) {
-      setIsLoading(true);
-      mockFetchBotConfig(botId)
-        .then((config) => {
-          if (config) {
-            reset(config);
-          } else {
-            toast.error('Bot not found.');
-          }
-        })
-        .catch((err) => {
-          toast.error('Failed to load bot configuration.');
-          console.error(err);
-        })
-        .finally(() => {
-          setIsLoading(false);
-        });
+    const selected = bots.find((b) => b.id === selectedId) ?? bots[0] ?? null;
+    setDraft(selected ? { ...selected } : null);
+    if (selected && selected.id !== selectedId) {
+      setSelectedId(selected.id);
     }
-  }, [botId, reset]);
+  }, [bots, selectedId]);
 
-  const onSubmit = async (data: BotConfig) => {
+  const updateDraft = <K extends keyof Bot>(field: K, value: Bot[K]) => {
+    setDraft((prev) => (prev ? { ...prev, [field]: value } : prev));
+    setSavedAt(null);
+  };
+
+  const handleSave = async () => {
+    if (!draft) return;
+    if (!draft.name.trim()) {
+      setSaveError('Bot name is required.');
+      return;
+    }
     setIsSaving(true);
+    setSaveError(null);
     try {
-      const savedConfig = await mockSaveBotConfig(data);
-      reset(savedConfig); // Reset form with saved data to clear isDirty
-      toast.success('Bot configuration saved successfully!');
-    } catch (error) {
-      toast.error('Failed to save bot configuration.');
-      console.error('Save error:', error);
+      const saved = await onSave(draft);
+      setSelectedId(saved.id);
+      setSavedAt(Date.now());
+    } catch {
+      setSaveError('Failed to save bot. Please try again.');
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleValidationChange = useCallback((isValid: boolean, errors: any[]) => {
-    setIsConfigValid(isValid);
-    setValidationErrors(errors);
-  }, []);
-
-  const handleFixAttempt = useCallback((field: string, suggestion: string) => {
-    // Implement quick-fix logic here
-    // This is a simplified example. Real implementation would involve more complex state updates.
-    toast.info(`Attempting to fix '${field}': ${suggestion}`);
-    if (field === 'systemPrompt') {
-      if (watchedBotConfig.systemPrompt && watchedBotConfig.systemPrompt.length < 50) {
-        setValue('systemPrompt', watchedBotConfig.systemPrompt + ' This is an expanded prompt to meet the minimum length requirement.', { shouldDirty: true });
-      }
-    } else if (field === 'knowledgeBaseConfig.sources') {
-      // Example: Add a placeholder source if none exist
-      if (!watchedBotConfig.knowledgeBaseConfig?.sources || watchedBotConfig.knowledgeBaseConfig.sources.length === 0) {
-        setValue('knowledgeBaseConfig.sources', [{ type: 'TEXT', content: 'Default knowledge for common queries.', url: '', fileId: '' }], { shouldDirty: true });
-      }
-    } else if (field === 'voiceConfig.voiceId') {
-      if (watchedBotConfig.voiceEnabled && (!watchedBotConfig.voiceConfig?.voiceId || watchedBotConfig.voiceConfig.voiceId.trim() === '')) {
-        setValue('voiceConfig.voiceId', 'default-voice-id', { shouldDirty: true });
-      }
-    } else if (field === 'voiceConfig.provider') {
-      if (watchedBotConfig.voiceEnabled && (!watchedBotConfig.voiceConfig?.provider || watchedBotConfig.voiceConfig.provider.trim() === '')) {
-        setValue('voiceConfig.provider', 'Cartesia', { shouldDirty: true });
-      }
-    }
-    // After attempting a fix, re-validate
-    // The `watchedBotConfig` update will trigger `validateConfig` in `ConfigValidator` via `useEffect`
-  }, [watchedBotConfig, setValue]);
-
-  const renderTabContent = () => {
-    switch (activeTab) {
-      case 'general':
-        return (
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="name">Bot Name</Label>
-              <Controller
-                name="name"
-                control={control}
-                render={({ field }) => <Input id="name" {...field} placeholder="e.g., Customer Support Agent" />}
-              />
-              {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name.message}</p>}
-            </div>
-            <div>
-              <Label htmlFor="description">Description</Label>
-              <Controller
-                name="description"
-                control={control}
-                render={({ field }) => <Textarea id="description" {...field} placeholder="A brief description of what this bot does." rows={3} />}
-              />
-              {errors.description && <p className="text-red-500 text-sm mt-1">{errors.description.message}</p>}
-            </div>
-            <div>
-              <Label htmlFor="systemPrompt">System Prompt</Label>
-              <Controller
-                name="systemPrompt"
-                control={control}
-                render={({ field }) => <Textarea id="systemPrompt" {...field} placeholder="Define the bot's persona, goals, and interaction style." rows={6} />}
-              />
-              {errors.systemPrompt && <p className="text-red-500 text-sm mt-1">{errors.systemPrompt.message}</p>}
-            </div>
-            <div>
-              <Label htmlFor="model">AI Model</Label>
-              <Controller
-                name="model"
-                control={control}
-                render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select an AI Model" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="gpt-4o">GPT-4o</SelectItem>
-                      <SelectItem value="gpt-4o-mini">GPT-4o Mini</SelectItem>
-                      <SelectItem value="gpt-3.5-turbo">GPT-3.5 Turbo</SelectItem>
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-              {errors.model && <p className="text-red-500 text-sm mt-1">{errors.model.message}</p>}
-            </div>
-            <div>
-              <Label htmlFor="temperature">Temperature (Creativity)</Label>
-              <Controller
-                name="temperature"
-                control={control}
-                render={({ field }) => (
-                  <Input
-                    id="temperature"
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    max="1"
-                    {...field}
-                    onChange={(e) => field.onChange(parseFloat(e.target.value))}
-                  />
-                )}
-              />
-              {errors.temperature && <p className="text-red-500 text-sm mt-1">{errors.temperature.message}</p>}
-            </div>
-            <div>
-              <Label htmlFor="maxTokens">Max Tokens</Label>
-              <Controller
-                name="maxTokens"
-                control={control}
-                render={({ field }) => (
-                  <Input
-                    id="maxTokens"
-                    type="number"
-                    step="1"
-                    min="100"
-                    max="4000"
-                    {...field}
-                    onChange={(e) => field.onChange(parseInt(e.target.value))}
-                  />
-                )}
-              />
-              {errors.maxTokens && <p className="text-red-500 text-sm mt-1">{errors.maxTokens.message}</p>}
-            </div>
-          </div>
-        );
-      case 'knowledge':
-        return (
-          <KnowledgeBaseManager
-            knowledgeBaseConfig={watchedBotConfig.knowledgeBaseConfig}
-            onConfigChange={(newConfig) => setValue('knowledgeBaseConfig', newConfig, { shouldDirty: true })}
-          />
-        );
-      case 'voice':
-        return (
-          <VoiceAgentConfig
-            voiceEnabled={watchedBotConfig.voiceEnabled}
-            voiceConfig={watchedBotConfig.voiceConfig}
-            onVoiceEnabledChange={(enabled) => setValue('voiceEnabled', enabled, { shouldDirty: true })}
-            onVoiceConfigChange={(newConfig) => setValue('voiceConfig', newConfig, { shouldDirty: true })}
-          />
-        );
-      case 'tools':
-        return (
-          <ToolBuilder
-            tools={watchedBotConfig.tools}
-            onToolsChange={(newTools) => setValue('tools', newTools, { shouldDirty: true })}
-          />
-        );
-      case 'integrations':
-        return (
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Integrations</h3>
-            <p className="text-sm text-gray-600">Connect your bot to external services like CRM, analytics, and more.</p>
-            {/* Example: OpenAI API Key for advanced features */}
-            <div>
-              <Label htmlFor="openaiApiKey">OpenAI API Key</Label>
-              <Controller
-                name="integrations.openaiApiKey"
-                control={control}
-                render={({ field }) => (
-                  <Input
-                    id="openaiApiKey"
-                    type="password"
-                    {...field}
-                    placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                  />
-                )}
-              />
-              {errors.integrations?.openaiApiKey && <p className="text-red-500 text-sm mt-1">{errors.integrations.openaiApiKey.message}</p>}
-            </div>
-            {/* Add more integration fields as needed */}
-          </div>
-        );
-      case 'deployment':
-        return (
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Deployment Status & Validation</h3>
-            <p className="text-sm text-gray-600">Review your bot's readiness for deployment.</p>
-            <ConfigValidator
-              botConfig={watchedBotConfig}
-              onValidationChange={handleValidationChange}
-              onFixAttempt={handleFixAttempt}
-            />
-            {!isConfigValid && validationErrors.length > 0 && (
-              <div className="p-4 border border-red-400 bg-red-50 rounded-lg text-sm text-red-800">
-                <p className="font-semibold mb-2">Deployment Blocked:</p>
-                <ul className="list-disc list-inside space-y-1">
-                  {validationErrors.filter(e => e.severity === 'error').map((error, index) => (
-                    <li key={index}>{error.message}</li>
-                  ))}
-                </ul>
-                {validationErrors.filter(e => e.severity === 'warning').length > 0 && (
-                  <p className="mt-2">Please address the warnings to ensure optimal performance.</p>
-                )}
-              </div>
-            )}
-            <Button
-              type="button"
-              className="w-full bg-green-600 hover:bg-green-700 text-white"
-              disabled={!isConfigValid || isSaving}
-            >
-              {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4" />}
-              Deploy Bot
-            </Button>
-          </div>
-        );
-      default:
-        return null;
+  const handleWizardComplete = async (payload: WizardPayload) => {
+    setShowWizard(false);
+    const newBot: Bot = {
+      id: `bot_${Date.now()}`,
+      name: payload.name || 'New Bot',
+      type: 'assistant',
+      systemPrompt: payload.systemPrompt || 'You are a helpful AI assistant.',
+      model: payload.configuration?.model || 'gpt-5o-mini',
+      temperature: payload.configuration?.temperature ?? 0.7,
+      knowledgeBase: (payload.knowledgeBase ?? []).map((k) => k.source),
+      active: true,
+      conversationsCount: 0,
+      themeColor: '#4f46e5',
+    };
+    setIsSaving(true);
+    setSaveError(null);
+    try {
+      const saved = await onSave(newBot);
+      setSelectedId(saved.id);
+      await onRefresh?.();
+    } catch {
+      setSaveError('Failed to create bot. Please try again.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  if (isLoading) {
+  const embedHost = customDomain || 'www.buildmybot.app';
+  const embedSnippet = draft
+    ? `<script src="https://${embedHost}/embed.js" data-bot-id="${draft.id}" async></script>`
+    : '';
+
+  if (showWizard) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
-        <span className="ml-2 text-lg text-gray-600">Loading bot configuration...</span>
-      </div>
+      <SimplifiedBotWizard
+        onComplete={handleWizardComplete}
+        onCancel={() => setShowWizard(false)}
+      />
     );
   }
 
   return (
-    <div className="container mx-auto p-6 bg-white shadow-lg rounded-lg max-w-4xl">
-      <h1 className="text-3xl font-bold text-gray-900 mb-6">Bot Builder: {botId ? 'Edit Bot' : 'New Bot'}</h1>
-
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-        <div className="flex border-b border-gray-200 mb-6">
-          <TabButton icon={<MessageSquare className="h-4 w-4" />} label="General" active={activeTab === 'general'} onClick={() => setActiveTab('general')} />
-          <TabButton icon={<BookOpen className="h-4 w-4" />} label="Knowledge Base" active={activeTab === 'knowledge'} onClick={() => setActiveTab('knowledge')} />
-          <TabButton icon={<Volume2 className="h-4 w-4" />} label="Voice Agent" active={activeTab === 'voice'} onClick={() => setActiveTab('voice')} />
-          <TabButton icon={<Wrench className="h-4 w-4" />} label="Tools" active={activeTab === 'tools'} onClick={() => setActiveTab('tools')} />
-          <TabButton icon={<Zap className="h-4 w-4" />} label="Integrations" active={activeTab === 'integrations'} onClick={() => setActiveTab('integrations')} />
-          <TabButton icon={<LayoutDashboard className="h-4 w-4" />} label="Deployment" active={activeTab === 'deployment'} onClick={() => setActiveTab('deployment')} />
-        </div>
-
-        <div className="p-4 border border-gray-200 rounded-lg bg-gray-50">
-          {renderTabContent()}
-        </div>
-
-        <div className="flex justify-end space-x-3">
-          {isDirty && <p className="text-sm text-gray-600 self-center">Unsaved changes</p>}
-          <Button type="button" variant="outline" onClick={() => reset()} disabled={!isDirty || isSaving} className="min-h-[44px]">
-            Discard
-          </Button>
-          <Button type="submit" disabled={isSaving} className="min-h-[44px]">
-            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-            Save Configuration
+    <div className="flex flex-col gap-6 p-6 lg:flex-row">
+      {/* Bot list */}
+      <aside className="w-full shrink-0 lg:w-64">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Your Bots</h2>
+          <Button size="sm" onClick={() => setShowWizard(true)}>
+            <Plus className="mr-1 h-4 w-4" /> New
           </Button>
         </div>
-      </form>
+        <ul className="space-y-1">
+          {bots.map((bot) => (
+            <li key={bot.id}>
+              <button
+                type="button"
+                onClick={() => setSelectedId(bot.id)}
+                className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors ${
+                  bot.id === selectedId
+                    ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300'
+                    : 'hover:bg-gray-100 dark:hover:bg-gray-800'
+                }`}
+              >
+                <BotIcon className="h-4 w-4 shrink-0" />
+                <span className="truncate">{bot.name}</span>
+                {!bot.active && (
+                  <span className="ml-auto text-xs text-gray-400">paused</span>
+                )}
+              </button>
+            </li>
+          ))}
+          {bots.length === 0 && (
+            <li className="px-3 py-2 text-sm text-gray-500">
+              No bots yet — create your first one.
+            </li>
+          )}
+        </ul>
+      </aside>
+
+      {/* Editor */}
+      <section className="min-w-0 flex-1">
+        {draft ? (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h1 className="text-xl font-semibold">Edit Bot</h1>
+              <div className="flex items-center gap-3">
+                {savedAt && (
+                  <span className="text-sm text-green-600">Saved</span>
+                )}
+                <Button onClick={handleSave} disabled={isSaving}>
+                  {isSaving ? (
+                    <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="mr-1 h-4 w-4" />
+                  )}
+                  Save changes
+                </Button>
+              </div>
+            </div>
+
+            {saveError && (
+              <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
+                {saveError}
+              </p>
+            )}
+
+            <div>
+              <Label htmlFor="bot-name">Name</Label>
+              <Input
+                id="bot-name"
+                value={draft.name}
+                onChange={(e) => updateDraft('name', e.target.value)}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="bot-system-prompt">System prompt</Label>
+              <Textarea
+                id="bot-system-prompt"
+                rows={6}
+                value={draft.systemPrompt}
+                onChange={(e) => updateDraft('systemPrompt', e.target.value)}
+              />
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="bot-model">Model</Label>
+                <Select
+                  id="bot-model"
+                  value={draft.model}
+                  onChange={(e) => updateDraft('model', e.target.value)}
+                >
+                  {MODEL_OPTIONS.map((m) => (
+                    <option key={m.value} value={m.value}>
+                      {m.label}
+                    </option>
+                  ))}
+                  {!MODEL_OPTIONS.some((m) => m.value === draft.model) && (
+                    <option value={draft.model}>{draft.model}</option>
+                  )}
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="bot-temperature">
+                  Temperature ({draft.temperature.toFixed(1)})
+                </Label>
+                <input
+                  id="bot-temperature"
+                  type="range"
+                  min={0}
+                  max={2}
+                  step={0.1}
+                  value={draft.temperature}
+                  onChange={(e) =>
+                    updateDraft('temperature', Number(e.target.value))
+                  }
+                  className="mt-3 w-full"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input
+                id="bot-active"
+                type="checkbox"
+                checked={draft.active}
+                onChange={(e) => updateDraft('active', e.target.checked)}
+                className="h-4 w-4"
+              />
+              <Label htmlFor="bot-active">Active</Label>
+            </div>
+
+            <div>
+              <Label htmlFor="bot-embed">Embed on your website</Label>
+              <pre
+                id="bot-embed"
+                className="mt-1 overflow-x-auto rounded-md bg-gray-100 p-3 text-xs dark:bg-gray-900"
+              >
+                {embedSnippet}
+              </pre>
+            </div>
+          </div>
+        ) : (
+          <div className="flex h-64 items-center justify-center text-gray-500">
+            Select a bot or create a new one to get started.
+          </div>
+        )}
+      </section>
     </div>
   );
 };
-
-interface TabButtonProps {
-  icon: React.ReactNode;
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}
-
-const TabButton: React.FC<TabButtonProps> = ({ icon, label, active, onClick }) => (
-  <button
-    type="button"
-    onClick={onClick}
-    className={`flex items-center space-x-2 px-4 py-3 text-sm font-medium border-b-2 ${active
-      ? 'border-blue-600 text-blue-600'
-      : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300'
-    } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 min-h-[44px]`}
-  >
-    {icon}
-    <span>{label}</span>
-  </button>
-);
 
 export default BotBuilder;

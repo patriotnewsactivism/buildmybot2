@@ -1,14 +1,15 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "outDir": "dist-server",
-    "noEmit": false, // Override base tsconfig.json's noEmit: true
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
+    // The server runs under tsx (esbuild) in every environment — dev
+    // (`npm run server`) and production (`npm start`) alike — so this config
+    // is a TYPE CHECK, not a compile step. Bundler resolution matches tsx's
+    // extensionless-import semantics; NodeNext would demand `.js` suffixes
+    // on every relative import that the runtime doesn't need.
+    "module": "ESNext",
+    "moduleResolution": "bundler",
     "target": "ES2022",
-    "sourceMap": true,
-    "composite": true,
-    "allowImportingTsExtensions": false
+    "noEmit": true
   },
   "include": [
     "server/**/*.ts",
@@ -20,10 +21,10 @@
   ],
   "exclude": [
     "node_modules",
-    "dist", // Exclude client build output
-    "vite-env.d.ts", // Client-specific declaration
+    "dist",
+    "vite-env.d.ts",
     "**/*.test.ts",
     "**/*.spec.ts",
-    "**/*.tsx" // Exclude React components from server build
+    "**/*.tsx"
   ]
 }
