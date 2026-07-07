@@ -1,4 +1,5 @@
 import {
+  AlertTriangle,
   BarChart3,
   Bot,
   Briefcase,
@@ -19,13 +20,13 @@ import {
   Users,
   X,
   Zap,
-  AlertTriangle,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type React from 'react';
-import { useEffect, useState, useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { PLANS } from '../../constants';
-import { PlanType, type User, UserRole } from '../../types';
 import { buildApiUrl } from '../../services/apiConfig';
+import { PlanType, type User, UserRole } from '../../types';
 
 interface SidebarProps {
   currentView: string;
@@ -59,7 +60,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       const data = await response.json();
       if (data && Array.isArray(data.logs)) {
         const pendingCount = data.logs.filter(
-          (log: { status: string }) => log.status === 'pending' || log.status === 'in_progress'
+          (log: { status: string }) =>
+            log.status === 'pending' || log.status === 'in_progress',
         ).length;
         setUnresolvedErrorCount(pendingCount);
       }
@@ -79,7 +81,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
     return () => clearInterval(interval);
   }, [fetchUnresolvedErrorCount]);
 
-  const menuItems = [
+  const menuItems: {
+    id: string;
+    label: string;
+    icon: LucideIcon;
+    badge?: number;
+  }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'bots', label: 'My Bots', icon: Bot },
     { id: 'chat-logs', label: 'Conversations', icon: MessageSquare },
@@ -114,9 +121,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   // Admin has a special separate dashboard, but can access it via sidebar if logged in as admin context
   if (isAdmin) {
-    menuItems.push({ 
-      id: 'admin', 
-      label: 'Master Admin', 
+    menuItems.push({
+      id: 'admin',
+      label: 'Master Admin',
       icon: TrendingUp,
       badge: unresolvedErrorCount > 0 ? unresolvedErrorCount : undefined,
     });
@@ -183,7 +190,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 size={20}
                 className={`flex-shrink-0 ${currentView === item.id ? 'text-white' : 'text-slate-500 group-hover:text-slate-300'}`}
               />
-              <span className="font-medium text-sm flex-1 text-left">{item.label}</span>
+              <span className="font-medium text-sm flex-1 text-left">
+                {item.label}
+              </span>
               {'badge' in item && item.badge && (
                 <span className="inline-flex items-center justify-center w-6 h-6 text-xs font-bold text-white bg-red-500 rounded-full">
                   {item.badge}

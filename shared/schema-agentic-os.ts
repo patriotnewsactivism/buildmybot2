@@ -648,7 +648,26 @@ export * from './schema';
 // Bot Configuration Schema (Zod)
 import { z } from 'zod';
 
+export const knowledgeSourceConfigSchema = z.object({
+  type: z.string(),
+  url: z.string().optional().default(''),
+  content: z.string().optional().default(''),
+  fileId: z.string().optional().default(''),
+});
+
+export const botToolConfigSchema = z.object({
+  name: z.string(),
+  description: z.string().optional().default(''),
+  schema: z.string().optional().default('{}'),
+});
+
 export const botConfigSchema = z.object({
+  // Persistence metadata, present when editing an existing bot.
+  id: z.string().optional(),
+  organizationId: z.string().optional(),
+  userId: z.string().optional(),
+  createdAt: z.date().optional(),
+  updatedAt: z.date().optional(),
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional().default(''),
   systemPrompt: z.string().optional().default(''),
@@ -656,19 +675,28 @@ export const botConfigSchema = z.object({
   temperature: z.number().min(0).max(2).optional().default(0.7),
   maxTokens: z.number().int().min(1).max(32000).optional().default(500),
   voiceEnabled: z.boolean().optional().default(false),
-  voiceConfig: z.object({
-    voiceId: z.string().optional().default(''),
-    provider: z.string().optional().default(''),
-    speed: z.number().min(0.5).max(2).optional().default(1.0),
-    pitch: z.number().min(-12).max(12).optional().default(0),
-  }).optional().default({ voiceId: '', provider: '', speed: 1.0, pitch: 0 }),
-  knowledgeBaseConfig: z.object({
-    sources: z.array(z.string()).optional().default([]),
-    chunkSize: z.number().int().min(100).max(10000).optional().default(1000),
-    overlap: z.number().int().min(0).max(5000).optional().default(200),
-  }).optional().default({ sources: [], chunkSize: 1000, overlap: 200 }),
-  integrations: z.record(z.any()).optional().default({}),
-  tools: z.array(z.string()).optional().default([]),
+  voiceConfig: z
+    .object({
+      voiceId: z.string().optional().default(''),
+      provider: z.string().optional().default(''),
+      speed: z.number().min(0.5).max(2).optional().default(1.0),
+      pitch: z.number().min(-12).max(12).optional().default(0),
+    })
+    .optional()
+    .default({ voiceId: '', provider: '', speed: 1.0, pitch: 0 }),
+  knowledgeBaseConfig: z
+    .object({
+      sources: z.array(knowledgeSourceConfigSchema).optional().default([]),
+      chunkSize: z.number().int().min(100).max(10000).optional().default(1000),
+      overlap: z.number().int().min(0).max(5000).optional().default(200),
+    })
+    .optional()
+    .default({ sources: [], chunkSize: 1000, overlap: 200 }),
+  integrations: z.record(z.string(), z.any()).optional().default({}),
+  tools: z.array(botToolConfigSchema).optional().default([]),
 });
 
 export type BotConfig = z.infer<typeof botConfigSchema>;
+export type BotConfigInput = z.input<typeof botConfigSchema>;
+export type KnowledgeSourceConfig = z.infer<typeof knowledgeSourceConfigSchema>;
+export type BotToolConfig = z.infer<typeof botToolConfigSchema>;

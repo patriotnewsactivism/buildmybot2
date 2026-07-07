@@ -6,7 +6,7 @@
  */
 
 import type React from 'react';
-import { useEffect, useState, useCallback } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { buildApiUrl } from '../../services/apiConfig';
 
 interface BrandingData {
@@ -27,13 +27,13 @@ interface WhiteLabelContextValue {
   refresh: () => void;
 }
 
-export const WhiteLabelContext = React.createContext<WhiteLabelContextValue>({
+export const WhiteLabelContext = createContext<WhiteLabelContextValue>({
   branding: null,
   loading: true,
   refresh: () => {},
 });
 
-export const useWhiteLabel = () => React.useContext(WhiteLabelContext);
+export const useWhiteLabel = () => useContext(WhiteLabelContext);
 
 export const WhiteLabelThemeProvider: React.FC<{ children: React.ReactNode; organizationId?: string }> = ({
   children,

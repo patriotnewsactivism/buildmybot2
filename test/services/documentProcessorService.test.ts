@@ -1,3 +1,6 @@
+// @vitest-environment node
+// pdf-parse's bundled pdf.js takes the browser code path under jsdom and
+// demands a workerSrc; the service only ever runs server-side, so test in node.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DocumentProcessorService } from '../../server/services/DocumentProcessorService';
 
