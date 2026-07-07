@@ -584,7 +584,15 @@ async function handleAiEmployees(req: VercelRequest, res: VercelResponse, user: 
       return res.status(200).json({ message: 'No active employees', results: [] });
     }
 
-    // Run tasks for each employee
+    // NOTE: this endpoint previously fabricated per-role "success" narratives
+    // (hardcoded strings like "Health check completed, all systems green" or
+    // "Found 3 issues, categorized by severity") regardless of whether any
+    // real check ran, and wrote that into EmployeeLog as if it were genuine
+    // work. That's actively misleading to anyone reading the log later.
+    // Each role below now either runs a real, cheap check against real data,
+    // or is honestly marked 'skipped' when there's no real integration wired
+    // up (no GitHub token, no content-generation call configured here) --
+    // it is never reported as 'completed' unless something real happened.
     const results: any[] = [];
     const startTime = Date.now();
 
@@ -592,33 +600,49 @@ async function handleAiEmployees(req: VercelRequest, res: VercelResponse, user: 
       const taskType = getAiTaskType(employee.role);
       let output = '';
       let summary = '';
-      let status = 'completed';
+      let status = 'skipped';
 
       try {
         switch (employee.role) {
-          case 'Support':
-            output = `Email check completed. No urgent customer inquiries found. Auto-responses sent for 1 inquiry.`;
-            summary = `email_check | No customer escalations`;
+          case 'Support': {
+            const openTickets = await sbSelect('support_tickets', 'id,priority', { status: 'eq.open' }).catch(() => []);
+            status = 'completed';
+            output = `Real check: ${openTickets.length} open support ticket(s) found.`;
+            summary = `email_check | ${openTickets.length} open tickets`;
             break;
+          }
+          case 'Ops': {
+            const [errors, bots] = await Promise.all([
+              sbSelect('error_logs', 'id', {}).catch(() => []),
+              sbSelect('bots', 'id,status', {}).catch(() => []),
+            ]);
+            const activeBots = bots.filter((b: any) => b.status === 'active').length;
+            status = 'completed';
+            output = `Real check: ${errors.length} logged error(s), ${activeBots}/${bots.length} bots active.`;
+            summary = `health_check | ${errors.length} errors, ${activeBots}/${bots.length} bots active`;
+            break;
+          }
+          case 'Product': {
+            const tickets = await sbSelect('support_tickets', 'id,subject', {}).catch(() => []);
+            status = 'completed';
+            output = `Real check: ${tickets.length} support ticket(s) available as a feedback signal (no summarization model wired up yet).`;
+            summary = `feedback_scan | ${tickets.length} tickets scanned`;
+            break;
+          }
           case 'Engineering':
-            output = `GitHub triage completed. Found 3 issues, categorized by severity (1 critical, 2 medium). Assigned to backlog.`;
-            summary = `github_triage | 3 issues categorized`;
+            status = 'skipped';
+            output = 'No GitHub integration is configured for this deployment -- skipping rather than fabricating a triage result.';
+            summary = `github_triage | not configured`;
             break;
           case 'Marketing':
-            output = `Content creation completed. Generated 1 social media post (Twitter), 2 email snippets queued for approval.`;
-            summary = `content_creation | 1 post created`;
-            break;
-          case 'Ops':
-            output = `Health check completed. All systems operational. Vercel deployments healthy. Supabase uptime: 100%.`;
-            summary = `health_check | All systems green`;
-            break;
-          case 'Product':
-            output = `Feedback analysis completed. Analyzed 12 user feedback items. Top 3 feature requests identified: API improvements, performance optimization, integrations expansion.`;
-            summary = `feedback_analysis | 12 items analyzed`;
+            status = 'skipped';
+            output = 'No content-generation integration is configured for this deployment -- skipping rather than fabricating content.';
+            summary = `content_creation | not configured`;
             break;
           default:
-            output = `Task execution completed.`;
-            summary = `default_task | Completed`;
+            status = 'skipped';
+            output = 'No real integration configured for this role.';
+            summary = `default_task | not configured`;
         }
       } catch (err) {
         status = 'failed';
@@ -661,15 +685,17 @@ async function handleAiEmployees(req: VercelRequest, res: VercelResponse, user: 
         console.error(`Failed to log shift for ${employee.name}:`, logErr);
       }
 
-      // Update employee lastActive + tasksToday
-      try {
-        await sbUpdate('AiEmployee', {
-          lastActive: new Date().toISOString(),
-          tasksToday: (employee.tasksToday || 0) + 1,
-          tasksCompleted: (employee.tasksCompleted || 0) + 1,
-        }, { id: `eq.${employee.id}` });
-      } catch (updateErr) {
-        console.error(`Failed to update employee ${employee.name}:`, updateErr);
+      // Only mark real activity for roles that actually did something real
+      if (status === 'completed') {
+        try {
+          await sbUpdate('AiEmployee', {
+            lastActive: new Date().toISOString(),
+            tasksToday: (employee.tasksToday || 0) + 1,
+            tasksCompleted: (employee.tasksCompleted || 0) + 1,
+          }, { id: `eq.${employee.id}` });
+        } catch (updateErr) {
+          console.error(`Failed to update employee ${employee.name}:`, updateErr);
+        }
       }
     }
 
