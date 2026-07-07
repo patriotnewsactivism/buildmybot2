@@ -53,13 +53,4 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!userRes.ok) return res.status(500).json({ error: 'Database query failed' });
 
     const users = await userRes.json();
-    const user = users[0];
-    if (!user) return res.status(401).json({ error: 'User not found' });
-
-    const { password_hash, ...safeUser } = user;
-    return res.json(safeUser);
-  } catch (error: any) {
-    console.error('Auth user error:', error.message);
-    return res.status(500).json({ error: 'Failed to fetch user' });
-  }
-}
+    c

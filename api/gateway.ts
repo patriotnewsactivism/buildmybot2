@@ -604,33 +604,4 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return await handleBots(req, res, user);
       case 'bot-health': return await handleBotHealth(req, res, user, pathParts);
       case 'analytics': return await handleAnalytics(req, res, user, pathParts);
-      case 'leads': return await handleLeads(req, res, user, pathParts);
-      case 'admin': return await handleAdmin(req, res, user, pathParts);
-      case 'revenue': return await handleRevenue(req, res, user, pathParts);
-      case 'voice': return await handleVoice(req, res, user, pathParts);
-      case 'knowledge': return await handleKnowledge(req, res, user, pathParts);
-      case 'templates': return await handleTemplates(req, res, user);
-      case 'tools': return await handleTools(req, res, user, pathParts);
-      case 'webhooks': return await handleWebhooks(req, res, user, pathParts);
-      case 'agency': return await handleAgency(req, res, user, pathParts);
-      case 'integrations': return await handleIntegrations(req, res, user, pathParts);
-      case 'channels': return await handleChannels(req, res, user);
-      case 'phone': return await handlePhone(req, res, user, pathParts);
-      case 'organizations': return await handleOrganizations(req, res, user);
-      case 'clients': return await handleClients(req, res, user, pathParts);
-      case 'chat': return await handleChat(req, res, user, pathParts);
-      case 'search': return await handleSearch(req, res, user);
-      case 'stripe': return await handleStripe(req, res, user, pathParts);
-      case 'notifications': return await handleNotifications(req, res, user, pathParts);
-      case 'users': return await handleUsers(req, res, user, pathParts);
-      case 'team': return await handleTeam(req, res, user);
-      case 'audit': return await handleAudit(req, res, user);
-      case 'support': return await handleSupport(req, res, user, pathParts);
-      case 'landing-pages': return await handleLandingPages(req, res, user, pathParts);
-      default: return res.status(404).json({ error: `Endpoint /api/${routeName} not found` });
-    }
-  } catch (error: any) {
-    console.error(`API Error [${routeName}]:`, error);
-    res.status(500).json({ error: 'Internal server error', message: error.message, path: req.url });
-  }
-}
+      case 'leads': return awai

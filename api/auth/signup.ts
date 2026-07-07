@@ -91,9 +91,4 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader('Set-Cookie', `bmb_session=${token}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${COOKIE_MAX_AGE}`);
 
     const { password_hash, ...safeUser } = newUser;
-    return res.status(201).json({ user: safeUser, message: 'Account created successfully' });
-  } catch (error: any) {
-    console.error('Signup error:', error.message);
-    return res.status(500).json({ error: 'Signup failed' });
-  }
-}
+    return res.status(201).json({ user: safeUser, message
