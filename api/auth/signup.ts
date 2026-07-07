@@ -1,14 +1,20 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-const SUPABASE_URL = 'https://evkjlnbpntimbxklnhoz.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2a2psbmJwbnRpbWJ4a2xuaG96Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NzIwMzAyMSwiZXhwIjoyMDkyNzc5MDIxfQ.EStJlLR_jOLxTuTSs9Ll2hoqWNnyy5tXgIkklOgoFho';
-const JWT_SECRET = SUPABASE_KEY.slice(0, 32);
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://evkjlnbpntimbxklnhoz.supabase.co';
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const JWT_SECRET = process.env.SESSION_JWT_SECRET;
 const COOKIE_MAX_AGE = 7 * 24 * 60 * 60;
+// TODO: single-source this with App.tsx's MASTER_ADMINS (currently duplicated in two places)
 const MASTER_ADMINS = ['jadj19@gmail.com', 'mreardon@wtpnews.org', 'patriotnewsactivism@gmail.com'];
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  if (!SUPABASE_KEY || !JWT_SECRET) {
+    console.error('[signup] FATAL: SUPABASE_SERVICE_ROLE_KEY / SESSION_JWT_SECRET not set');
+    return res.status(500).json({ error: 'Server misconfigured' });
+  }
 
   try {
     const { email, password, name, companyName, referredBy } = req.body || {};

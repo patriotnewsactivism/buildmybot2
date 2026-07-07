@@ -7,12 +7,19 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 // =====================================================================
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://evkjlnbpntimbxklnhoz.supabase.co';
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2a2psbmJwbnRpbWJ4a2xuaG96Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NzIwMzAyMSwiZXhwIjoyMDkyNzc5MDIxfQ.EStJlLR_jOLxTuTSs9Ll2hoqWNnyy5tXgIkklOgoFho';
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const SESSION_JWT_SECRET = process.env.SESSION_JWT_SECRET;
+
+if (!SUPABASE_SERVICE_KEY || !SESSION_JWT_SECRET) {
+  // Logged at cold-start; the handler also checks this per-request so callers get a clean 500
+  // instead of a confusing crash or (worse) running with no auth verification at all.
+  console.error('[gateway] FATAL: SUPABASE_SERVICE_ROLE_KEY / SESSION_JWT_SECRET env vars not set');
+}
 
 // Lazy-init fetch headers
 const SUPABASE_HEADERS = {
-  apikey: SUPABASE_SERVICE_KEY,
-  Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+  apikey: SUPABASE_SERVICE_KEY || '',
+  Authorization: `Bearer ${SUPABASE_SERVICE_KEY || ''}`,
   'Content-Type': 'application/json',
 };
 
@@ -38,6 +45,8 @@ function parseCookies(cookieHeader: string | undefined): Record<string, string> 
 }
 
 async function getAuthUser(req: VercelRequest): Promise<AuthUser | null> {
+  if (!SESSION_JWT_SECRET || !SUPABASE_SERVICE_KEY) return null;
+
   // Check Bearer token
   const authHeader = req.headers.authorization;
   let token: string | null = null;
@@ -52,29 +61,50 @@ async function getAuthUser(req: VercelRequest): Promise<AuthUser | null> {
   if (!token) return null;
 
   try {
-    let payload: any;
+    // Tokens are minted by api/auth/login.ts and api/auth/signup.ts in the
+    // 2-part format `base64url(payload).base64url(hmacSha256(payload))`.
+    // IMPORTANT: previously this function decoded the payload and trusted
+    // whatever role/organizationId/etc. it contained WITHOUT verifying the
+    // signature — meaning anyone could hand-craft a base64 JSON blob and
+    // authenticate as any user, including admin, for any organization.
+    // We now verify the signature first, then look up the authoritative
+    // user record from the database rather than trusting client-held claims.
     const parts = token.split('.');
-    if (parts.length === 3) {
-      // Standard JWT: header.payload.signature
-      const decoded = Buffer.from(parts[1].replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString();
-      payload = JSON.parse(decoded);
-    } else if (parts.length === 2) {
-      // Our custom format: payload.signature
-      const decoded = Buffer.from(parts[0].replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString();
-      payload = JSON.parse(decoded);
-    } else {
-      // Raw base64 JSON
-      payload = JSON.parse(Buffer.from(token.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString());
-    }
+    if (parts.length !== 2) return null;
+    const [encoded, signature] = parts;
+    if (!encoded || !signature) return null;
 
+    const crypto = await import('crypto');
+    const expectedSig = crypto.default
+      .createHmac('sha256', SESSION_JWT_SECRET)
+      .update(encoded)
+      .digest('base64url');
+
+    const sigBuf = Buffer.from(signature);
+    const expectedBuf = Buffer.from(expectedSig);
+    const sigValid =
+      sigBuf.length === expectedBuf.length && crypto.default.timingSafeEqual(sigBuf, expectedBuf);
+    if (!sigValid) return null;
+
+    const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString());
+    if (!payload.sub) return null;
     if (payload.exp && Date.now() > payload.exp * 1000) return null;
 
+    // Role, organizationId, and plan are NOT trusted from the token — fetch
+    // the live row so a role change / org change / suspension takes effect
+    // immediately instead of persisting for the life of an old cookie.
+    const users = await sbSelect('users', 'id,email,role,organization_id,plan,status', {
+      id: `eq.${payload.sub}`,
+    });
+    const user = users[0];
+    if (!user || user.status === 'Suspended') return null;
+
     return {
-      id: payload.userId || payload.id,
-      email: payload.email,
-      role: payload.role || 'user',
-      organizationId: payload.organizationId,
-      plan: payload.plan,
+      id: user.id,
+      email: user.email,
+      role: user.role || 'user',
+      organizationId: user.organization_id,
+      plan: user.plan,
     };
   } catch {
     return null;
@@ -269,6 +299,10 @@ async function handleLeadCapture(req: VercelRequest, res: VercelResponse) {
   res.status(201).json({ success: true, leadId: r[0]?.id });
 }
 
+// Must match the product list in handleStripe below — kept as one constant so
+// admin revenue math and checkout pricing can't drift apart again.
+const PLAN_PRICES: Record<string, number> = { free: 0, starter: 29, professional: 99, enterprise: 499 };
+
 async function handleAdmin(_req: VercelRequest, res: VercelResponse, user: AuthUser, pathParts: string[]) {
   if (!['admin','ADMIN','owner','OWNER'].includes(user.role)) return res.status(403).json({ error: 'Admin access required' });
   const sub = pathParts[0] || '';
@@ -282,7 +316,10 @@ async function handleAdmin(_req: VercelRequest, res: VercelResponse, user: AuthU
       sbSelect('organization_subscriptions', 'id,plan,status', {}).catch(() => []),
     ]);
     const paying = orgs.filter((o: any) => o.plan && o.plan !== 'free').length;
-    res.json({ totalUsers: users.length, totalOrganizations: orgs.length, activeOrganizations: orgs.filter((o: any) => o.is_active).length, totalBots: bots.length, activeBots: bots.filter((b: any) => b.status === 'active').length, totalLeads: leads.length, newLeads: leads.filter((l: any) => l.status === 'new').length, payingCustomers: paying, totalSubscriptions: subs.length, revenue: { mrr: paying * 49, arr: paying * 49 * 12 } });
+    // Real per-plan pricing (matches handleStripe's product list below) instead of
+    // a flat `paying * 49` guess that didn't reflect the actual plan mix.
+    const mrr = orgs.reduce((sum: number, o: any) => sum + (PLAN_PRICES[o.plan] || 0), 0);
+    res.json({ totalUsers: users.length, totalOrganizations: orgs.length, activeOrganizations: orgs.filter((o: any) => o.is_active).length, totalBots: bots.length, activeBots: bots.filter((b: any) => b.status === 'active').length, totalLeads: leads.length, newLeads: leads.filter((l: any) => l.status === 'new').length, payingCustomers: paying, totalSubscriptions: subs.length, revenue: { mrr, arr: mrr * 12 } });
   } else if (sub === 'notifications') {
     const f = { user_id: `eq.${user.id}` };
     res.json(await sbSelect('notifications', '*', f).catch(() => []));
@@ -535,6 +572,10 @@ async function handleLaunchGate(_req: VercelRequest, res: VercelResponse) {
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   setCors(res);
   if (req.method === 'OPTIONS') return res.status(200).end();
+
+  if (!SUPABASE_SERVICE_KEY || !SESSION_JWT_SECRET) {
+    return res.status(500).json({ error: 'Server misconfigured: missing required environment variables' });
+  }
 
   const url = new URL(req.url, 'http://localhost');
   const segments = url.pathname.replace(/^\/api\//, '').split('/').filter(Boolean);
