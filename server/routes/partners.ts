@@ -1,7 +1,12 @@
 import { type SQL, and, count, desc, eq, inArray, sql } from 'drizzle-orm';
 import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { PLANS, RESELLER_TIERS, WHITELABEL_FEE } from '../../constants';
+import {
+  PLANS,
+  RESELLER_TIERS,
+  WHITELABEL_FEE,
+  applyCommissionSafeguard,
+} from '../../constants';
 import {
   analyticsEvents,
   bots,
@@ -124,9 +129,19 @@ router.get('/commissions', async (req, res) => {
     let partnerAccessRevenue = 0;
     let partnerAccessEligibleClients = 0;
     let partnerAccessLegacyClients = 0;
+    // grossCommission: what the advertised tier/whitelabel rate computes to,
+    // unmodified -- kept for transparency so reps can see the "sticker" rate.
+    // safeguardedCommission: what's actually payable once each client's
+    // payout is capped against MAX_COMMISSION_SHARE_OF_MARGIN of that
+    // client's plan's estimated margin (see constants.ts). This is the
+    // number that should drive real payouts.
+    let grossCommission = 0;
+    let safeguardedCommission = 0;
+    let clientsCapped = 0;
 
     for (const client of referredClients) {
-      const price = PLANS[client.plan as keyof typeof PLANS]?.price || 0;
+      const plan = client.plan as keyof typeof PLANS;
+      const price = PLANS[plan]?.price || 0;
       const createdAt = client.createdAt ? new Date(client.createdAt) : null;
       const eligibleForPartnerRate =
         partnerAccessAppliesToAll ||
@@ -135,6 +150,15 @@ router.get('/commissions', async (req, res) => {
           createdAt &&
           createdAt.getTime() >= partnerAccessStart.getTime());
 
+      const rate = eligibleForPartnerRate
+        ? WHITELABEL_FEE.commission
+        : currentTier.commission;
+      const rawClientCommission = price * rate;
+      const { cappedCommissionUsd, wasCapped } = applyCommissionSafeguard(
+        plan,
+        rawClientCommission,
+      );
+
       if (eligibleForPartnerRate) {
         partnerAccessRevenue += price;
         partnerAccessEligibleClients += 1;
@@ -142,12 +166,13 @@ router.get('/commissions', async (req, res) => {
         legacyRevenue += price;
         partnerAccessLegacyClients += 1;
       }
+
+      grossCommission += rawClientCommission;
+      safeguardedCommission += cappedCommissionUsd;
+      if (wasCapped) clientsCapped += 1;
     }
 
     const totalRevenue = legacyRevenue + partnerAccessRevenue;
-    const grossCommission =
-      legacyRevenue * currentTier.commission +
-      partnerAccessRevenue * WHITELABEL_FEE.commission;
     const commissionRate =
       totalRevenue > 0
         ? grossCommission / totalRevenue
@@ -161,7 +186,14 @@ router.get('/commissions', async (req, res) => {
     const whitelabelFeeDue =
       whitelabelEnabled && (!paidThrough || paidThrough.getTime() < Date.now());
     const whitelabelFeeAmount = whitelabelFeeDue ? WHITELABEL_FEE.price : 0;
-    const pendingPayout = Math.max(grossCommission - whitelabelFeeAmount, 0);
+    // Deduct the whitelabel fee from the SAFEGUARDED commission, not the raw
+    // one -- safeguardedCommission is the true ceiling on what should ever
+    // be payable, so nothing downstream of this can exceed it.
+    const pendingPayout = Math.max(
+      safeguardedCommission - whitelabelFeeAmount,
+      0,
+    );
+    const commissionSafeguardApplied = safeguardedCommission < grossCommission;
 
     const payouts = await db
       .select()
@@ -175,6 +207,9 @@ router.get('/commissions', async (req, res) => {
         totalRevenue,
         commissionRate,
         grossCommission,
+        safeguardedCommission,
+        commissionSafeguardApplied,
+        clientsCapped,
         pendingPayout,
         whitelabelFeeDue,
         whitelabelFeeAmount,
