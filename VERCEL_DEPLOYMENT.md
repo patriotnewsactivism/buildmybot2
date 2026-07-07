@@ -91,7 +91,7 @@ Choose one of these platforms for your Express backend:
 Set these in your backend deployment platform:
 
 ```bash
-DATABASE_URL=postgresql://postgres.qjwwkcoredotrjtstigt:BuildMyBot123!@aws-0-us-west-2.pooler.supabase.com:5432/postgres
+DATABASE_URL=postgresql://postgres.[PROJECT_REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:5432/postgres
 SESSION_SECRET=your-random-secret-here
 OPENAI_API_KEY=your-openai-api-key
 STRIPE_SECRET_KEY=your-stripe-secret-key
@@ -106,7 +106,7 @@ NODE_ENV=production
 
 Your database is already configured on Supabase. No changes needed!
 
-Current connection: `postgresql://postgres.qjwwkcoredotrjtstigt:BuildMyBot123!@aws-0-us-west-2.pooler.supabase.com:5432/postgres`
+Current connection: `postgresql://postgres.[PROJECT_REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:5432/postgres`
 
 ## Step 4: Configure Stripe Webhooks
 

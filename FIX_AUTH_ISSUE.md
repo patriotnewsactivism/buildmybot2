@@ -26,8 +26,8 @@ Go to Railway dashboard and check that these are set:
 
 ```bash
 NODE_ENV=production  # CRITICAL - this must be set!
-SESSION_SECRET=2NtQTz77O8mlRrJXNc0/FhdwyJ/CpblK3Zps3x1v9jKCGovTd5ghViK6OS91Qs/Ek+HpFltZTVLixPFSTEwWLw==
-DATABASE_URL=postgresql://postgres.qjwwkcoredotrjtstigt:BuildMyBot123!@aws-0-us-west-2.pooler.supabase.com:5432/postgres
+SESSION_SECRET=[GENERATE-WITH: openssl rand -base64 64]
+DATABASE_URL=postgresql://postgres.[PROJECT_REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:5432/postgres
 OPENAI_API_KEY=sk-proj-...
 APP_BASE_URL=https://www.buildmybot.app
 ```
