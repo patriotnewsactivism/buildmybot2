@@ -897,7 +897,9 @@ app.post('/api/bots', ...apiAuthStack, async (req, res) => {
 
     res.status(isValidationError ? 403 : 500).json({
       error: 'Failed to create bot',
-      details: errorMessage,
+      // Only surface the underlying message for validation-type failures;
+      // unexpected errors are logged above under requestId instead.
+      details: isValidationError ? errorMessage : 'Internal error',
       requestId,
     });
   }
@@ -1075,7 +1077,7 @@ app.put('/api/bots/:id', ...apiAuthStack, async (req, res) => {
 
     res.status(isValidationError ? 403 : 500).json({
       error: 'Failed to update bot',
-      details: errorMessage,
+      details: isValidationError ? errorMessage : 'Internal error',
       requestId,
     });
   }
@@ -1769,6 +1771,23 @@ if (isProduction) {
     }
   });
 }
+
+// Global error handler. Express 5 forwards rejected async route handlers
+// here, so any route that throws outside its own try/catch still gets a
+// clean JSON response. Never echo err.message or err.stack to the client —
+// driver/provider errors can contain connection strings and internal paths.
+app.use(
+  (
+    err: unknown,
+    req: express.Request,
+    res: express.Response,
+    _next: express.NextFunction,
+  ) => {
+    console.error(`Unhandled error on ${req.method} ${req.path}:`, err);
+    if (res.headersSent) return;
+    res.status(500).json({ error: 'Internal server error' });
+  },
+);
 
 // Create HTTP server
 const server = createServer(app);

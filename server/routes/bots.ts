@@ -48,7 +48,7 @@ router.post(
         BotDeploymentStatus.FAILED,
         error.message || 'Unknown deployment error'
       );
-      res.status(500).json({ message: error.message || 'Failed to deploy bot.' });
+      res.status(500).json({ message: 'Failed to deploy bot.' });
     }
   }
 );
@@ -70,7 +70,7 @@ router.get(
       res.status(200).json(status);
     } catch (error: any) {
       console.error('Error fetching deployment status:', error);
-      res.status(500).json({ message: error.message || 'Failed to fetch deployment status.' });
+      res.status(500).json({ message: 'Failed to fetch deployment status.' });
     }
   }
 );
@@ -92,7 +92,7 @@ router.get(
       res.status(200).json(status);
     } catch (error: any) {
       console.error('Error fetching real-time bot status:', error);
-      res.status(500).json({ message: error.message || 'Failed to fetch real-time bot status.' });
+      res.status(500).json({ message: 'Failed to fetch real-time bot status.' });
     }
   }
 );
@@ -114,7 +114,7 @@ router.get(
       res.status(200).json(history);
     } catch (error: any) {
       console.error('Error fetching deployment history:', error);
-      res.status(500).json({ message: error.message || 'Failed to fetch deployment history.' });
+      res.status(500).json({ message: 'Failed to fetch deployment history.' });
     }
   }
 );

@@ -34,8 +34,16 @@ export const authenticate: RequestHandler = async (
   next: NextFunction,
 ) => {
   try {
-    // Get user from session or headers
-    const rawHeaderUserId = req.headers['x-user-id'];
+    // The x-user-id header is CLIENT-SUPPLIED and unverifiable — anyone can
+    // send any user id (or email) in it. It exists only as a dev convenience
+    // for running the SPA against this server without a session. Never trust
+    // it in production unless explicitly opted in.
+    const allowHeaderAuth =
+      process.env.NODE_ENV !== 'production' ||
+      process.env.DANGEROUSLY_ALLOW_HEADER_AUTH === 'true';
+    const rawHeaderUserId = allowHeaderAuth
+      ? req.headers['x-user-id']
+      : undefined;
     const headerUserId = Array.isArray(rawHeaderUserId)
       ? rawHeaderUserId[0]
       : rawHeaderUserId;
