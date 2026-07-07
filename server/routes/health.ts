@@ -35,9 +35,12 @@ async function checkDatabase(): Promise<ServiceStatus> {
       latency: Date.now() - start,
     };
   } catch (error: any) {
+    // Don't echo error.message here — Postgres driver errors can include
+    // host/user details, and the health endpoint is public.
+    console.error('Health check: database down:', error);
     return {
       status: 'down',
-      error: error.message || 'Database connection failed',
+      error: 'Database connection failed',
     };
   }
 }
@@ -173,7 +176,8 @@ router.get('/knowledge', async (req: Request, res: Response) => {
       embeddings: embeddingResult.rows[0] || {},
     });
   } catch (error: any) {
-    res.status(500).json({ status: 'error', error: error.message });
+    console.error('Knowledge health check failed:', error);
+    res.status(500).json({ status: 'error', error: 'Knowledge health check failed' });
   }
 });
 

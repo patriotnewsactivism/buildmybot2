@@ -35,7 +35,8 @@ router.get('/', async (req: any, res) => {
 
     res.json(members);
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -83,7 +84,8 @@ router.post('/invite', async (req: any, res) => {
 
     res.json({ success: true, message: 'Member added' });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -105,7 +107,8 @@ router.delete('/:memberId', async (req: any, res) => {
 
     res.json({ success: true });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

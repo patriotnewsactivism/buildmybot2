@@ -24,7 +24,7 @@ router.get('/', async (req: any, res) => {
     res.json(employees);
   } catch (error: any) {
     console.error('GET /api/ai-employees error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -36,7 +36,7 @@ router.get('/logs', async (req: any, res) => {
     res.json(logs);
   } catch (error: any) {
     console.error('GET /api/ai-employees/logs error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -48,7 +48,7 @@ router.get('/:id/logs', async (req: any, res) => {
     res.json(logs);
   } catch (error: any) {
     console.error('GET /api/ai-employees/:id/logs error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -60,7 +60,7 @@ router.post('/shift', async (req: any, res) => {
     res.json(result);
   } catch (error: any) {
     console.error('POST /api/ai-employees/shift error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -117,7 +117,7 @@ router.post('/:id/task', async (req: any, res) => {
     res.json({ success: true, result });
   } catch (error: any) {
     console.error('POST /api/ai-employees/:id/task error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -137,7 +137,7 @@ router.patch('/:id', async (req: any, res) => {
     res.json({ success: true });
   } catch (error: any) {
     console.error('PATCH /api/ai-employees/:id error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -153,7 +153,7 @@ router.post('/email', async (req: any, res) => {
     res.json(result);
   } catch (error: any) {
     console.error('POST /api/ai-employees/email error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

@@ -53,6 +53,21 @@ never hardcode it as a fallback in source.
 - `/api/admin` additionally requires an admin role; `/api/partners` a
   partner/reseller role; `POST/PUT /api/revenue/plans` an admin role.
 
+## x-user-id header authentication (Express server only)
+
+The Express server's `authenticate` middleware historically accepted a
+client-supplied `x-user-id` header (user id *or email*) as a full identity —
+an authentication bypass, since anyone can send any value. As of this
+hardening pass the header is only honored when `NODE_ENV !== 'production'`,
+or when `DANGEROUSLY_ALLOW_HEADER_AUTH=true` is explicitly set. Production
+deployments of the Express server must rely on session cookies
+(`POST /api/auth/login` sets `session.userId`). The Vercel serverless path
+(`api/gateway.ts`) is unaffected — it uses signed session JWTs.
+
+The SPA (`services/dbService.ts`) still sends `x-user-id` alongside
+`credentials: 'include'`; once sessions are confirmed working in every
+deployed topology, that header should be dropped from the client too.
+
 ## Known gaps (accepted for now)
 
 - **Twilio webhook signature validation** is not enabled on

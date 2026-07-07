@@ -22,7 +22,8 @@ router.get('/', async (req: any, res) => {
     const webhooks = await webhookService.listWebhooks(orgId);
     res.json(webhooks);
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -46,7 +47,8 @@ router.post('/', async (req: any, res) => {
 
     res.status(201).json(webhook);
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -57,7 +59,8 @@ router.delete('/:id', async (req: any, res) => {
     await webhookService.deleteWebhook(req.params.id, orgId);
     res.status(204).end();
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -74,7 +77,8 @@ router.get('/:id/logs', async (req: any, res) => {
 
     res.json(logs);
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -105,7 +109,8 @@ router.post('/:id/test', async (req: any, res) => {
 
     res.json({ success: true, message: 'Test delivery initiated' });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

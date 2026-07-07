@@ -194,7 +194,7 @@ router.post(
       });
     } catch (error: any) {
       console.error('Scrape error:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: 'Internal server error' });
     }
   },
 );
@@ -259,7 +259,7 @@ router.post(
       });
     } catch (error: any) {
       console.error('Upload error:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: 'Internal server error' });
     }
   },
 );
@@ -282,7 +282,7 @@ router.get(
       res.json({ sources, stats });
     } catch (error: any) {
       console.error('Get sources error:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: 'Internal server error' });
     }
   },
 );
@@ -314,7 +314,7 @@ router.delete(
       res.json({ success: true });
     } catch (error: any) {
       console.error('Delete source error:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: 'Internal server error' });
     }
   },
 );
@@ -343,7 +343,7 @@ router.get(
       res.json({ results });
     } catch (error: any) {
       console.error('Search error:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: 'Internal server error' });
     }
   },
 );
@@ -411,7 +411,7 @@ router.post(
       });
     } catch (error: any) {
       console.error('Refresh error:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: 'Internal server error' });
     }
   },
 );
@@ -428,7 +428,7 @@ router.get('/prebuilt', authenticate, async (req: Request, res: Response) => {
     res.json({ knowledgeBases });
   } catch (error: any) {
     console.error('Error fetching prebuilt knowledge bases:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -486,7 +486,7 @@ router.post(
       });
     } catch (error: any) {
       console.error('Error installing prebuilt knowledge base:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: 'Internal server error' });
     }
   },
 );
@@ -526,7 +526,7 @@ router.get(
       res.json({ content });
     } catch (error: any) {
       console.error('Preview error:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: 'Internal server error' });
     }
   },
 );
@@ -732,7 +732,7 @@ router.get(
       });
     } catch (error: any) {
       console.error('Missing embeddings detection error:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: 'Internal server error' });
     }
   },
 );
@@ -768,7 +768,7 @@ router.post(
       });
     } catch (error: any) {
       console.error('Embedding backfill error:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: 'Internal server error' });
     }
   },
 );
@@ -795,7 +795,7 @@ router.get(
       });
     } catch (error: any) {
       console.error('Cache stats error:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: 'Internal server error' });
     }
   },
 );
@@ -822,7 +822,7 @@ router.post(
       });
     } catch (error: any) {
       console.error('Cache clear error:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: 'Internal server error' });
     }
   },
 );
