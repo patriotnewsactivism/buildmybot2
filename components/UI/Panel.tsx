@@ -1,9 +1,8 @@
 import type React from 'react';
 
 /**
- * Sharp, borderless-feeling container: thin 1px hairline border, flat
- * charcoal surface, no rounded-3xl / gradient / shadow bloom. This is the
- * base building block for the command-center design system.
+ * Premium dark panel: hairline border, subtle top sheen, soft ambient
+ * shadow for depth. Flat and technical, but not a flat wireframe box.
  */
 export const Panel: React.FC<{
   title?: string;
@@ -15,18 +14,18 @@ export const Panel: React.FC<{
 }> = ({ title, eyebrow, right, className = '', bodyClassName = '', children }) => {
   return (
     <div
-      className={`bg-console-surface border border-console-border rounded-sm ${className}`}
+      className={`relative overflow-hidden rounded-lg border border-console-border bg-console-surface bg-panel-sheen shadow-panel ${className}`}
     >
       {(title || right) && (
-        <div className="flex items-center justify-between border-b border-console-border px-4 py-2.5">
+        <div className="relative flex items-center justify-between border-b border-console-border/80 px-4 py-3">
           <div>
             {eyebrow && (
-              <div className="font-mono text-[10px] uppercase tracking-widest text-console-muted">
+              <div className="font-mono text-[10px] uppercase tracking-[0.15em] text-console-muted">
                 {eyebrow}
               </div>
             )}
             {title && (
-              <h3 className="font-mono text-sm font-medium text-console-text">
+              <h3 className="mt-0.5 font-mono text-sm font-semibold tracking-tight text-console-text">
                 {title}
               </h3>
             )}

@@ -170,48 +170,58 @@ export const AdminDashboardV2: React.FC<AdminDashboardV2Props> = ({
   ) as { label: string; detail: string; status: 'online' | 'processing' | 'offline' }[];
 
   return (
-    <div className="min-h-screen bg-console-bg font-mono text-console-text p-4 lg:p-6">
-      {/* Top Status Bar */}
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border border-console-border bg-console-surface px-4 py-2.5">
-        <div className="flex items-center gap-4">
-          <StatusDot status={systemStatus} label={`SYSTEM: ${systemStatus.toUpperCase()}`} />
-          <span className="hidden text-console-border sm:inline">|</span>
-          <button
-            type="button"
-            onClick={() => setActiveTab('system-health')}
-            className="hidden items-center gap-1.5 text-xs uppercase tracking-widest text-console-muted hover:text-accent-cyan sm:flex"
-          >
-            <Server size={12} /> Agent Activity Logs
-          </button>
-        </div>
-        <StatusDot
-          status={errorMetrics ? 'offline' : 'online'}
-          label={apiStatus}
-        />
-      </div>
+    <div className="relative min-h-screen overflow-x-hidden bg-console-bg font-mono text-console-text">
+      {/* ambient background: subtle radial glow + faint technical grid */}
+      <div className="pointer-events-none fixed inset-0 bg-console-radial" />
+      <div className="pointer-events-none fixed inset-0 bg-grid-pattern bg-grid opacity-40 [mask-image:radial-gradient(ellipse_70%_60%_at_50%_0%,black,transparent)]" />
 
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-lg font-semibold tracking-tight text-console-text">
-          ADMIN_DASHBOARD<span className="text-accent-cyan">.v2</span>
-        </h1>
-        <nav className="flex gap-1" aria-label="Tabs">
-          {tabs.map((tab) => (
+      <div className="relative p-4 lg:p-6">
+        {/* Top Status Bar */}
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-console-border bg-console-surface-glass px-4 py-2.5 shadow-panel backdrop-blur-md">
+          <div className="flex items-center gap-4">
+            <StatusDot status={systemStatus} label={`SYSTEM: ${systemStatus.toUpperCase()}`} />
+            <span className="hidden text-console-border sm:inline">|</span>
             <button
               type="button"
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 border px-3 py-1.5 text-xs uppercase tracking-wide transition-colors ${
-                activeTab === tab.id
-                  ? 'border-accent-cyan text-accent-cyan'
-                  : 'border-console-border text-console-muted hover:text-console-text'
-              }`}
+              onClick={() => setActiveTab('system-health')}
+              className="hidden items-center gap-1.5 text-xs uppercase tracking-widest text-console-muted transition-colors hover:text-accent-cyan sm:flex"
             >
-              <tab.icon className="h-3.5 w-3.5" />
-              {tab.label}
+              <Server size={12} /> Agent Activity Logs
             </button>
-          ))}
-        </nav>
-      </div>
+          </div>
+          <StatusDot
+            status={errorMetrics ? 'offline' : 'online'}
+            label={apiStatus}
+          />
+        </div>
+
+        <div className="mb-5 mt-5 flex items-center justify-between">
+          <div>
+            <h1 className="bg-gradient-to-r from-console-text to-console-muted bg-clip-text text-xl font-bold tracking-tight text-transparent">
+              ADMIN_DASHBOARD<span className="text-accent-cyan">.v2</span>
+            </h1>
+            <p className="mt-1 font-mono text-[11px] text-console-muted">
+              Overview of system health, user activity &amp; financial performance
+            </p>
+          </div>
+          <nav className="flex gap-1 rounded-md border border-console-border bg-console-surface/60 p-1" aria-label="Tabs">
+            {tabs.map((tab) => (
+              <button
+                type="button"
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-xs uppercase tracking-wide transition-all ${
+                  activeTab === tab.id
+                    ? 'bg-accent-cyan/10 text-accent-cyan shadow-glow-cyan'
+                    : 'text-console-muted hover:bg-console-surface-raised hover:text-console-text'
+                }`}
+              >
+                <tab.icon className="h-3.5 w-3.5" />
+                {tab.label}
+              </button>
+            ))}
+          </nav>
+        </div>
 
       {activeTab !== 'system-health' && (
         <>
@@ -362,7 +372,8 @@ export const AdminDashboardV2: React.FC<AdminDashboardV2Props> = ({
         </>
       )}
 
-      {activeTab === 'system-health' && <ErrorRecoveryDashboard />}
+        {activeTab === 'system-health' && <ErrorRecoveryDashboard />}
+      </div>
     </div>
   );
 };

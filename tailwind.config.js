@@ -15,13 +15,15 @@ export default {
         // bot builder). Kept separate from the marketing-site tokens above
         // so the landing pages are unaffected.
         console: {
-          bg: '#0A0C10', // deepest page background
-          surface: '#12151B', // panel background
-          'surface-raised': '#181C24', // hovered / nested panel
-          border: '#232830', // 1px hairline borders
+          bg: '#07090C', // deepest page background
+          surface: '#0F1319', // panel background
+          'surface-raised': '#161B23', // hovered / nested panel
+          'surface-glass': 'rgba(20,24,31,0.6)', // glass panel over bg
+          border: '#20252E', // 1px hairline borders
           'border-strong': '#323944',
+          'border-glow': 'rgba(45,226,230,0.35)',
           muted: '#6B7280', // secondary text
-          text: '#D8DDE4', // primary text
+          text: '#E4E9F0', // primary text
         },
         accent: {
           cyan: '#2DE2E6', // primary accent (electric cyan)
@@ -35,10 +37,31 @@ export default {
         inter: ['Inter', 'sans-serif'],
         mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'monospace'],
       },
+      backgroundImage: {
+        'console-radial':
+          'radial-gradient(ellipse 80% 50% at 50% -10%, rgba(45,226,230,0.08), transparent), radial-gradient(ellipse 60% 40% at 100% 100%, rgba(57,255,136,0.05), transparent)',
+        'panel-sheen':
+          'linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0) 14%)',
+        'grid-pattern':
+          'linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px)',
+      },
+      backgroundSize: {
+        grid: '28px 28px',
+      },
+      boxShadow: {
+        'glow-cyan': '0 0 0 1px rgba(45,226,230,0.15), 0 8px 24px -8px rgba(45,226,230,0.25)',
+        'glow-green': '0 0 0 1px rgba(57,255,136,0.15), 0 8px 24px -8px rgba(57,255,136,0.2)',
+        'glow-amber': '0 0 0 1px rgba(245,185,66,0.15), 0 8px 24px -8px rgba(245,185,66,0.2)',
+        'glow-red': '0 0 0 1px rgba(255,77,94,0.15), 0 8px 24px -8px rgba(255,77,94,0.2)',
+        panel: '0 1px 0 0 rgba(255,255,255,0.03) inset, 0 20px 40px -20px rgba(0,0,0,0.6)',
+        'panel-raised': '0 1px 0 0 rgba(255,255,255,0.05) inset, 0 24px 48px -16px rgba(0,0,0,0.7)',
+      },
       animation: {
         'fade-in': 'fadeIn 0.5s ease-out forwards',
         blob: 'blob 7s infinite',
         'bounce-slow': 'bounce 3s infinite',
+        breathe: 'breathe 2.4s ease-in-out infinite',
+        scan: 'scan 3s linear infinite',
       },
       keyframes: {
         fadeIn: {
@@ -50,6 +73,14 @@ export default {
           '33%': { transform: 'translate(30px, -50px) scale(1.1)' },
           '66%': { transform: 'translate(-20px, 20px) scale(0.9)' },
           '100%': { transform: 'translate(0px, 0px) scale(1)' },
+        },
+        breathe: {
+          '0%, 100%': { opacity: '1', boxShadow: '0 0 0 0 rgba(245,185,66,0.5)' },
+          '50%': { opacity: '0.7', boxShadow: '0 0 0 4px rgba(245,185,66,0)' },
+        },
+        scan: {
+          '0%': { backgroundPosition: '0% 0%' },
+          '100%': { backgroundPosition: '0% 100%' },
         },
       },
     },
