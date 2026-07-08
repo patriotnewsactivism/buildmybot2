@@ -2484,7 +2484,17 @@ async function handleEmailInbound(req: VercelRequest, res: VercelResponse) {
   }
 
   if (!to || !from)
-    return res.status(400).json({ error: 'to and from are required' });
+    return res.status(400).json({
+      error: 'to and from are required',
+      debug: {
+        contentType,
+        bodyType: typeof req.body,
+        isBuffer: Buffer.isBuffer(req.body),
+        bodyPreview: Buffer.isBuffer(req.body)
+          ? req.body.toString('utf-8').slice(0, 300)
+          : String(req.body).slice(0, 300),
+      },
+    });
 
   const employee = await getEmployeeByAddress(to);
   if (!employee)
