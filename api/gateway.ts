@@ -1323,57 +1323,202 @@ async function handleSearch(
   res.json({ bots, leads, query: q });
 }
 
+const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || '';
+const STRIPE_API = 'https://api.stripe.com/v1';
+const APP_BASE_URL = process.env.APP_BASE_URL || 'https://www.buildmybot.app';
+
+/** Minimal Stripe REST client -- form-encoded POSTs, Basic auth with the
+ * secret key, same fetch-based style as the rest of this file (no SDK). */
+async function stripeRequest(
+  method: 'GET' | 'POST',
+  path: string,
+  params?: Record<string, any>,
+) {
+  if (!STRIPE_SECRET_KEY) throw new Error('STRIPE_SECRET_KEY not configured');
+  const auth = 'Basic ' + Buffer.from(`${STRIPE_SECRET_KEY}:`).toString('base64');
+  let url = `${STRIPE_API}${path}`;
+  const opts: any = {
+    method,
+    headers: { Authorization: auth },
+  };
+  if (params && method === 'GET') {
+    const qs = new URLSearchParams();
+    flattenStripeParams(params, qs);
+    url += `?${qs.toString()}`;
+  } else if (params) {
+    const body = new URLSearchParams();
+    flattenStripeParams(params, body);
+    opts.headers['Content-Type'] = 'application/x-www-form-urlencoded';
+    opts.body = body.toString();
+  }
+  const resp = await fetch(url, opts);
+  const data = await resp.json();
+  if (!resp.ok) {
+    throw new Error(data?.error?.message || `Stripe error ${resp.status}`);
+  }
+  return data;
+}
+
+/** Stripe's form encoding needs bracket notation for nested objects/arrays. */
+function flattenStripeParams(
+  obj: Record<string, any>,
+  qs: URLSearchParams,
+  prefix = '',
+) {
+  for (const [key, value] of Object.entries(obj)) {
+    if (value === undefined || value === null) continue;
+    const paramKey = prefix ? `${prefix}[${key}]` : key;
+    if (Array.isArray(value)) {
+      value.forEach((v, i) => {
+        if (typeof v === 'object') {
+          flattenStripeParams(v, qs, `${paramKey}[${i}]`);
+        } else {
+          qs.append(`${paramKey}[${i}]`, String(v));
+        }
+      });
+    } else if (typeof value === 'object') {
+      flattenStripeParams(value, qs, paramKey);
+    } else {
+      qs.append(paramKey, String(value));
+    }
+  }
+}
+
+/** Get the user's Stripe customer id, creating one (and persisting it) if
+ * they don't have one yet. */
+async function getOrCreateStripeCustomer(userId: string): Promise<string> {
+  const rows = await sbSelect('users', 'id,email,stripe_customer_id', {
+    id: `eq.${userId}`,
+  });
+  const user = rows[0];
+  if (!user) throw new Error('User not found');
+  if (user.stripe_customer_id) return user.stripe_customer_id;
+
+  const customer = await stripeRequest('POST', '/customers', {
+    email: user.email,
+    metadata: { userId },
+  });
+  await sbUpdate(
+    'users',
+    { stripe_customer_id: customer.id },
+    { id: `eq.${userId}` },
+  );
+  return customer.id;
+}
+
 async function handleStripe(
-  _req: VercelRequest,
+  req: VercelRequest,
   res: VercelResponse,
-  _user: AuthUser,
+  user: AuthUser,
   pathParts: string[],
 ) {
   const sub = pathParts[0] || '';
-  if (sub === 'products') {
-    res.json([
-      {
-        id: 'free',
-        name: 'Free',
-        price: 0,
-        features: ['1 bot', '60 conversations/month'],
-      },
-      {
-        id: 'starter',
-        name: 'Starter',
-        price: 29,
-        features: ['3 bots', '500 conversations/month'],
-      },
-      {
-        id: 'professional',
-        name: 'Professional',
-        price: 99,
-        features: [
-          '10 bots',
-          '5000 conversations/month',
-          'Voice agent',
-          'API access',
-        ],
-      },
-      {
-        id: 'enterprise',
-        name: 'Enterprise',
-        price: 499,
-        features: [
-          'Unlimited bots',
-          'Unlimited conversations',
-          'White-label',
-          'Priority support',
-        ],
-      },
-    ]);
-  } else if (sub === 'checkout') {
-    res.json({ url: 'https://www.buildmybot.app/billing?checkout=pending' });
-  } else if (sub === 'portal') {
-    res.json({ url: 'https://www.buildmybot.app/billing' });
-  } else if (sub === 'whitelabel' && pathParts[1] === 'checkout') {
-    res.json({ url: 'https://www.buildmybot.app/billing?checkout=whitelabel' });
-  } else res.status(404).json({ error: 'Not found' });
+
+  if (sub === 'products' && req.method === 'GET') {
+    try {
+      const data = await stripeRequest('GET', '/products', {
+        active: true,
+        limit: 100,
+        expand: ['data.default_price'],
+      });
+      const products = (data.data || [])
+        .filter((p: any) => p.default_price)
+        .map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          description: p.description,
+          metadata: p.metadata || {},
+          prices: [
+            {
+              id: p.default_price.id,
+              unit_amount: p.default_price.unit_amount,
+              currency: p.default_price.currency,
+            },
+          ],
+        }));
+      return res.json({ data: products });
+    } catch (err: any) {
+      console.error('[stripe] products fetch failed:', err.message);
+      return res.status(502).json({ error: 'Failed to load products', details: err.message });
+    }
+  }
+
+  if (sub === 'checkout' && req.method === 'POST') {
+    const body = parseBody(req) || {};
+    const { priceId, mode, metadata, organizationId } = body;
+    const userId = body.userId || user?.id;
+    if (!priceId) return res.status(400).json({ error: 'priceId is required' });
+    if (!userId) return res.status(400).json({ error: 'userId is required' });
+
+    try {
+      const customerId = await getOrCreateStripeCustomer(userId);
+      const sessionMode = mode === 'payment' ? 'payment' : 'subscription';
+      const session = await stripeRequest('POST', '/checkout/sessions', {
+        customer: customerId,
+        mode: sessionMode,
+        line_items: [{ price: priceId, quantity: 1 }],
+        success_url: `${APP_BASE_URL}/billing?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${APP_BASE_URL}/billing?checkout=cancelled`,
+        metadata: {
+          userId,
+          organizationId: organizationId || user?.organizationId || '',
+          ...(metadata || {}),
+        },
+        ...(sessionMode === 'subscription'
+          ? { subscription_data: { metadata: { userId, organizationId: organizationId || user?.organizationId || '' } } }
+          : {}),
+      });
+      return res.json({ url: session.url });
+    } catch (err: any) {
+      console.error('[stripe] checkout failed:', err.message);
+      return res.status(502).json({ error: 'Checkout failed', details: err.message });
+    }
+  }
+
+  if (sub === 'portal' && (req.method === 'POST' || req.method === 'GET')) {
+    const body = req.method === 'POST' ? parseBody(req) || {} : {};
+    const userId = body.userId || user?.id;
+    if (!userId) return res.status(400).json({ error: 'userId is required' });
+    try {
+      const customerId = await getOrCreateStripeCustomer(userId);
+      const session = await stripeRequest('POST', '/billing_portal/sessions', {
+        customer: customerId,
+        return_url: `${APP_BASE_URL}/billing`,
+      });
+      return res.json({ url: session.url });
+    } catch (err: any) {
+      console.error('[stripe] portal failed:', err.message);
+      return res.status(502).json({ error: 'Failed to open billing portal', details: err.message });
+    }
+  }
+
+  if (sub === 'whitelabel' && pathParts[1] === 'checkout' && req.method === 'POST') {
+    const body = parseBody(req) || {};
+    const userId = body.userId || user?.id;
+    const whitelabelPriceId = process.env.STRIPE_WHITELABEL_PRICE_ID;
+    if (!whitelabelPriceId) {
+      return res.status(500).json({ error: 'STRIPE_WHITELABEL_PRICE_ID not configured' });
+    }
+    if (!userId) return res.status(400).json({ error: 'userId is required' });
+    try {
+      const customerId = await getOrCreateStripeCustomer(userId);
+      const session = await stripeRequest('POST', '/checkout/sessions', {
+        customer: customerId,
+        mode: 'subscription',
+        line_items: [{ price: whitelabelPriceId, quantity: 1 }],
+        success_url: `${APP_BASE_URL}/billing?checkout=whitelabel_success`,
+        cancel_url: `${APP_BASE_URL}/billing?checkout=cancelled`,
+        metadata: { userId, type: 'whitelabel' },
+        subscription_data: { metadata: { userId, type: 'whitelabel' } },
+      });
+      return res.json({ url: session.url });
+    } catch (err: any) {
+      console.error('[stripe] whitelabel checkout failed:', err.message);
+      return res.status(502).json({ error: 'Checkout failed', details: err.message });
+    }
+  }
+
+  return res.status(404).json({ error: 'Not found' });
 }
 
 async function handleNotifications(
