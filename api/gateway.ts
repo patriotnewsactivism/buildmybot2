@@ -507,9 +507,89 @@ async function handleAdmin(
     );
   } else if (sub === 'repair-logs') {
     res.json(await sbSelect('repair_logs', '*', {}).catch(() => []));
+  } else if (sub === 'payouts') {
+    // No payout provider is wired up yet -- honest empty list, not a 404.
+    res.json([]);
+  } else if (sub === 'financial') {
+    const fsub = pathParts[1] || '';
+    // NOTE: there is no real Stripe (or other) billing integration wired
+    // into this gateway yet -- handleStripe only returns static plan
+    // metadata and placeholder checkout URLs. These endpoints return
+    // honest zeroed/empty shapes so the Financial dashboard renders
+    // instead of crashing, rather than fabricating numbers. Wiring real
+    // invoices/refunds/payouts requires a real Stripe integration first.
+    if (fsub === 'overview') {
+      res.json({
+        mrr: 0,
+        arr: 0,
+        totalRevenue: 0,
+        outstandingBalance: 0,
+        wired: false,
+        message: 'No billing provider connected yet',
+      });
+    } else if (fsub === 'invoices') {
+      res.json([]);
+    } else if (fsub === 'refunds') {
+      res.json([]);
+    } else if (fsub === 'stripe-health') {
+      res.json({ connected: false, message: 'Stripe is not connected' });
+    } else if (fsub === 'features-usage') {
+      res.json([]);
+    } else {
+      res.status(404).json({ error: 'Not found' });
+    }
   } else {
     res.status(404).json({ error: 'Not found' });
   }
+}
+
+async function handleConversations(
+  req: VercelRequest,
+  res: VercelResponse,
+  user: AuthUser,
+  pathParts: string[],
+) {
+  if (req.method !== 'GET') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+  const url = new URL(req.url || '', 'http://localhost');
+  const userId = url.searchParams.get('userId');
+  const isAdmin = ['admin', 'ADMIN', 'owner', 'OWNER'].includes(user.role);
+
+  // Non-admins may only ever see their own conversations.
+  if (userId && !isAdmin && userId !== user.id) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  if (!userId && !isAdmin) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  const filters: Record<string, string> = userId
+    ? { user_id: `eq.${userId}` }
+    : {};
+  const conversations = await sbSelect('conversations', '*', {
+    ...filters,
+    order: 'created_at.desc',
+    limit: '100',
+  }).catch(() => []);
+  // Always an array -- the dashboard does conversations.reduce(...) directly.
+  return res.json(Array.isArray(conversations) ? conversations : []);
+}
+
+async function handleImpersonation(
+  req: VercelRequest,
+  res: VercelResponse,
+  user: AuthUser,
+  pathParts: string[],
+) {
+  const sub = pathParts[0] || '';
+  if (sub === 'active' && req.method === 'GET') {
+    // Impersonation isn't implemented yet -- returning an empty list (not a
+    // 404) so the dashboard's "active impersonation" widget renders as
+    // "none active" instead of throwing.
+    return res.json([]);
+  }
+  return res.status(404).json({ error: 'Not found' });
 }
 
 async function handleRevenue(
@@ -2368,6 +2448,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return await handleLeads(req, res, user, pathParts);
       case 'admin':
         return await handleAdmin(req, res, user, pathParts);
+      case 'conversations':
+        return await handleConversations(req, res, user, pathParts);
+      case 'impersonation':
+        return await handleImpersonation(req, res, user, pathParts);
       case 'revenue':
         return await handleRevenue(req, res, user, pathParts);
       case 'voice':
