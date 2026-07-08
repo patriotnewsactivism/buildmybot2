@@ -1145,6 +1145,15 @@ async function handleClients(
         partner_id: `eq.${user.id}`,
       }).catch(() => []),
     );
+  } else if (cid === 'bots') {
+    // dbService.getBots() calls GET /api/clients/bots expecting an array of
+    // the user's bots -- this used to fall through to the client-by-id
+    // branch below (treating "bots" as a client id), returning `{}` instead
+    // of an array and crashing App.tsx's `bots.reduce(...)`.
+    const orgFilter = user.organizationId
+      ? { organization_id: `eq.${user.organizationId}` }
+      : {};
+    res.json(await sbSelect('bots', '*', orgFilter).catch(() => []));
   } else {
     const d = await sbSelect('partner_clients', '*', { id: `eq.${cid}` }).catch(
       () => [],
@@ -1258,11 +1267,27 @@ async function handleNotifications(
   const nid = pathParts[0];
   if (!nid) {
     if (req.method === 'GET') {
-      res.json(
-        await sbSelect('notifications', '*', {
-          user_id: `eq.${user.id}`,
-        }).catch(() => []),
-      );
+      const rows = await sbSelect('notifications', '*', {
+        user_id: `eq.${user.id}`,
+      }).catch(() => []);
+      // Shape this to match NotificationsResponse expected by
+      // NotificationBell.tsx: { unread, recent, unreadCount }. The
+      // notifications table has no isPopup/priority/receipt columns yet,
+      // so we map sensible defaults from what does exist (read/type).
+      const mapped = (Array.isArray(rows) ? rows : []).map((n: any) => ({
+        id: n.id,
+        title: n.title || '',
+        body: n.message || '',
+        isPopup: false,
+        priority: n.type === 'urgent' ? 'urgent' : n.type === 'warning' ? 'high' : 'normal',
+        createdAt: n.created_at,
+        receipt: {
+          viewedAt: n.read ? n.updated_at || n.created_at : null,
+          acknowledgedAt: n.read ? n.updated_at || n.created_at : null,
+        },
+      }));
+      const unread = mapped.filter((n) => !n.receipt.viewedAt);
+      res.json({ unread, recent: mapped.slice(0, 20), unreadCount: unread.length });
     } else if (req.method === 'POST') {
       const body = parseBody(req);
       const r = await sbInsert('notifications', {
