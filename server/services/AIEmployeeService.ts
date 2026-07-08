@@ -849,7 +849,53 @@ Write a brief HR check-in: flag anyone paused/off or with 0 tasks today, note an
     });
 
     try {
-      const prompt = `Write today's billing status report for BuildMyBot. Note: live subscription/payment data isn't wired into this report yet — say so plainly and recommend checking the Stripe dashboard directly for real numbers until that integration lands. Still provide a short checklist of what a billing lead should verify today (failed charges, upcoming renewals, dunning emails, refund requests).`;
+      // Pull real billing data from Stripe (falls back to a heads-up note if not configured)
+      let stripeSummary: any = null;
+      let stripeError: string | null = null;
+      try {
+        const { getUncachableStripeClient } = await import('../stripeClient');
+        const stripe = await getUncachableStripeClient();
+        const since = Math.floor((Date.now() - 24 * 60 * 60 * 1000) / 1000);
+        const soon = Math.floor((Date.now() + 7 * 24 * 60 * 60 * 1000) / 1000);
+
+        const [recentCharges, activeSubs, pastDueSubs] = await Promise.all([
+          stripe.charges.list({ created: { gte: since }, limit: 100 }),
+          stripe.subscriptions.list({ status: 'active', limit: 100 }),
+          stripe.subscriptions.list({ status: 'past_due', limit: 100 }),
+        ]);
+
+        const failedCharges = recentCharges.data.filter(c => !c.paid || c.status === 'failed');
+        const successfulCharges = recentCharges.data.filter(c => c.paid && c.status === 'succeeded');
+        const revenueLast24h = successfulCharges.reduce((sum, c) => sum + c.amount, 0) / 100;
+        const upcomingRenewals = activeSubs.data.filter(
+          s => s.current_period_end && s.current_period_end <= soon,
+        );
+
+        stripeSummary = {
+          revenueLast24h: `$${revenueLast24h.toFixed(2)}`,
+          chargesLast24h: recentCharges.data.length,
+          failedChargesLast24h: failedCharges.length,
+          activeSubscriptions: activeSubs.data.length,
+          pastDueSubscriptions: pastDueSubs.data.length,
+          upcomingRenewalsNext7Days: upcomingRenewals.length,
+          failedChargeDetails: failedCharges.slice(0, 5).map(c => ({
+            id: c.id,
+            amount: `$${(c.amount / 100).toFixed(2)}`,
+            customer: c.billing_details?.email || c.customer || 'unknown',
+            reason: c.failure_message || c.outcome?.seller_message || 'unknown',
+          })),
+        };
+      } catch (e: any) {
+        stripeError = e.message;
+      }
+
+      const prompt = stripeSummary
+        ? `Write today's billing status report for BuildMyBot using this real Stripe data:
+
+${JSON.stringify(stripeSummary, null, 2)}
+
+Lead with anything time-sensitive (failed charges, past-due subscriptions) at the top. Then revenue/activity summary, then upcoming renewals. Keep it tight and scannable — this goes straight to the President.`
+        : `Write today's billing status report for BuildMyBot. Stripe couldn't be reached right now (error: ${stripeError}) — say so plainly and recommend checking the Stripe dashboard directly. Still provide a short checklist of what a billing lead should verify today (failed charges, upcoming renewals, dunning emails, refund requests).`;
 
       const report = await this.callAI(brianna, prompt);
       const sent = await this.sendEmail(
@@ -862,7 +908,7 @@ Write a brief HR check-in: flag anyone paused/off or with 0 tasks today, note an
 
       await db.update(aiEmployeeLogs).set({
         status: 'completed',
-        output: { report, sent },
+        output: { report, sent, stripeSummary },
         summary: 'Generated daily billing report',
         completedAt: new Date(),
         duration: Date.now() - startTime,
