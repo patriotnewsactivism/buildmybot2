@@ -64,6 +64,24 @@ router.post('/shift', async (req: any, res) => {
   }
 });
 
+// ─── GET /api/ai-employees/shift — same as POST, for Vercel Cron (GET-only) ─
+router.get('/shift', async (req: any, res) => {
+  try {
+    if (req.headers['x-vercel-cron'] === undefined && process.env.CRON_SECRET) {
+      const authHeader = req.headers['authorization'];
+      if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+    }
+    await aiEmployeeService.init();
+    const result = await aiEmployeeService.runDailyShift();
+    res.json(result);
+  } catch (error: any) {
+    console.error('GET /api/ai-employees/shift error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // ─── POST /api/ai-employees/:id/task — Trigger a specific task ─
 router.post('/:id/task', async (req: any, res) => {
   try {
@@ -106,6 +124,34 @@ router.post('/:id/task', async (req: any, res) => {
       case 'piper-product':
         if (taskType === 'product_analysis') {
           result = await aiEmployeeService.analyzeProductFeedback();
+        } else {
+          return res.status(400).json({ error: `Unknown task type: ${taskType}` });
+        }
+        break;
+      case 'derek-sales-director':
+        if (taskType === 'sales_digest') {
+          result = await aiEmployeeService.generateSalesDigest();
+        } else {
+          return res.status(400).json({ error: `Unknown task type: ${taskType}` });
+        }
+        break;
+      case 'hannah-hr':
+        if (taskType === 'hr_checkin') {
+          result = await aiEmployeeService.generateHRCheckIn();
+        } else {
+          return res.status(400).json({ error: `Unknown task type: ${taskType}` });
+        }
+        break;
+      case 'brianna-billing':
+        if (taskType === 'billing_report') {
+          result = await aiEmployeeService.generateBillingReport();
+        } else {
+          return res.status(400).json({ error: `Unknown task type: ${taskType}` });
+        }
+        break;
+      case 'marcus-manager':
+        if (taskType === 'manager_rollup') {
+          result = await aiEmployeeService.generateManagerRollup();
         } else {
           return res.status(400).json({ error: `Unknown task type: ${taskType}` });
         }
