@@ -7,21 +7,23 @@ docs are historical._
 
 | Layer | What we officially run | Where |
 |---|---|---|
-| **Frontend** | Vite + React SPA (this repo, built by `npm run build:client`) | Vercel project **buildmybot2** (team `patriotnewsactivisms-projects`), domain **www.buildmybot.app** |
+| **Frontend** | Vite + React SPA (this repo, built by `npm run build:client`) | Vercel project **buildmybot20** (team `don-matthews-projects`, `prj_fI5t1zSN8XyZ8v9YawKXsE7rDN7x`) — owns **buildmybot.app** and **www.buildmybot.app**, deploys `patriotnewsactivism/buildmybot2@main` |
 | **Backend** | Vercel serverless functions in `api/` — `api/gateway.ts` serves every `/api/*` route, `api/auth/*.ts` serve login/signup/session/logout | Same Vercel project |
 | **Database** | Supabase Postgres, accessed by the backend over the Supabase REST API with the service-role key | Supabase project `evkjlnbpntimbxklnhoz` |
-| **Email (outbound)** | Resend HTTP API (or SMTP fallback) | — |
+| **Email (outbound)** | Resend HTTP API, or the SMTP_* block (already configured on production) | — |
 | **Email (inbound)** | Your mail provider forwards to `POST /api/email/inbound` | — |
 
 **Not the official backend:** the Express server in `server/` is a local-dev
 codebase that cannot currently boot (see README "Deployment topology"). Do not
-deploy it; the Dockerfile/railway.json that target it are parked.
+deploy it; the Dockerfile/railway.json that target it are parked. The Railway
+account has no projects — nothing runs there.
 
-> ⚠️ There are TWO Vercel accounts with a `buildmybot2` project. Production
-> (www.buildmybot.app) lives in team `patriotnewsactivisms-projects`
-> (project `prj_mEReIwHQoL6YkrBIXdGff9QHOTjg`). The copy under
-> "Don Matthews' projects" is stale (last deploy Dec 2025) — ignore or delete
-> it to avoid setting env vars on the wrong project.
+> ⚠️ Several Vercel projects build this repo. **Production is `buildmybot20`**
+> (team `don-matthews-projects`) — verified by domain attachment: it holds
+> buildmybot.app + www.buildmybot.app. `buildmybot2` in
+> `patriotnewsactivisms-projects` also auto-builds PRs (its bot comments on
+> GitHub) but serves no production domain, and `buildmybot2` under
+> don-matthews-projects is stale. Set env vars on **buildmybot20** only.
 
 ## 2. Environment variables
 
