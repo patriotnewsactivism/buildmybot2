@@ -2085,8 +2085,11 @@ const EMAIL_DOMAIN = 'buildmybot.app';
 const AI_EMPLOYEE_MODEL = process.env.AI_EMPLOYEE_MODEL || 'gpt-4o-mini';
 const OPENAI_KEY =
   process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
-const OPENAI_BASE =
-  process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || 'https://api.openai.com/v1';
+// Note: AI_INTEGRATIONS_OPENAI_BASE_URL is leftover from the old dead
+// server/ codebase and isn't used by any other live production route --
+// verified by grepping api/*.ts. Its value is stale/unreachable (caused
+// "fetch failed" here), so this always talks to the real OpenAI API.
+const OPENAI_BASE = 'https://api.openai.com/v1';
 
 // Fallback roster so routing works even before the ai_employee_org migration
 // has been applied. The database rows (same ids) take precedence.
