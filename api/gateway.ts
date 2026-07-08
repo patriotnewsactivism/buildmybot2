@@ -2453,9 +2453,20 @@ async function handleEmailInbound(req: VercelRequest, res: VercelResponse) {
   let text = '';
 
   if (contentType.includes('rfc822') || contentType.includes('octet-stream')) {
-    const raw: Buffer = Buffer.isBuffer(req.body)
-      ? req.body
-      : Buffer.from(String(req.body || ''), 'utf-8');
+    // Vercel's default body parser doesn't recognize this content-type, so
+    // req.body is left empty and the stream unconsumed -- read it directly.
+    let raw: Buffer;
+    if (Buffer.isBuffer(req.body) && req.body.length > 0) {
+      raw = req.body;
+    } else if (typeof req.body === 'string' && req.body.length > 0) {
+      raw = Buffer.from(req.body, 'utf-8');
+    } else {
+      const chunks: Buffer[] = [];
+      for await (const chunk of req) {
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      }
+      raw = Buffer.concat(chunks);
+    }
     const { simpleParser } = await import('mailparser');
     const parsed = await simpleParser(raw);
     to = String(
@@ -2484,17 +2495,7 @@ async function handleEmailInbound(req: VercelRequest, res: VercelResponse) {
   }
 
   if (!to || !from)
-    return res.status(400).json({
-      error: 'to and from are required',
-      debug: {
-        contentType,
-        bodyType: typeof req.body,
-        isBuffer: Buffer.isBuffer(req.body),
-        bodyPreview: Buffer.isBuffer(req.body)
-          ? req.body.toString('utf-8').slice(0, 300)
-          : String(req.body).slice(0, 300),
-      },
-    });
+    return res.status(400).json({ error: 'to and from are required' });
 
   const employee = await getEmployeeByAddress(to);
   if (!employee)
