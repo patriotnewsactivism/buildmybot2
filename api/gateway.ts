@@ -12,6 +12,7 @@ const SUPABASE_URL =
   'https://evkjlnbpntimbxklnhoz.supabase.co';
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const SESSION_JWT_SECRET = process.env.SESSION_JWT_SECRET;
+const CRON_SECRET = process.env.CRON_SECRET || '';
 
 if (!SUPABASE_SERVICE_KEY || !SESSION_JWT_SECRET) {
   // Logged at cold-start; the handler also checks this per-request so callers get a clean 500
@@ -1840,7 +1841,7 @@ async function handleAiEmployees(
     return res.status(404).json({ error: 'Endpoint not found' });
   }
 
-  if (req.method !== 'POST') {
+  if (req.method !== 'POST' && req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
@@ -2777,6 +2778,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       !['login', 'signup', 'user', 'logout'].includes(pathParts[0])
     ) {
       return await handleAuthExtra(req, res, pathParts);
+    }
+
+    // Vercel Cron Jobs fire an unauthenticated GET request -- there's no
+    // user session for getAuthUser() to find. When CRON_SECRET is set as a
+    // Vercel env var, Vercel automatically sends
+    // `Authorization: Bearer <CRON_SECRET>` with every cron invocation, so
+    // we accept that here as a trusted system caller instead of 401'ing
+    // every single day (which is what happened before this existed).
+    if (routeName === 'ai-employees' && pathParts[0] === 'shift') {
+      const authHeader = req.headers.authorization || '';
+      if (CRON_SECRET && authHeader === `Bearer ${CRON_SECRET}`) {
+        const systemUser: AuthUser = {
+          id: 'system-cron',
+          email: 'cron@buildmybot.app',
+          role: 'admin',
+        };
+        return await handleAiEmployees(req, res, systemUser, pathParts);
+      }
     }
 
     // Authenticated routes
