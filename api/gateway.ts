@@ -1154,6 +1154,68 @@ async function handleClients(
       ? { organization_id: `eq.${user.organizationId}` }
       : {};
     res.json(await sbSelect('bots', '*', orgFilter).catch(() => []));
+  } else if (cid === 'analytics' && pathParts[1] === 'dashboard') {
+    // AdvancedAnalytics (currentView === 'analytics' in App.tsx) fetches
+    // /clients/analytics/dashboard expecting {metrics, timeSeriesData, ...}.
+    // This used to fall through to the client-by-id branch (treating
+    // "analytics" as a client id) and return `{}`, crashing on
+    // `data.metrics.totalConversations`.
+    const orgFilter = user.organizationId
+      ? { organization_id: `eq.${user.organizationId}` }
+      : {};
+    const [convs, leads] = await Promise.all([
+      sbSelect('conversations', 'id,created_at', orgFilter).catch(() => []),
+      sbSelect('leads', 'id,created_at,source_url', orgFilter).catch(() => []),
+    ]);
+    const totalConversations = convs.length;
+    const totalLeads = leads.length;
+    const conversionRate =
+      totalConversations > 0
+        ? Number(((totalLeads / totalConversations) * 100).toFixed(1))
+        : 0;
+
+    const days: { date: string; conversations: number; visitors: number; leads: number }[] = [];
+    for (let i = 29; i >= 0; i--) {
+      const day = new Date(Date.now() - i * 86400000).toISOString().split('T')[0];
+      days.push({
+        date: day,
+        conversations: convs.filter((c: any) => c.created_at?.startsWith(day)).length,
+        visitors: 0,
+        leads: leads.filter((l: any) => l.created_at?.startsWith(day)).length,
+      });
+    }
+
+    const sourceCounts: Record<string, number> = {};
+    for (const l of leads as any[]) {
+      const src = l.source_url ? new URL(l.source_url, 'http://x').hostname || 'direct' : 'direct';
+      sourceCounts[src] = (sourceCounts[src] || 0) + 1;
+    }
+
+    res.json({
+      metrics: {
+        totalConversations,
+        uniqueVisitors: 0,
+        leadsGenerated: totalLeads,
+        conversionRate,
+        conversationGrowth: 0,
+        visitorGrowth: 0,
+        leadGrowth: 0,
+        conversionGrowth: 0,
+      },
+      timeSeriesData: days,
+      leadsBySource: Object.entries(sourceCounts).map(([source, leadsCount]) => ({
+        source,
+        leads: leadsCount,
+      })),
+      sentimentData: [],
+      sessionDurationData: [],
+      topIntents: [],
+      peakHoursData: [],
+    });
+  } else if (cid === 'onboarding' && pathParts[1] === 'complete') {
+    res.json({ success: true });
+  } else if (cid === 'events') {
+    res.json({ success: true });
   } else {
     const d = await sbSelect('partner_clients', '*', { id: `eq.${cid}` }).catch(
       () => [],
