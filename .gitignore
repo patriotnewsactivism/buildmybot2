@@ -9,3 +9,5 @@ dist/
 .env
 dist-server/
 supabase/.temp/
+.vercel
+.env*
