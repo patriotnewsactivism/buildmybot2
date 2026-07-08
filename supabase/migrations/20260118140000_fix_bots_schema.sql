@@ -8,6 +8,10 @@ BEGIN
       AND column_name = 'knowledge_base'
       AND data_type <> 'jsonb'
   ) THEN
+    -- The old (array/text) default can't be auto-cast to jsonb and would
+    -- abort the type change; drop it first — a jsonb default is set below.
+    ALTER TABLE public.bots
+      ALTER COLUMN knowledge_base DROP DEFAULT;
     ALTER TABLE public.bots
       ALTER COLUMN knowledge_base TYPE jsonb
       USING to_jsonb(knowledge_base);
