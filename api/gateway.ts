@@ -1429,7 +1429,46 @@ async function handleAiEmployees(
   user: AuthUser,
   pathParts: string[],
 ) {
-  if (pathParts[0] !== 'shift') {
+  const sub = pathParts[0] || '';
+
+  // Live roster + activity monitoring -- admin/owner only, read-only.
+  if (sub === '' && req.method === 'GET') {
+    if (!['admin', 'ADMIN', 'owner', 'OWNER'].includes(user.role))
+      return res.status(403).json({ error: 'Admin access required' });
+    const employees = await sbSelect(
+      'AiEmployee',
+      'id,name,role,title,email,"reportsTo",status,"lastActive","tasksToday","tasksCompleted"',
+    ).catch(() => []);
+    return res.json(employees);
+  }
+
+  if (sub === 'logs' && req.method === 'GET') {
+    if (!['admin', 'ADMIN', 'owner', 'OWNER'].includes(user.role))
+      return res.status(403).json({ error: 'Admin access required' });
+    const limitParam = Number((req.query?.limit as string) || 30);
+    const limit = Number.isFinite(limitParam)
+      ? Math.min(Math.max(limitParam, 1), 200)
+      : 30;
+    const logs = await sbSelect(
+      'EmployeeLog',
+      '*',
+      { order: 'createdAt.desc', limit: String(limit) },
+    ).catch(() => []);
+    return res.json(logs);
+  }
+
+  if (sub === 'escalations' && req.method === 'GET') {
+    if (!['admin', 'ADMIN', 'owner', 'OWNER'].includes(user.role))
+      return res.status(403).json({ error: 'Admin access required' });
+    const escalations = await sbSelect(
+      'escalations',
+      '*',
+      { order: 'created_at.desc', limit: '50' },
+    ).catch(() => []);
+    return res.json(escalations);
+  }
+
+  if (sub !== 'shift') {
     return res.status(404).json({ error: 'Endpoint not found' });
   }
 
