@@ -765,6 +765,8 @@ function App() {
                       setAdminActiveTab('affiliates');
                     else if (path === '/admin/agents')
                       setAdminActiveTab('agents');
+                    else if (path === '/admin/ai-team')
+                      setCurrentView('ai-team');
                     else if (path === '/admin/clients')
                       setAdminActiveTab('clients');
                     else if (path === '/admin/conversations')
@@ -834,6 +836,7 @@ function App() {
                     // Map paths to currentView
                     if (path === '/app/bots') setCurrentView('bots');
                     else if (path === '/app/leads') setCurrentView('leads');
+                    else if (path === '/app/ai-team') setCurrentView('ai-team');
                     else if (path === '/app') setCurrentView('dashboard');
                   }}
                   onLogout={handleLogout}
@@ -857,6 +860,7 @@ function App() {
                     // Map paths to currentView
                     if (path === '/app/bots') setCurrentView('bots');
                     else if (path === '/app/leads') setCurrentView('leads');
+                    else if (path === '/app/ai-team') setCurrentView('ai-team');
                     else if (path === '/app') setCurrentView('client');
                   }}
                   onLogout={handleLogout}

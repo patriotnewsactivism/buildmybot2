@@ -37,6 +37,7 @@ export const DASHBOARD_NAV: Record<DashboardRole, NavItem[]> = {
     { id: 'affiliates', label: 'Affiliates', href: '/admin/affiliates' },
     { id: 'support', label: 'Support', href: '/admin/support' },
     { id: 'system', label: 'System', href: '/admin/system' },
+    { id: 'ai-team', label: 'AI Team', href: '/admin/ai-team' },
   ],
 
   // ─── Tier 3: Partner (manages sales agents) ───
@@ -92,6 +93,7 @@ export const DASHBOARD_NAV: Record<DashboardRole, NavItem[]> = {
     { id: 'landing-pages', label: 'Landing Pages', href: '/app/landing-pages' },
     { id: 'marketing', label: 'AI Marketing', href: '/app/marketing' },
     { id: 'marketplace', label: 'Marketplace', href: '/app/marketplace' },
+    { id: 'ai-team', label: 'AI Team', href: '/app/ai-team' },
     { id: 'billing', label: 'Billing & Usage', href: '/app/billing' },
     { id: 'support', label: 'Support', href: '/app/support' },
     { id: 'settings', label: 'Settings', href: '/app/settings' },
@@ -108,6 +110,7 @@ export const DASHBOARD_NAV: Record<DashboardRole, NavItem[]> = {
     { id: 'landing-pages', label: 'Landing Pages', href: '/app/landing-pages' },
     { id: 'marketing', label: 'AI Marketing', href: '/app/marketing' },
     { id: 'marketplace', label: 'Marketplace', href: '/app/marketplace' },
+    { id: 'ai-team', label: 'AI Team', href: '/app/ai-team' },
     { id: 'billing', label: 'Billing & Usage', href: '/app/billing' },
     { id: 'support', label: 'Support', href: '/app/support' },
     { id: 'settings', label: 'Settings', href: '/app/settings' },
