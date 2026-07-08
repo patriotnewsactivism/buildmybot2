@@ -60,7 +60,7 @@ export const TerminalConsole: React.FC<{
       </div>
       <div
         ref={scrollRef}
-        className="max-h-56 overflow-y-auto px-4 py-3 font-mono text-[12px] leading-relaxed"
+        className="max-h-48 overflow-y-auto px-3 py-3 font-mono text-[12px] leading-relaxed sm:max-h-56 sm:px-4"
       >
         {lines.length === 0 && (
           <div className="text-console-muted">// no activity yet</div>
@@ -68,7 +68,7 @@ export const TerminalConsole: React.FC<{
         {lines.map((l, i) => (
           <div key={i} className="flex gap-3">
             <span className="shrink-0 text-console-muted/70">{l.time}</span>
-            <span className={LEVEL_COLOR[l.level]}>{l.text}</span>
+            <span className={`min-w-0 flex-1 break-words ${LEVEL_COLOR[l.level]}`}>{l.text}</span>
           </div>
         ))}
         {history.map((h, i) => (

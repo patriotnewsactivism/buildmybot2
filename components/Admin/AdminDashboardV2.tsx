@@ -170,11 +170,8 @@ export const AdminDashboardV2: React.FC<AdminDashboardV2Props> = ({
   ) as { label: string; detail: string; status: 'online' | 'processing' | 'offline' }[];
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden bg-console-bg font-mono text-console-text">
-      {/* ambient background: subtle radial glow + faint technical grid */}
-      <div className="pointer-events-none fixed inset-0 bg-console-radial" />
-
-      <div className="relative p-4 lg:p-6">
+    <div className="min-h-screen overflow-x-hidden bg-console-bg font-mono text-console-text">
+      <div className="p-3 sm:p-4 lg:p-6">
         {/* Top Status Bar */}
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-console-border bg-console-surface px-4 py-2.5">
           <div className="flex items-center gap-4">
@@ -194,7 +191,7 @@ export const AdminDashboardV2: React.FC<AdminDashboardV2Props> = ({
           />
         </div>
 
-        <div className="mb-5 mt-5 flex items-center justify-between">
+        <div className="mb-4 mt-4 flex flex-col gap-3 sm:mb-5 sm:mt-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-lg font-semibold tracking-tight text-console-text">
               ADMIN_DASHBOARD<span className="text-accent-cyan">.v2</span>
@@ -203,13 +200,16 @@ export const AdminDashboardV2: React.FC<AdminDashboardV2Props> = ({
               Overview of system health, user activity &amp; financial performance
             </p>
           </div>
-          <nav className="flex gap-1 rounded-md border border-console-border bg-console-surface/60 p-1" aria-label="Tabs">
+          <nav
+            className="-mx-3 flex gap-1 overflow-x-auto rounded-md border border-console-border bg-console-surface/60 p-1 sm:mx-0"
+            aria-label="Tabs"
+          >
             {tabs.map((tab) => (
               <button
                 type="button"
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-xs uppercase tracking-wide transition-colors ${
+                className={`flex shrink-0 items-center gap-1.5 rounded-sm px-3 py-1.5 text-xs uppercase tracking-wide transition-colors ${
                   activeTab === tab.id
                     ? 'bg-accent-cyan/10 text-accent-cyan'
                     : 'text-console-muted hover:bg-console-surface-raised hover:text-console-text'
@@ -233,8 +233,7 @@ export const AdminDashboardV2: React.FC<AdminDashboardV2Props> = ({
           {/* PRIMARY METRICS HUD + AI PROCESSING QUEUE */}
           <div className="mb-4 grid grid-cols-1 gap-4 xl:grid-cols-3">
             <Panel
-              eyebrow="Real-time data streams"
-              title="Primary Metrics HUD"
+              title="Primary Metrics"
               right={
                 <button
                   type="button"
@@ -320,7 +319,6 @@ export const AdminDashboardV2: React.FC<AdminDashboardV2Props> = ({
             </Panel>
 
             <Panel
-              eyebrow="Active pipelines"
               title="AI Processing & Ingestion Queue"
               bodyClassName="p-0"
             >
