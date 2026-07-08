@@ -1777,6 +1777,46 @@ async function handleAiEmployees(
               'No content-generation integration is configured for this deployment -- skipping rather than fabricating content.';
             summary = `content_creation | not configured`;
             break;
+          case 'Billing': {
+            if (!process.env.STRIPE_SECRET_KEY) {
+              status = 'skipped';
+              output = 'STRIPE_SECRET_KEY not configured -- skipping rather than fabricating billing numbers.';
+              summary = `billing_report | not configured`;
+              break;
+            }
+            const Stripe = (await import('stripe')).default;
+            const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2025-08-27.basil' as any });
+            const since = Math.floor((Date.now() - 24 * 60 * 60 * 1000) / 1000);
+            const soon = Math.floor((Date.now() + 7 * 24 * 60 * 60 * 1000) / 1000);
+            const [charges, activeSubs, pastDueSubs] = await Promise.all([
+              stripe.charges.list({ created: { gte: since }, limit: 100 }),
+              stripe.subscriptions.list({ status: 'active', limit: 100 }),
+              stripe.subscriptions.list({ status: 'past_due', limit: 100 }),
+            ]);
+            const failed = charges.data.filter((c) => !c.paid || c.status === 'failed');
+            const succeeded = charges.data.filter((c) => c.paid && c.status === 'succeeded');
+            const revenue = succeeded.reduce((s, c) => s + c.amount, 0) / 100;
+            const renewalsSoon = activeSubs.data.filter(
+              (s) => s.current_period_end && s.current_period_end <= soon,
+            ).length;
+            status = 'completed';
+            output = `Real check: $${revenue.toFixed(2)} revenue / ${charges.data.length} charges in last 24h, ${failed.length} failed, ${pastDueSubs.data.length} past-due subs, ${renewalsSoon} renewing in next 7 days.`;
+            summary = `billing_report | $${revenue.toFixed(2)} revenue, ${failed.length} failed, ${pastDueSubs.data.length} past-due`;
+            break;
+          }
+          case 'Manager': {
+            const recentLogs = await sbSelect('EmployeeLog', 'role,status', {
+              order: 'createdAt.desc',
+              limit: '50',
+            }).catch(() => []);
+            const completed = recentLogs.filter((l: any) => l.status === 'completed').length;
+            const failed = recentLogs.filter((l: any) => l.status === 'failed').length;
+            const skipped = recentLogs.filter((l: any) => l.status === 'skipped').length;
+            status = 'completed';
+            output = `Real check across last ${recentLogs.length} team log entries: ${completed} completed, ${failed} failed, ${skipped} skipped (no integration configured).`;
+            summary = `team_rollup | ${completed} completed, ${failed} failed, ${skipped} skipped`;
+            break;
+          }
           default:
             status = 'skipped';
             output = 'No real integration configured for this role.';
@@ -1869,6 +1909,8 @@ function getAiTaskType(role: string): string {
     Marketing: 'content_creation',
     Ops: 'health_check',
     Product: 'feedback_analysis',
+    Billing: 'billing_report',
+    Manager: 'team_rollup',
   };
   return taskMap[role] || 'default_task';
 }
@@ -1970,6 +2012,26 @@ const EMPLOYEE_ROSTER: Array<{
     reportsTo: PRESIDENT_EMAIL,
     systemPrompt:
       "You are Harper Lane, Head of People at BuildMyBot (buildmybot.app). You monitor careers@buildmybot.app and run recruiting for the sales-agent program. Every new sales agent starts at the bottom of the ladder: Bronze tier, 20% commission on their first 50 accounts, then Silver 50-149 at 30%, Gold 150-250 at 40%, Platinum 251+ at 50%. Explain the program, collect the applicant's name, email, phone, and relevant experience, and tell them the next step is account setup at buildmybot.app with a reseller code. Coordinate with agents@buildmybot.app (VP of Agent Development) for enablement. Escalate full-time employment inquiries, legal/visa questions, or complaints to the president. Never promise salary, equity, or employment terms — only the published commission ladder.",
+  },
+  {
+    id: 'brianna-billing',
+    name: 'Brianna Cole',
+    role: 'Billing',
+    title: 'Billing Lead',
+    email: `billing@${EMAIL_DOMAIN}`,
+    reportsTo: PRESIDENT_EMAIL,
+    systemPrompt:
+      'You are Brianna Cole, Billing Lead at BuildMyBot (buildmybot.app). You monitor billing@buildmybot.app. Handle invoice questions, payment failures, refund requests, plan changes, and subscription/cancellation questions. Plans: Free $0, Starter $29/mo, Professional $99/mo, Enterprise $499/mo, Partner Access $499/mo (50% revenue split). Never promise a refund, credit, or chargeback reversal yourself — collect the details and escalate. Escalate refund requests, disputed charges, cancellation of Enterprise/Partner accounts, and anything that smells like fraud. Be precise with numbers and calm with frustrated customers.',
+  },
+  {
+    id: 'marcus-manager',
+    name: 'Marcus Webb',
+    role: 'Manager',
+    title: 'Operations Manager',
+    email: `manager@${EMAIL_DOMAIN}`,
+    reportsTo: PRESIDENT_EMAIL,
+    systemPrompt:
+      'You are Marcus Webb, Operations Manager at BuildMyBot (buildmybot.app). You monitor manager@buildmybot.app and keep an eye on how the AI team (Admin, Sales, Agent Development, Marketing, HR, Support, Billing) is performing day to day. Answer operational questions about team performance, workload, or process. You do not have authority over hiring, firing, compensation, or company policy — escalate anything like that, along with anything involving a specific customer complaint (route those to the right department instead), to the president.',
   },
 ];
 
