@@ -2506,6 +2506,43 @@ async function handleEmailInbound(req: VercelRequest, res: VercelResponse) {
       .status(404)
       .json({ error: `No AI employee is assigned to ${to}` });
 
+  // Loop guard: if the sender is ANOTHER AI employee's own address, this is
+  // internal traffic (e.g. one employee's auto-reply landing in another
+  // employee's inbox). Auto-drafting a reply to that would create an
+  // unbounded AI-to-AI reply loop -- log it and stop instead of drafting.
+  const senderEmployee = await getEmployeeByAddress(from);
+  if (senderEmployee && senderEmployee.id !== employee.id) {
+    try {
+      await sbInsert('email_messages', {
+        employee_id: employee.id,
+        direction: 'inbound',
+        from_address: from,
+        to_address: to,
+        subject,
+        body: text.slice(0, 50000),
+        status: 'internal_no_reply',
+        escalation_reason: `Sender ${from} is AI employee ${senderEmployee.name} — not auto-replying to avoid a reply loop`,
+      });
+    } catch {
+      /* non-fatal */
+    }
+    await logEmployeeWork({
+      employeeId: employee.id,
+      employeeName: employee.name,
+      role: employee.role,
+      taskType: 'email_reply',
+      status: 'skipped',
+      output: `Internal message from ${senderEmployee.name} (${from}) — not auto-replying to avoid an AI-to-AI loop.`,
+      summary: `internal mail from ${senderEmployee.name} | no auto-reply`,
+    });
+    return res.status(200).json({
+      handled: true,
+      replySent: false,
+      internal: true,
+      reason: 'sender_is_ai_employee',
+    });
+  }
+
   // Log the inbound message first — whatever happens next, it's recorded.
   let inboundId: string | undefined;
   try {
