@@ -2,14 +2,14 @@ import {
   DollarSign,
   MessageSquare,
   Target,
-  TrendingUp,
   Users,
-  Loader,
   AlertCircle,
 } from 'lucide-react';
 import type React from 'react';
 import { useEffect, useState } from 'react';
 import { buildApiUrl } from '../../services/apiConfig';
+import type { LucideIcon } from 'lucide-react';
+import { HudMetric } from './HudMetric';
 
 interface QuickMetrics {
   totalConversations: number;
@@ -93,26 +93,33 @@ export const QuickMetricsWidget: React.FC<QuickMetricsWidgetProps> = ({
     return `${value.toFixed(2)}%`;
   };
 
-  const renderMetric = (Icon: React.ElementType, title: string, value: string, growth?: number) => (
-    <div className="rounded-lg bg-white p-5 shadow-sm">
-      <div className="flex items-center justify-between">
-        <Icon className="h-6 w-6 text-blue-500" />
-        <span className="text-2xl font-bold text-gray-800">{value}</span>
-      </div>
-      <h3 className="mt-3 text-lg font-medium text-gray-700">{title}</h3>
-      {growth !== undefined && growth !== null && (
-        <div className={`mt-1 flex items-center text-sm ${growth >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-          {growth >= 0 ? <TrendingUp className="mr-1 h-4 w-4" /> : <TrendingUp className="mr-1 h-4 w-4 rotate-180" />}
-          {Math.abs(growth).toFixed(2)}% {growth >= 0 ? 'increase' : 'decrease'}
-        </div>
-      )}
-    </div>
+  const renderMetric = (
+    Icon: LucideIcon,
+    title: string,
+    value: string,
+    growth?: number,
+  ) => (
+    <HudMetric
+      icon={Icon}
+      label={title}
+      value={value}
+      loading={currentLoading}
+      accent="cyan"
+      trend={
+        growth !== undefined && growth !== null
+          ? {
+              value: `${Math.abs(growth).toFixed(2)}%`,
+              direction: growth >= 0 ? 'up' : 'down',
+            }
+          : undefined
+      }
+    />
   );
 
   if (currentError) {
     return (
-      <div className="col-span-full flex items-center justify-center rounded-lg bg-red-100 p-5 text-red-700 shadow-sm">
-        <AlertCircle className="mr-2 h-5 w-5" />
+      <div className="col-span-full flex items-center justify-center gap-2 border border-accent-red/40 bg-accent-red/10 p-3 text-xs text-accent-red">
+        <AlertCircle className="h-4 w-4" />
         <p>Error loading quick metrics: {currentError}</p>
       </div>
     );

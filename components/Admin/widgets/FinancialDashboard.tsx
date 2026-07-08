@@ -255,7 +255,7 @@ export const FinancialDashboard: React.FC = () => {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-slate-900">
+        <h2 className="text-2xl font-bold text-console-text">
           Financial Dashboard
         </h2>
         <div className="flex items-center space-x-4">
@@ -263,7 +263,7 @@ export const FinancialDashboard: React.FC = () => {
             className={`px-4 py-2 rounded-lg flex items-center space-x-2 ${
               stripeHealth?.ok
                 ? 'bg-green-100 text-green-800'
-                : 'bg-slate-100 text-slate-600'
+                : 'bg-console-surface-raised text-console-muted'
             }`}
           >
             <CreditCard size={16} />
@@ -274,7 +274,7 @@ export const FinancialDashboard: React.FC = () => {
           <button
             type="button"
             onClick={fetchFinancialData}
-            className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 flex items-center space-x-2"
+            className="px-4 py-2 bg-console-surface-raised text-console-text rounded-lg hover:bg-slate-200 flex items-center space-x-2"
           >
             <RefreshCw size={16} />
             <span>Refresh</span>
@@ -326,7 +326,7 @@ export const FinancialDashboard: React.FC = () => {
 
       {/* Recent Invoices */}
       <div className="mb-8">
-        <h3 className="text-lg font-semibold text-slate-900 mb-4">
+        <h3 className="text-lg font-semibold text-console-text mb-4">
           Recent Invoices
         </h3>
         <DataTable
@@ -339,7 +339,7 @@ export const FinancialDashboard: React.FC = () => {
 
       {/* Partner Payouts */}
       <div className="mb-8">
-        <h3 className="text-lg font-semibold text-slate-900 mb-4">
+        <h3 className="text-lg font-semibold text-console-text mb-4">
           Partner Payouts
         </h3>
         <DataTable
@@ -352,7 +352,7 @@ export const FinancialDashboard: React.FC = () => {
 
       {/* Recent Refunds */}
       <div>
-        <h3 className="text-lg font-semibold text-slate-900 mb-4">
+        <h3 className="text-lg font-semibold text-console-text mb-4">
           Recent Refunds
         </h3>
         <DataTable

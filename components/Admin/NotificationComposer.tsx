@@ -61,7 +61,7 @@ interface NotificationPayload {
 }
 
 const priorityConfig = {
-  low: { label: 'Low', color: 'bg-gray-100 text-gray-700', icon: Info },
+  low: { label: 'Low', color: 'bg-console-surface-raised text-console-text', icon: Info },
   normal: { label: 'Normal', color: 'bg-blue-100 text-blue-700', icon: Bell },
   high: {
     label: 'High',
@@ -83,7 +83,7 @@ const PremiumCard: React.FC<{
   className?: string;
 }> = ({ children, className = '' }) => (
   <div
-    className={`bg-white rounded-xl border border-slate-200 shadow-sm ${className}`}
+    className={`bg-console-surface border border-console-border rounded-sm  ${className}`}
   >
     {children}
   </div>
@@ -250,10 +250,10 @@ export const NotificationComposer: React.FC = () => {
       <PremiumCard className="p-4 md:p-6">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h3 className="text-lg md:text-xl font-bold text-slate-900">
+            <h3 className="text-lg md:text-xl font-bold text-console-text">
               Compose Notification
             </h3>
-            <p className="text-sm text-slate-500 mt-1">
+            <p className="text-sm text-console-muted mt-1">
               Broadcast messages to users across the platform
             </p>
           </div>
@@ -279,7 +279,7 @@ export const NotificationComposer: React.FC = () => {
           <div>
             <label
               htmlFor="notification-title"
-              className="block text-sm font-medium text-slate-700 mb-1"
+              className="block text-sm font-medium text-console-text mb-1"
             >
               Title <span className="text-red-500">*</span>
             </label>
@@ -295,7 +295,7 @@ export const NotificationComposer: React.FC = () => {
               className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               required
             />
-            <p className="text-xs text-slate-400 mt-1">
+            <p className="text-xs text-console-muted mt-1">
               {form.title.length}/255 characters
             </p>
           </div>
@@ -303,7 +303,7 @@ export const NotificationComposer: React.FC = () => {
           <div>
             <label
               htmlFor="notification-body"
-              className="block text-sm font-medium text-slate-700 mb-1"
+              className="block text-sm font-medium text-console-text mb-1"
             >
               Body
             </label>
@@ -321,7 +321,7 @@ export const NotificationComposer: React.FC = () => {
             <div>
               <label
                 htmlFor="notification-priority"
-                className="block text-sm font-medium text-slate-700 mb-1"
+                className="block text-sm font-medium text-console-text mb-1"
               >
                 Priority
               </label>
@@ -346,7 +346,7 @@ export const NotificationComposer: React.FC = () => {
             <div>
               <label
                 htmlFor="notification-audience"
-                className="block text-sm font-medium text-slate-700 mb-1"
+                className="block text-sm font-medium text-console-text mb-1"
               >
                 Audience
               </label>
@@ -373,7 +373,7 @@ export const NotificationComposer: React.FC = () => {
 
           {form.audienceType === 'plan' && (
             <fieldset>
-              <legend className="block text-sm font-medium text-slate-700 mb-1">
+              <legend className="block text-sm font-medium text-console-text mb-1">
                 Select Plans
               </legend>
               <div className="flex flex-wrap gap-2">
@@ -402,7 +402,7 @@ export const NotificationComposer: React.FC = () => {
                       }}
                       className="rounded border-slate-300 text-orange-500 focus:ring-orange-500"
                     />
-                    <span className="ml-2 text-sm text-slate-700">{plan}</span>
+                    <span className="ml-2 text-sm text-console-text">{plan}</span>
                   </label>
                 ))}
               </div>
@@ -411,7 +411,7 @@ export const NotificationComposer: React.FC = () => {
 
           {form.audienceType === 'role' && (
             <fieldset>
-              <legend className="block text-sm font-medium text-slate-700 mb-1">
+              <legend className="block text-sm font-medium text-console-text mb-1">
                 Select Roles
               </legend>
               <div className="flex flex-wrap gap-2">
@@ -440,14 +440,14 @@ export const NotificationComposer: React.FC = () => {
                       }}
                       className="rounded border-slate-300 text-orange-500 focus:ring-orange-500"
                     />
-                    <span className="ml-2 text-sm text-slate-700">{role}</span>
+                    <span className="ml-2 text-sm text-console-text">{role}</span>
                   </label>
                 ))}
               </div>
             </fieldset>
           )}
 
-          <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+          <div className="flex items-center justify-between p-3 bg-console-surface rounded-lg">
             <div className="flex items-center gap-3">
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
@@ -458,20 +458,20 @@ export const NotificationComposer: React.FC = () => {
                   }
                   className="sr-only peer"
                 />
-                <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-orange-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500" />
+                <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-orange-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-console-surface after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500" />
               </label>
               <div>
-                <span className="text-sm font-medium text-slate-700">
+                <span className="text-sm font-medium text-console-text">
                   Require Acknowledgment
                 </span>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-console-muted">
                   Shows as modal popup users must dismiss
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+          <div className="flex items-center justify-between p-3 bg-console-surface rounded-lg">
             <div className="flex items-center gap-3">
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
@@ -482,13 +482,13 @@ export const NotificationComposer: React.FC = () => {
                   }
                   className="sr-only peer"
                 />
-                <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-orange-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500" />
+                <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-orange-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-console-surface after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500" />
               </label>
               <div>
-                <span className="text-sm font-medium text-slate-700">
+                <span className="text-sm font-medium text-console-text">
                   Schedule for Later
                 </span>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-console-muted">
                   Set a specific time to publish
                 </p>
               </div>
@@ -509,7 +509,7 @@ export const NotificationComposer: React.FC = () => {
             <button
               type="button"
               onClick={() => setShowPreview(true)}
-              className="flex items-center gap-2 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 border border-slate-300 text-console-text rounded-lg hover:bg-console-surface transition-colors"
             >
               <Eye size={18} />
               Preview
@@ -532,15 +532,15 @@ export const NotificationComposer: React.FC = () => {
 
       {showPreview && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl max-w-md w-full p-6 shadow-xl">
+          <div className="bg-console-surface border border-console-border rounded-sm max-w-md w-full p-6 shadow-xl">
             <div className="flex items-center justify-between mb-4">
-              <h4 className="text-lg font-semibold text-slate-900">
+              <h4 className="text-lg font-semibold text-console-text">
                 Notification Preview
               </h4>
               <button
                 type="button"
                 onClick={() => setShowPreview(false)}
-                className="text-slate-400 hover:text-slate-600"
+                className="text-console-muted hover:text-console-muted"
               >
                 <X size={20} />
               </button>
@@ -552,7 +552,7 @@ export const NotificationComposer: React.FC = () => {
                   : form.priority === 'high'
                     ? 'bg-orange-50 border-orange-500'
                     : form.priority === 'low'
-                      ? 'bg-gray-50 border-gray-500'
+                      ? 'bg-console-surface border-gray-500'
                       : 'bg-blue-50 border-blue-500'
               }`}
             >
@@ -564,7 +564,7 @@ export const NotificationComposer: React.FC = () => {
                       : form.priority === 'high'
                         ? 'bg-orange-100'
                         : form.priority === 'low'
-                          ? 'bg-gray-100'
+                          ? 'bg-console-surface-raised'
                           : 'bg-blue-100'
                   }`}
                 >
@@ -576,16 +576,16 @@ export const NotificationComposer: React.FC = () => {
                         : form.priority === 'high'
                           ? 'text-orange-600'
                           : form.priority === 'low'
-                            ? 'text-gray-600'
+                            ? 'text-console-muted'
                             : 'text-blue-600'
                     }
                   />
                 </div>
                 <div className="flex-1">
-                  <h5 className="font-semibold text-slate-900">
+                  <h5 className="font-semibold text-console-text">
                     {form.title || 'Untitled'}
                   </h5>
-                  <p className="text-sm text-slate-600 mt-1 whitespace-pre-wrap">
+                  <p className="text-sm text-console-muted mt-1 whitespace-pre-wrap">
                     {form.body || 'No content'}
                   </p>
                 </div>
@@ -601,7 +601,7 @@ export const NotificationComposer: React.FC = () => {
                 </div>
               )}
             </div>
-            <p className="text-xs text-slate-500 mt-3 text-center">
+            <p className="text-xs text-console-muted mt-3 text-center">
               {form.isPopup
                 ? 'This will appear as a modal popup'
                 : 'This will appear in the notification feed'}
@@ -613,17 +613,17 @@ export const NotificationComposer: React.FC = () => {
       <PremiumCard className="p-4 md:p-6">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h3 className="text-lg md:text-xl font-bold text-slate-900">
+            <h3 className="text-lg md:text-xl font-bold text-console-text">
               Notification History
             </h3>
-            <p className="text-sm text-slate-500 mt-1">
+            <p className="text-sm text-console-muted mt-1">
               Past broadcasts and their engagement stats
             </p>
           </div>
           <button
             type="button"
             onClick={fetchNotifications}
-            className="text-slate-400 hover:text-slate-600 transition-colors"
+            className="text-console-muted hover:text-console-muted transition-colors"
             title="Refresh"
           >
             <Clock size={20} />
@@ -635,19 +635,19 @@ export const NotificationComposer: React.FC = () => {
             {[1, 2, 3].map((i) => (
               <div
                 key={i}
-                className="animate-pulse h-16 bg-slate-100 rounded-lg"
+                className=" h-16 bg-console-surface-raised rounded-lg"
               />
             ))}
           </div>
         ) : notifications.length === 0 ? (
           <div className="text-center py-12">
-            <div className="p-4 bg-slate-100 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-              <Bell className="text-slate-400" size={28} />
+            <div className="p-4 bg-console-surface-raised rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+              <Bell className="text-console-muted" size={28} />
             </div>
-            <h4 className="text-lg font-semibold text-slate-900 mb-2">
+            <h4 className="text-lg font-semibold text-console-text mb-2">
               No notifications yet
             </h4>
-            <p className="text-slate-500">
+            <p className="text-console-muted">
               Create your first broadcast notification above
             </p>
           </div>
@@ -661,11 +661,11 @@ export const NotificationComposer: React.FC = () => {
               return (
                 <div
                   key={notification.id}
-                  className="border border-slate-200 rounded-lg overflow-hidden"
+                  className="border border-console-border rounded-lg overflow-hidden"
                 >
                   <button
                     type="button"
-                    className="w-full p-4 flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-colors text-left"
+                    className="w-full p-4 flex items-center justify-between cursor-pointer hover:bg-console-surface transition-colors text-left"
                     aria-expanded={isExpanded}
                     onClick={() =>
                       setExpandedId(isExpanded ? null : notification.id)
@@ -674,10 +674,10 @@ export const NotificationComposer: React.FC = () => {
                     <div className="flex items-center gap-4 min-w-0 flex-1">
                       <PriorityBadge priority={notification.priority} />
                       <div className="min-w-0 flex-1">
-                        <h4 className="font-medium text-slate-900 truncate">
+                        <h4 className="font-medium text-console-text truncate">
                           {notification.title}
                         </h4>
-                        <p className="text-xs text-slate-500 mt-0.5">
+                        <p className="text-xs text-console-muted mt-0.5">
                           {formatDate(notification.createdAt)} •{' '}
                           {getAudienceLabel(notification)}
                         </p>
@@ -686,13 +686,13 @@ export const NotificationComposer: React.FC = () => {
 
                     <div className="flex items-center gap-4">
                       <div className="hidden md:flex items-center gap-4 text-sm">
-                        <span className="text-slate-600">
+                        <span className="text-console-muted">
                           <span className="font-medium">
                             {getPercentage(stats.viewedCount, total)}
                           </span>{' '}
                           viewed
                         </span>
-                        <span className="text-slate-600">
+                        <span className="text-console-muted">
                           <span className="font-medium">
                             {getPercentage(stats.acknowledgedCount, total)}
                           </span>{' '}
@@ -700,52 +700,52 @@ export const NotificationComposer: React.FC = () => {
                         </span>
                       </div>
                       {isExpanded ? (
-                        <ChevronUp size={20} className="text-slate-400" />
+                        <ChevronUp size={20} className="text-console-muted" />
                       ) : (
-                        <ChevronDown size={20} className="text-slate-400" />
+                        <ChevronDown size={20} className="text-console-muted" />
                       )}
                     </div>
                   </button>
 
                   {isExpanded && (
-                    <div className="px-4 pb-4 border-t border-slate-100 bg-slate-50">
+                    <div className="px-4 pb-4 border-t border-console-border bg-console-surface">
                       <div className="pt-4 space-y-4">
                         <div>
-                          <h5 className="text-sm font-medium text-slate-700 mb-1">
+                          <h5 className="text-sm font-medium text-console-text mb-1">
                             Content
                           </h5>
-                          <p className="text-sm text-slate-600 whitespace-pre-wrap">
+                          <p className="text-sm text-console-muted whitespace-pre-wrap">
                             {notification.body || 'No content'}
                           </p>
                         </div>
 
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                          <div className="p-3 bg-white rounded-lg border border-slate-200">
-                            <div className="text-2xl font-bold text-slate-900">
+                          <div className="p-3 bg-console-surface border border-console-border rounded-sm">
+                            <div className="text-2xl font-bold text-console-text">
                               {stats.totalReceipts}
                             </div>
-                            <div className="text-xs text-slate-500">
+                            <div className="text-xs text-console-muted">
                               Delivered
                             </div>
                           </div>
-                          <div className="p-3 bg-white rounded-lg border border-slate-200">
+                          <div className="p-3 bg-console-surface border border-console-border rounded-sm">
                             <div className="text-2xl font-bold text-blue-600">
                               {stats.viewedCount}
                             </div>
-                            <div className="text-xs text-slate-500">
+                            <div className="text-xs text-console-muted">
                               {getPercentage(stats.viewedCount, total)} Viewed
                             </div>
                           </div>
-                          <div className="p-3 bg-white rounded-lg border border-slate-200">
+                          <div className="p-3 bg-console-surface border border-console-border rounded-sm">
                             <div className="text-2xl font-bold text-emerald-600">
                               {stats.acknowledgedCount}
                             </div>
-                            <div className="text-xs text-slate-500">
+                            <div className="text-xs text-console-muted">
                               {getPercentage(stats.acknowledgedCount, total)}{' '}
                               Acknowledged
                             </div>
                           </div>
-                          <div className="p-3 bg-white rounded-lg border border-slate-200 flex items-center justify-center">
+                          <div className="p-3 bg-console-surface border border-console-border rounded-sm flex items-center justify-center">
                             {notification.isPopup && (
                               <span className="text-xs font-medium text-orange-600 bg-orange-50 px-2 py-1 rounded">
                                 Popup Required
@@ -762,7 +762,7 @@ export const NotificationComposer: React.FC = () => {
                                 notification.publishAt &&
                                 new Date(notification.publishAt) > new Date()
                               ) && (
-                                <span className="text-xs text-slate-400">
+                                <span className="text-xs text-console-muted">
                                   Standard
                                 </span>
                               )}

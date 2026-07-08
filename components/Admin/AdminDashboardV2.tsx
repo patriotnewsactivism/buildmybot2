@@ -1,38 +1,26 @@
 import {
-  Activity,
-  AlertCircle,
   AlertTriangle,
   BarChart3,
-  Bell,
-  Briefcase,
-  CheckCircle,
   Clock,
-  Copy,
-  Database,
   DollarSign,
-  Eye,
-  Gift,
-  Headphones,
-  Link2,
-  Loader,
-  MessageSquare,
   RefreshCw,
   Server,
-  Settings,
   Shield,
   Ticket,
-  TrendingDown,
   UserCheck,
   Users,
-  Wifi,
   Zap,
 } from 'lucide-react';
 import type React from 'react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { buildApiUrl } from '../../services/apiConfig';
+import { HudMetric } from '../UI/HudMetric';
+import { Panel } from '../UI/Panel';
+import { StatusDot } from '../UI/StatusDot';
+import { TerminalConsole, type LogLine } from '../UI/TerminalConsole';
+import { QuickMetricsWidget } from '../UI/QuickMetricsWidget';
 import AdminFeaturesOverview from '../Analytics/AdminFeaturesOverview';
 import { ComprehensiveAnalytics } from '../Analytics/ComprehensiveAnalytics';
-import { QuickMetricsWidget } from '../UI/QuickMetricsWidget';
 import { ErrorRecoveryDashboard } from './ErrorRecoveryDashboard';
 import { NotificationComposer } from './NotificationComposer';
 import { PartnerOverviewAdmin } from './PartnerOverviewAdmin';
@@ -89,6 +77,7 @@ export const AdminDashboardV2: React.FC<AdminDashboardV2Props> = ({
   const [metrics, setMetrics] = useState<AdminDashboardMetrics | null>(null);
   const [loadingMetrics, setLoadingMetrics] = useState<boolean>(true);
   const [errorMetrics, setErrorMetrics] = useState<string | null>(null);
+  const [log, setLog] = useState<LogLine[]>([]);
   const [internalTab, setInternalTab] = useState<AdminTab>('overview');
   const activeTab = controlledTab ?? internalTab;
   const setActiveTab = (tab: AdminTab) => {
@@ -96,9 +85,15 @@ export const AdminDashboardV2: React.FC<AdminDashboardV2Props> = ({
     onTabChange?.(tab);
   };
 
+  const pushLog = useCallback((level: LogLine['level'], text: string) => {
+    const time = new Date().toLocaleTimeString('en-US', { hour12: false });
+    setLog((prev) => [...prev.slice(-49), { time, level, text }]);
+  }, []);
+
   const fetchAdminMetrics = useCallback(async () => {
     setLoadingMetrics(true);
     setErrorMetrics(null);
+    pushLog('info', 'GET /admin/metrics ...');
     try {
       const response = await fetch(buildApiUrl('/admin/metrics'));
       if (!response.ok) {
@@ -107,46 +102,111 @@ export const AdminDashboardV2: React.FC<AdminDashboardV2Props> = ({
       }
       const data: AdminDashboardMetrics = await response.json();
       setMetrics(data);
-    } catch (error) {
-      console.error('Error fetching admin metrics:', error);
-      setErrorMetrics(
-        error instanceof Error ? error.message : 'An unknown error occurred',
+      pushLog(
+        'ok',
+        `200 OK -- ${data.totalUsers} users / ${data.activeBots} active bots / ${data.totalConversations} conversations`,
       );
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'An unknown error occurred';
+      console.error('Error fetching admin metrics:', error);
+      setErrorMetrics(msg);
+      pushLog('error', `metrics fetch failed -- ${msg}`);
     } finally {
       setLoadingMetrics(false);
     }
-  }, []);
+  }, [pushLog]);
 
   useEffect(() => {
     fetchAdminMetrics();
-  }, [fetchAdminMetrics]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleCommand = useCallback(
+    async (cmd: string) => {
+      const [verb] = cmd.trim().toLowerCase().split(/\s+/);
+      if (verb === 'refresh' || verb === 'reload') {
+        await fetchAdminMetrics();
+      } else if (verb === 'help') {
+        pushLog('info', 'available commands: refresh, help');
+      } else {
+        pushLog('warn', `unknown command: "${cmd}" (try "help")`);
+      }
+    },
+    [fetchAdminMetrics, pushLog],
+  );
 
   const tabs: { id: AdminTab; label: string; icon: React.ElementType }[] = [
     { id: 'overview', label: 'Overview', icon: BarChart3 },
     { id: 'system-health', label: 'System Health', icon: AlertTriangle },
   ];
 
-  return (
-    <div className="min-h-screen bg-gray-100 p-6">
-      <h1 className="mb-6 text-3xl font-bold text-gray-900">
-        Admin Dashboard V2
-      </h1>
+  const systemStatus = errorMetrics ? 'warning' : loadingMetrics ? 'processing' : 'online';
+  const apiStatus = errorMetrics ? 'API: ERROR' : 'API: 200 OK';
 
-      {/* Tab Navigation */}
-      <div className="mb-6 border-b border-gray-200">
-        <nav className="flex space-x-4" aria-label="Tabs">
+  const ingestionItems = useMemo(
+    () => [
+      {
+        label: 'Bot Response Pipeline',
+        detail: `${metrics?.activeBots ?? 0} active bot${metrics?.activeBots === 1 ? '' : 's'}`,
+        status: (metrics?.activeBots ?? 0) > 0 ? 'online' : 'offline',
+      },
+      {
+        label: 'Lead Capture Ingestion',
+        detail: `${metrics?.totalLeads ?? 0} total leads`,
+        status: 'online',
+      },
+      {
+        label: 'Conversation Logging',
+        detail: `${metrics?.totalConversations ?? 0} total conversations`,
+        status: 'online',
+      },
+      {
+        label: 'Support Queue',
+        detail: `${metrics?.supportTicketsOpen ?? 0} open ticket${metrics?.supportTicketsOpen === 1 ? '' : 's'}`,
+        status: (metrics?.supportTicketsOpen ?? 0) > 0 ? 'processing' : 'online',
+      },
+    ],
+    [metrics],
+  ) as { label: string; detail: string; status: 'online' | 'processing' | 'offline' }[];
+
+  return (
+    <div className="min-h-screen bg-console-bg font-mono text-console-text p-4 lg:p-6">
+      {/* Top Status Bar */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border border-console-border bg-console-surface px-4 py-2.5">
+        <div className="flex items-center gap-4">
+          <StatusDot status={systemStatus} label={`SYSTEM: ${systemStatus.toUpperCase()}`} />
+          <span className="hidden text-console-border sm:inline">|</span>
+          <button
+            type="button"
+            onClick={() => setActiveTab('system-health')}
+            className="hidden items-center gap-1.5 text-xs uppercase tracking-widest text-console-muted hover:text-accent-cyan sm:flex"
+          >
+            <Server size={12} /> Agent Activity Logs
+          </button>
+        </div>
+        <StatusDot
+          status={errorMetrics ? 'offline' : 'online'}
+          label={apiStatus}
+        />
+      </div>
+
+      <div className="mb-4 flex items-center justify-between">
+        <h1 className="text-lg font-semibold tracking-tight text-console-text">
+          ADMIN_DASHBOARD<span className="text-accent-cyan">.v2</span>
+        </h1>
+        <nav className="flex gap-1" aria-label="Tabs">
           {tabs.map((tab) => (
             <button
               type="button"
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+              className={`flex items-center gap-1.5 border px-3 py-1.5 text-xs uppercase tracking-wide transition-colors ${
                 activeTab === tab.id
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ? 'border-accent-cyan text-accent-cyan'
+                  : 'border-console-border text-console-muted hover:text-console-text'
               }`}
             >
-              <tab.icon className="w-4 h-4" />
+              <tab.icon className="h-3.5 w-3.5" />
               {tab.label}
             </button>
           ))}
@@ -155,144 +215,134 @@ export const AdminDashboardV2: React.FC<AdminDashboardV2Props> = ({
 
       {activeTab !== 'system-health' && (
         <>
-          <div className="mb-8 flex items-center justify-between">
-            <p className="text-gray-600">
-              Overview of system health, user activity, and financial
-              performance.
-            </p>
-            <button
-              type="button"
-              onClick={fetchAdminMetrics}
-              className={`flex items-center rounded-md bg-blue-600 px-4 py-2 text-white shadow-md transition-colors hover:bg-blue-700 ${loadingMetrics ? 'cursor-not-allowed opacity-70' : ''}`}
-              disabled={loadingMetrics}
-            >
-              {loadingMetrics ? (
-                <Loader className="mr-2 h-5 w-5 animate-spin" />
-              ) : (
-                <Zap className="mr-2 h-5 w-5" />
-              )}
-              Refresh Metrics
-            </button>
-          </div>
-
           {errorMetrics && (
-            <div className="mb-4 flex items-center rounded-md bg-red-100 p-3 text-red-700 shadow-sm">
-              <AlertCircle className="mr-2 h-5 w-5" />
-              <p>Error: {errorMetrics}</p>
+            <div className="mb-4 border border-accent-red/40 bg-accent-red/10 px-4 py-2 text-xs text-accent-red">
+              ERROR: {errorMetrics}
             </div>
           )}
 
-          {/* Quick Metrics Section */}
-          <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
-            <QuickMetricsWidget
-              totalConversations={metrics?.totalConversations}
-              totalLeads={metrics?.totalLeads}
-              conversionRate={metrics?.conversionRate}
-              estimatedValue={metrics?.totalRevenue}
-              loading={loadingMetrics}
-              error={errorMetrics}
-            />
-            {/* Additional Admin-specific Quick Metrics */}
-            <MetricCard
-              icon={Users}
-              title="Total Users"
-              value={
-                loadingMetrics
-                  ? '...'
-                  : metrics?.totalUsers?.toLocaleString() || 'N/A'
+          {/* PRIMARY METRICS HUD + AI PROCESSING QUEUE */}
+          <div className="mb-4 grid grid-cols-1 gap-4 xl:grid-cols-3">
+            <Panel
+              eyebrow="Real-time data streams"
+              title="Primary Metrics HUD"
+              right={
+                <button
+                  type="button"
+                  onClick={fetchAdminMetrics}
+                  disabled={loadingMetrics}
+                  className="flex items-center gap-1.5 border border-console-border px-2.5 py-1 text-xs uppercase tracking-wide text-console-muted hover:text-accent-cyan disabled:opacity-50"
+                >
+                  <RefreshCw size={12} className={loadingMetrics ? 'animate-spin' : ''} />
+                  Refresh
+                </button>
               }
-              description="All registered users"
-              color="text-indigo-600"
-              bgColor="bg-indigo-50"
-            />
-            <MetricCard
-              icon={Zap}
-              title="Active Bots"
-              value={
-                loadingMetrics
-                  ? '...'
-                  : metrics?.activeBots?.toLocaleString() || 'N/A'
-              }
-              description="Currently deployed bots"
-              color="text-green-600"
-              bgColor="bg-green-50"
-            />
-            <MetricCard
-              icon={DollarSign}
-              title="Total Revenue"
-              value={
-                loadingMetrics
-                  ? '...'
-                  : `$${metrics?.totalRevenue?.toLocaleString() || '0'}`
-              }
-              description="All-time platform revenue"
-              color="text-purple-600"
-              bgColor="bg-purple-50"
-            />
-            <MetricCard
-              icon={UserCheck}
-              title="New Signups Today"
-              value={
-                loadingMetrics
-                  ? '...'
-                  : metrics?.newSignupsToday?.toLocaleString() || 'N/A'
-              }
-              description="Users joined in the last 24h"
-              color="text-blue-600"
-              bgColor="bg-blue-50"
-            />
-            <MetricCard
-              icon={Server}
-              title="API Calls (24h)"
-              value={
-                loadingMetrics
-                  ? '...'
-                  : metrics?.apiCallsLast24h?.toLocaleString() || 'N/A'
-              }
-              description="Total API requests"
-              color="text-yellow-600"
-              bgColor="bg-yellow-50"
-            />
-            <MetricCard
-              icon={Ticket}
-              title="Open Support Tickets"
-              value={
-                loadingMetrics
-                  ? '...'
-                  : metrics?.supportTicketsOpen?.toLocaleString() || 'N/A'
-              }
-              description="Tickets awaiting resolution"
-              color="text-orange-600"
-              bgColor="bg-orange-50"
-            />
-            <MetricCard
-              icon={Shield}
-              title="System Health Score"
-              value={
-                loadingMetrics
-                  ? '...'
-                  : `${metrics?.systemHealthScore || 'N/A'}%`
-              }
-              description="Overall system operational status"
-              color="text-teal-600"
-              bgColor="bg-teal-50"
-            />
-            <MetricCard
-              icon={Clock}
-              title="Avg. Response Time"
-              value={
-                loadingMetrics
-                  ? '...'
-                  : `${metrics?.averageResponseTime || 'N/A'} ms`
-              }
-              description="Average bot response time"
-              color="text-pink-600"
-              bgColor="bg-pink-50"
-            />
+              className="xl:col-span-2"
+              bodyClassName="p-3"
+            >
+              <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-4">
+                <QuickMetricsWidget
+                  totalConversations={metrics?.totalConversations}
+                  totalLeads={metrics?.totalLeads}
+                  conversionRate={metrics?.conversionRate}
+                  estimatedValue={metrics?.totalRevenue}
+                  loading={loadingMetrics}
+                  error={errorMetrics}
+                />
+                <HudMetric
+                  icon={Users}
+                  label="Total Users"
+                  value={loadingMetrics ? '—' : metrics?.totalUsers?.toLocaleString() ?? 'N/A'}
+                  accent="cyan"
+                  loading={loadingMetrics}
+                />
+                <HudMetric
+                  icon={Zap}
+                  label="Active Bots"
+                  value={loadingMetrics ? '—' : metrics?.activeBots?.toLocaleString() ?? 'N/A'}
+                  accent="green"
+                  loading={loadingMetrics}
+                />
+                <HudMetric
+                  icon={DollarSign}
+                  label="Total Revenue"
+                  value={loadingMetrics ? '—' : `$${metrics?.totalRevenue?.toLocaleString() ?? '0'}`}
+                  accent="cyan"
+                  loading={loadingMetrics}
+                />
+                <HudMetric
+                  icon={UserCheck}
+                  label="New Signups Today"
+                  value={loadingMetrics ? '—' : metrics?.newSignupsToday?.toLocaleString() ?? 'N/A'}
+                  accent="green"
+                  loading={loadingMetrics}
+                />
+                <HudMetric
+                  icon={Server}
+                  label="API Calls (24h)"
+                  value={loadingMetrics ? '—' : metrics?.apiCallsLast24h?.toLocaleString() ?? 'N/A'}
+                  accent="cyan"
+                  loading={loadingMetrics}
+                />
+                <HudMetric
+                  icon={Ticket}
+                  label="Open Support Tickets"
+                  value={loadingMetrics ? '—' : metrics?.supportTicketsOpen?.toLocaleString() ?? 'N/A'}
+                  accent={
+                    (metrics?.supportTicketsOpen ?? 0) > 0 ? 'amber' : 'green'
+                  }
+                  loading={loadingMetrics}
+                />
+                <HudMetric
+                  icon={Shield}
+                  label="System Health"
+                  value={loadingMetrics ? '—' : `${metrics?.systemHealthScore ?? 'N/A'}%`}
+                  accent="cyan"
+                  loading={loadingMetrics}
+                />
+                <HudMetric
+                  icon={Clock}
+                  label="Avg. Response Time"
+                  value={loadingMetrics ? '—' : `${metrics?.averageResponseTime ?? 'N/A'} ms`}
+                  accent="cyan"
+                  loading={loadingMetrics}
+                />
+              </div>
+            </Panel>
+
+            <Panel
+              eyebrow="Active pipelines"
+              title="AI Processing & Ingestion Queue"
+              bodyClassName="p-0"
+            >
+              <div className="divide-y divide-console-border">
+                {ingestionItems.map((item) => (
+                  <div
+                    key={item.label}
+                    className="flex items-center justify-between px-4 py-2.5"
+                  >
+                    <div>
+                      <div className="text-xs text-console-text">{item.label}</div>
+                      <div className="text-[11px] text-console-muted">{item.detail}</div>
+                    </div>
+                    <StatusDot status={item.status} />
+                  </div>
+                ))}
+              </div>
+            </Panel>
           </div>
 
-          {/* Main Dashboard Widgets */}
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3">
+          {/* SYSTEM TERMINAL */}
+          <Panel bodyClassName="p-0" className="mb-4">
+            <TerminalConsole
+              lines={log}
+              onCommand={handleCommand}
+              placeholder='Type "refresh" to reload metrics, or "help"'
+            />
+          </Panel>
+
+          {/* Secondary Widgets */}
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
             <div className="lg:col-span-2 xl:col-span-2">
               <FinancialDashboard />
             </div>
@@ -316,31 +366,3 @@ export const AdminDashboardV2: React.FC<AdminDashboardV2Props> = ({
     </div>
   );
 };
-
-// Placeholder for MetricCard - assuming it exists elsewhere or needs to be created
-interface MetricCardProps {
-  icon: React.ElementType;
-  title: string;
-  value: string;
-  description: string;
-  color: string;
-  bgColor: string;
-}
-
-const MetricCard: React.FC<MetricCardProps> = ({
-  icon: Icon,
-  title,
-  value,
-  description,
-  color,
-  bgColor,
-}) => (
-  <div className={`rounded-lg p-5 shadow-sm ${bgColor}`}>
-    <div className="flex items-center justify-between">
-      <Icon className={`h-8 w-8 ${color}`} />
-      <span className="text-2xl font-bold text-gray-800">{value}</span>
-    </div>
-    <h3 className="mt-3 text-lg font-medium text-gray-700">{title}</h3>
-    <p className="text-sm text-gray-500">{description}</p>
-  </div>
-);

@@ -97,12 +97,12 @@ const AdminFeaturesOverview = () => {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-bold flex items-center gap-2">
-            <Activity className="w-5 h-5 text-indigo-600" />
+            <Activity className="w-5 h-5 text-accent-cyan" />
             Feature Usage & Revenue
           </h2>
         </div>
         <div className="flex items-center justify-center py-12">
-          <Loader className="w-8 h-8 animate-spin text-indigo-600" />
+          <Loader className="w-8 h-8 animate-spin text-accent-cyan" />
         </div>
       </div>
     );
@@ -113,7 +113,7 @@ const AdminFeaturesOverview = () => {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-bold flex items-center gap-2">
-            <Activity className="w-5 h-5 text-indigo-600" />
+            <Activity className="w-5 h-5 text-accent-cyan" />
             Feature Usage & Revenue
           </h2>
         </div>
@@ -149,15 +149,15 @@ const AdminFeaturesOverview = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold flex items-center gap-2">
-          <Activity className="w-5 h-5 text-indigo-600" />
+          <Activity className="w-5 h-5 text-accent-cyan" />
           Feature Usage & Revenue
         </h2>
-        <span className="text-sm text-gray-500">Real-time data</span>
+        <span className="text-sm text-console-muted">Real-time data</span>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-xl border shadow-sm">
-          <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wider mb-4">
+        <div className="bg-console-surface p-6 rounded-sm border ">
+          <h3 className="text-sm font-semibold text-console-muted uppercase tracking-wider mb-4">
             Subscription Tiers
           </h3>
           <div className="space-y-4">
@@ -168,28 +168,28 @@ const AdminFeaturesOverview = () => {
                   className="flex items-center justify-between"
                 >
                   <div>
-                    <p className="font-medium text-gray-900">{plan.name}</p>
-                    <p className="text-xs text-gray-500">
+                    <p className="font-medium text-console-text">{plan.name}</p>
+                    <p className="text-xs text-console-muted">
                       {plan.users} Active Users
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="font-bold text-gray-900">
+                    <p className="font-bold text-console-text">
                       {formatCurrency(plan.revenueCents)}/mo
                     </p>
                   </div>
                 </div>
               ))
             ) : (
-              <p className="text-gray-500 text-sm">
+              <p className="text-console-muted text-sm">
                 No subscription data available
               </p>
             )}
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-xl border shadow-sm">
-          <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wider mb-4">
+        <div className="bg-console-surface p-6 rounded-sm border ">
+          <h3 className="text-sm font-semibold text-console-muted uppercase tracking-wider mb-4">
             Add-ons & Premium Features
           </h3>
           <div className="space-y-4">
@@ -198,17 +198,17 @@ const AdminFeaturesOverview = () => {
                 const { icon: Icon, color } = getAddonIcon(addon.name);
                 return (
                   <div key={addon.name} className="flex items-center gap-4">
-                    <div className={`p-2 rounded-lg bg-gray-50 ${color}`}>
+                    <div className={`p-2 rounded-lg bg-console-surface ${color}`}>
                       <Icon className="w-5 h-5" />
                     </div>
                     <div className="flex-1">
-                      <p className="font-medium text-gray-900">{addon.name}</p>
-                      <p className="text-xs text-gray-500">
+                      <p className="font-medium text-console-text">{addon.name}</p>
+                      <p className="text-xs text-console-muted">
                         {addon.users} Subscriptions
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="font-bold text-gray-900">
+                      <p className="font-bold text-console-text">
                         {formatCurrency(addon.revenueCents)}
                       </p>
                     </div>
@@ -216,32 +216,32 @@ const AdminFeaturesOverview = () => {
                 );
               })
             ) : (
-              <p className="text-gray-500 text-sm">No addon data available</p>
+              <p className="text-console-muted text-sm">No addon data available</p>
             )}
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-xl border shadow-sm">
-          <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wider mb-4">
+        <div className="bg-console-surface p-6 rounded-sm border ">
+          <h3 className="text-sm font-semibold text-console-muted uppercase tracking-wider mb-4">
             System Usage
           </h3>
           <div className="space-y-6">
             {usageItems.map((item) => (
               <div key={item.name}>
                 <div className="flex justify-between items-center mb-1">
-                  <span className="text-sm font-medium text-gray-700">
+                  <span className="text-sm font-medium text-console-text">
                     {item.name}
                   </span>
                 </div>
                 <div className="flex items-end justify-between">
-                  <span className="text-2xl font-bold text-gray-900">
+                  <span className="text-2xl font-bold text-console-text">
                     {item.total}
                   </span>
                   <TrendingUp className="w-4 h-4 text-green-500 mb-1" />
                 </div>
-                <div className="w-full bg-gray-100 h-1.5 rounded-full mt-2">
+                <div className="w-full bg-console-surface-raised h-1.5 rounded-full mt-2">
                   <div
-                    className="bg-indigo-600 h-1.5 rounded-full"
+                    className="bg-accent-cyan h-1.5 rounded-full"
                     style={{ width: '65%' }}
                   />
                 </div>
