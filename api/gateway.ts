@@ -1950,6 +1950,34 @@ async function handleAiEmployees(
             summary = `billing_report | $${revenue.toFixed(2)} revenue, ${failed.length} failed, ${pastDueSubs.data.length} past-due`;
             break;
           }
+          case 'SalesDirector': {
+            const cadence = await runSalesOutreachCadence({
+              id: employee.id,
+              name: employee.name,
+              title: employee.title || employee.role,
+              systemPrompt:
+                employee.systemPrompt ||
+                'You are a Sales Director at BuildMyBot running an aggressive, professional cold-outreach and follow-up program.',
+            });
+            status = cadence.status;
+            output = cadence.output;
+            summary = cadence.summary;
+            break;
+          }
+          case 'Sales': {
+            const [byStage] = await Promise.all([
+              sbSelect('sales_prospects', 'stage', {}).catch(() => []),
+            ]);
+            const counts: Record<string, number> = {};
+            for (const p of byStage) counts[p.stage] = (counts[p.stage] || 0) + 1;
+            const summaryLine = Object.entries(counts)
+              .map(([stage, n]) => `${stage}: ${n}`)
+              .join(', ') || 'pipeline empty';
+            status = 'completed';
+            output = `Real check: pipeline rollup across ${byStage.length} prospect(s) — ${summaryLine}.`;
+            summary = `pipeline_rollup | ${summaryLine}`;
+            break;
+          }
           case 'Manager': {
             const recentLogs = await sbSelect('EmployeeLog', 'role,status', {
               order: 'createdAt.desc',
@@ -2403,6 +2431,223 @@ async function isDirectReportToPresident(
     /* best-effort */
   }
   return { vip: false, why: '' };
+}
+
+// =====================================================================
+// Sales outreach: training playbook + daily cold-outreach/follow-up cadence
+// =====================================================================
+const SALES_PLAYBOOK = `
+BUILDMYBOT SALES PLAYBOOK
+
+ICP (Ideal Customer Profile): small-to-mid-size businesses, agencies, and
+solo operators who field repetitive customer questions (support, sales,
+booking) by email/chat/phone and don't have engineering resources to build
+a custom AI solution themselves. Also: agencies/consultants who want to
+white-label BuildMyBot and resell it to their own clients (Partner Access).
+
+Value proposition: BuildMyBot lets anyone build and deploy a real AI agent
+(chatbot, email responder, booking assistant, etc.) for their business in
+minutes, no code required, and it actually takes real actions (not just a
+canned FAQ bot).
+
+Pricing (always current, do not deviate):
+- Free: $0
+- Starter: $29/mo
+- Professional: $99/mo
+- Enterprise: $499/mo
+- Partner Access: $499/mo, 50% revenue split on resold accounts
+- ALL paid plans: 17% off (~2 months free) when billed annually instead of monthly.
+- Reseller ladder for Partner Access: Bronze 0-49 accounts (20%), Silver
+  50-149 (30%), Gold 150-250 (40%), Platinum 251+ (50%).
+
+Common objections and how to handle them:
+- "We already have a chatbot" -> ask what it can't do today (escalate to a
+  human? take actions like booking or refunds? work over email too?) and
+  offer a live 10-minute demo built around their actual use case.
+- "Not sure AI is ready for this" -> offer a free-tier pilot with no risk,
+  point to the ability to review every response before it's final if wanted.
+- "Need to check budget" -> mention the annual discount, and that Starter is
+  $29/mo — cheaper than an hour of most people's time per month.
+- "Too expensive" -> ask what they're comparing it to; most alternatives
+  require a developer to build and maintain. Offer annual billing.
+Never invent features, discounts beyond list pricing, or specific ROI
+numbers you can't back up. Escalate: custom/enterprise contract terms,
+any discount request beyond list pricing, and any prospect explicitly
+asking for the president.
+
+Outreach cadence (executed automatically, do not skip steps):
+1. Cold intro (Day 0): short, specific, one clear ask (reply or book a demo).
+   Reference something plausible about their business type from the notes/
+   industry field if present. No generic mass-blast tone.
+2. Follow-up 1 (Day 3): different angle — lead with a concrete capability
+   (e.g. "can handle refunds and rebookings automatically") and the annual
+   discount if pricing wasn't mentioned yet. Short.
+3. Follow-up 2 (Day 7): social proof / concrete outcome framing ("teams like
+   yours use this to cut response time from hours to minutes"). Still short.
+4. Follow-up 3 (Day 14, final/"breakup"): polite, no pressure, leaves the
+   door open ("If now's not the right time, no worries — reply anytime and
+   I'll pick this back up."). This is the last automated touch.
+Every email is plain text, signed with your name and title, BuildMyBot.
+No markdown, no bullet lists in the email body unless it reads naturally as
+prose. Keep it under 120 words. Never use placeholder brackets like
+"[Company Name]" in the actual sent text — if a detail is missing, write
+around it naturally instead of leaving a blank.
+`;
+
+async function draftOutreachEmail(
+  employee: { name: string; title: string; systemPrompt: string },
+  prospect: {
+    company: string;
+    contact_name?: string | null;
+    industry?: string | null;
+    notes?: string | null;
+  },
+  touchNumber: 1 | 2 | 3 | 4,
+): Promise<{ subject: string; body: string }> {
+  if (!OPENAI_KEY) throw new Error('OPENAI_API_KEY not configured');
+
+  const touchLabel = {
+    1: 'Day 0 cold intro',
+    2: 'Day 3 follow-up (capability angle)',
+    3: 'Day 7 follow-up (social proof / outcome angle)',
+    4: 'Day 14 final follow-up (polite breakup, last automated touch)',
+  }[touchNumber];
+
+  const system = `${employee.systemPrompt}
+
+${SALES_PLAYBOOK}
+
+You are writing outreach touch ${touchNumber} of 4: ${touchLabel}.
+Respond ONLY with a JSON object: {"subject": "short email subject line", "body": "the full plain-text email body, signed with your name and title, BuildMyBot"}.`;
+
+  const userContent = `Prospect:
+Company: ${prospect.company}
+Contact: ${prospect.contact_name || '(name unknown — address generically, e.g. "Hi there")'}
+Industry: ${prospect.industry || '(unknown)'}
+Notes: ${prospect.notes || '(none)'}`;
+
+  const resp = await fetch(`${OPENAI_BASE}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${OPENAI_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: AI_EMPLOYEE_MODEL,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: userContent },
+      ],
+      temperature: 0.6,
+    }),
+  });
+  if (!resp.ok) {
+    const detail = await resp.text().catch(() => '');
+    throw new Error(`OpenAI error ${resp.status}: ${detail.slice(0, 200)}`);
+  }
+  const data = await resp.json();
+  const parsed = JSON.parse(data.choices[0].message.content);
+  return { subject: String(parsed.subject || 'Following up'), body: String(parsed.body || '') };
+}
+
+/** Runs the daily cold-outreach + follow-up cadence for one execution role
+ * (Jordan, Sales Director). Pulls prospects due for their next touch from
+ * `sales_prospects`, drafts a real personalized email per prospect via
+ * OpenAI, sends it through the shared sales@ mailbox, and advances each
+ * prospect's stage. Capped per day (SALES_DAILY_OUTREACH_CAP, default 15)
+ * to protect deliverability on a fresh sending domain. Never fabricates —
+ * if there are zero prospects due, it says so honestly instead of pretending
+ * to have sent anything. */
+async function runSalesOutreachCadence(employee: {
+  id: string;
+  name: string;
+  title: string;
+  systemPrompt: string;
+}): Promise<{ status: string; output: string; summary: string }> {
+  const cap = Number(process.env.SALES_DAILY_OUTREACH_CAP || 15);
+  const nowIso = new Date().toISOString();
+
+  const due = await sbSelect('sales_prospects', '*', {
+    stage: 'in.(new,followup_1,followup_2,followup_3)',
+    next_touch_at: `lte.${nowIso}`,
+    order: 'next_touch_at.asc',
+    limit: String(cap),
+  }).catch(() => []);
+
+  if (!due || due.length === 0) {
+    const totalInPipeline = await sbSelect('sales_prospects', 'id', {}).catch(() => []);
+    return {
+      status: 'completed',
+      output: `No prospects due for outreach today. ${totalInPipeline.length} total prospect(s) in the pipeline. Import a target list into sales_prospects to start the cadence.`,
+      summary: `sales_outreach | 0 sent, ${totalInPipeline.length} in pipeline`,
+    };
+  }
+
+  const stageProgression: Record<string, { next: string; days: number; touch: 1 | 2 | 3 | 4 }> = {
+    new: { next: 'followup_1', days: 3, touch: 1 },
+    followup_1: { next: 'followup_2', days: 4, touch: 2 },
+    followup_2: { next: 'followup_3', days: 7, touch: 3 },
+    followup_3: { next: 'nurture_paused', days: 0, touch: 4 },
+  };
+
+  let sent = 0;
+  let failed = 0;
+
+  for (const prospect of due) {
+    const prog = stageProgression[prospect.stage];
+    if (!prog) continue;
+    try {
+      const draft = await draftOutreachEmail(employee, prospect, prog.touch);
+      const result = await sendEmail({
+        from: 'sales@buildmybot.app',
+        fromName: `${employee.name}, ${employee.title}`,
+        to: prospect.email,
+        subject: draft.subject,
+        text: draft.body,
+      });
+
+      if (result.sent) {
+        sent++;
+        const nextTouchAt =
+          prog.days > 0
+            ? new Date(Date.now() + prog.days * 24 * 60 * 60 * 1000).toISOString()
+            : null;
+        await sbUpdate(
+          'sales_prospects',
+          {
+            stage: prog.next,
+            last_contacted_at: nowIso,
+            next_touch_at: nextTouchAt,
+            touches_sent: (prospect.touches_sent || 0) + 1,
+            updated_at: nowIso,
+          },
+          { id: `eq.${prospect.id}` },
+        ).catch(() => {});
+        await sbInsert('email_messages', {
+          employee_id: employee.id,
+          direction: 'outbound',
+          from_address: 'sales@buildmybot.app',
+          to_address: prospect.email,
+          subject: draft.subject,
+          body: draft.body,
+          status: 'replied',
+          provider_message_id: result.providerId || null,
+        }).catch(() => {});
+      } else {
+        failed++;
+      }
+    } catch (err) {
+      failed++;
+      console.error(`[sales_outreach] failed for ${prospect.email}:`, err);
+    }
+  }
+
+  return {
+    status: 'completed',
+    output: `Real send: ${sent} outreach email(s) sent (touch cadence advanced), ${failed} failed, out of ${due.length} due today (cap ${cap}/day).`,
+    summary: `sales_outreach | ${sent} sent, ${failed} failed, ${due.length} due`,
+  };
 }
 
 async function logEmployeeWork(entry: {
