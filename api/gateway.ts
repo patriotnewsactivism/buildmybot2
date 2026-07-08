@@ -519,22 +519,68 @@ async function handleAdmin(
     // instead of crashing, rather than fabricating numbers. Wiring real
     // invoices/refunds/payouts requires a real Stripe integration first.
     if (fsub === 'overview') {
+      // FinancialDashboard.tsx's `FinancialOverview` interface expects
+      // { mrrCents, arrCents, churnRate, activeCustomers, churnedCustomers }
+      // -- this used to return { mrr, arr, totalRevenue, ... } (different
+      // field names entirely), so `displayOverview.churnRate.toFixed(2)`
+      // read undefined and crashed, blanking the whole admin overview tab.
+      const orgs = await sbSelect('organizations', 'id,plan,is_active', {}).catch(
+        () => [],
+      );
+      const activeCustomers = orgs.filter((o: any) => o.is_active).length;
+      const mrr = orgs.reduce(
+        (sum: number, o: any) => sum + (PLAN_PRICES[o.plan] || 0),
+        0,
+      );
       res.json({
-        mrr: 0,
-        arr: 0,
-        totalRevenue: 0,
-        outstandingBalance: 0,
+        mrrCents: Math.round(mrr * 100),
+        arrCents: Math.round(mrr * 12 * 100),
+        churnRate: 0,
+        activeCustomers,
+        churnedCustomers: 0,
         wired: false,
-        message: 'No billing provider connected yet',
+        message: 'No billing provider connected yet -- churn/churned figures are not tracked until Stripe is wired up.',
       });
     } else if (fsub === 'invoices') {
       res.json([]);
     } else if (fsub === 'refunds') {
       res.json([]);
     } else if (fsub === 'stripe-health') {
-      res.json({ connected: false, message: 'Stripe is not connected' });
+      // FinancialDashboard.tsx reads `stripeHealth?.ok` -- include both keys
+      // for compatibility.
+      res.json({ ok: false, connected: false, message: 'Stripe is not connected' });
     } else if (fsub === 'features-usage') {
-      res.json([]);
+      // AdminFeaturesOverview.tsx expects { plans, addons, usage } -- this
+      // used to return a bare `[]`, so `stats.usage.totalConversations`
+      // crashed with "Cannot read properties of undefined" and blanked the
+      // whole admin overview tab (ComprehensiveAnalytics/AdminFeaturesOverview
+      // render unconditionally there, with no error boundary).
+      const [orgs, bots, leads, users, convs] = await Promise.all([
+        sbSelect('organizations', 'id,plan', {}).catch(() => []),
+        sbSelect('bots', 'id', {}).catch(() => []),
+        sbSelect('leads', 'id', {}).catch(() => []),
+        sbSelect('users', 'id', {}).catch(() => []),
+        sbSelect('conversations', 'id', {}).catch(() => []),
+      ]);
+      const planCounts: Record<string, number> = {};
+      for (const o of orgs as any[]) {
+        const p = o.plan || 'free';
+        planCounts[p] = (planCounts[p] || 0) + 1;
+      }
+      res.json({
+        plans: Object.entries(planCounts).map(([name, count]) => ({
+          name,
+          users: count,
+          revenueCents: (PLAN_PRICES[name] || 0) * count * 100,
+        })),
+        addons: [],
+        usage: {
+          totalConversations: convs.length,
+          totalLeads: leads.length,
+          totalBots: bots.length,
+          totalUsers: users.length,
+        },
+      });
     } else {
       res.status(404).json({ error: 'Not found' });
     }
@@ -1154,6 +1200,16 @@ async function handleClients(
       ? { organization_id: `eq.${user.organizationId}` }
       : {};
     res.json(await sbSelect('bots', '*', orgFilter).catch(() => []));
+  } else if (cid === 'leads') {
+    // dbService.getLeads() / subscribeToLeads() call GET /api/clients/leads
+    // expecting an array of leads -- same route-collision bug as "bots"
+    // above: this used to fall through to the client-by-id branch, treating
+    // "leads" as a client id, returning `{}` and crashing ClientOverview /
+    // any consumer that reads array-shaped fields off the result.
+    const orgFilter = user.organizationId
+      ? { organization_id: `eq.${user.organizationId}` }
+      : {};
+    res.json(await sbSelect('leads', '*', orgFilter).catch(() => []));
   } else if (cid === 'analytics' && pathParts[1] === 'dashboard') {
     // AdvancedAnalytics (currentView === 'analytics' in App.tsx) fetches
     // /clients/analytics/dashboard expecting {metrics, timeSeriesData, ...}.

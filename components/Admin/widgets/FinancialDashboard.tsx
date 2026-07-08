@@ -305,7 +305,7 @@ export const FinancialDashboard: React.FC = () => {
         <MetricCard
           icon={AlertTriangle}
           label="Churn Rate"
-          value={`${displayOverview.churnRate.toFixed(2)}%`}
+          value={`${(displayOverview.churnRate ?? 0).toFixed(2)}%`}
           status={
             displayOverview.churnRate > 10
               ? 'critical'

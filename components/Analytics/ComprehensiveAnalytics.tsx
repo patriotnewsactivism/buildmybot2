@@ -105,26 +105,86 @@ export const ComprehensiveAnalytics: React.FC<ComprehensiveAnalyticsProps> = ({
     useState<SatisfactionAnalytics | null>(null);
 
   useEffect(() => {
+    // NOTE: the backend currently returns simpler raw shapes for these
+    // endpoints (e.g. /trends returns a plain day-count array, not
+    // { weekOverWeek, dailyTrend, engagementPattern }) rather than the rich
+    // objects this component's interfaces declare. Normalizing every
+    // response into safe, fully-populated defaults here means a shape
+    // mismatch can never throw mid-render and blank the whole admin page --
+    // it was previously possible to hit "Cannot read properties of
+    // undefined (reading 'toFixed')" this way.
+    const safeConversationData = (raw: any): ConversationAnalytics => ({
+      totalConversations: raw?.totalConversations ?? 0,
+      avgDuration: raw?.avgDuration ?? 0,
+      completionRate: raw?.completionRate ?? 0,
+      activeHours: Array.isArray(raw?.activeHours) ? raw.activeHours : [],
+      peakHour: raw?.peakHour ?? 0,
+    });
+    const safeLeadData = (raw: any): LeadAnalytics => ({
+      leadsPerBot: Array.isArray(raw?.leadsPerBot) ? raw.leadsPerBot : [],
+      conversionFunnel: {
+        conversationsStarted: raw?.conversionFunnel?.conversationsStarted ?? 0,
+        conversationsCompleted:
+          raw?.conversionFunnel?.conversationsCompleted ?? 0,
+        leadsGenerated: raw?.conversionFunnel?.leadsGenerated ?? 0,
+      },
+      qualityScores: {
+        excellent: raw?.qualityScores?.excellent ?? 0,
+        good: raw?.qualityScores?.good ?? 0,
+        average: raw?.qualityScores?.average ?? 0,
+        poor: raw?.qualityScores?.poor ?? 0,
+      },
+      sources: Array.isArray(raw?.sources) ? raw.sources : [],
+    });
+    const zeroTrend = { current: 0, previous: 0, change: 0 };
+    const safeTrendsData = (raw: any): PerformanceTrends => ({
+      weekOverWeek: {
+        conversations: raw?.weekOverWeek?.conversations ?? zeroTrend,
+        leads: raw?.weekOverWeek?.leads ?? zeroTrend,
+        conversionRate: raw?.weekOverWeek?.conversionRate ?? zeroTrend,
+      },
+      dailyTrend: Array.isArray(raw?.dailyTrend) ? raw.dailyTrend : [],
+      engagementPattern: Array.isArray(raw?.engagementPattern)
+        ? raw.engagementPattern
+        : [],
+    });
+    const safeSatisfactionData = (raw: any): SatisfactionAnalytics => ({
+      sentimentBreakdown: {
+        positive: raw?.sentimentBreakdown?.positive ?? 0,
+        neutral: raw?.sentimentBreakdown?.neutral ?? 0,
+        negative: raw?.sentimentBreakdown?.negative ?? 0,
+      },
+      averageRating: raw?.averageRating ?? 0,
+      totalRatings: raw?.totalRatings ?? 0,
+      topComplaints: Array.isArray(raw?.topComplaints) ? raw.topComplaints : [],
+      commonQuestions: Array.isArray(raw?.commonQuestions)
+        ? raw.commonQuestions
+        : [],
+      escalationRate: raw?.escalationRate ?? 0,
+    });
+
     const fetchAnalytics = async () => {
       setLoading(true);
       try {
         const [conversations, leads, trends, satisfaction] = await Promise.all([
-          fetch(`/api/analytics/conversations/${organizationId}`).then((r) =>
-            r.json(),
-          ),
-          fetch(`/api/analytics/leads/${organizationId}`).then((r) => r.json()),
-          fetch(`/api/analytics/trends/${organizationId}?days=30`).then((r) =>
-            r.json(),
-          ),
-          fetch(`/api/analytics/satisfaction/${organizationId}`).then((r) =>
-            r.json(),
-          ),
+          fetch(`/api/analytics/conversations/${organizationId}`)
+            .then((r) => (r.ok ? r.json() : null))
+            .catch(() => null),
+          fetch(`/api/analytics/leads/${organizationId}`)
+            .then((r) => (r.ok ? r.json() : null))
+            .catch(() => null),
+          fetch(`/api/analytics/trends/${organizationId}?days=30`)
+            .then((r) => (r.ok ? r.json() : null))
+            .catch(() => null),
+          fetch(`/api/analytics/satisfaction/${organizationId}`)
+            .then((r) => (r.ok ? r.json() : null))
+            .catch(() => null),
         ]);
 
-        setConversationData(conversations);
-        setLeadData(leads);
-        setTrendsData(trends);
-        setSatisfactionData(satisfaction);
+        setConversationData(safeConversationData(conversations));
+        setLeadData(safeLeadData(leads));
+        setTrendsData(safeTrendsData(trends));
+        setSatisfactionData(safeSatisfactionData(satisfaction));
       } catch (error) {
         console.error('Error fetching analytics:', error);
       } finally {

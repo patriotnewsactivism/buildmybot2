@@ -125,14 +125,23 @@ const AdminFeaturesOverview = () => {
     );
   }
 
-  const usageItems = stats
+  // Defensive: guard against stats.usage being missing/malformed (e.g. an
+  // API shape mismatch) so this can never throw "Cannot read properties of
+  // undefined" and blank the whole admin overview tab again.
+  const usageItems = stats?.usage
     ? [
         {
           name: 'Total Conversations',
-          total: formatNumber(stats.usage.totalConversations),
+          total: formatNumber(stats.usage.totalConversations ?? 0),
         },
-        { name: 'Total Leads', total: formatNumber(stats.usage.totalLeads) },
-        { name: 'Active Bots', total: formatNumber(stats.usage.totalBots) },
+        {
+          name: 'Total Leads',
+          total: formatNumber(stats.usage.totalLeads ?? 0),
+        },
+        {
+          name: 'Active Bots',
+          total: formatNumber(stats.usage.totalBots ?? 0),
+        },
       ]
     : [];
 
