@@ -173,11 +173,10 @@ export const AdminDashboardV2: React.FC<AdminDashboardV2Props> = ({
     <div className="relative min-h-screen overflow-x-hidden bg-console-bg font-mono text-console-text">
       {/* ambient background: subtle radial glow + faint technical grid */}
       <div className="pointer-events-none fixed inset-0 bg-console-radial" />
-      <div className="pointer-events-none fixed inset-0 bg-grid-pattern bg-grid opacity-40 [mask-image:radial-gradient(ellipse_70%_60%_at_50%_0%,black,transparent)]" />
 
       <div className="relative p-4 lg:p-6">
         {/* Top Status Bar */}
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-console-border bg-console-surface-glass px-4 py-2.5 shadow-panel backdrop-blur-md">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-console-border bg-console-surface px-4 py-2.5">
           <div className="flex items-center gap-4">
             <StatusDot status={systemStatus} label={`SYSTEM: ${systemStatus.toUpperCase()}`} />
             <span className="hidden text-console-border sm:inline">|</span>
@@ -197,7 +196,7 @@ export const AdminDashboardV2: React.FC<AdminDashboardV2Props> = ({
 
         <div className="mb-5 mt-5 flex items-center justify-between">
           <div>
-            <h1 className="bg-gradient-to-r from-console-text to-console-muted bg-clip-text text-xl font-bold tracking-tight text-transparent">
+            <h1 className="text-lg font-semibold tracking-tight text-console-text">
               ADMIN_DASHBOARD<span className="text-accent-cyan">.v2</span>
             </h1>
             <p className="mt-1 font-mono text-[11px] text-console-muted">
@@ -210,9 +209,9 @@ export const AdminDashboardV2: React.FC<AdminDashboardV2Props> = ({
                 type="button"
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-xs uppercase tracking-wide transition-all ${
+                className={`flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-xs uppercase tracking-wide transition-colors ${
                   activeTab === tab.id
-                    ? 'bg-accent-cyan/10 text-accent-cyan shadow-glow-cyan'
+                    ? 'bg-accent-cyan/10 text-accent-cyan'
                     : 'text-console-muted hover:bg-console-surface-raised hover:text-console-text'
                 }`}
               >

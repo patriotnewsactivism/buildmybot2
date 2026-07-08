@@ -14,7 +14,7 @@ export const Panel: React.FC<{
 }> = ({ title, eyebrow, right, className = '', bodyClassName = '', children }) => {
   return (
     <div
-      className={`relative overflow-hidden rounded-lg border border-console-border bg-console-surface bg-panel-sheen shadow-panel ${className}`}
+      className={`relative overflow-hidden rounded-md border border-console-border bg-console-surface ${className}`}
     >
       {(title || right) && (
         <div className="relative flex items-center justify-between border-b border-console-border/80 px-4 py-3">

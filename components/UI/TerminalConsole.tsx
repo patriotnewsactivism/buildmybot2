@@ -45,8 +45,8 @@ export const TerminalConsole: React.FC<{
 
   return (
     <div
-      className={`overflow-hidden rounded-lg border bg-console-bg bg-panel-sheen transition-shadow duration-200 ${
-        focused ? 'border-accent-cyan/40 shadow-glow-cyan' : 'border-console-border'
+      className={`overflow-hidden rounded-md border bg-console-bg transition-colors duration-150 ${
+        focused ? 'border-accent-cyan/40' : 'border-console-border'
       } ${className}`}
     >
       <div className="flex items-center gap-2 border-b border-console-border px-4 py-2.5">
@@ -56,7 +56,7 @@ export const TerminalConsole: React.FC<{
         <span className="ml-2 font-mono text-[10px] uppercase tracking-[0.15em] text-console-muted">
           system terminal
         </span>
-        <span className="ml-auto h-1.5 w-1.5 animate-breathe rounded-full bg-accent-cyan shadow-[0_0_8px_rgba(45,226,230,0.7)]" />
+        <span className="ml-auto h-1.5 w-1.5 rounded-full bg-accent-cyan/70" />
       </div>
       <div
         ref={scrollRef}
