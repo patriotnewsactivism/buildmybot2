@@ -84,6 +84,7 @@
     "jsdom": "^23.2.0",
     "lovable": "^0.0.0",
     "lucide-react": "^0.344.0",
+    "mailparser": "^3.7.2",
     "mammoth": "^1.11.0",
     "memoizee": "^0.4.17",
     "multer": "^2.0.2",

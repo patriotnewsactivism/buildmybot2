@@ -2440,20 +2440,48 @@ async function handleEmailInbound(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: 'Invalid webhook secret' });
   }
 
-  const body = parseBody(req) || {};
-  const to = String(
-    body.to || body.recipient || body.To || body.OriginalRecipient || '',
-  ).toLowerCase();
-  const from = String(body.from || body.sender || body.From || '');
-  const subject = String(body.subject || body.Subject || '(no subject)');
-  const text = String(
-    body.text ||
-      body['body-plain'] ||
-      body['stripped-text'] ||
-      body.TextBody ||
-      body.body ||
-      '',
-  );
+  // Our own cPanel mail filters pipe the raw RFC822 message straight through
+  // curl (Content-Type: message/rfc822) rather than pre-parsing it -- no
+  // reliance on whatever scripting interpreters happen to be installed on
+  // the mail server. Parse it here with mailparser. Third-party inbound-parse
+  // services (Mailgun/Postmark/SendGrid) still work via the pre-parsed JSON
+  // branch below.
+  const contentType = String(req.headers['content-type'] || '').toLowerCase();
+  let to = '';
+  let from = '';
+  let subject = '(no subject)';
+  let text = '';
+
+  if (contentType.includes('rfc822') || contentType.includes('octet-stream')) {
+    const raw: Buffer = Buffer.isBuffer(req.body)
+      ? req.body
+      : Buffer.from(String(req.body || ''), 'utf-8');
+    const { simpleParser } = await import('mailparser');
+    const parsed = await simpleParser(raw);
+    to = String(
+      parsed.to?.value?.[0]?.address ||
+        parsed.headers.get('delivered-to') ||
+        '',
+    ).toLowerCase();
+    from = String(parsed.from?.value?.[0]?.address || parsed.from?.text || '');
+    subject = String(parsed.subject || '(no subject)');
+    text = String(parsed.text || parsed.html || '').slice(0, 50000);
+  } else {
+    const body = parseBody(req) || {};
+    to = String(
+      body.to || body.recipient || body.To || body.OriginalRecipient || '',
+    ).toLowerCase();
+    from = String(body.from || body.sender || body.From || '');
+    subject = String(body.subject || body.Subject || '(no subject)');
+    text = String(
+      body.text ||
+        body['body-plain'] ||
+        body['stripped-text'] ||
+        body.TextBody ||
+        body.body ||
+        '',
+    );
+  }
 
   if (!to || !from)
     return res.status(400).json({ error: 'to and from are required' });
