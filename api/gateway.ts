@@ -2252,6 +2252,7 @@ async function sendEmail(opts: {
   subject: string;
   text: string;
   replyTo?: string;
+  scheduledAt?: string; // ISO timestamp — Resend holds and sends it later
 }): Promise<{ sent: boolean; providerId?: string; reason?: string }> {
   const fromHeader = opts.fromName
     ? `${opts.fromName} <${opts.from}>`
@@ -2270,6 +2271,7 @@ async function sendEmail(opts: {
         subject: opts.subject,
         text: opts.text,
         reply_to: opts.replyTo,
+        ...(opts.scheduledAt ? { scheduled_at: opts.scheduledAt } : {}),
       }),
     });
     if (!resp.ok) {
@@ -2345,7 +2347,14 @@ async function draftEmployeeReply(
 
   const system = `${employee.systemPrompt}
 
-You are handling an inbound email. Respond ONLY with a JSON object:
+You are handling an inbound email. When you mention pricing, plans, the free plan, or a free trial, or getting started, include the relevant link on its own line so the customer can click through:
+- Plans & pricing: https://buildmybot.app/pricing
+- Start free / sign up: https://buildmybot.app/?auth=signup
+- Book a demo: https://buildmybot.app/demo
+- Partner / reseller program: https://buildmybot.app/partner-program
+Only include a link when it's actually relevant to what you're telling them — don't append all of them by default.
+
+Respond ONLY with a JSON object:
 {
   "reply": "the full email body you will send back (plain text, sign as ${employee.name}, ${employee.title}, BuildMyBot)",
   "escalate": true or false — true if this needs the president's attention,
@@ -2917,12 +2926,20 @@ async function handleEmailInbound(req: VercelRequest, res: VercelResponse) {
       .json({ error: 'Could not draft a reply', handled: false });
   }
 
+  // Human-like delay: an instant auto-reply is a dead giveaway it's
+  // automated, so hold the send for 3-15 minutes. Resend natively supports
+  // scheduled delivery (scheduled_at) — it holds and sends the email itself
+  // at the right time, no polling/cron needed on our side.
+  const delaySeconds = 180 + Math.floor(Math.random() * (900 - 180));
+  const scheduledSendAt = new Date(Date.now() + delaySeconds * 1000).toISOString();
+
   const send = await sendEmail({
     from: employee.email,
     fromName: `${employee.name} (BuildMyBot)`,
     to: from,
     subject: subject.startsWith('Re:') ? subject : `Re: ${subject}`,
     text: decision.reply,
+    scheduledAt: scheduledSendAt,
   });
 
   try {
@@ -2935,10 +2952,11 @@ async function handleEmailInbound(req: VercelRequest, res: VercelResponse) {
       body: decision.reply,
       in_reply_to: inboundId || null,
       status: send.sent
-        ? 'replied'
+        ? 'scheduled'
         : send.reason === 'no_transport'
           ? 'no_transport'
           : 'send_failed',
+      scheduled_send_at: send.sent ? scheduledSendAt : null,
       provider_message_id: send.providerId || null,
     });
   } catch {
@@ -2948,7 +2966,7 @@ async function handleEmailInbound(req: VercelRequest, res: VercelResponse) {
     try {
       await sbUpdate(
         'email_messages',
-        { status: send.sent ? 'replied' : 'send_failed' },
+        { status: send.sent ? 'reply_scheduled' : 'send_failed' },
         { id: `eq.${inboundId}` },
       );
     } catch {
@@ -2980,7 +2998,7 @@ async function handleEmailInbound(req: VercelRequest, res: VercelResponse) {
       to: PRESIDENT_EMAIL,
       replyTo: from,
       subject: `[Escalation — ${decision.priority}] ${subject}`,
-      text: `Escalated by: ${employee.name} (${employee.title})\nFrom: ${from}\nReason: ${decision.escalationReason}\n\n--- Original message ---\n${text}\n\n--- Reply already sent ---\n${decision.reply}`,
+      text: `Escalated by: ${employee.name} (${employee.title})\nFrom: ${from}\nReason: ${decision.escalationReason}\n\n--- Original message ---\n${text}\n\n--- Reply already drafted (queued for ${scheduledSendAt}) ---\n${decision.reply}`,
     });
   }
 
@@ -3009,8 +3027,8 @@ async function handleEmailInbound(req: VercelRequest, res: VercelResponse) {
     taskType: 'email_reply',
     status: send.sent ? 'completed' : 'failed',
     output: send.sent
-      ? `Replied to ${from}. Escalated: ${escalated}.`
-      : `Drafted a reply to ${from} but sending failed (${send.reason}). Escalated: ${escalated}.`,
+      ? `Drafted a reply to ${from}, queued via Resend for ${scheduledSendAt}. Escalated: ${escalated}.`
+      : `Drafted a reply to ${from} but failed to queue it (${send.reason}). Escalated: ${escalated}.`,
     summary: `email_reply | ${subject}`,
     metadata: {
       escalated,
@@ -3021,7 +3039,8 @@ async function handleEmailInbound(req: VercelRequest, res: VercelResponse) {
 
   return res.json({
     handled: true,
-    replySent: send.sent,
+    replyScheduled: send.sent,
+    scheduledSendAt: send.sent ? scheduledSendAt : null,
     sendReason: send.reason,
     escalated,
     notified: decision.notify,
