@@ -49,3 +49,6 @@ const logger = winston.createLogger({
 });
 
 export default logger;
+
+// Named export — most services import { logger } rather than the default.
+export { logger };

@@ -193,3 +193,6 @@ export function requirePermission(permission: string): RequestHandler {
     res.status(403).json({ error: `Permission denied: ${permission}` });
   };
 }
+
+// Legacy alias — analytics routes were written against this name.
+export const authenticateToken = authenticate;

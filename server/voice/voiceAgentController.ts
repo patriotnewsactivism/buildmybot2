@@ -18,7 +18,11 @@ export class VoiceAgentController {
     private readonly manager: VoiceAgentManager,
     openaiClient?: OpenAI,
   ) {
-    this.openai = openaiClient || new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    // Don't crash the whole server at import time when OPENAI_API_KEY is
+    // absent — voice calls will fail with a clear error instead.
+    this.openai =
+      openaiClient ||
+      new OpenAI({ apiKey: process.env.OPENAI_API_KEY || 'missing-openai-api-key' });
   }
 
   /**

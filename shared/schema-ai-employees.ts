@@ -70,3 +70,6 @@ export const aiEmployeeLogsRelations = relations(aiEmployeeLogs, ({ one }) => ({
     references: [aiEmployees.id],
   }),
 }));
+
+// Re-exports for services that import platform tables from this module.
+export { bots, users, leads, supportTickets } from './schema';

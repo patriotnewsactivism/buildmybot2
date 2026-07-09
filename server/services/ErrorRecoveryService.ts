@@ -23,7 +23,7 @@ interface FailurePatternDefinition {
   undo?: (log: RepairLog) => Promise<boolean>; // Optional undo function for the fix
 }
 
-class ErrorRecoveryService {
+export class ErrorRecoveryService {
   private failurePatterns: Map<FailurePattern, FailurePatternDefinition> = new Map();
 
   constructor() {

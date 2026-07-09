@@ -142,3 +142,4 @@ router.post('/sms/twilio', async (req, res) => {
 });
 
 export { router as twilioWebhooksRouter };
+export default router;
