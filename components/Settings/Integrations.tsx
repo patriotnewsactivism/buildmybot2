@@ -143,6 +143,7 @@ export const Integrations: React.FC = () => {
 
             {isConnected(provider.id) ? (
               <button
+                type="button"
                 onClick={() => handleDisconnect(provider.id)}
                 className="px-4 py-2 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 text-sm font-medium flex items-center gap-2"
               >
@@ -150,6 +151,7 @@ export const Integrations: React.FC = () => {
               </button>
             ) : (
               <button
+                type="button"
                 onClick={() => {
                   setSelectedProvider(provider.id);
                   setShowModal(true);
@@ -186,12 +188,14 @@ export const Integrations: React.FC = () => {
 
               <div className="flex gap-2 justify-end mt-6">
                 <button
+                  type="button"
                   onClick={() => setShowModal(false)}
                   className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium"
                 >
                   Cancel
                 </button>
                 <button
+                  type="button"
                   onClick={handleConnect}
                   disabled={!apiKey || connecting}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50 flex items-center gap-2"

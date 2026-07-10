@@ -171,6 +171,7 @@ export const HelpCenter: React.FC = () => {
               We are working hard to complete this documentation.
             </p>
             <button
+              type="button"
               onClick={() => setSelectedArticle(null)}
               className="mt-6 text-blue-600 font-bold flex items-center gap-2 mx-auto"
             >
@@ -213,6 +214,7 @@ export const HelpCenter: React.FC = () => {
         {selectedArticle ? (
           <div>
             <button
+              type="button"
               onClick={() => setSelectedArticle(null)}
               className="mb-8 text-slate-600 hover:text-blue-600 font-medium flex items-center gap-2 transition-colors"
             >
@@ -244,6 +246,7 @@ export const HelpCenter: React.FC = () => {
                 <div className="space-y-3">
                   {cat.articles.map((art) => (
                     <button
+                      type="button"
                       key={art.id}
                       onClick={() => setSelectedArticle(art.id)}
                       className="w-full flex items-center justify-between p-4 rounded-xl hover:bg-slate-50 transition-colors text-left border border-transparent hover:border-slate-200"
@@ -283,7 +286,10 @@ export const HelpCenter: React.FC = () => {
               <MessageSquare size={18} />
               Open a Ticket
             </a>
-            <button className="bg-blue-700 text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-800 transition-all flex items-center gap-2">
+            <button
+              type="button"
+              className="bg-blue-700 text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-800 transition-all flex items-center gap-2"
+            >
               <PlayCircle size={18} />
               Watch Video Tutorials
             </button>

@@ -94,6 +94,7 @@ const DeploymentStatus: React.FC<DeploymentStatusProps> = ({
                   {/* Example of one-click fixes - these would trigger specific actions */}
                   {error.includes('knowledge base processing') && (
                     <button
+                      type="button"
                       onClick={() =>
                         alert('Fixing knowledge base processing...')
                       }
@@ -105,6 +106,7 @@ const DeploymentStatus: React.FC<DeploymentStatusProps> = ({
                   )}
                   {error.includes('embed script conflict') && (
                     <button
+                      type="button"
                       onClick={() =>
                         alert('Checking embed script configuration...')
                       }
@@ -122,6 +124,7 @@ const DeploymentStatus: React.FC<DeploymentStatusProps> = ({
       </div>
       {status === 'error' && onRetry && (
         <button
+          type="button"
           onClick={onRetry}
           className="ml-auto px-4 py-2 bg-electric-violet text-white rounded-md hover:bg-purple-700 transition-colors duration-200 text-sm flex items-center space-x-1"
         >

@@ -101,6 +101,7 @@ export const UnifiedSearch: React.FC<UnifiedSearchProps> = ({
             <Loader className="animate-spin text-slate-400" size={18} />
           )}
           <button
+            type="button"
             onClick={onClose}
             className="p-1 hover:bg-slate-100 rounded text-slate-400"
           >
@@ -126,6 +127,7 @@ export const UnifiedSearch: React.FC<UnifiedSearchProps> = ({
                   <div className="space-y-1">
                     {results.bots.map((bot: any) => (
                       <button
+                        type="button"
                         key={bot.id}
                         onClick={() => handleNavigate(`/app/bots/${bot.id}`)}
                         className="w-full flex items-center gap-3 p-2 hover:bg-blue-50 rounded-lg group text-left"
@@ -160,6 +162,7 @@ export const UnifiedSearch: React.FC<UnifiedSearchProps> = ({
                   <div className="space-y-1">
                     {results.leads.map((lead: any) => (
                       <button
+                        type="button"
                         key={lead.id}
                         onClick={() =>
                           handleNavigate(`/app/leads?id=${lead.id}`)
@@ -192,6 +195,7 @@ export const UnifiedSearch: React.FC<UnifiedSearchProps> = ({
                   <div className="space-y-1">
                     {results.knowledge.map((chunk: any) => (
                       <button
+                        type="button"
                         key={chunk.id}
                         onClick={() =>
                           handleNavigate(`/app/bots/${chunk.botId}/knowledge`)

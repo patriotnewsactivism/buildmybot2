@@ -16,6 +16,7 @@ export class LLMProvider {
    * @returns {AsyncIterable<string>} Streaming text chunks.
    */
   async *streamComplete(messages, options) {
+    yield ''; // Ensure generator yields before throwing
     throw new Error("Method 'streamComplete' must be implemented.");
   }
 }

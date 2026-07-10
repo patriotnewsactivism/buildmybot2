@@ -246,6 +246,7 @@ const ConfigValidator: React.FC<ConfigValidatorProps> = ({
             )}
             {result.fixAction && (
               <button
+                type="button"
                 onClick={() => {
                   result.fixAction?.();
                   onFixAttempt?.(result.field, result.suggestion || '');

@@ -68,7 +68,7 @@ export const TerminalConsole: React.FC<{
         className="max-h-48 overflow-y-auto px-3 py-3 font-mono text-[12px] leading-relaxed sm:max-h-56 sm:px-4"
       >
         {lines.length === 0 && (
-          <div className="text-console-muted">// no activity yet</div>
+          <div className="text-console-muted">{/* no activity yet */}</div>
         )}
         {lines.map((l, i) => (
           <div key={i} className="flex gap-3">

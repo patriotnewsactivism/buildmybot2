@@ -142,23 +142,22 @@ export const WebhookDesigner: React.FC<WebhookDesignerProps> = ({
 
     setSaving(true);
     try {
-      const headersObj = form.headers.reduce(
-        (acc, { key, value }) => ({ ...acc, [key]: value }),
-        {},
-      );
+      const headersObj: Record<string, string> = {};
+      for (const { key, value } of form.headers) {
+        headersObj[key] = value;
+      }
 
+      const properties: Record<string, { type: string; description: string }> =
+        {};
+      for (const param of form.parameters) {
+        properties[param.name] = {
+          type: param.type,
+          description: param.description,
+        };
+      }
       const functionSchema = {
         type: 'object',
-        properties: form.parameters.reduce(
-          (acc, param) => ({
-            ...acc,
-            [param.name]: {
-              type: param.type,
-              description: param.description,
-            },
-          }),
-          {},
-        ),
+        properties,
         required: form.parameters.filter((p) => p.required).map((p) => p.name),
       };
 

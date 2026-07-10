@@ -225,6 +225,7 @@ export const VoiceAgentConfigComponent: React.FC<VoiceAgentConfigProps> = ({
           </p>
         </div>
         <button
+          type="button"
           onClick={handleSave}
           disabled={saving}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
@@ -274,6 +275,7 @@ export const VoiceAgentConfigComponent: React.FC<VoiceAgentConfigProps> = ({
             </div>
           </div>
           <button
+            type="button"
             onClick={handleToggle}
             disabled={saving}
             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
@@ -311,6 +313,7 @@ export const VoiceAgentConfigComponent: React.FC<VoiceAgentConfigProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {VOICE_OPTIONS.map((voice) => (
                 <button
+                  type="button"
                   key={voice.id}
                   onClick={() => setConfig({ ...config, voiceId: voice.id })}
                   className={`text-left p-3 rounded-md border-2 transition-all ${
@@ -355,6 +358,7 @@ export const VoiceAgentConfigComponent: React.FC<VoiceAgentConfigProps> = ({
                 Transfer to Human Agent
               </h4>
               <button
+                type="button"
                 onClick={() =>
                   setConfig({
                     ...config,
@@ -428,6 +432,7 @@ export const VoiceAgentConfigComponent: React.FC<VoiceAgentConfigProps> = ({
                 </p>
               </div>
               <button
+                type="button"
                 onClick={() =>
                   setConfig({
                     ...config,
@@ -464,6 +469,7 @@ export const VoiceAgentConfigComponent: React.FC<VoiceAgentConfigProps> = ({
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 {VOICE_PLANS.map((plan) => (
                   <button
+                    type="button"
                     key={plan.id}
                     onClick={() =>
                       setConfig({

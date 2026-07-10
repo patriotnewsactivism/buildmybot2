@@ -170,6 +170,7 @@ export const AITeamDashboard: React.FC<{ user: any }> = ({ user }) => {
           </p>
         </div>
         <button
+          type="button"
           onClick={runShift}
           disabled={runningShift}
           className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
@@ -236,6 +237,7 @@ export const AITeamDashboard: React.FC<{ user: any }> = ({ user }) => {
             <div className="flex flex-wrap gap-2">
               {emp.id === 'sam-support' && (
                 <button
+                  type="button"
                   onClick={() => triggerTask(emp.id, 'support_triage')}
                   disabled={runningTask === `${emp.id}-support_triage`}
                   className="text-xs px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center gap-1 disabled:opacity-50"
@@ -250,6 +252,7 @@ export const AITeamDashboard: React.FC<{ user: any }> = ({ user }) => {
               )}
               {emp.id === 'eli-engineering' && (
                 <button
+                  type="button"
                   onClick={() => triggerTask(emp.id, 'health_check')}
                   disabled={runningTask === `${emp.id}-health_check`}
                   className="text-xs px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center gap-1 disabled:opacity-50"
@@ -264,6 +267,7 @@ export const AITeamDashboard: React.FC<{ user: any }> = ({ user }) => {
               )}
               {emp.id === 'maya-marketing' && (
                 <button
+                  type="button"
                   onClick={() => triggerTask(emp.id, 'content_creation')}
                   disabled={runningTask === `${emp.id}-content_creation`}
                   className="text-xs px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center gap-1 disabled:opacity-50"
@@ -278,6 +282,7 @@ export const AITeamDashboard: React.FC<{ user: any }> = ({ user }) => {
               )}
               {emp.id === 'oscar-operations' && (
                 <button
+                  type="button"
                   onClick={() => triggerTask(emp.id, 'daily_standup')}
                   disabled={runningTask === `${emp.id}-daily_standup`}
                   className="text-xs px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center gap-1 disabled:opacity-50"
@@ -292,6 +297,7 @@ export const AITeamDashboard: React.FC<{ user: any }> = ({ user }) => {
               )}
               {emp.id === 'piper-product' && (
                 <button
+                  type="button"
                   onClick={() => triggerTask(emp.id, 'product_analysis')}
                   disabled={runningTask === `${emp.id}-product_analysis`}
                   className="text-xs px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center gap-1 disabled:opacity-50"
@@ -345,6 +351,7 @@ export const AITeamDashboard: React.FC<{ user: any }> = ({ user }) => {
             Activity Log
           </h3>
           <button
+            type="button"
             onClick={fetchData}
             className="text-gray-400 hover:text-gray-600"
           >

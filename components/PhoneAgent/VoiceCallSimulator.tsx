@@ -160,6 +160,7 @@ export const VoiceCallSimulator: React.FC<VoiceCallSimulatorProps> = ({
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center animate-fade-in">
       <div className="bg-slate-800 text-white p-8 rounded-2xl shadow-2xl w-full max-w-md relative">
         <button
+          type="button"
           onClick={onClose}
           className="absolute top-4 right-4 text-slate-400 hover:text-white"
         >
@@ -188,6 +189,7 @@ export const VoiceCallSimulator: React.FC<VoiceCallSimulatorProps> = ({
 
           {!isCallActive ? (
             <button
+              type="button"
               onClick={startCall}
               disabled={!isConnected}
               className="w-full px-6 py-4 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700 transition flex items-center justify-center gap-2 disabled:opacity-50"
@@ -201,6 +203,7 @@ export const VoiceCallSimulator: React.FC<VoiceCallSimulatorProps> = ({
             </button>
           ) : (
             <button
+              type="button"
               onClick={endCall}
               className="w-full px-6 py-4 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 transition flex items-center justify-center gap-2"
             >

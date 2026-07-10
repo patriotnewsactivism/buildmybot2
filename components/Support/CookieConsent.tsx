@@ -39,6 +39,7 @@ export const CookieConsent: React.FC = () => {
             </div>
             <h3 className="font-bold text-lg">Privacy Matters</h3>
             <button
+              type="button"
               onClick={() => setIsVisible(false)}
               className="ml-auto p-1 hover:bg-slate-800 rounded-lg transition-colors text-slate-400"
             >
@@ -61,6 +62,7 @@ export const CookieConsent: React.FC = () => {
 
           <div className="flex flex-col sm:flex-row gap-3">
             <button
+              type="button"
               onClick={handleAccept}
               className="flex-1 bg-white text-slate-900 font-bold py-2.5 rounded-xl hover:bg-slate-100 transition-all flex items-center justify-center gap-2"
             >
@@ -68,6 +70,7 @@ export const CookieConsent: React.FC = () => {
               Accept All
             </button>
             <button
+              type="button"
               onClick={handleDecline}
               className="flex-1 bg-slate-800 text-white font-bold py-2.5 rounded-xl hover:bg-slate-750 transition-all border border-slate-700"
             >
