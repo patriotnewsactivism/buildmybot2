@@ -193,30 +193,34 @@ export const LandingPage: React.FC<LandingProps> = ({
     setIsVoiceActive(true);
 
     try {
-      // Use browser SpeechSynthesis for instant voice demo
-      const utterance = new SpeechSynthesisUtterance(
-        "Hi there! I'm your AI receptionist from BuildMyBot. I can answer questions, book appointments, and capture leads — all without missing a beat. How can I help you today?",
-      );
+      // Call OpenAI TTS via our own API for a natural, high-quality voice
+      const response = await fetch('/api/voice/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: "Hello! This is Sarah from Riverside Dental. I see you're calling about scheduling an appointment. I'd love to help you find a time that works. Are you looking for a general checkup, or is there something specific I can help with today?",
+          voice: 'shimmer',
+        }),
+      });
 
-      // Try to use a natural-sounding voice
-      const voices = window.speechSynthesis.getVoices();
-      const preferred = voices.find(
-        (v) =>
-          v.name.includes('Samantha') ||
-          v.name.includes('Google') ||
-          v.name.includes('Natural') ||
-          v.lang === 'en-US',
-      );
-      if (preferred) utterance.voice = preferred;
-      utterance.rate = 1.0;
-      utterance.pitch = 1.0;
+      if (!response.ok) throw new Error('Voice preview unavailable');
 
-      utterance.onend = () => setIsVoiceActive(false);
-      utterance.onerror = () => setIsVoiceActive(false);
+      const audioBlob = await response.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioUrl);
 
-      window.speechSynthesis.speak(utterance);
+      audio.onended = () => {
+        setIsVoiceActive(false);
+        URL.revokeObjectURL(audioUrl);
+      };
+      audio.onerror = () => {
+        setIsVoiceActive(false);
+        URL.revokeObjectURL(audioUrl);
+      };
+
+      await audio.play();
     } catch (err) {
-      console.error(err);
+      console.error('Voice preview error:', err);
       setIsVoiceActive(false);
     }
   };
