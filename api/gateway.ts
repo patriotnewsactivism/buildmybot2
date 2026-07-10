@@ -175,7 +175,7 @@ const PLAN_LIMITS_CONFIG: Record<string, {
   leads: number;
   trial_days: number;
 }> = {
-  FREE:         { bots: 1,    conversations_per_month: 50,     knowledge_sources: 2,   leads: 25,     trial_days: 0 },
+  FREE:         { bots: 1,    conversations_per_month: 250,    knowledge_sources: 3,   leads: 50,     trial_days: 0 },
   STARTER:      { bots: 3,    conversations_per_month: 1000,   knowledge_sources: 10,  leads: 500,    trial_days: 0 },
   PROFESSIONAL: { bots: 10,   conversations_per_month: 10000,  knowledge_sources: 50,  leads: 5000,   trial_days: 0 },
   ENTERPRISE:   { bots: 9999, conversations_per_month: 999999, knowledge_sources: 999, leads: 999999, trial_days: 0 },
