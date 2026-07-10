@@ -275,7 +275,7 @@ describe('api/gateway.ts — bot CRUD tenant isolation', () => {
     const req = {
       method: 'POST',
       url: '/api/bots',
-      headers: { authorization: `Bearer valid-token` },
+      headers: { authorization: 'Bearer valid-token' },
       body: { name: 'My Bot', description: 'test' },
     } as unknown as VercelRequest;
     const res = mockRes();
