@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { callLLMMessages } from './ai-team/lib';
+import { callLLMMessages } from './ai-team/lib.js';
 
 // =====================================================================
 // BuildMyBot API Gateway — Vercel Serverless Catch-All
