@@ -19,6 +19,10 @@
   ],
   "rewrites": [
     {
+      "source": "/api/cron/:path*",
+      "destination": "/api/cron/:path*"
+    },
+    {
       "source": "/api/:path*",
       "destination": "/api/gateway"
     },
@@ -110,6 +114,10 @@
     {
       "path": "/api/ai-employees/shift",
       "schedule": "0 13 * * *"
+    },
+    {
+      "path": "/api/cron/all-shifts",
+      "schedule": "0 21 * * *"
     }
   ]
 }
