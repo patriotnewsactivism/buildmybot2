@@ -160,7 +160,7 @@ export async function getRoleContext(roleId: string): Promise<RoleContext> {
   ) {
     const [existingLeads, freshResearchedLeads] = await Promise.all([
       supabaseFetch('leads', 'order=created_at.desc&limit=25'),
-      // Freshly-researched cold leads (from the Lead Researcher role) not yet
+      // Freshly-researched cold leads (from Sarah Collins, Lead Researcher) not yet
       // surfaced to sales — gives the sales roles real new targets to act on,
       // on top of the existing inbound-signup leads.
       supabaseFetch(
@@ -371,7 +371,7 @@ export async function researchLeads() {
   if (!process.env.TAVILY_API_KEY) {
     await logShift({
       role_id: 'lead-researcher',
-      role_name: 'Lead Researcher',
+      role_name: 'Sarah Collins',
       summary: `No TAVILY_API_KEY configured yet — cannot search for real companies. Skipped this run rather than inventing fake leads.`,
       tasks_completed: 0,
       flags: 'TAVILY_API_KEY missing',
@@ -384,7 +384,7 @@ export async function researchLeads() {
   if (!results.length) {
     await logShift({
       role_id: 'lead-researcher',
-      role_name: 'Lead Researcher',
+      role_name: 'Sarah Collins',
       summary: `Searched "${query}" but got zero results. Nothing new to add this run.`,
       tasks_completed: 0,
     });
@@ -407,14 +407,14 @@ export async function researchLeads() {
   if (!newResults.length) {
     await logShift({
       role_id: 'lead-researcher',
-      role_name: 'Lead Researcher',
+      role_name: 'Sarah Collins',
       summary: `Searched "${query}" — all ${results.length} results were companies we already have on file. No new leads this run.`,
       tasks_completed: 0,
     });
     return { found: 0, query, duplicates: results.length };
   }
 
-  const systemPrompt = `You are BuildMyBot's Lead Researcher. BuildMyBot sells a white-label AI chatbot/voice-agent platform that fixes "speed to lead" for local service businesses. ICP: Home Services (HVAC/Roofing/Plumbing/Solar), Legal (Personal Injury/DUI/Family Law), Medical/Esthetics (MedSpa/Plastic Surgery/Dental Implants), Real Estate brokerages. AVOID: restaurants, generic retail, large corporations.
+  const systemPrompt = `You are Sarah Collins, BuildMyBot's Lead Researcher. BuildMyBot sells a white-label AI chatbot/voice-agent platform that fixes "speed to lead" for local service businesses. ICP: Home Services (HVAC/Roofing/Plumbing/Solar), Legal (Personal Injury/DUI/Family Law), Medical/Esthetics (MedSpa/Plastic Surgery/Dental Implants), Real Estate brokerages. AVOID: restaurants, generic retail, large corporations.
 
 CRITICAL RULE: You may ONLY reference real businesses that appear in the search results provided below. NEVER invent a company name, website, or detail that isn't directly supported by a provided result. If a result is a directory/listicle page rather than an actual business, skip it. If NONE of the results are real qualifying businesses, return an empty JSON array.`;
 
@@ -461,10 +461,251 @@ CRITICAL RULE: You may ONLY reference real businesses that appear in the search 
 
   await logShift({
     role_id: 'lead-researcher',
-    role_name: 'Lead Researcher',
+    role_name: 'Sarah Collins',
     summary,
     tasks_completed: inserted,
   });
 
   return { found: inserted, query, candidates: safeCandidates.length };
+}
+
+// ---------------------------------------------------------------------------
+// Frankie Mercer — Social Media Manager. Reasons about what to post, drafts
+// content, and (only once real platform credentials exist) actually publishes
+// and checks for replies/mentions. Self-triggering via GitHub Actions on a
+// recurring schedule (see .github/workflows/ai-team-schedule.yml).
+//
+// IMPORTANT / honest-by-design: this NEVER fakes a publish. If a platform's
+// API keys aren't configured, Frankie logs the content as a 'draft' only and
+// says so plainly in the shift summary -- exactly like Eli's placeholder
+// engineering shifts or Brianna's pre-Stripe billing shifts.
+// ---------------------------------------------------------------------------
+
+interface SocialDraft {
+  platform: 'twitter' | 'linkedin';
+  content: string;
+  post_type: 'post' | 'reply';
+  in_reply_to_id?: string;
+}
+
+function twitterConfigured() {
+  return !!(
+    process.env.TWITTER_API_KEY &&
+    process.env.TWITTER_API_SECRET &&
+    process.env.TWITTER_ACCESS_TOKEN &&
+    process.env.TWITTER_ACCESS_TOKEN_SECRET
+  );
+}
+
+function linkedinConfigured() {
+  return !!(process.env.LINKEDIN_ACCESS_TOKEN && process.env.LINKEDIN_ORG_URN);
+}
+
+// OAuth 1.0a signing for X/Twitter API v2 (POST /2/tweets requires user-context auth).
+async function twitterOAuthHeader(method: string, url: string, extraParams: Record<string, string> = {}) {
+  const crypto = await import('node:crypto');
+  const oauthParams: Record<string, string> = {
+    oauth_consumer_key: process.env.TWITTER_API_KEY!,
+    oauth_nonce: crypto.randomBytes(16).toString('hex'),
+    oauth_signature_method: 'HMAC-SHA1',
+    oauth_timestamp: Math.floor(Date.now() / 1000).toString(),
+    oauth_token: process.env.TWITTER_ACCESS_TOKEN!,
+    oauth_version: '1.0',
+    ...extraParams,
+  };
+  const allParams = { ...oauthParams };
+  const paramString = Object.keys(allParams)
+    .sort()
+    .map((k) => `${encodeURIComponent(k)}=${encodeURIComponent(allParams[k])}`)
+    .join('&');
+  const baseString = `${method.toUpperCase()}&${encodeURIComponent(url)}&${encodeURIComponent(paramString)}`;
+  const signingKey = `${encodeURIComponent(process.env.TWITTER_API_SECRET!)}&${encodeURIComponent(process.env.TWITTER_ACCESS_TOKEN_SECRET!)}`;
+  const signature = crypto.createHmac('sha1', signingKey).update(baseString).digest('base64');
+  const headerParams = { ...oauthParams, oauth_signature: signature };
+  const header =
+    'OAuth ' +
+    Object.keys(headerParams)
+      .sort()
+      .map((k) => `${encodeURIComponent(k)}="${encodeURIComponent(headerParams[k])}"`)
+      .join(', ');
+  return header;
+}
+
+async function publishToTwitter(content: string, inReplyToId?: string): Promise<{ ok: boolean; id?: string; error?: string }> {
+  if (!twitterConfigured()) return { ok: false, error: 'not_configured' };
+  const url = 'https://api.twitter.com/2/tweets';
+  try {
+    const authHeader = await twitterOAuthHeader('POST', url);
+    const body: any = { text: content.slice(0, 280) };
+    if (inReplyToId) body.reply = { in_reply_to_tweet_id: inReplyToId };
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await resp.json();
+    if (!resp.ok) return { ok: false, error: JSON.stringify(data) };
+    return { ok: true, id: data.data?.id };
+  } catch (e: any) {
+    return { ok: false, error: e.message };
+  }
+}
+
+async function publishToLinkedIn(content: string): Promise<{ ok: boolean; id?: string; error?: string }> {
+  if (!linkedinConfigured()) return { ok: false, error: 'not_configured' };
+  try {
+    const resp = await fetch('https://api.linkedin.com/v2/ugcPosts', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.LINKEDIN_ACCESS_TOKEN}`,
+        'Content-Type': 'application/json',
+        'X-Restli-Protocol-Version': '2.0.0',
+      },
+      body: JSON.stringify({
+        author: process.env.LINKEDIN_ORG_URN,
+        lifecycleState: 'PUBLISHED',
+        specificContent: {
+          'com.linkedin.ugc.ShareContent': {
+            shareCommentary: { text: content },
+            shareMediaCategory: 'NONE',
+          },
+        },
+        visibility: { 'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC' },
+      }),
+    });
+    if (!resp.ok) return { ok: false, error: await resp.text() };
+    const id = resp.headers.get('x-restli-id') || undefined;
+    return { ok: true, id };
+  } catch (e: any) {
+    return { ok: false, error: e.message };
+  }
+}
+
+// Check X mentions since our last check (only if configured) — used so Frankie
+// can honestly reply to real people instead of inventing engagement.
+async function fetchTwitterMentions(): Promise<any[]> {
+  if (!twitterConfigured() || !process.env.TWITTER_USER_ID) return [];
+  try {
+    const url = `https://api.twitter.com/2/users/${process.env.TWITTER_USER_ID}/mentions?max_results=10`;
+    const authHeader = await twitterOAuthHeader('GET', url);
+    const resp = await fetch(url, { headers: { Authorization: authHeader } });
+    if (!resp.ok) return [];
+    const data = await resp.json();
+    return data.data || [];
+  } catch {
+    return [];
+  }
+}
+
+export async function runSocialMediaShift() {
+  const roleId = 'frankie-social';
+  const roleName = 'Frankie Mercer';
+  const today = new Date().toISOString().slice(0, 10);
+
+  // Context: recent own posts/drafts, recent marketing content from Amanda
+  // Hayes and sales wins from the rest of the team, so Frankie posts about
+  // real things instead of generic filler.
+  const recentPosts = (await supabaseFetch('social_posts', 'order=created_at.desc&limit=10')) || [];
+  const todayLogs = (await supabaseFetch('ai_team_log', `shift_date=eq.${today}`)) || [];
+  const teamHighlights = todayLogs
+    .filter((l: any) => l.role_id !== roleId)
+    .map((l: any) => ({ role_name: l.role_name, summary: l.summary }));
+
+  const twitterOn = twitterConfigured();
+  const linkedinOn = linkedinConfigured();
+
+  const mentions = await fetchTwitterMentions();
+
+  const systemPrompt = `You are Frankie Mercer, Social Media Manager for BuildMyBot, a white-label AI chatbot/voice-agent platform for local service businesses (home services, legal, medical/esthetics, real estate). Voice: confident, helpful, a little punchy -- never corporate/generic. Never invent metrics, followers, or engagement that isn't in the data you're given.`;
+
+  const userPrompt = `Today's real context:
+Recent posts/drafts (last 10): ${JSON.stringify(recentPosts.map((p: any) => ({ platform: p.platform, content: p.content, status: p.status, created_at: p.created_at })), null, 2)}
+Today's team activity you can draw content from: ${JSON.stringify(teamHighlights, null, 2)}
+Live platform connections: Twitter/X ${twitterOn ? 'CONNECTED' : 'NOT connected yet'}, LinkedIn ${linkedinOn ? 'CONNECTED' : 'NOT connected yet'}.
+Real unanswered mentions right now: ${JSON.stringify(mentions, null, 2)}
+
+Do your shift:
+1. Draft 1-2 NEW original posts (platform: twitter and/or linkedin) grounded in today's real team activity or BuildMyBot's product/ICP -- not generic hype.
+2. If there are real unanswered mentions above, draft a reply for each.
+3. Do NOT reference posting/replying as if it already happened if the platform isn't connected -- say so honestly.
+
+Respond in this exact format (repeat the DRAFT block for each item, at least 1):
+DRAFT_PLATFORM: twitter|linkedin
+DRAFT_TYPE: post|reply
+DRAFT_REPLY_TO_ID: <mention id if type=reply, else blank>
+DRAFT_CONTENT: <the actual post/reply text>
+---
+SUMMARY: <one line: what you drafted/posted/replied to>
+FLAGS: <anything urgent, or blank>`;
+
+  const raw = await callLLM(systemPrompt, userPrompt);
+
+  const draftBlocks = raw.split('---')[0];
+  const summary = raw.match(/SUMMARY:\s*([\s\S]*?)(?:\nFLAGS:|$)/i)?.[1]?.trim() || 'No summary produced.';
+  const flags = raw.match(/FLAGS:\s*(.*)/i)?.[1]?.trim() || '';
+
+  const drafts: SocialDraft[] = [];
+  const blocks = draftBlocks.split(/DRAFT_PLATFORM:/i).slice(1);
+  for (const block of blocks) {
+    const platform = block.match(/^\s*(twitter|linkedin)/i)?.[1]?.toLowerCase() as 'twitter' | 'linkedin' | undefined;
+    const postType = block.match(/DRAFT_TYPE:\s*(post|reply)/i)?.[1]?.toLowerCase() as 'post' | 'reply' | undefined;
+    const replyToId = block.match(/DRAFT_REPLY_TO_ID:\s*(\S*)/i)?.[1]?.trim();
+    const draftContent = block.match(/DRAFT_CONTENT:\s*([\s\S]*)/i)?.[1]?.trim();
+    if (platform && draftContent) {
+      drafts.push({ platform, content: draftContent, post_type: postType || 'post', in_reply_to_id: replyToId || undefined });
+    }
+  }
+
+  let publishedCount = 0;
+  const results: any[] = [];
+  for (const draft of drafts) {
+    const configured = draft.platform === 'twitter' ? twitterOn : linkedinOn;
+    if (!configured) {
+      await supabaseFetch('social_posts', '', {
+        method: 'POST',
+        body: JSON.stringify({
+          platform: draft.platform,
+          content: draft.content,
+          post_type: draft.post_type,
+          in_reply_to_id: draft.in_reply_to_id || null,
+          status: 'draft_awaiting_credentials',
+        }),
+      });
+      results.push({ ...draft, status: 'draft_awaiting_credentials' });
+      continue;
+    }
+    const publishResult =
+      draft.platform === 'twitter'
+        ? await publishToTwitter(draft.content, draft.in_reply_to_id)
+        : await publishToLinkedIn(draft.content);
+    await supabaseFetch('social_posts', '', {
+      method: 'POST',
+      body: JSON.stringify({
+        platform: draft.platform,
+        content: draft.content,
+        post_type: draft.post_type,
+        in_reply_to_id: draft.in_reply_to_id || null,
+        status: publishResult.ok ? 'published' : 'failed',
+        external_post_id: publishResult.id || null,
+        error: publishResult.error || null,
+      }),
+    });
+    if (publishResult.ok) publishedCount++;
+    results.push({ ...draft, status: publishResult.ok ? 'published' : 'failed', error: publishResult.error });
+  }
+
+  const credentialNote =
+    !twitterOn && !linkedinOn
+      ? ' No platform is connected yet — all content saved as drafts only, nothing was actually posted.'
+      : '';
+
+  await logShift({
+    role_id: roleId,
+    role_name: roleName,
+    summary: summary + credentialNote,
+    tasks_completed: publishedCount,
+    flags,
+  });
+
+  return { summary, drafted: drafts.length, published: publishedCount, twitterOn, linkedinOn, results };
 }

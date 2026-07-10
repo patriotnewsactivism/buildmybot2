@@ -24,9 +24,12 @@ name: AI Team — Recurring Shifts
 #    billing-associate, hannah-hr, brianna-billing): internal/ops, some
 #    still honest placeholders with no live data source yet -> every 2
 #    hours. 12 runs/day x 7 roles = 84 calls/day.
-#  - Marcus (executive rollup): every 4 hours -> 6 calls/day.
+#  - Marcus Stone (executive rollup): every 4 hours -> 6 calls/day.
+#  - Frankie Mercer (Social Media Manager): reasons, drafts, and -- once
+#    real platform API keys are set -- publishes/replies -> every 2 hours,
+#    offset :10 past Tier B. 12 runs/day x 1 call = 12 calls/day.
 #
-# Total: ~594 calls/day, leaving headroom under Groq's 1,000/day free cap
+# Total: ~606 calls/day, leaving headroom under Groq's 1,000/day free cap
 # before Cerebras fallback would ever need to kick in.
 #
 # Times below are America/Chicago, converted to UTC assuming CDT (summer,
@@ -35,7 +38,7 @@ name: AI Team — Recurring Shifts
 # flaky wall-clock matching, even when entries land on the same clock time.
 
 on:
-  workflow_dispatch: {} # manual "Run workflow" from the Actions tab -> runs Marcus's rollup
+  workflow_dispatch: {} # manual "Run workflow" from the Actions tab -> runs Marcus Stone's rollup
   schedule:
     # --- Sales: every 10 minutes, all day ---
     - cron: '*/10 * * * *'
@@ -49,8 +52,11 @@ on:
     # --- Tier B: every 2 hours ---
     - cron: '0 */2 * * *'
 
-    # --- Marcus: every 4 hours ---
+    # --- Marcus Stone: every 4 hours ---
     - cron: '30 */4 * * *'
+
+    # --- Frankie Mercer (Social Media Manager): every 2 hours ---
+    - cron: '10 */2 * * *'
 
 jobs:
   run-shift:
@@ -72,6 +78,8 @@ jobs:
               echo "roles=eli-engineering,oscar-operations,piper-product,hr-associate,billing-associate,hannah-hr,brianna-billing" >> "$GITHUB_OUTPUT" ;;
             "30 */4 * * *")
               echo "roles=marcus" >> "$GITHUB_OUTPUT" ;;
+            "10 */2 * * *")
+              echo "roles=frankie-social" >> "$GITHUB_OUTPUT" ;;
             *) echo "roles=marcus" >> "$GITHUB_OUTPUT" ;; # manual dispatch fallback
           esac
 
