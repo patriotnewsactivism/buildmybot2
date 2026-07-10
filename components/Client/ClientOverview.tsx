@@ -18,8 +18,6 @@ import { dbService } from '../../services/dbService';
 import type { User } from '../../types';
 import { type Column, DataTable } from '../UI/DataTable';
 import { MetricCard } from '../UI/MetricCard';
-import { PlayfulMetricCard } from '../UI/PlayfulMetricCard';
-import { QuickMetricsWidget } from '../UI/QuickMetricsWidget';
 import { ReferralBanner } from '../UI/ReferralBanner';
 import { OnboardingWizard } from './OnboardingWizard';
 
@@ -339,7 +337,6 @@ export const ClientOverview: React.FC<ClientOverviewProps> = ({
 
   return (
     <div className="space-y-4 md:space-y-6 px-2 md:px-0">
-      <QuickMetricsWidget />
       {resellerCode ? <ReferralBanner user={user as User} /> : null}
       {showOnboarding && (
         <OnboardingWizard
@@ -352,84 +349,70 @@ export const ClientOverview: React.FC<ClientOverviewProps> = ({
         />
       )}
 
-      {/* Professional Header */}
-      <div className="relative overflow-hidden rounded-lg p-6 md:p-8 mb-6 bg-gradient-to-r from-blue-600 to-blue-700 shadow-lg border border-blue-800">
-        {/* Content */}
-        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl md:text-4xl font-bold text-white mb-2">
-              Welcome back, {user?.name || 'there'}
-            </h1>
-            <p className="text-blue-100 text-base md:text-lg">
-              Your AI automation platform. Reduce costs and improve efficiency.
-            </p>
-          </div>
-          <div className="flex items-center gap-2 sm:gap-3">
-            <button
-              type="button"
-              onClick={handleCreateBot}
-              className="px-4 py-3 bg-white text-blue-700 rounded-md hover:bg-blue-50 font-semibold flex items-center gap-2 text-sm shadow-sm hover:shadow-md transition-all"
-            >
-              <Plus size={18} />
-              <span>Create Bot</span>
-            </button>
-            <button
-              type="button"
-              onClick={fetchOverview}
-              className="px-4 py-3 bg-white/20 text-white rounded-xl hover:bg-white/30 backdrop-blur-sm font-semibold flex items-center gap-2 text-sm transition-all hover:scale-105"
-            >
-              <RefreshCw size={18} />
-              <span className="hidden sm:inline">Refresh</span>
-            </button>
-          </div>
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-lg border border-slate-200 bg-white p-6 md:p-8">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold text-slate-900 mb-1">
+            Welcome back, {user?.name || 'there'}
+          </h1>
+          <p className="text-slate-500 text-sm md:text-base">
+            Your AI automation platform. Reduce costs and improve efficiency.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 sm:gap-3">
+          <button
+            type="button"
+            onClick={handleCreateBot}
+            className="px-4 py-2.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-semibold flex items-center gap-2 text-sm shadow-sm transition-colors"
+          >
+            <Plus size={18} />
+            <span>Create Bot</span>
+          </button>
+          <button
+            type="button"
+            onClick={fetchOverview}
+            className="px-4 py-2.5 bg-white text-slate-700 border border-slate-200 rounded-md hover:bg-slate-50 font-semibold flex items-center gap-2 text-sm transition-colors"
+          >
+            <RefreshCw size={18} />
+            <span className="hidden sm:inline">Refresh</span>
+          </button>
         </div>
       </div>
 
-      {/* Key Metrics - Playful Design */}
+      {/* Key Metrics */}
       {stats && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-          <PlayfulMetricCard
+          <MetricCard
             icon={Bot}
             label="Active Bots"
             value={stats.botCount}
-            gradient="from-violet-500 to-purple-600"
-            illustration="🤖"
-            trend={stats.botCount > 0 ? `${stats.botCount} total` : undefined}
+            variant="volume"
+            subtext={stats.botCount > 0 ? `${stats.botCount} total` : undefined}
             loading={loading}
           />
-          <PlayfulMetricCard
+          <MetricCard
             icon={MessageSquare}
             label="Total Leads"
             value={stats.leadCount}
-            gradient="from-pink-500 to-rose-600"
-            illustration="💼"
-            trend={
+            variant="efficiency"
+            subtext={
               stats.leadCount > 0 ? `${stats.leadCount} captured` : undefined
             }
             loading={loading}
             onClick={onOpenLeads}
           />
-          <PlayfulMetricCard
+          <MetricCard
             icon={TrendingUp}
             label="Conversion Rate"
             value={`${stats.conversionRate.toFixed(1)}%`}
-            gradient="from-emerald-500 to-teal-600"
-            illustration="📈"
-            trend={
-              stats.conversionRate > 20
-                ? '🔥 Hot'
-                : stats.conversionRate > 10
-                  ? '👍 Good'
-                  : '⚠️ Low'
-            }
+            variant="savings"
             loading={loading}
           />
-          <PlayfulMetricCard
+          <MetricCard
             icon={Star}
             label="Lead Quality"
             value={`${stats.averageLeadScore.toFixed(0)}%`}
-            gradient="from-amber-500 to-orange-600"
-            illustration="⭐"
+            variant="revenue"
             loading={loading}
           />
         </div>
