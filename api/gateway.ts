@@ -1211,6 +1211,86 @@ async function handleClients(
       ? { organization_id: `eq.${user.organizationId}` }
       : {};
     res.json(await sbSelect('leads', '*', orgFilter).catch(() => []));
+  } else if (cid === 'overview') {
+    // dbService.getClientOverview() calls GET /api/clients/overview expecting
+    // {stats, usage, voice, conversationTrend, recentBots, recentLeads} --
+    // same route-collision bug as bots/leads/analytics above: this had no
+    // handler at all, so it fell through to the client-by-id branch,
+    // returning `{}` and crashing ClientOverview.tsx's `recentBots[0]?.id`
+    // (recentBots was `undefined`, not `[]`) for EVERY user, new or existing.
+    const PLAN_LIMITS: Record<string, { bots: number; conversations: number }> = {
+      FREE: { bots: 1, conversations: 60 },
+      STARTER: { bots: 1, conversations: 750 },
+      PROFESSIONAL: { bots: 5, conversations: 5000 },
+      ENTERPRISE: { bots: 9999, conversations: 999999 },
+    };
+    const orgFilter = user.organizationId
+      ? { organization_id: `eq.${user.organizationId}` }
+      : {};
+    const [bots, leads, conversations] = await Promise.all([
+      sbSelect('bots', '*', orgFilter).catch(() => []),
+      sbSelect('leads', '*', orgFilter).catch(() => []),
+      sbSelect('conversations', 'id,created_at', orgFilter).catch(() => []),
+    ]);
+
+    const botCount = bots.length;
+    const leadCount = leads.length;
+    const scoredLeads = (leads as any[]).filter((l) => typeof l.score === 'number');
+    const averageLeadScore =
+      scoredLeads.length > 0
+        ? scoredLeads.reduce((sum, l) => sum + l.score, 0) / scoredLeads.length
+        : 0;
+    const conversionRate =
+      conversations.length > 0
+        ? Number(((leadCount / conversations.length) * 100).toFixed(1))
+        : 0;
+
+    const planKey = (user.plan || 'FREE').toUpperCase();
+    const limits = PLAN_LIMITS[planKey] || PLAN_LIMITS.FREE;
+
+    const days: { date: string; count: number }[] = [];
+    for (let i = 13; i >= 0; i--) {
+      const day = new Date(Date.now() - i * 86400000).toISOString().split('T')[0];
+      days.push({
+        date: day,
+        count: (conversations as any[]).filter((c) => c.created_at?.startsWith(day)).length,
+      });
+    }
+
+    res.json({
+      stats: { botCount, leadCount, conversionRate, averageLeadScore },
+      usage: {
+        plan: planKey,
+        conversationsUsed: conversations.length,
+        conversationsLimit: limits.conversations,
+        botsUsed: botCount,
+        botsLimit: limits.bots,
+      },
+      voice: { enabled: false, minutesUsed: 0, minutesLimit: 0 },
+      conversationTrend: days,
+      recentBots: (bots as any[])
+        .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
+        .slice(0, 5)
+        .map((b) => ({
+          id: b.id,
+          name: b.name,
+          active: Boolean(b.active),
+          voiceId: b.voice_id || null,
+          createdAt: b.created_at,
+        })),
+      recentLeads: (leads as any[])
+        .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
+        .slice(0, 5)
+        .map((l) => ({
+          id: l.id,
+          name: l.name,
+          email: l.email,
+          phone: l.phone || null,
+          status: l.status,
+          score: typeof l.score === 'number' ? l.score : null,
+          createdAt: l.created_at,
+        })),
+    });
   } else if (cid === 'analytics' && pathParts[1] === 'dashboard') {
     // AdvancedAnalytics (currentView === 'analytics' in App.tsx) fetches
     // /clients/analytics/dashboard expecting {metrics, timeSeriesData, ...}.
