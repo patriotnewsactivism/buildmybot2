@@ -142,6 +142,17 @@ async function sbSelect(
   return resp.json();
 }
 
+function ownerFilter(user: AuthUser): Record<string, string> {
+  // SECURITY: never return an empty filter here -- an empty {} means "no
+  // WHERE clause", i.e. every row in the table across every tenant. Users
+  // without an organization_id (e.g. brand new signups before an org is
+  // provisioned) must be scoped to their own user_id instead, or they'd see
+  // -- and previously DID see -- every other customer's bots/leads/data.
+  return user.organizationId
+    ? { organization_id: `eq.${user.organizationId}` }
+    : { user_id: `eq.${user.id}` };
+}
+
 async function sbInsert(table: string, data: any) {
   const url = `${SUPABASE_URL}/rest/v1/${table}`;
   const resp = await fetch(url, {
@@ -222,9 +233,7 @@ async function handleBots(
   res: VercelResponse,
   user: AuthUser,
 ) {
-  const orgFilter = user.organizationId
-    ? { organization_id: `eq.${user.organizationId}` }
-    : {};
+  const orgFilter = ownerFilter(user);
   if (req.method === 'GET') {
     const bots = await sbSelect('bots', '*', orgFilter);
     res.json(bots);
@@ -285,9 +294,7 @@ async function handleAnalytics(
   pathParts: string[],
 ) {
   const sub = pathParts[0] || '';
-  const orgFilter = user.organizationId
-    ? { organization_id: `eq.${user.organizationId}` }
-    : {};
+  const orgFilter = ownerFilter(user);
 
   if (sub === 'quick-metrics' || sub === 'metrics') {
     const [bots, leads, convs] = await Promise.all([
@@ -376,9 +383,7 @@ async function handleLeads(
   pathParts: string[],
 ) {
   const leadId = pathParts[0];
-  const orgFilter = user.organizationId
-    ? { organization_id: `eq.${user.organizationId}` }
-    : {};
+  const orgFilter = ownerFilter(user);
 
   if (leadId) {
     if (pathParts[1] === 'email' && req.method === 'POST') {
@@ -758,9 +763,7 @@ async function handleVoice(
       }).catch(() => []);
       res.json(d[0] || null);
     } else {
-      const f = user.organizationId
-        ? { organization_id: `eq.${user.organizationId}` }
-        : {};
+      const f = ownerFilter(user);
       res.json(await sbSelect('voice_agents', '*', f).catch(() => []));
     }
   } else if (req.method === 'POST' && botId && pathParts[2] === 'provision') {
@@ -953,9 +956,7 @@ async function handleWebhooks(
   pathParts: string[],
 ) {
   const wid = pathParts[0];
-  const orgF = user.organizationId
-    ? { organization_id: `eq.${user.organizationId}` }
-    : {};
+  const orgF = ownerFilter(user);
   if (!wid) {
     if (req.method === 'GET') {
       res.json(await sbSelect('webhooks', '*', orgF).catch(() => []));
@@ -1113,9 +1114,7 @@ async function handleChannels(
     await sbSelect(
       'bots',
       'id,name,config',
-      user.organizationId
-        ? { organization_id: `eq.${user.organizationId}` }
-        : {},
+      ownerFilter(user),
     ).catch(() => []),
   );
 }
@@ -1149,9 +1148,7 @@ async function handlePhone(
       await sbSelect(
         'phone_numbers',
         '*',
-        user.organizationId
-          ? { organization_id: `eq.${user.organizationId}` }
-          : {},
+        ownerFilter(user),
       ).catch(() => []),
     );
   }
@@ -1197,9 +1194,7 @@ async function handleClients(
     // the user's bots -- this used to fall through to the client-by-id
     // branch below (treating "bots" as a client id), returning `{}` instead
     // of an array and crashing App.tsx's `bots.reduce(...)`.
-    const orgFilter = user.organizationId
-      ? { organization_id: `eq.${user.organizationId}` }
-      : {};
+    const orgFilter = ownerFilter(user);
     res.json(await sbSelect('bots', '*', orgFilter).catch(() => []));
   } else if (cid === 'leads') {
     // dbService.getLeads() / subscribeToLeads() call GET /api/clients/leads
@@ -1207,9 +1202,7 @@ async function handleClients(
     // above: this used to fall through to the client-by-id branch, treating
     // "leads" as a client id, returning `{}` and crashing ClientOverview /
     // any consumer that reads array-shaped fields off the result.
-    const orgFilter = user.organizationId
-      ? { organization_id: `eq.${user.organizationId}` }
-      : {};
+    const orgFilter = ownerFilter(user);
     res.json(await sbSelect('leads', '*', orgFilter).catch(() => []));
   } else if (cid === 'overview') {
     // dbService.getClientOverview() calls GET /api/clients/overview expecting
@@ -1224,9 +1217,7 @@ async function handleClients(
       PROFESSIONAL: { bots: 5, conversations: 5000 },
       ENTERPRISE: { bots: 9999, conversations: 999999 },
     };
-    const orgFilter = user.organizationId
-      ? { organization_id: `eq.${user.organizationId}` }
-      : {};
+    const orgFilter = ownerFilter(user);
     const [bots, leads, conversations] = await Promise.all([
       sbSelect('bots', '*', orgFilter).catch(() => []),
       sbSelect('leads', '*', orgFilter).catch(() => []),
@@ -1297,9 +1288,7 @@ async function handleClients(
     // This used to fall through to the client-by-id branch (treating
     // "analytics" as a client id) and return `{}`, crashing on
     // `data.metrics.totalConversations`.
-    const orgFilter = user.organizationId
-      ? { organization_id: `eq.${user.organizationId}` }
-      : {};
+    const orgFilter = ownerFilter(user);
     const [convs, leads] = await Promise.all([
       sbSelect('conversations', 'id,created_at', orgFilter).catch(() => []),
       sbSelect('leads', 'id,created_at,source_url', orgFilter).catch(() => []),
@@ -1730,9 +1719,7 @@ async function handleLandingPages(
   pathParts: string[],
 ) {
   const pid = pathParts[0];
-  const orgF = user.organizationId
-    ? { organization_id: `eq.${user.organizationId}` }
-    : {};
+  const orgF = ownerFilter(user);
   if (!pid) {
     if (req.method === 'GET') {
       res.json(await sbSelect('landing_pages', '*', orgF).catch(() => []));
@@ -1797,9 +1784,7 @@ async function handleTeam(
     sbSelect(
       'organization_members',
       '*',
-      user.organizationId
-        ? { organization_id: `eq.${user.organizationId}` }
-        : {},
+      ownerFilter(user),
     ).catch(() => []),
     sbSelect('agent_roles', '*', {}).catch(() => []),
   ]);

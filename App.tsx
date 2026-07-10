@@ -121,6 +121,11 @@ function App() {
   } = useAuth();
 
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  // Security/UX fix: a persisted session cookie should NOT silently skip the
+  // public homepage. Only flip into the dashboard when the user explicitly
+  // asks to (clicking through from the homepage, or just completing a fresh
+  // login/signup) -- not just because a valid session exists on page load.
+  const [justAuthenticated, setJustAuthenticated] = useState(false);
   const [isBooting, setIsBooting] = useState(true);
   const [currentView, setCurrentView] = useState('dashboard');
   const [showPartnerPage, setShowPartnerPage] = useState(false);
@@ -145,6 +150,16 @@ function App() {
     typeof window !== 'undefined' ? window.location.hostname.toLowerCase() : '';
   const isBuildMyBotHost =
     hostname === 'buildmybot.app' || hostname.endsWith('.buildmybot.app');
+
+  const handleHomepageLoginClick = () => {
+    if (isLoggedIn && user) {
+      // Already has a valid session (e.g. returning visitor) -- go straight
+      // into their dashboard instead of making them log in again.
+      setJustAuthenticated(true);
+    } else {
+      openAuth('login');
+    }
+  };
 
   const openAuth = (mode: 'login' | 'signup') => {
     setAuthMode(mode);
@@ -270,6 +285,7 @@ function App() {
 
     setUser(newUser);
     setIsLoggedIn(true);
+    setJustAuthenticated(true);
     dbService.setAuthContext({ userId: newUser.id });
     setAuthModalOpen(false);
 
@@ -649,7 +665,10 @@ function App() {
     );
   }
 
-  if (!isLoggedIn || !user) {
+  const isFreshHomepageVisit =
+    window.location.pathname === '/' && !justAuthenticated;
+
+  if (!isLoggedIn || !user || isFreshHomepageVisit) {
     if (showPartnerSignup) {
       return (
         <PartnerSignup
@@ -670,7 +689,7 @@ function App() {
     return (
       <>
         <LandingPage
-          onLogin={() => openAuth('login')}
+          onLogin={handleHomepageLoginClick}
           onNavigateToPartner={() => setShowPartnerPage(true)}
           onAdminLogin={handleAdminLogin}
         />

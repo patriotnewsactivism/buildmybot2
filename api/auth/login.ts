@@ -3,7 +3,12 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://evkjlnbpntimbxklnhoz.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const JWT_SECRET = process.env.SESSION_JWT_SECRET;
-const COOKIE_MAX_AGE = 7 * 24 * 60 * 60;
+// Security: sessions are short-lived (24h) and are NOT persisted as a
+// long-lived cookie -- no Max-Age is set on the cookie itself, so it's a
+// browser-session cookie that disappears when the browser is closed. The
+// JWT's own exp also caps replay of a copied cookie value at 24h even if
+// the browser session somehow lives longer.
+const SESSION_JWT_TTL = 24 * 60 * 60;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'OPTIONS') return res.status(204).end();
@@ -73,14 +78,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const payload = {
       sub: user.id,
       iat: Math.floor(Date.now() / 1000),
-      exp: Math.floor(Date.now() / 1000) + COOKIE_MAX_AGE,
+      exp: Math.floor(Date.now() / 1000) + SESSION_JWT_TTL,
     };
     const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url');
     const signature = crypto.default.createHmac('sha256', JWT_SECRET).update(encoded).digest('base64url');
     const token = `${encoded}.${signature}`;
 
     // Set cookie
-    res.setHeader('Set-Cookie', `bmb_session=${token}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${COOKIE_MAX_AGE}`);
+    res.setHeader('Set-Cookie', `bmb_session=${token}; HttpOnly; Secure; SameSite=Lax; Path=/`);
 
     // Return safe user (no password hash)
     const { password_hash, ...safeUser } = user;
