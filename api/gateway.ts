@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { callLLMMessages } from './ai-team/lib';
 
 // =====================================================================
 // BuildMyBot API Gateway — Vercel Serverless Catch-All
@@ -1373,30 +1374,135 @@ async function handleClients(
   }
 }
 
+// Very small in-memory rate limiter -- resets on cold start, which is fine
+// as a basic abuse guard for a public unauthenticated endpoint (a real
+// distributed limiter would need Supabase/Redis, out of scope for now).
+const CHAT_RATE_LIMIT = new Map<string, { count: number; resetAt: number }>();
+function chatRateLimited(key: string, max = 30, windowMs = 60_000): boolean {
+  const now = Date.now();
+  const entry = CHAT_RATE_LIMIT.get(key);
+  if (!entry || now > entry.resetAt) {
+    CHAT_RATE_LIMIT.set(key, { count: 1, resetAt: now + windowMs });
+    return false;
+  }
+  entry.count += 1;
+  return entry.count > max;
+}
+
+/** Public chat endpoint -- powers both the embedded bot widget
+ * (/api/chat/bot/{botId}, real customer bots with their own system prompt +
+ * knowledge base) and the generic marketing-site demo mode (/api/chat with
+ * a caller-supplied systemPrompt, no botId). Intentionally takes no
+ * `user` -- website visitors chatting with an embedded bot are never
+ * logged into buildmybot.app. */
 async function handleChat(
   req: VercelRequest,
   res: VercelResponse,
-  _user: AuthUser,
   pathParts: string[],
 ) {
-  const botId = pathParts[0];
-  if (req.method === 'POST') {
-    const body = parseBody(req);
-    const c = await sbInsert('conversations', {
-      id: crypto.randomUUID(),
-      bot_id: botId,
-      session_id: body.sessionId || crypto.randomUUID(),
-      messages: body.messages || [],
-      status: 'active',
-    }).catch(() => [{ id: 'ok' }]);
-    res.json({ conversationId: c[0]?.id, response: 'Chat endpoint active' });
-  } else {
-    res.json(
-      await sbSelect('conversations', '*', { bot_id: `eq.${botId}` }).catch(
-        () => [],
-      ),
+  if (req.method !== 'POST') {
+    // GET history is tenant-owned data -- keep that path authenticated.
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: 'Not authenticated' });
+    const botId = pathParts[0] === 'bot' ? pathParts[1] : pathParts[0];
+    return res.json(
+      await sbSelect('conversations', '*', {
+        bot_id: `eq.${botId}`,
+        ...ownerFilter(user),
+      }).catch(() => []),
     );
   }
+
+  const ip =
+    (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+    req.socket?.remoteAddress ||
+    'unknown';
+  const botId = pathParts[0] === 'bot' ? pathParts[1] : undefined;
+
+  const body = parseBody(req);
+  const rawHistory: { role: string; text?: string; content?: string }[] =
+    Array.isArray(body.messages) ? body.messages : [];
+  const sessionId = body.sessionId || crypto.randomUUID();
+
+  if (chatRateLimited(`${ip}:${botId || 'demo'}`)) {
+    return res.status(429).json({ error: 'Too many messages, please slow down.' });
+  }
+
+  let systemPrompt = typeof body.systemPrompt === 'string' ? body.systemPrompt : '';
+  let temperature = 0.7;
+  let preferredModel: string | undefined;
+  let bot: any = null;
+
+  if (botId) {
+    const bots = await sbSelect('bots', '*', { id: `eq.${botId}` }).catch(() => []);
+    bot = bots[0];
+    if (!bot) return res.status(404).json({ error: 'Bot not found' });
+    if (bot.active === false) {
+      return res.status(403).json({ error: 'This bot is currently inactive.' });
+    }
+    systemPrompt = bot.system_prompt || systemPrompt || 'You are a helpful assistant.';
+    temperature = typeof bot.temperature === 'number' ? bot.temperature : 0.7;
+    preferredModel = body.model || bot.model;
+
+    // Knowledge base: stuff whatever raw text entries exist directly into
+    // context. This is an honest interim step, NOT real RAG (no chunking,
+    // no embeddings, no similarity search yet) -- fine for a handful of
+    // short KB entries, will not scale to large documents.
+    if (Array.isArray(bot.knowledge_base) && bot.knowledge_base.length) {
+      const kbText = bot.knowledge_base
+        .map((k: any) => (typeof k === 'string' ? k : k.content || ''))
+        .filter(Boolean)
+        .join('\n\n')
+        .slice(0, 6000);
+      if (kbText) {
+        systemPrompt += `\n\nUse the following business knowledge to answer questions. If the answer isn't in here, say you don't have that information rather than guessing:\n${kbText}`;
+      }
+    }
+  }
+
+  if (!systemPrompt) systemPrompt = 'You are a helpful assistant.';
+
+  // Normalize incoming history (frontend uses Gemini-style role: 'user' | 'model')
+  // to OpenAI-style role: 'user' | 'assistant' for the LLM call.
+  const maxTurns = (bot?.max_messages as number) || 20;
+  const history = rawHistory.slice(-maxTurns).map((m) => ({
+    role: (m.role === 'model' || m.role === 'assistant' ? 'assistant' : 'user') as
+      | 'user'
+      | 'assistant',
+    content: m.text ?? m.content ?? '',
+  }));
+
+  const llmMessages: { role: 'system' | 'user' | 'assistant'; content: string }[] = [
+    { role: 'system', content: systemPrompt },
+    ...history,
+  ];
+
+  let reply: string;
+  try {
+    reply = await callLLMMessages(llmMessages, temperature, preferredModel as any);
+  } catch (err: any) {
+    console.error('[chat] LLM call failed:', err?.message || err);
+    return res.status(502).json({
+      error: 'AI service is temporarily unavailable. Please try again in a moment.',
+    });
+  }
+
+  if (botId) {
+    await sbInsert('conversations', {
+      id: crypto.randomUUID(),
+      bot_id: botId,
+      session_id: sessionId,
+      messages: [...rawHistory, { role: 'user', text: rawHistory.at(-1)?.text }, { role: 'model', text: reply }],
+      status: 'active',
+    }).catch(() => {});
+    await sbUpdate(
+      'bots',
+      { conversations_count: (bot.conversations_count || 0) + 1 },
+      { id: `eq.${botId}` },
+    ).catch(() => {});
+  }
+
+  res.json({ response: reply, sessionId });
 }
 
 async function handleSearch(
@@ -3310,6 +3416,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (routeName === 'email' && pathParts[0] === 'dispatch-scheduled')
       return await handleEmailDispatchScheduled(req, res);
 
+    // Public embedded chat widget -- website visitors chatting with a
+    // customer's bot are NOT logged into buildmybot.app, so this must not
+    // require a session. Scoped safely: handleChat only ever reads/writes
+    // the ONE bot id in the URL/body, never the caller's own tenant data.
+    if (routeName === 'chat') return await handleChat(req, res, pathParts);
+
     // Auth extras (don't conflict with /api/auth/* serverless functions)
     if (
       routeName === 'auth' &&
@@ -3383,8 +3495,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return await handleOrganizations(req, res, user);
       case 'clients':
         return await handleClients(req, res, user, pathParts);
-      case 'chat':
-        return await handleChat(req, res, user, pathParts);
       case 'search':
         return await handleSearch(req, res, user);
       case 'stripe':

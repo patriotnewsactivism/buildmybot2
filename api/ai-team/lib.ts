@@ -76,11 +76,72 @@ export async function callLLM(systemPrompt: string, userPrompt: string): Promise
   );
 }
 
+/** Multi-turn variant for real conversations (customer-facing chat widget).
+ * Same free-provider-first fallback chain as callLLM. `preferredProvider`
+ * lets a caller override AI_TEAM_LLM_PROVIDER (e.g. a bot's configured
+ * model) without touching the env var used by the internal AI Team. */
+export async function callLLMMessages(
+  messages: { role: 'system' | 'user' | 'assistant'; content: string }[],
+  temperature = 0.7,
+  preferredProvider?: string,
+): Promise<string> {
+  // Guard against garbage input (e.g. a bot's free-text `model` field like
+  // "grok-4-1-fast-reasoning" that isn't one of our actual provider keys) --
+  // silently ignore anything that isn't a real configured provider instead
+  // of crashing the whole chat request.
+  const validPreferred =
+    preferredProvider && preferredProvider in PROVIDER_CONFIG
+      ? (preferredProvider as Provider)
+      : undefined;
+  const preferred =
+    validPreferred || (process.env.AI_TEAM_LLM_PROVIDER as Provider) || 'groq';
+  const order = [preferred, ...FALLBACK_ORDER.filter((p) => p !== preferred)];
+
+  const errors: string[] = [];
+  for (const provider of order) {
+    const cfg = PROVIDER_CONFIG[provider];
+    const apiKey = process.env[cfg.keyEnv];
+    if (!apiKey) continue;
+    try {
+      return await callWithConfigMessages(cfg, apiKey, messages, temperature);
+    } catch (err: any) {
+      errors.push(`${provider}: ${err.message}`);
+    }
+  }
+
+  throw new Error(
+    errors.length
+      ? `All configured LLM providers failed: ${errors.join(' | ')}`
+      : `No LLM provider configured — set at least one of: ${FALLBACK_ORDER.map((p) => PROVIDER_CONFIG[p].keyEnv).join(', ')}`,
+  );
+}
+
 async function callWithConfig(
   cfg: { baseURL: string; model: string },
   apiKey: string,
   systemPrompt: string,
-  userPrompt: string
+  userPrompt: string,
+  temperature = 0.4,
+): Promise<string> {
+  return callWithConfigMessages(
+    cfg,
+    apiKey,
+    [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
+    ],
+    temperature,
+  );
+}
+
+/** Same wire format as callWithConfig, but accepts a full multi-turn
+ * OpenAI-style messages array (used by customer-facing chat, which needs
+ * real conversation history, not just one system+user turn). */
+async function callWithConfigMessages(
+  cfg: { baseURL: string; model: string },
+  apiKey: string,
+  messages: { role: 'system' | 'user' | 'assistant'; content: string }[],
+  temperature = 0.4,
 ): Promise<string> {
   const res = await fetch(cfg.baseURL, {
     method: 'POST',
@@ -90,11 +151,8 @@ async function callWithConfig(
     },
     body: JSON.stringify({
       model: cfg.model,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      temperature: 0.4,
+      messages,
+      temperature,
     }),
   });
 
