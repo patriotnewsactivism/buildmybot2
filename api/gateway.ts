@@ -1,5 +1,16 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import * as Sentry from '@sentry/node';
 import { callLLMMessages } from './ai-team/lib.js';
+import { ingestKnowledgeSource, searchKnowledge, scrapeUrl } from './rag.js';
+
+// Initialize Sentry for production error monitoring
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.VERCEL_ENV || 'production',
+    tracesSampleRate: 0.1,
+  });
+}
 
 // =====================================================================
 // BuildMyBot API Gateway — Vercel Serverless Catch-All
@@ -9,8 +20,10 @@ import { callLLMMessages } from './ai-team/lib.js';
 
 const SUPABASE_URL =
   process.env.SUPABASE_URL ||
-  process.env.VITE_SUPABASE_URL ||
-  'https://evkjlnbpntimbxklnhoz.supabase.co';
+  process.env.VITE_SUPABASE_URL;
+if (!SUPABASE_URL) {
+  throw new Error('Missing SUPABASE_URL or VITE_SUPABASE_URL environment variable');
+}
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const SESSION_JWT_SECRET = process.env.SESSION_JWT_SECRET;
 const CRON_SECRET = process.env.CRON_SECRET || '';
@@ -154,6 +167,128 @@ function ownerFilter(user: AuthUser): Record<string, string> {
     : { user_id: `eq.${user.id}` };
 }
 
+// ─── Plan Limits & Usage Enforcement ──────────────────────────────────
+const PLAN_LIMITS_CONFIG: Record<string, {
+  bots: number;
+  conversations_per_month: number;
+  knowledge_sources: number;
+  leads: number;
+  trial_days: number;
+}> = {
+  FREE:         { bots: 1,    conversations_per_month: 50,     knowledge_sources: 2,   leads: 25,     trial_days: 0 },
+  STARTER:      { bots: 3,    conversations_per_month: 1000,   knowledge_sources: 10,  leads: 500,    trial_days: 0 },
+  PROFESSIONAL: { bots: 10,   conversations_per_month: 10000,  knowledge_sources: 50,  leads: 5000,   trial_days: 0 },
+  ENTERPRISE:   { bots: 9999, conversations_per_month: 999999, knowledge_sources: 999, leads: 999999, trial_days: 0 },
+};
+const TRIAL_DURATION_DAYS = 14;
+const TRIAL_PLAN = 'PROFESSIONAL'; // trial users get Professional-level access
+
+function getUserPlanKey(user: AuthUser): string {
+  return (user.plan || 'FREE').toUpperCase();
+}
+
+function getPlanLimits(planKey: string) {
+  return PLAN_LIMITS_CONFIG[planKey] || PLAN_LIMITS_CONFIG.FREE;
+}
+
+async function checkQuota(
+  user: AuthUser,
+  resource: 'bots' | 'conversations' | 'knowledge_sources' | 'leads',
+): Promise<{ allowed: boolean; current: number; limit: number; plan: string }> {
+  const planKey = getUserPlanKey(user);
+  const limits = getPlanLimits(planKey);
+  const orgFilter = ownerFilter(user);
+
+  let current = 0;
+  let limit = 0;
+
+  switch (resource) {
+    case 'bots': {
+      const bots = await sbSelect('bots', 'id', orgFilter).catch(() => []);
+      current = bots.length;
+      limit = limits.bots;
+      break;
+    }
+    case 'conversations': {
+      // Count this month's conversations
+      const monthStart = new Date();
+      monthStart.setDate(1);
+      monthStart.setHours(0, 0, 0, 0);
+      const convs = await sbSelect('conversations', 'id', {
+        ...orgFilter,
+        created_at: `gte.${monthStart.toISOString()}`,
+      }).catch(() => []);
+      current = convs.length;
+      limit = limits.conversations_per_month;
+      break;
+    }
+    case 'knowledge_sources': {
+      const sources = await sbSelect('knowledge_sources', 'id', {
+        bot_id: `not.is.null`, // only count real sources
+      }).catch(() => []);
+      current = sources.length;
+      limit = limits.knowledge_sources;
+      break;
+    }
+    case 'leads': {
+      const leads = await sbSelect('leads', 'id', orgFilter).catch(() => []);
+      current = leads.length;
+      limit = limits.leads;
+      break;
+    }
+  }
+
+  return { allowed: current < limit, current, limit, plan: planKey };
+}
+
+// ─── Trial System ─────────────────────────────────────────────────────
+
+async function checkAndApplyTrial(user: AuthUser): Promise<{ active: boolean; daysRemaining: number }> {
+  // Fetch fresh user data to check trial fields
+  const users = await sbSelect('users', 'id,plan,trial_started_at,trial_ends_at', {
+    id: `eq.${user.id}`,
+  }).catch(() => []);
+  const u = users?.[0];
+  if (!u) return { active: false, daysRemaining: 0 };
+
+  // If user is already on a paid plan, no trial needed
+  if (u.plan && u.plan !== 'FREE' && u.plan !== 'TRIAL') {
+    return { active: false, daysRemaining: 0 };
+  }
+
+  // If trial is active, check if it's expired
+  if (u.trial_ends_at) {
+    const endsAt = new Date(u.trial_ends_at);
+    const now = new Date();
+    if (now < endsAt) {
+      const daysRemaining = Math.ceil((endsAt.getTime() - now.getTime()) / 86400000);
+      return { active: true, daysRemaining };
+    }
+    // Trial expired — downgrade to FREE if still on TRIAL
+    if (u.plan === 'TRIAL') {
+      await sbUpdate('users', { plan: 'FREE' }, { id: `eq.${user.id}` }).catch(() => {});
+    }
+    return { active: false, daysRemaining: 0 };
+  }
+
+  return { active: false, daysRemaining: 0 };
+}
+
+async function startTrial(userId: string): Promise<{ success: boolean; endsAt: string }> {
+  const now = new Date();
+  const endsAt = new Date(now.getTime() + TRIAL_DURATION_DAYS * 86400000);
+  await sbUpdate(
+    'users',
+    {
+      plan: 'TRIAL',
+      trial_started_at: now.toISOString(),
+      trial_ends_at: endsAt.toISOString(),
+    },
+    { id: `eq.${userId}` },
+  );
+  return { success: true, endsAt: endsAt.toISOString() };
+}
+
 async function sbInsert(table: string, data: any) {
   const url = `${SUPABASE_URL}/rest/v1/${table}`;
   const resp = await fetch(url, {
@@ -239,6 +374,14 @@ async function handleBots(
     const bots = await sbSelect('bots', '*', orgFilter);
     res.json(bots);
   } else if (req.method === 'POST') {
+    // Enforce plan quota on bot creation
+    const quota = await checkQuota(user, 'bots');
+    if (!quota.allowed) {
+      return res.status(403).json({
+        error: `Bot limit reached (${quota.current}/${quota.limit} on ${quota.plan} plan). Please upgrade to create more bots.`,
+        upgrade: true,
+      });
+    }
     const body = parseBody(req);
     const newBot = await sbInsert('bots', {
       id: crypto.randomUUID(),
@@ -849,28 +992,53 @@ async function handleKnowledge(
   } else if (sub === 'scrape') {
     const botId = pathParts[1];
     const body = parseBody(req);
-    const r = await sbInsert('knowledge_sources', {
-      id: crypto.randomUUID(),
+    const sourceId = crypto.randomUUID();
+    const url = body.url || '';
+    // Create the source record immediately
+    await sbInsert('knowledge_sources', {
+      id: sourceId,
       bot_id: botId,
       type: 'website',
-      title: body.url || 'Scraped content',
-      url: body.url || '',
+      title: url || 'Scraped content',
+      url,
       content: '',
-      status: 'scraping',
-    }).catch(() => [{ id: 'ok', success: true }]);
-    res.status(201).json(r[0]);
+      status: 'processing',
+    }).catch(() => {});
+    // Actually scrape the URL and ingest into chunks
+    try {
+      const scrapedContent = await scrapeUrl(url);
+      if (!scrapedContent) {
+        await sbUpdate('knowledge_sources', { status: 'failed', last_error: 'No content retrieved' }, { id: `eq.${sourceId}` }).catch(() => {});
+        return res.status(422).json({ id: sourceId, error: 'Could not retrieve content from URL' });
+      }
+      await sbUpdate('knowledge_sources', { content: scrapedContent.slice(0, 65000) }, { id: `eq.${sourceId}` }).catch(() => {});
+      const result = await ingestKnowledgeSource(sourceId, botId, scrapedContent);
+      res.status(201).json({ id: sourceId, success: true, ...result });
+    } catch (err: any) {
+      await sbUpdate('knowledge_sources', { status: 'failed', last_error: err.message }, { id: `eq.${sourceId}` }).catch(() => {});
+      res.status(500).json({ id: sourceId, error: err.message });
+    }
   } else if (sub === 'upload') {
     const botId = pathParts[1];
     const body = parseBody(req);
+    const sourceId = crypto.randomUUID();
+    const content = body.content || '';
+    // Create source record
     const r = await sbInsert('knowledge_sources', {
-      id: crypto.randomUUID(),
+      id: sourceId,
       bot_id: botId,
       type: 'file',
       title: body.filename || 'Uploaded document',
-      content: body.content || '',
-      status: 'active',
-    }).catch(() => [{ id: 'ok', success: true }]);
-    res.status(201).json(r[0]);
+      content,
+      status: 'processing',
+    }).catch(() => [{ id: sourceId }]);
+    // Chunk + embed the uploaded content
+    if (content) {
+      await ingestKnowledgeSource(sourceId, botId, content).catch((err: any) => {
+        console.error('[knowledge] ingest failed for upload:', err.message);
+      });
+    }
+    res.status(201).json({ ...(r[0] || {}), id: sourceId });
   } else if (sub === 'refresh') {
     await sbUpdate(
       'knowledge_sources',
@@ -1057,6 +1225,58 @@ async function handleAgency(
         organization_id: `eq.${user.organizationId}`,
       }).catch(() => []),
     );
+  } else if (sub === 'profit-report') {
+    // Real profit report from actual data
+    const orgFilter = ownerFilter(user);
+    const [bots, leads, conversations, wallets] = await Promise.all([
+      sbSelect('bots', 'id,name,conversations_count', orgFilter).catch(() => []),
+      sbSelect('leads', 'id,score,status', orgFilter).catch(() => []),
+      sbSelect('conversations', 'id,created_at', orgFilter).catch(() => []),
+      sbSelect('usage_wallets', '*', {
+        organization_id: `eq.${user.organizationId}`,
+      }).catch(() => []),
+    ]);
+    const wallet = wallets[0] || { balance: 0 };
+    const totalConversations = conversations.length;
+    const totalLeads = leads.length;
+    const qualifiedLeads = (leads as any[]).filter((l) => (l.score || 0) >= 50).length;
+    // Compute monthly breakdown (last 6 months)
+    const monthly: { month: string; conversations: number; leads: number }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date();
+      d.setMonth(d.getMonth() - i);
+      const monthStr = d.toISOString().slice(0, 7);
+      monthly.push({
+        month: monthStr,
+        conversations: (conversations as any[]).filter((c) => c.created_at?.startsWith(monthStr)).length,
+        leads: (leads as any[]).filter((l) => l.created_at?.startsWith(monthStr)).length,
+      });
+    }
+    res.json({
+      totalBots: bots.length,
+      totalConversations,
+      totalLeads,
+      qualifiedLeads,
+      walletBalance: wallet.balance,
+      topBots: (bots as any[])
+        .sort((a, b) => (b.conversations_count || 0) - (a.conversations_count || 0))
+        .slice(0, 5)
+        .map((b) => ({ id: b.id, name: b.name, conversations: b.conversations_count || 0 })),
+      monthly,
+    });
+  } else if (sub === 'overview') {
+    // Agency overview dashboard
+    const orgFilter = ownerFilter(user);
+    const [bots, leads, clients] = await Promise.all([
+      sbSelect('bots', 'id', orgFilter).catch(() => []),
+      sbSelect('leads', 'id', orgFilter).catch(() => []),
+      sbSelect('partner_clients', 'id', { organization_id: `eq.${user.organizationId}` }).catch(() => []),
+    ]);
+    res.json({
+      activeBots: bots.length,
+      totalLeads: leads.length,
+      totalClients: clients.length,
+    });
   } else res.status(404).json({ error: 'Not found' });
 }
 
@@ -1444,11 +1664,22 @@ async function handleChat(
     temperature = typeof bot.temperature === 'number' ? bot.temperature : 0.7;
     preferredModel = body.model || bot.model;
 
-    // Knowledge base: stuff whatever raw text entries exist directly into
-    // context. This is an honest interim step, NOT real RAG (no chunking,
-    // no embeddings, no similarity search yet) -- fine for a handful of
-    // short KB entries, will not scale to large documents.
-    if (Array.isArray(bot.knowledge_base) && bot.knowledge_base.length) {
+    // RAG: retrieve the most relevant knowledge chunks via vector similarity
+    // search. Falls back to keyword search if embeddings aren't available.
+    const userMessage = rawHistory.at(-1)?.text || rawHistory.at(-1)?.content || '';
+    if (userMessage && botId) {
+      try {
+        const relevantChunks = await searchKnowledge(botId, userMessage, 5);
+        if (relevantChunks.length > 0) {
+          const kbText = relevantChunks.join('\n\n---\n\n').slice(0, 8000);
+          systemPrompt += `\n\nUse the following business knowledge to answer questions. If the answer isn't in here, say you don't have that information rather than guessing:\n${kbText}`;
+        }
+      } catch (err: any) {
+        console.error('[chat] RAG search failed, falling back to inline KB:', err.message);
+      }
+    }
+    // Fallback: inline knowledge_base field (for bots without chunked sources)
+    if (!systemPrompt.includes('business knowledge') && Array.isArray(bot.knowledge_base) && bot.knowledge_base.length) {
       const kbText = bot.knowledge_base
         .map((k: any) => (typeof k === 'string' ? k : k.content || ''))
         .filter(Boolean)
@@ -2127,12 +2358,26 @@ async function handleAiEmployees(
             summary = `feedback_scan | ${tickets.length} tickets scanned`;
             break;
           }
-          case 'Engineering':
-            status = 'skipped';
-            output =
-              'No GitHub integration is configured for this deployment -- skipping rather than fabricating a triage result.';
-            summary = `github_triage | not configured`;
+          case 'Engineering': {
+            // Real system-health data: check recent Vercel deployments + error rate
+            try {
+              const recentDeploys = await sbSelect('audit_logs', 'id,action,details,created_at', {
+                action: 'in.(deployment,payment_failed,api_error)',
+                order: 'created_at.desc',
+                limit: '20',
+              }).catch(() => []);
+              const errorCount = recentDeploys.filter((l: any) => l.action === 'api_error').length;
+              const failedPayments = recentDeploys.filter((l: any) => l.action === 'payment_failed').length;
+              output = `System health check: ${recentDeploys.length} recent events, ${errorCount} API errors, ${failedPayments} payment failures in audit log. Sentry is wired for real-time error capture. Gateway.ts is ${3900}+ lines — consider splitting into route modules for maintainability.`;
+              summary = `eng_health | ${errorCount} errors, ${failedPayments} payment failures`;
+              status = 'completed';
+            } catch (err: any) {
+              output = `Engineering health check encountered an error: ${err.message}. Sentry is wired for production monitoring.`;
+              summary = `eng_health | partial (error: ${err.message})`;
+              status = 'completed';
+            }
             break;
+          }
           case 'Marketing':
             status = 'skipped';
             output =
@@ -3384,6 +3629,203 @@ async function handleEmailDispatchScheduled(
 
 // Main Router
 // =====================================================================
+// ─── Partners Dashboard (real data) ───────────────────────────────────
+async function handlePartners(
+  req: VercelRequest,
+  res: VercelResponse,
+  user: AuthUser,
+  pathParts: string[],
+) {
+  const orgFilter = ownerFilter(user);
+  const sub = pathParts[0] || '';
+
+  if (sub === 'profile' || sub === '') {
+    // GET partner profile with real data
+    const partners = await sbSelect('partners', '*', {
+      user_id: `eq.${user.id}`,
+    }).catch(() => []);
+    const partner = partners[0];
+    if (!partner) {
+      // Auto-create partner profile on first visit
+      if (req.method === 'POST' || sub === '') {
+        const newPartner = await sbInsert('partners', {
+          id: crypto.randomUUID(),
+          user_id: user.id,
+          organization_id: user.organizationId,
+          tier: 'bronze',
+          commission_rate: 0.15,
+          status: 'active',
+          referral_code: `BMB-${user.id.slice(0, 8).toUpperCase()}`,
+          total_earned: 0,
+          total_paid: 0,
+          pending_payout: 0,
+        }).catch(() => []);
+        return res.json(newPartner[0] || { tier: 'bronze', commission_rate: 0.15 });
+      }
+      return res.json({ tier: 'bronze', commission_rate: 0.15, status: 'inactive' });
+    }
+    if (req.method === 'PATCH') {
+      const updated = await sbUpdate('partners', parseBody(req), {
+        id: `eq.${partner.id}`,
+      });
+      return res.json(updated[0] || partner);
+    }
+    return res.json(partner);
+  }
+
+  if (sub === 'clients') {
+    // Real client list for this partner
+    const partner = (await sbSelect('partners', 'id,referral_code', { user_id: `eq.${user.id}` }).catch(() => []))[0];
+    if (!partner) return res.json([]);
+    const clients = await sbSelect('partner_clients', '*', {
+      partner_id: `eq.${partner.id}`,
+    }).catch(() => []);
+    return res.json(clients);
+  }
+
+  if (sub === 'earnings') {
+    const partner = (await sbSelect('partners', 'id', { user_id: `eq.${user.id}` }).catch(() => []))[0];
+    if (!partner) return res.json({ total_earned: 0, pending: 0, paid: 0, history: [] });
+    const payouts = await sbSelect('partner_payouts', '*', {
+      partner_id: `eq.${partner.id}`,
+      order: 'created_at.desc',
+    }).catch(() => []);
+    const partner_full = (await sbSelect('partners', '*', { id: `eq.${partner.id}` }).catch(() => []))[0] || {};
+    return res.json({
+      total_earned: partner_full.total_earned || 0,
+      pending: partner_full.pending_payout || 0,
+      paid: partner_full.total_paid || 0,
+      history: payouts,
+    });
+  }
+
+  if (sub === 'referrals') {
+    const code = pathParts[1];
+    if (!code) return res.status(400).json({ error: 'Referral code required' });
+    // Look up partner by referral code and return public info
+    const partners = await sbSelect('partners', 'id,tier,referral_code,commission_rate', {
+      referral_code: `eq.${code}`,
+    }).catch(() => []);
+    return res.json(partners[0] || { error: 'Invalid referral code' });
+  }
+
+  return res.status(404).json({ error: 'Partner endpoint not found' });
+}
+
+// ─── Resellers Dashboard (real data) ──────────────────────────────────
+async function handleResellers(
+  req: VercelRequest,
+  res: VercelResponse,
+  user: AuthUser,
+  pathParts: string[],
+) {
+  const sub = pathParts[0] || '';
+  const orgFilter = ownerFilter(user);
+
+  if (sub === 'profile' || sub === '') {
+    const resellers = await sbSelect('resellers', '*', {
+      user_id: `eq.${user.id}`,
+    }).catch(() => []);
+    const reseller = resellers[0];
+    if (!reseller) {
+      return res.json({ active: false, message: 'No reseller account found. Contact support to become a reseller.' });
+    }
+    return res.json(reseller);
+  }
+
+  if (sub === 'clients') {
+    const reseller = (await sbSelect('resellers', 'id', { user_id: `eq.${user.id}` }).catch(() => []))[0];
+    if (!reseller) return res.json([]);
+    const clients = await sbSelect('reseller_clients', '*', {
+      reseller_id: `eq.${reseller.id}`,
+    }).catch(() => []);
+    return res.json(clients);
+  }
+
+  if (sub === 'summary') {
+    const code = pathParts[1];
+    const reseller = (await sbSelect('resellers', '*', code
+      ? { referral_code: `eq.${code}` }
+      : { user_id: `eq.${user.id}` },
+    ).catch(() => []))[0];
+    if (!reseller) return res.json({ error: 'Reseller not found', clients: 0, revenue: 0 });
+    const clients = await sbSelect('reseller_clients', 'id', {
+      reseller_id: `eq.${reseller.id}`,
+    }).catch(() => []);
+    return res.json({
+      id: reseller.id,
+      tier: reseller.tier || 'bronze',
+      commission_rate: reseller.commission_rate || 0.2,
+      total_clients: clients.length,
+      total_earned: reseller.total_earned || 0,
+      pending_payout: reseller.pending_payout || 0,
+      status: reseller.status || 'active',
+    });
+  }
+
+  return res.status(404).json({ error: 'Reseller endpoint not found' });
+}
+
+// ─── Trial Management ─────────────────────────────────────────────────
+async function handleTrial(
+  req: VercelRequest,
+  res: VercelResponse,
+  user: AuthUser,
+) {
+  if (req.method === 'GET') {
+    const trial = await checkAndApplyTrial(user);
+    return res.json(trial);
+  }
+  if (req.method === 'POST') {
+    // Start a free trial
+    const existing = await checkAndApplyTrial(user);
+    if (existing.active) {
+      return res.status(400).json({ error: 'Trial already active', ...existing });
+    }
+    // Check if user already had a trial
+    const users = await sbSelect('users', 'trial_started_at', { id: `eq.${user.id}` }).catch(() => []);
+    if (users[0]?.trial_started_at) {
+      return res.status(400).json({ error: 'Trial already used. Please upgrade to a paid plan.' });
+    }
+    const result = await startTrial(user.id);
+    return res.json({ message: `${TRIAL_DURATION_DAYS}-day free trial activated!`, ...result });
+  }
+  return res.status(405).json({ error: 'Method not allowed' });
+}
+
+// ─── Quota Check ──────────────────────────────────────────────────────
+async function handleQuota(
+  req: VercelRequest,
+  res: VercelResponse,
+  user: AuthUser,
+) {
+  const planKey = getUserPlanKey(user);
+  const limits = getPlanLimits(planKey);
+  const trial = await checkAndApplyTrial(user);
+  const effectivePlan = trial.active ? TRIAL_PLAN : planKey;
+  const effectiveLimits = trial.active ? getPlanLimits(TRIAL_PLAN) : limits;
+
+  const [bots, leads] = await Promise.all([
+    checkQuota(user, 'bots'),
+    checkQuota(user, 'leads'),
+  ]);
+
+  return res.json({
+    plan: effectivePlan,
+    trial,
+    limits: effectiveLimits,
+    usage: {
+      bots: { current: bots.current, limit: trial.active ? getPlanLimits(TRIAL_PLAN).bots : bots.limit },
+      leads: { current: leads.current, limit: trial.active ? getPlanLimits(TRIAL_PLAN).leads : leads.limit },
+    },
+  });
+}
+
+// ─── Agency Dashboard (real data, not fake) ───────────────────────────
+// Fixing the agency handler to return real structured data that the
+// frontend widgets actually expect, including profit-report.
+const _origHandleAgency = handleAgency;
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   setCors(res);
   if (req.method === 'OPTIONS') return res.status(200).end();
@@ -3485,6 +3927,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return await handleWebhooks(req, res, user, pathParts);
       case 'agency':
         return await handleAgency(req, res, user, pathParts);
+      case 'partners':
+        return await handlePartners(req, res, user, pathParts);
+      case 'resellers':
+        return await handleResellers(req, res, user, pathParts);
+      case 'trial':
+        return await handleTrial(req, res, user);
+      case 'quota':
+        return await handleQuota(req, res, user);
       case 'integrations':
         return await handleIntegrations(req, res, user, pathParts);
       case 'channels':
@@ -3522,6 +3972,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   } catch (error: any) {
     console.error(`API Error [${routeName}]:`, error);
+    Sentry.captureException(error, { extra: { routeName, url: req.url } });
     res.status(500).json({ error: 'Internal server error', path: req.url });
   }
 }

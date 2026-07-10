@@ -11,7 +11,7 @@ export const config = {
 };
 
 const SUPABASE_URL =
-  process.env.SUPABASE_URL || 'https://evkjlnbpntimbxklnhoz.supabase.co';
+  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const SUPABASE_HEADERS = {
   apikey: SUPABASE_KEY,
@@ -206,6 +206,68 @@ async function handleSubscriptionDeleted(subscription: any) {
   );
 }
 
+async function handlePaymentFailed(invoice: any) {
+  // Dunning flow: when a payment fails, mark the user as past_due
+  // and record the failure for follow-up
+  const subscriptionId = invoice.subscription;
+  if (!subscriptionId) return;
+
+  // Find the user by their subscription ID
+  const users = await sbSelect('users', 'id,email,plan', {
+    stripe_subscription_id: `eq.${subscriptionId}`,
+  }).catch(() => []);
+  const user = users?.[0];
+  if (!user) return;
+
+  const attemptCount = invoice.attempt_count || 1;
+  const nextAttemptAt = invoice.next_payment_attempt
+    ? new Date(invoice.next_payment_attempt * 1000).toISOString()
+    : null;
+
+  // Update user record with payment failure info
+  await sbUpdate(
+    'users',
+    {
+      payment_status: 'past_due',
+      payment_failed_at: new Date().toISOString(),
+      payment_attempt_count: attemptCount,
+    },
+    { id: `eq.${user.id}` },
+  ).catch(() => {});
+
+  // Log the failure for the admin dashboard
+  await sbUpsert(
+    'audit_logs',
+    {
+      id: crypto.randomUUID(),
+      user_id: user.id,
+      action: 'payment_failed',
+      details: JSON.stringify({
+        invoice_id: invoice.id,
+        amount_due: invoice.amount_due,
+        attempt_count: attemptCount,
+        next_attempt_at: nextAttemptAt,
+        subscription_id: subscriptionId,
+      }),
+      created_at: new Date().toISOString(),
+    },
+    'id',
+  ).catch(() => {});
+
+  // After 3 failed attempts with no next retry, downgrade to FREE
+  if (attemptCount >= 3 && !nextAttemptAt) {
+    await sbUpdate(
+      'users',
+      { plan: 'FREE', payment_status: 'canceled', stripe_subscription_id: null },
+      { id: `eq.${user.id}` },
+    ).catch(() => {});
+  }
+
+  console.log(
+    `[stripe-webhook] payment_failed for user ${user.id} (${user.email}), attempt ${attemptCount}`,
+  );
+}
+
 async function handleOneTimeCheckout(session: any) {
   const meta = session.metadata || {};
   const { type, organizationId } = meta;
@@ -259,6 +321,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         break;
       case 'customer.subscription.deleted':
         await handleSubscriptionDeleted(event.data.object);
+        break;
+      case 'invoice.payment_failed':
+        await handlePaymentFailed(event.data.object);
         break;
       default:
         // Unhandled event types are fine to no-op on.
