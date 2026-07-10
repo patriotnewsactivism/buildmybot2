@@ -649,7 +649,10 @@ FLAGS: <anything urgent, or blank>`;
   for (const block of blocks) {
     const platform = block.match(/^\s*(twitter|linkedin)/i)?.[1]?.toLowerCase() as 'twitter' | 'linkedin' | undefined;
     const postType = block.match(/DRAFT_TYPE:\s*(post|reply)/i)?.[1]?.toLowerCase() as 'post' | 'reply' | undefined;
-    const replyToId = block.match(/DRAFT_REPLY_TO_ID:\s*(\S*)/i)?.[1]?.trim();
+    const rawReplyToId = block.match(/DRAFT_REPLY_TO_ID:[ \t]*([^\n]*)/i)?.[1]?.trim();
+    // Guard against the regex bleeding into the next field's label when the
+    // model leaves this blank (seen live: captured "DRAFT_CONTENT:" itself).
+    const replyToId = rawReplyToId && !/^DRAFT_/i.test(rawReplyToId) ? rawReplyToId : undefined;
     const draftContent = block.match(/DRAFT_CONTENT:\s*([\s\S]*)/i)?.[1]?.trim();
     if (platform && draftContent) {
       drafts.push({ platform, content: draftContent, post_type: postType || 'post', in_reply_to_id: replyToId || undefined });
