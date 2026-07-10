@@ -1,46 +1,47 @@
 name: AI Team — Recurring Shifts
 
-# Replaces the old Base44 cron workflows entirely — this repo owns its own
-# scheduling now, free of any Base44 integration-credit ceiling.
+# Replaces the old Base44 cron workflows entirely. Repo is public, so
+# GitHub Actions minutes are free/unlimited -- the real ceiling is Groq's
+# free-tier request budget (llama-3.3-70b-versatile: ~1,000 requests/day
+# shared across every role). This schedule is tuned to use that budget
+# aggressively while staying safely under it (see math in each tier below).
+# Cerebras is the automatic fallback (~1M tokens/day) if Groq ever gets
+# rate-limited mid-day -- lib.ts already tries it before ever touching paid
+# OpenAI.
 #
-# Three cadence tiers so the team feels genuinely "always on":
-#  - Sales (sales-agents, derek-sales-director, victoria-vp-sales): the
-#    highest-priority, most time-sensitive roles. Run every 30 minutes,
-#    all day, every day — steady constant output, never waiting around.
-#  - Tier A (sam-support, maya-marketing): still customer-facing with real
-#    live data, but less urgent than sales -> every 3 hours, 5x/day.
+#  - Sales (sales-agents, derek-sales-director, victoria-vp-sales): highest
+#    priority, most time-sensitive -> every 10 minutes, all day.
+#    144 runs/day x 3 roles = 432 calls/day.
+#  - Tier A (sam-support, maya-marketing): real live data, less urgent than
+#    sales -> every 1 hour. 24 runs/day x 2 roles = 48 calls/day.
 #  - Tier B (eli-engineering, oscar-operations, piper-product, hr-associate,
-#    billing-associate, hannah-hr, brianna-billing): internal/ops functions,
-#    some still honest placeholders with no live data source yet -> every
-#    ~4 hours, 3x/day.
-#  - Marcus (executive rollup): 2x/day (midday + evening).
+#    billing-associate, hannah-hr, brianna-billing): internal/ops, some
+#    still honest placeholders with no live data source yet -> every 2
+#    hours. 12 runs/day x 7 roles = 84 calls/day.
+#  - Marcus (executive rollup): every 4 hours -> 6 calls/day.
+#
+# Total: ~570 calls/day, leaving ~40% headroom under Groq's 1,000/day free
+# cap before Cerebras fallback would ever need to kick in.
 #
 # Times below are America/Chicago, converted to UTC assuming CDT (summer,
-# UTC-5) — shift by an hour in winter (CST, UTC-6) if exact timing matters.
+# UTC-5) -- shift by an hour in winter (CST, UTC-6) if exact timing matters.
 # github.event.schedule tells us exactly which entry fired, so there's no
 # flaky wall-clock matching, even when entries land on the same clock time.
 
 on:
   workflow_dispatch: {} # manual "Run workflow" from the Actions tab -> runs Marcus's rollup
   schedule:
-    # --- Sales: every 30 minutes, all day ---
-    - cron: '*/30 * * * *'
+    # --- Sales: every 10 minutes, all day ---
+    - cron: '*/10 * * * *'
 
-    # --- Tier A: every 3h, 8am/11am/2pm/5pm/8pm CDT ---
-    - cron: '0 13 * * *' # 8:00 AM CDT
-    - cron: '0 16 * * *' # 11:00 AM CDT
-    - cron: '0 19 * * *' # 2:00 PM CDT
-    - cron: '0 22 * * *' # 5:00 PM CDT
-    - cron: '0 1 * * *'  # 8:00 PM CDT
+    # --- Tier A: every 1 hour ---
+    - cron: '0 * * * *'
 
-    # --- Tier B: every ~4h, 9:30am/1:30pm/5:30pm CDT (offset :30 to stay distinct) ---
-    - cron: '30 14 * * *' # 9:30 AM CDT
-    - cron: '30 18 * * *' # 1:30 PM CDT
-    - cron: '30 22 * * *' # 5:30 PM CDT
+    # --- Tier B: every 2 hours ---
+    - cron: '0 */2 * * *'
 
-    # --- Marcus: 2x/day, 2:15pm and 6:15pm CDT ---
-    - cron: '15 19 * * *' # 2:15 PM CDT
-    - cron: '15 23 * * *' # 6:15 PM CDT
+    # --- Marcus: every 4 hours ---
+    - cron: '30 */4 * * *'
 
 jobs:
   run-shift:
@@ -52,13 +53,13 @@ jobs:
           SCHEDULE="${{ github.event.schedule }}"
           echo "fired cron: $SCHEDULE"
           case "$SCHEDULE" in
-            "*/30 * * * *")
+            "*/10 * * * *")
               echo "roles=sales-agents,derek-sales-director,victoria-vp-sales" >> "$GITHUB_OUTPUT" ;;
-            "0 13 * * *"|"0 16 * * *"|"0 19 * * *"|"0 22 * * *"|"0 1 * * *")
+            "0 * * * *")
               echo "roles=sam-support,maya-marketing" >> "$GITHUB_OUTPUT" ;;
-            "30 14 * * *"|"30 18 * * *"|"30 22 * * *")
+            "0 */2 * * *")
               echo "roles=eli-engineering,oscar-operations,piper-product,hr-associate,billing-associate,hannah-hr,brianna-billing" >> "$GITHUB_OUTPUT" ;;
-            "15 19 * * *"|"15 23 * * *")
+            "30 */4 * * *")
               echo "roles=marcus" >> "$GITHUB_OUTPUT" ;;
             *) echo "roles=marcus" >> "$GITHUB_OUTPUT" ;; # manual dispatch fallback
           esac
