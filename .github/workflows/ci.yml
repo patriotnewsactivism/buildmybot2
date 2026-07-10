@@ -25,7 +25,8 @@ jobs:
 
       - name: Run lint
         run: npm run lint
-        continue-on-error: true # 346 pre-existing errors in legacy code; tracked separately, not a merge blocker
+        # Gated 2026-07-10: biome exits 0 with 223 pre-existing warnings (no errors).
+        # This blocks NEW lint errors from merging while accepting existing warning debt.
 
       - name: Run tests
         run: npm run test:run
