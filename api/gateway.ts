@@ -156,7 +156,7 @@ async function sbSelect(
   return resp.json();
 }
 
-function ownerFilter(user: AuthUser): Record<string, string> {
+export function ownerFilter(user: AuthUser): Record<string, string> {
   // SECURITY: never return an empty filter here -- an empty {} means "no
   // WHERE clause", i.e. every row in the table across every tenant. Users
   // without an organization_id (e.g. brand new signups before an org is
@@ -183,15 +183,15 @@ const PLAN_LIMITS_CONFIG: Record<string, {
 const TRIAL_DURATION_DAYS = 14;
 const TRIAL_PLAN = 'PROFESSIONAL'; // trial users get Professional-level access
 
-function getUserPlanKey(user: AuthUser): string {
+export function getUserPlanKey(user: AuthUser): string {
   return (user.plan || 'FREE').toUpperCase();
 }
 
-function getPlanLimits(planKey: string) {
+export function getPlanLimits(planKey: string) {
   return PLAN_LIMITS_CONFIG[planKey] || PLAN_LIMITS_CONFIG.FREE;
 }
 
-async function checkQuota(
+export async function checkQuota(
   user: AuthUser,
   resource: 'bots' | 'conversations' | 'knowledge_sources' | 'leads',
 ): Promise<{ allowed: boolean; current: number; limit: number; plan: string }> {

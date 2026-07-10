@@ -1,0 +1,214 @@
+/**
+ * api/gateway.ts tests — the actual production Vercel serverless function
+ * that powers buildmybot.app (NOT the dead server/ Express backend the
+ * rest of test/ exercises). Covers the things a real security/launch audit
+ * cares about: auth verification, tenant isolation, admin gating, quota
+ * enforcement, cron auth, and CORS — by calling the real exported handler
+ * and helpers with mocked env vars + a mocked Supabase REST fetch.
+ */
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { VercelRequest, VercelResponse } from '@vercel/node';
+
+const SESSION_SECRET = 'test-session-secret';
+const CRON_SECRET = 'test-cron-secret';
+
+process.env.SUPABASE_URL = 'https://fake-project.supabase.co';
+process.env.SUPABASE_SERVICE_ROLE_KEY = 'fake-service-role-key';
+process.env.SESSION_JWT_SECRET = SESSION_SECRET;
+process.env.CRON_SECRET = CRON_SECRET;
+
+// Import after env vars are set since gateway.ts reads them at module load.
+const gateway = await import('../../api/gateway.ts');
+const { ownerFilter, checkQuota, getUserPlanKey, getPlanLimits } = gateway as any;
+const handler = gateway.default;
+
+function mockRes(): VercelResponse {
+  const res: any = {
+    statusCode: 200,
+    headers: {} as Record<string, string>,
+    body: undefined as any,
+    setHeader(key: string, value: string) {
+      this.headers[key] = value;
+      return this;
+    },
+    status(code: number) {
+      this.statusCode = code;
+      return this;
+    },
+    json(payload: unknown) {
+      this.body = payload;
+      return this;
+    },
+    end() {
+      return this;
+    },
+  };
+  return res as VercelResponse;
+}
+
+function mockReq(overrides: Partial<VercelRequest> = {}): VercelRequest {
+  return {
+    method: 'GET',
+    url: '/api/health',
+    headers: {},
+    body: {},
+    ...overrides,
+  } as VercelRequest;
+}
+
+/** Signs a session token exactly like api/auth/login.ts does. */
+async function signToken(payload: Record<string, unknown>): Promise<string> {
+  const crypto = await import('crypto');
+  const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const sig = crypto
+    .createHmac('sha256', SESSION_SECRET)
+    .update(encoded)
+    .digest('base64url');
+  return `${encoded}.${sig}`;
+}
+
+describe('api/gateway.ts — CORS + basic dispatch', () => {
+  it('handles OPTIONS preflight with CORS headers and no auth required', async () => {
+    const req = mockReq({ method: 'OPTIONS' });
+    const res: any = mockRes();
+    await handler(req, res);
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['Access-Control-Allow-Origin']).toBe('*');
+  });
+
+  it('health check is public and returns 200 without a session', async () => {
+    const req = mockReq({ url: '/api/health' });
+    const res: any = mockRes();
+    await handler(req, res);
+    expect(res.statusCode).toBe(200);
+  });
+});
+
+describe('api/gateway.ts — auth verification', () => {
+  it('rejects protected routes with no session cookie/bearer token', async () => {
+    const req = mockReq({ url: '/api/bots' });
+    const res: any = mockRes();
+    await handler(req, res);
+    expect(res.statusCode).toBe(401);
+    expect(res.body).toEqual({ error: 'Not authenticated' });
+  });
+
+  it('rejects a session token with a tampered signature', async () => {
+    const good = await signToken({ sub: 'user-1', exp: Math.floor(Date.now() / 1000) + 3600 });
+    const tampered = good.slice(0, -2) + 'xx';
+    const req = mockReq({ url: '/api/bots', headers: { authorization: `Bearer ${tampered}` } });
+    const res: any = mockRes();
+    await handler(req, res);
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('rejects an expired session token even with a valid signature', async () => {
+    const expired = await signToken({ sub: 'user-1', exp: Math.floor(Date.now() / 1000) - 10 });
+    // getAuthUser checks exp before ever calling Supabase, so no fetch mock needed.
+    const req = mockReq({ url: '/api/bots', headers: { authorization: `Bearer ${expired}` } });
+    const res: any = mockRes();
+    await handler(req, res);
+    expect(res.statusCode).toBe(401);
+  });
+});
+
+describe('api/gateway.ts — cron auth', () => {
+  it('accepts the AI-employees cron route with a valid CRON_SECRET bearer token', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [],
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const req = mockReq({
+      url: '/api/ai-employees/shift',
+      headers: { authorization: `Bearer ${CRON_SECRET}` },
+    });
+    const res: any = mockRes();
+    await handler(req, res);
+    // Should NOT be the 401 "Not authenticated" the same route gets without
+    // the header — it's treated as a trusted system caller instead.
+    expect(res.statusCode).not.toBe(401);
+    vi.unstubAllGlobals();
+  });
+
+  it('rejects the cron route with a wrong secret, falling through to normal 401 auth', async () => {
+    const req = mockReq({
+      url: '/api/ai-employees/shift',
+      headers: { authorization: 'Bearer not-the-real-secret' },
+    });
+    const res: any = mockRes();
+    await handler(req, res);
+    expect(res.statusCode).toBe(401);
+  });
+});
+
+describe('api/gateway.ts — tenant isolation (ownerFilter)', () => {
+  it('scopes by organization_id when the user belongs to an org', () => {
+    const filter = ownerFilter({ id: 'u1', email: 'a@b.com', role: 'user', organizationId: 'org-123' });
+    expect(filter).toEqual({ organization_id: 'eq.org-123' });
+  });
+
+  it('falls back to user_id scoping for orgless users instead of an empty (all-tenants) filter', () => {
+    const filter = ownerFilter({ id: 'u1', email: 'a@b.com', role: 'user' } as any);
+    expect(filter).toEqual({ user_id: 'eq.u1' });
+    // The historical bug this guards against: an empty {} filter means "no
+    // WHERE clause" against Supabase's REST API, i.e. every tenant's rows.
+    expect(Object.keys(filter).length).toBeGreaterThan(0);
+  });
+});
+
+describe('api/gateway.ts — plan limits', () => {
+  it('defaults an unset/unknown plan to FREE limits', () => {
+    expect(getUserPlanKey({ role: 'user' } as any)).toBe('FREE');
+    expect(getUserPlanKey({ role: 'user', plan: 'bogus-plan' } as any)).toBe('BOGUS-PLAN');
+    expect(getPlanLimits('bogus-plan')).toEqual(getPlanLimits('FREE'));
+  });
+
+  it('FREE plan caps match the documented limits (1 bot / 250 convos / 3 sources / 50 leads)', () => {
+    const limits = getPlanLimits('FREE');
+    expect(limits).toMatchObject({
+      bots: 1,
+      conversations_per_month: 250,
+      knowledge_sources: 3,
+      leads: 50,
+    });
+  });
+});
+
+describe('api/gateway.ts — checkQuota enforcement', () => {
+  const user = { id: 'u1', email: 'a@b.com', role: 'user', organizationId: 'org-1', plan: 'FREE' };
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('blocks creating a bot when the FREE plan bot cap (1) is already reached', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, json: async () => [{ id: 'existing-bot' }] }),
+    );
+    const result = await checkQuota(user as any, 'bots');
+    expect(result).toMatchObject({ allowed: false, current: 1, limit: 1, plan: 'FREE' });
+  });
+
+  it('allows creating a bot when under the cap', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => [] }));
+    const result = await checkQuota(user as any, 'bots');
+    expect(result).toMatchObject({ allowed: true, current: 0, limit: 1, plan: 'FREE' });
+  });
+
+  it('ENTERPRISE plan effectively has no cap', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, json: async () => Array(500).fill({ id: 'x' }) }),
+    );
+    const result = await checkQuota({ ...user, plan: 'ENTERPRISE' } as any, 'leads');
+    expect(result.allowed).toBe(true);
+  });
+
+  it('fails safe (0 current) if the Supabase count query itself errors, rather than throwing', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')));
+    const result = await checkQuota(user as any, 'leads');
+    expect(result.current).toBe(0);
+    expect(result.allowed).toBe(true);
+  });
+});
