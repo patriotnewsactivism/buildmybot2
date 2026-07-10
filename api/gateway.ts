@@ -471,6 +471,24 @@ async function handleAdmin(
     return res.status(403).json({ error: 'Admin access required' });
   const sub = pathParts[0] || '';
 
+  if (sub === 'live-leads') {
+    // Live feed of today's AI-team-researched leads for the master admin
+    // dashboard -- polled every few seconds so the count visibly ticks up
+    // as the 6 researcher roles (Sarah + 5 sales agents) find real leads.
+    const today = new Date().toISOString().slice(0, 10);
+    const rows = await sbSelect(
+      'researched_leads',
+      'id,researched_by,company_name,industry,city,website,created_at',
+      { created_at: `gte.${today}T00:00:00Z`, order: 'created_at.desc', limit: '200' },
+    ).catch(() => []);
+    res.json({
+      date: today,
+      total_today: rows.length,
+      leads: rows,
+    });
+    return;
+  }
+
   if (sub === 'metrics') {
     const [users, orgs, bots, leads, subs] = await Promise.all([
       sbSelect('users', 'id,role,plan,created_at', {}).catch(() => []),

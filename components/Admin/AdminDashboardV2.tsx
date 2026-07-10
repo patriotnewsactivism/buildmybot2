@@ -25,6 +25,7 @@ import { ErrorRecoveryDashboard } from './ErrorRecoveryDashboard';
 import { NotificationComposer } from './NotificationComposer';
 import { PartnerOverviewAdmin } from './PartnerOverviewAdmin';
 import { FinancialDashboard } from './widgets/FinancialDashboard';
+import { LiveLeadsFeed } from './widgets/LiveLeadsFeed';
 
 interface AdminDashboardMetrics {
   totalUsers: number;
@@ -352,6 +353,9 @@ export const AdminDashboardV2: React.FC<AdminDashboardV2Props> = ({
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
             <div className="lg:col-span-2 xl:col-span-2">
               <FinancialDashboard />
+            </div>
+            <div>
+              <LiveLeadsFeed />
             </div>
             <div>
               <PartnerOverviewAdmin />
