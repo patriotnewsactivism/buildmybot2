@@ -1,35 +1,48 @@
 // Shared library for the AI Team automation, running natively on Vercel + Supabase.
 // No Base44 dependency, no per-message credit ceiling — just usage-based LLM billing.
 //
-// LLM PROVIDER: defaults to Groq (free tier, extremely fast, Llama 3.3 70B) for internal
-// reasoning tasks. Falls back to OpenAI if you want higher quality for anything customer-facing.
-// Swap providers anytime via the AI_TEAM_LLM_PROVIDER env var — no code changes needed.
+// LLM PROVIDER: tries a chain of FREE providers first (whichever have API keys
+// configured), only falling back to paid OpenAI as a last resort. Order:
+// AI_TEAM_LLM_PROVIDER (your preferred default) -> gemini -> groq -> cerebras
+// -> openrouter -> openai. Swap the preferred default anytime via the
+// AI_TEAM_LLM_PROVIDER env var — no code changes needed. Add a provider's key
+// (GEMINI_API_KEY / GROQ_API_KEY / CEREBRAS_API_KEY / OPENROUTER_API_KEY) and
+// it automatically joins the fallback chain.
 
 const SUPABASE_URL = process.env.SUPABASE_URL!;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-type Provider = 'groq' | 'gemini' | 'openrouter' | 'openai';
+type Provider = 'groq' | 'gemini' | 'cerebras' | 'openrouter' | 'openai';
 
 const PROVIDER_CONFIG: Record<Provider, { baseURL: string; model: string; keyEnv: string }> = {
-  // Free tier, ~fastest inference available, great for internal/ops reasoning.
+  // Google's free tier (no card) via their OpenAI-compatible endpoint. Most
+  // accessible free baseline as of mid-2026.
+  gemini: {
+    baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+    model: 'gemini-2.5-flash',
+    keyEnv: 'GEMINI_API_KEY',
+  },
+  // Free tier, no card, LPU inference — among the fastest available. Great
+  // for short internal-reasoning shifts like these.
   groq: {
     baseURL: 'https://api.groq.com/openai/v1/chat/completions',
     model: 'llama-3.3-70b-versatile',
     keyEnv: 'GROQ_API_KEY',
   },
-  // Google's free tier (1500 req/day on Flash) via their OpenAI-compatible endpoint.
-  gemini: {
-    baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
-    model: 'gemini-2.0-flash',
-    keyEnv: 'GEMINI_API_KEY',
+  // Free tier, no card, 1M tokens/day — the most generous free daily volume
+  // of any provider as of mid-2026. Good backstop when others rate-limit.
+  cerebras: {
+    baseURL: 'https://api.cerebras.ai/v1/chat/completions',
+    model: 'llama-3.3-70b',
+    keyEnv: 'CEREBRAS_API_KEY',
   },
-  // Aggregator with several genuinely free models (Llama, Mistral, etc).
+  // Aggregator with several genuinely free models (Llama, DeepSeek, Qwen, etc).
   openrouter: {
     baseURL: 'https://openrouter.ai/api/v1/chat/completions',
     model: 'meta-llama/llama-3.1-8b-instruct:free',
     keyEnv: 'OPENROUTER_API_KEY',
   },
-  // Fallback / use for anything customer-facing where quality matters most.
+  // Paid last resort / use for anything customer-facing where quality matters most.
   openai: {
     baseURL: 'https://api.openai.com/v1/chat/completions',
     model: 'gpt-4o-mini',
@@ -37,20 +50,30 @@ const PROVIDER_CONFIG: Record<Provider, { baseURL: string; model: string; keyEnv
   },
 };
 
-export async function callLLM(systemPrompt: string, userPrompt: string): Promise<string> {
-  const provider = (process.env.AI_TEAM_LLM_PROVIDER as Provider) || 'groq';
-  const cfg = PROVIDER_CONFIG[provider];
-  const apiKey = process.env[cfg.keyEnv];
+const FALLBACK_ORDER: Provider[] = ['gemini', 'groq', 'cerebras', 'openrouter', 'openai'];
 
-  if (!apiKey) {
-    // Graceful fallback to OpenAI if the preferred free provider isn't configured yet.
-    const fallback = PROVIDER_CONFIG.openai;
-    const fallbackKey = process.env[fallback.keyEnv];
-    if (!fallbackKey) throw new Error(`No API key found for provider '${provider}' or fallback 'openai'`);
-    return callWithConfig(fallback, fallbackKey, systemPrompt, userPrompt);
+export async function callLLM(systemPrompt: string, userPrompt: string): Promise<string> {
+  const preferred = (process.env.AI_TEAM_LLM_PROVIDER as Provider) || 'groq';
+  const order = [preferred, ...FALLBACK_ORDER.filter((p) => p !== preferred)];
+
+  const errors: string[] = [];
+  for (const provider of order) {
+    const cfg = PROVIDER_CONFIG[provider];
+    const apiKey = process.env[cfg.keyEnv];
+    if (!apiKey) continue; // no key configured for this provider, skip silently
+    try {
+      return await callWithConfig(cfg, apiKey, systemPrompt, userPrompt);
+    } catch (err: any) {
+      errors.push(`${provider}: ${err.message}`);
+      // try the next provider in the chain (likely rate-limited or transient)
+    }
   }
 
-  return callWithConfig(cfg, apiKey, systemPrompt, userPrompt);
+  throw new Error(
+    errors.length
+      ? `All configured LLM providers failed: ${errors.join(' | ')}`
+      : `No LLM provider configured — set at least one of: ${FALLBACK_ORDER.map((p) => PROVIDER_CONFIG[p].keyEnv).join(', ')}`,
+  );
 }
 
 async function callWithConfig(
@@ -77,7 +100,7 @@ async function callWithConfig(
 
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`LLM call failed (${res.status}): ${text}`);
+    throw new Error(`${res.status} ${text.slice(0, 200)}`);
   }
 
   const data = await res.json();

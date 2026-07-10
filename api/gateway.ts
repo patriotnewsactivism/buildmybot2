@@ -2933,14 +2933,23 @@ async function handleEmailInbound(req: VercelRequest, res: VercelResponse) {
   const delaySeconds = 180 + Math.floor(Math.random() * (900 - 180));
   const scheduledSendAt = new Date(Date.now() + delaySeconds * 1000).toISOString();
 
-  const send = await sendEmail({
-    from: employee.email,
-    fromName: `${employee.name} (BuildMyBot)`,
-    to: from,
-    subject: subject.startsWith('Re:') ? subject : `Re: ${subject}`,
-    text: decision.reply,
-    scheduledAt: scheduledSendAt,
-  });
+  // Resend supports true scheduled delivery (scheduled_at) -- it holds and
+  // sends the email itself later, so we can call sendEmail now. Without
+  // Resend configured (SMTP-only setup), sendEmail would send INSTANTLY and
+  // ignore scheduledAt entirely -- so in that case we don't send yet at all.
+  // We just log the row as 'scheduled' and let the /api/email/dispatch-scheduled
+  // sweep (called every few minutes by an external cron) send it once due.
+  const hasNativeScheduling = Boolean(process.env.RESEND_API_KEY);
+  const send = hasNativeScheduling
+    ? await sendEmail({
+        from: employee.email,
+        fromName: `${employee.name} (BuildMyBot)`,
+        to: from,
+        subject: subject.startsWith('Re:') ? subject : `Re: ${subject}`,
+        text: decision.reply,
+        scheduledAt: scheduledSendAt,
+      })
+    : { sent: true, providerId: undefined as string | undefined, reason: undefined as string | undefined };
 
   try {
     await sbInsert('email_messages', {
@@ -3100,6 +3109,63 @@ async function handleEmail(
   return res.status(404).json({ error: 'Not found' });
 }
 
+/** Sweeps email_messages for rows that are due (status='scheduled',
+ * scheduled_send_at <= now) and were never actually sent by a native
+ * provider (i.e. SMTP-only setups, where sendEmail() can't hold delivery
+ * itself). Meant to be called every few minutes by an external cron
+ * (GitHub Actions), authenticated via CRON_SECRET, since Resend already
+ * handles its own scheduled sends and doesn't need this at all. */
+async function handleEmailDispatchScheduled(
+  req: VercelRequest,
+  res: VercelResponse,
+) {
+  if (req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) {
+    return res.status(401).json({ error: 'unauthorized' });
+  }
+  if (process.env.RESEND_API_KEY) {
+    return res.json({ skipped: true, reason: 'resend_handles_scheduling_natively' });
+  }
+
+  const nowIso = new Date().toISOString();
+  let due: any[] = [];
+  try {
+    due = await sbSelect('email_messages', '*', {
+      status: 'eq.scheduled',
+      direction: 'eq.outbound',
+      scheduled_send_at: `lte.${nowIso}`,
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'lookup_failed', detail: String(err) });
+  }
+
+  const results: any[] = [];
+  for (const row of due.slice(0, 50)) {
+    const employee = await getEmployeeByAddress(row.from_address).catch(() => null);
+    const send = await sendEmail({
+      from: row.from_address,
+      fromName: employee ? `${employee.name} (BuildMyBot)` : 'BuildMyBot',
+      to: row.to_address,
+      subject: row.subject,
+      text: row.body,
+    });
+    try {
+      await sbUpdate(
+        'email_messages',
+        {
+          status: send.sent ? 'sent' : 'send_failed',
+          provider_message_id: send.providerId || null,
+        },
+        { id: `eq.${row.id}` },
+      );
+    } catch {
+      /* non-fatal */
+    }
+    results.push({ id: row.id, to: row.to_address, sent: send.sent });
+  }
+
+  return res.json({ checked: due.length, dispatched: results.length, results });
+}
+
 // Main Router
 // =====================================================================
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -3131,6 +3197,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Inbound email webhook — authenticated by x-webhook-secret, not session
     if (routeName === 'email' && pathParts[0] === 'inbound')
       return await handleEmailInbound(req, res);
+    if (routeName === 'email' && pathParts[0] === 'dispatch-scheduled')
+      return await handleEmailDispatchScheduled(req, res);
 
     // Auth extras (don't conflict with /api/auth/* serverless functions)
     if (
