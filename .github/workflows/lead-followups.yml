@@ -1,0 +1,20 @@
+name: Lead Follow-Up
+
+# Native Vercel port of the old Base44 "Lead Follow-Up" workflow (which kept
+# getting cancelled once Base44 integration credits ran out). Runs every 6h,
+# free, no credit ceiling. See /api/cron/lead-followups.ts for the logic.
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: '0 */6 * * *' # every 6 hours
+
+jobs:
+  follow-up:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send follow-ups to stale leads
+        run: |
+          curl -sf -X POST "https://www.buildmybot.app/api/cron/lead-followups" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -w "\nHTTP %{http_code}\n" || echo "::warning::lead-followups call failed (non-fatal, will retry next cycle)"

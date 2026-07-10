@@ -1,0 +1,22 @@
+name: Dispatch Scheduled Emails
+
+# Sweeps for AI-drafted email replies that are due to send. Only does real
+# work when SMTP is the active transport (Resend handles its own scheduled
+# delivery natively and this becomes a no-op in that case — see
+# /api/email/dispatch-scheduled). Runs on GitHub Actions instead of a
+# Base44/Vercel cron so it costs nothing and isn't capped by plan limits.
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: '*/5 * * * *' # every 5 minutes
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send any due scheduled replies
+        run: |
+          curl -sf -X POST "https://www.buildmybot.app/api/email/dispatch-scheduled" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -w "\nHTTP %{http_code}\n" || echo "::warning::dispatch call failed (non-fatal, will retry in 5 min)"

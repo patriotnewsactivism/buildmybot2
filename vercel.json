@@ -114,10 +114,6 @@
     {
       "path": "/api/ai-employees/shift",
       "schedule": "0 13 * * *"
-    },
-    {
-      "path": "/api/cron/all-shifts",
-      "schedule": "0 21 * * *"
     }
   ]
 }

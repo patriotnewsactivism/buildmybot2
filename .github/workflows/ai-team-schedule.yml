@@ -1,0 +1,63 @@
+name: AI Team — Daily Shifts
+
+# Replaces the old Base44 cron workflows entirely — this repo now owns its
+# own scheduling, free of any Base44 integration-credit ceiling. Each cron
+# entry below corresponds to one AI Team role's shift, at the times from the
+# original blueprint (America/Chicago), converted to UTC assuming CDT
+# (summer, UTC-5) — shift by an hour in winter (CST, UTC-6) if exact timing
+# matters. github.event.schedule tells us exactly which entry fired, so
+# there's no flaky wall-clock matching.
+#
+# Auth: calls send `Authorization: Bearer ${{ secrets.CRON_SECRET }}`,
+# matching the CRON_SECRET env var set on the Vercel project.
+
+on:
+  workflow_dispatch: {} # manual "Run workflow" from the Actions tab -> runs Marcus's rollup
+  schedule:
+    - cron: '0 16 * * *'  # 11:00 AM CDT — Sam (Support)
+    - cron: '30 16 * * *' # 11:30 AM CDT — Eli (Engineering)
+    - cron: '0 17 * * *'  # 12:00 PM CDT — Sales Agents (Outreach)
+    - cron: '0 19 * * *'  # 2:00 PM CDT — Maya (Marketing)
+    - cron: '30 19 * * *' # 2:30 PM CDT — Oscar (Operations)
+    - cron: '0 20 * * *'  # 3:00 PM CDT — Piper (Product)
+    - cron: '15 20 * * *' # 3:15 PM CDT — HR Associate
+    - cron: '30 20 * * *' # 3:30 PM CDT — Billing Associate
+    - cron: '45 20 * * *' # 3:45 PM CDT — Derek (Sales Director)
+    - cron: '0 21 * * *'  # 4:00 PM CDT — Hannah (HR Lead)
+    - cron: '15 21 * * *' # 4:15 PM CDT — Victoria (VP Sales) + Brianna (Billing)
+    - cron: '30 22 * * *' # 5:30 PM CDT — Marcus (Executive Summary rollup)
+
+jobs:
+  run-shift:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Map the cron that fired to its role(s)
+        id: role
+        run: |
+          SCHEDULE="${{ github.event.schedule }}"
+          echo "fired cron: $SCHEDULE"
+          case "$SCHEDULE" in
+            "0 16 * * *")  echo "roles=sam-support" >> "$GITHUB_OUTPUT" ;;
+            "30 16 * * *") echo "roles=eli-engineering" >> "$GITHUB_OUTPUT" ;;
+            "0 17 * * *")  echo "roles=sales-agents" >> "$GITHUB_OUTPUT" ;;
+            "0 19 * * *")  echo "roles=maya-marketing" >> "$GITHUB_OUTPUT" ;;
+            "30 19 * * *") echo "roles=oscar-operations" >> "$GITHUB_OUTPUT" ;;
+            "0 20 * * *")  echo "roles=piper-product" >> "$GITHUB_OUTPUT" ;;
+            "15 20 * * *") echo "roles=hr-associate" >> "$GITHUB_OUTPUT" ;;
+            "30 20 * * *") echo "roles=billing-associate" >> "$GITHUB_OUTPUT" ;;
+            "45 20 * * *") echo "roles=derek-sales-director" >> "$GITHUB_OUTPUT" ;;
+            "0 21 * * *")  echo "roles=hannah-hr" >> "$GITHUB_OUTPUT" ;;
+            "15 21 * * *") echo "roles=victoria-vp-sales,brianna-billing" >> "$GITHUB_OUTPUT" ;;
+            "30 22 * * *") echo "roles=marcus" >> "$GITHUB_OUTPUT" ;;
+            *) echo "roles=marcus" >> "$GITHUB_OUTPUT" ;; # manual dispatch fallback
+          esac
+
+      - name: Call role endpoint(s)
+        run: |
+          IFS=',' read -ra ROLES <<< "${{ steps.role.outputs.roles }}"
+          for ROLE in "${ROLES[@]}"; do
+            echo "Running shift for: $ROLE"
+            curl -sf -X POST "https://www.buildmybot.app/api/cron/all-shifts?role=$ROLE" \
+              -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+              -w "\nHTTP %{http_code}\n" || echo "::warning::$ROLE call failed (non-fatal, logged for next run)"
+          done
