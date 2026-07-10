@@ -81,12 +81,24 @@ async function runMarcusSummary(precomputedResults?: Record<string, any>) {
   const roleCount = Object.keys(results).length;
   const totalTasks = Object.values(results).reduce((s: number, r: any) => s + (r.tasks || 0), 0);
 
+  // Echo back whatever briefing Don gave the team today, so his exec email
+  // confirms it was actually received and acted on.
+  const SUPABASE_URL2 = process.env.SUPABASE_URL!;
+  const SUPABASE_SERVICE_ROLE_KEY2 = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+  const briefResp = await fetch(
+    `${SUPABASE_URL2}/rest/v1/manager_briefings?briefing_date=eq.${today}&order=created_at.desc&limit=1`,
+    { headers: { apikey: SUPABASE_SERVICE_ROLE_KEY2, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY2}` } },
+  );
+  const briefRows = briefResp.ok ? await briefResp.json() : [];
+  const briefingToday = briefRows[0]?.content as string | undefined;
+  const briefingContext = briefingToday ? `\n\nDon's briefing to the team today: "${briefingToday}"` : '';
+
   const marcusSummary =
     roleCount === 0
-      ? `No shifts logged yet today (${today}) — nothing to report.`
+      ? `No shifts logged yet today (${today}) — nothing to report.${briefingContext}`
       : await callLLM(
           `You are Marcus Stone, the Manager overseeing BuildMyBot's AI employee team.`,
-          `Today's shift results from every role that has reported in so far (${roleCount} of ${ROLES.length} roles):\n\n${JSON.stringify(results, null, 2)}\n\nWrite ONE clear, prioritized executive summary for Don (the President): what happened, what needs a decision, what's urgent. Keep it tight and scannable. If a role hasn't reported, don't invent their activity.`,
+          `Today's shift results from every role that has reported in so far (${roleCount} of ${ROLES.length} roles):\n\n${JSON.stringify(results, null, 2)}${briefingContext}\n\nWrite ONE clear, prioritized executive summary for Don (the President): what happened, what needs a decision, what's urgent, and if he gave the team a briefing today, confirm how it's being acted on. Keep it tight and scannable. If a role hasn't reported, don't invent their activity.`,
         );
 
   await logShift({ role_id: 'marcus-manager', role_name: 'Marcus Stone', summary: marcusSummary, tasks_completed: totalTasks });

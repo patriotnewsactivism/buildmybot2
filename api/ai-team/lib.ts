@@ -131,6 +131,7 @@ export interface RoleContext {
   recent_own_shifts: any[];
   cross_team_flags_today: any[];
   business_data: any;
+  manager_briefing_today: string | null;
 }
 
 export async function getRoleContext(roleId: string): Promise<RoleContext> {
@@ -144,6 +145,12 @@ export async function getRoleContext(roleId: string): Promise<RoleContext> {
 
   const todayLogs =
     (await supabaseFetch('ai_team_log', `shift_date=eq.${today}`)) || [];
+
+  // Don's own morning briefing/direction for the day, if he's given one --
+  // every role reads this FIRST and should treat it as top priority.
+  const briefingRows =
+    (await supabaseFetch('manager_briefings', `briefing_date=eq.${today}&order=created_at.desc&limit=1`)) || [];
+  const managerBriefingToday = briefingRows[0]?.content || null;
 
   const crossTeamFlags = todayLogs
     .filter((l: any) => l.role_id !== roleId && l.flags)
@@ -190,7 +197,21 @@ export async function getRoleContext(roleId: string): Promise<RoleContext> {
     recent_own_shifts: ownHistory,
     cross_team_flags_today: crossTeamFlags,
     business_data: businessData,
+    manager_briefing_today: managerBriefingToday,
   };
+}
+
+// Called whenever Don gives a briefing/direction for the day (voice, WhatsApp,
+// chat -- however it reaches the Superagent). One row per day; latest wins if
+// he gives more than one. Every role picks this up via getRoleContext above
+// on their NEXT shift after it's saved -- there's no separate "push" needed.
+export async function saveManagerBriefing(content: string, deliveredVia?: string) {
+  const today = new Date().toISOString().slice(0, 10);
+  return supabaseFetch('manager_briefings', '', {
+    method: 'POST',
+    headers: { Prefer: 'return=representation' },
+    body: JSON.stringify({ briefing_date: today, content, delivered_via: deliveredVia || 'unspecified' }),
+  });
 }
 
 async function getStripeSummary() {
@@ -251,7 +272,11 @@ export async function runRoleShift(
 ) {
   const context = await getRoleContext(roleId);
 
-  const userPrompt = `Today's context:\n${JSON.stringify(context, null, 2)}\n\nDo your shift's work based on this context. Be honest if data is missing rather than inventing activity. Respond in this exact format:\nSUMMARY: <what you did/found>\nTASKS_COMPLETED: <number>\nFLAGS: <anything urgent, or leave blank>\nESCALATED_TO: <role_id if escalating, or leave blank>`;
+  const briefingLine = context.manager_briefing_today
+    ? `DON'S BRIEFING FOR THE TEAM TODAY (top priority -- factor this into your work above everything else): "${context.manager_briefing_today}"\n\n`
+    : '';
+
+  const userPrompt = `${briefingLine}Today's context:\n${JSON.stringify(context, null, 2)}\n\nDo your shift's work based on this context. Be honest if data is missing rather than inventing activity. Respond in this exact format:\nSUMMARY: <what you did/found>\nTASKS_COMPLETED: <number>\nFLAGS: <anything urgent, or leave blank>\nESCALATED_TO: <role_id if escalating, or leave blank>`;
 
   const raw = await callLLM(systemPrompt, userPrompt);
 
