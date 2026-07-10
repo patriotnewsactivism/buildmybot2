@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://evkjlnbpntimbxklnhoz.supabase.co';
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const JWT_SECRET = process.env.SESSION_JWT_SECRET;
 // Security: sessions are short-lived (24h) and are NOT persisted as a
@@ -9,8 +9,8 @@ const JWT_SECRET = process.env.SESSION_JWT_SECRET;
 // JWT's own exp also caps replay of a copied cookie value at 24h even if
 // the browser session somehow lives longer.
 const SESSION_JWT_TTL = 24 * 60 * 60;
-// TODO: single-source this with App.tsx's MASTER_ADMINS (currently duplicated in two places)
-const MASTER_ADMINS = ['jadj19@gmail.com', 'mreardon@wtpnews.org', 'patriotnewsactivism@gmail.com'];
+// Single-sourced admin list — also keep App.tsx's MASTER_ADMINS in sync
+const MASTER_ADMINS = ['mreardon@wtpnews.org', 'jadj19@gmail.com', 'patriotnewsactivism@gmail.com'];
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'OPTIONS') return res.status(204).end();

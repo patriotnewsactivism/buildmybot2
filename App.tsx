@@ -95,7 +95,7 @@ const INITIAL_RESELLER_STATS: ResellerStats = {
 };
 
 // MASTER ADMIN CONFIGURATION - Only MasterAdmin role users should be in this list
-const MASTER_ADMINS = ['mreardon@wtpnews.org', 'jadj19@gmail.com'];
+const MASTER_ADMINS = ['mreardon@wtpnews.org', 'jadj19@gmail.com', 'patriotnewsactivism@gmail.com'];
 const PLATFORM_HOST = 'buildmybot.app';
 const PLATFORM_URL = `https://${PLATFORM_HOST}`;
 
