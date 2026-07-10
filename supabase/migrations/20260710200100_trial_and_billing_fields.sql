@@ -8,7 +8,7 @@ ALTER TABLE public.users ADD COLUMN IF NOT EXISTS payment_attempt_count integer 
 -- Partners table (for the partner dashboard)
 CREATE TABLE IF NOT EXISTS public.partners (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id uuid REFERENCES public.users(id) ON DELETE CASCADE,
+  user_id text REFERENCES public.users(id) ON DELETE CASCADE,
   organization_id uuid,
   tier text NOT NULL DEFAULT 'bronze',  -- bronze, silver, gold, platinum
   commission_rate numeric(5,4) NOT NULL DEFAULT 0.15,
@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS public.partner_payouts (
 -- Resellers table
 CREATE TABLE IF NOT EXISTS public.resellers (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id uuid REFERENCES public.users(id) ON DELETE CASCADE,
+  user_id text REFERENCES public.users(id) ON DELETE CASCADE,
   organization_id uuid,
   tier text NOT NULL DEFAULT 'bronze',
   commission_rate numeric(5,4) NOT NULL DEFAULT 0.20,
@@ -81,7 +81,7 @@ CREATE TABLE IF NOT EXISTS public.reseller_clients (
 -- Audit log table (ensure it exists with proper columns)
 CREATE TABLE IF NOT EXISTS public.audit_logs (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id uuid,
+  user_id text,
   organization_id uuid,
   action text NOT NULL,
   details jsonb,
