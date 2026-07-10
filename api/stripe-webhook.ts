@@ -183,6 +183,71 @@ async function handleSubscriptionChange(subscription: any) {
     },
     { id: `eq.${userId}` },
   );
+
+  // ─── Partner/Reseller Commission Tracking ──────────────────────────
+  if (isActive && planKey !== 'FREE') {
+    try {
+      // Check if this user was referred by a partner
+      const partnerClients = await sbSelect('partner_clients', 'id,partner_id', {
+        client_email: `eq.${meta.email || ''}`,
+        status: 'eq.active',
+      }).catch(() => []);
+
+      if (partnerClients?.[0]) {
+        const pc = partnerClients[0];
+        const partners = await sbSelect('partners', 'id,commission_rate', {
+          id: `eq.${pc.partner_id}`,
+          status: 'eq.active',
+        }).catch(() => []);
+
+        if (partners?.[0]) {
+          const partner = partners[0];
+          const amount = (subscription.items?.data?.[0]?.price?.unit_amount || 0) / 100;
+          const commission = +(amount * (partner.commission_rate || 0.15)).toFixed(2);
+          if (commission > 0) {
+            await sbUpdate('partners', {
+              total_earned: `${(partner.total_earned || 0) + commission}`,
+              pending_payout: `${(partner.pending_payout || 0) + commission}`,
+            }, { id: `eq.${partner.id}` }).catch(() => {});
+            await sbInsert('partner_payouts', [{
+              partner_id: partner.id,
+              amount: commission,
+              status: 'pending',
+            }]).catch(() => {});
+          }
+        }
+      }
+
+      // Check if referred by a reseller
+      const resellerClients = await sbSelect('reseller_clients', 'id,reseller_id', {
+        client_email: `eq.${meta.email || ''}`,
+        status: 'eq.active',
+      }).catch(() => []);
+
+      if (resellerClients?.[0]) {
+        const rc = resellerClients[0];
+        const resellers = await sbSelect('resellers', 'id,commission_rate', {
+          id: `eq.${rc.reseller_id}`,
+          status: 'eq.active',
+        }).catch(() => []);
+
+        if (resellers?.[0]) {
+          const reseller = resellers[0];
+          const amount = (subscription.items?.data?.[0]?.price?.unit_amount || 0) / 100;
+          const commission = +(amount * (reseller.commission_rate || 0.20)).toFixed(2);
+          if (commission > 0) {
+            await sbUpdate('resellers', {
+              total_earned: `${(reseller.total_earned || 0) + commission}`,
+              pending_payout: `${(reseller.pending_payout || 0) + commission}`,
+            }, { id: `eq.${reseller.id}` }).catch(() => {});
+          }
+        }
+      }
+    } catch (err: any) {
+      console.error('[stripe-webhook] commission tracking error:', err.message);
+      // Non-fatal — don't block the subscription update
+    }
+  }
 }
 
 async function handleSubscriptionDeleted(subscription: any) {

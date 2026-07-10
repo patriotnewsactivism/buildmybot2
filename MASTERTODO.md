@@ -36,7 +36,7 @@ Last updated: 2026-07-10
 - [x] **Agency dashboard returns real data.** Added `profit-report` endpoint with real bot/lead/conversation counts, wallet balance, top bots by conversations, and 6-month monthly breakdown. Added `overview` endpoint.
 - [x] **Partner dashboard built with real data.** `case 'partners'` added to router. Endpoints: profile (auto-creates on first visit), clients list, earnings/payouts history, referral code lookup. Backed by new `partners`, `partner_clients`, `partner_payouts` tables.
 - [x] **Reseller dashboard built with real data.** `case 'resellers'` added to router. Endpoints: profile, client list, summary with real totals. Backed by new `resellers`, `reseller_clients` tables.
-- [ ] Wire partner/reseller commission tracking into Stripe webhook (auto-credit partner when a referred customer pays).
+- [x] Partner/reseller commission tracking wired into Stripe webhook — auto-credits partner/reseller when a referred customer's subscription activates.
 
 ---
 
