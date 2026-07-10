@@ -1,31 +1,43 @@
-name: AI Team — Daily Shifts
+name: AI Team — Recurring Shifts
 
-# Replaces the old Base44 cron workflows entirely — this repo now owns its
-# own scheduling, free of any Base44 integration-credit ceiling. Each cron
-# entry below corresponds to one AI Team role's shift, at the times from the
-# original blueprint (America/Chicago), converted to UTC assuming CDT
-# (summer, UTC-5) — shift by an hour in winter (CST, UTC-6) if exact timing
-# matters. github.event.schedule tells us exactly which entry fired, so
-# there's no flaky wall-clock matching.
+# Replaces the old Base44 cron workflows entirely — this repo owns its own
+# scheduling now, free of any Base44 integration-credit ceiling.
 #
-# Auth: calls send `Authorization: Bearer ${{ secrets.CRON_SECRET }}`,
-# matching the CRON_SECRET env var set on the Vercel project.
+# Two cadence tiers so the team feels genuinely "always on" instead of
+# checking in once a day:
+#  - Tier A (customer/revenue-facing, has real live data to react to):
+#    sam-support, sales-agents, derek-sales-director, victoria-vp-sales,
+#    maya-marketing -> every 3 hours, 5x/day.
+#  - Tier B (internal/ops functions, still valuable but less time-sensitive,
+#    some still honest placeholders with no live data source yet):
+#    eli-engineering, oscar-operations, piper-product, hr-associate,
+#    billing-associate, hannah-hr, brianna-billing -> every ~4 hours, 3x/day.
+#  - Marcus (executive rollup) -> 2x/day (midday + evening) instead of once,
+#    so Don gets a fresher picture without waiting for end of day.
+#
+# Times below are America/Chicago, converted to UTC assuming CDT (summer,
+# UTC-5) — shift by an hour in winter (CST, UTC-6) if exact timing matters.
+# github.event.schedule tells us exactly which entry fired, so there's no
+# flaky wall-clock matching, even with entries at the same clock time.
 
 on:
   workflow_dispatch: {} # manual "Run workflow" from the Actions tab -> runs Marcus's rollup
   schedule:
-    - cron: '0 16 * * *'  # 11:00 AM CDT — Sam (Support)
-    - cron: '30 16 * * *' # 11:30 AM CDT — Eli (Engineering)
-    - cron: '0 17 * * *'  # 12:00 PM CDT — Sales Agents (Outreach)
-    - cron: '0 19 * * *'  # 2:00 PM CDT — Maya (Marketing)
-    - cron: '30 19 * * *' # 2:30 PM CDT — Oscar (Operations)
-    - cron: '0 20 * * *'  # 3:00 PM CDT — Piper (Product)
-    - cron: '15 20 * * *' # 3:15 PM CDT — HR Associate
-    - cron: '30 20 * * *' # 3:30 PM CDT — Billing Associate
-    - cron: '45 20 * * *' # 3:45 PM CDT — Derek (Sales Director)
-    - cron: '0 21 * * *'  # 4:00 PM CDT — Hannah (HR Lead)
-    - cron: '15 21 * * *' # 4:15 PM CDT — Victoria (VP Sales) + Brianna (Billing)
-    - cron: '30 22 * * *' # 5:30 PM CDT — Marcus (Executive Summary rollup)
+    # --- Tier A: every 3h, 8am/11am/2pm/5pm/8pm CDT ---
+    - cron: '0 13 * * *' # 8:00 AM CDT
+    - cron: '0 16 * * *' # 11:00 AM CDT
+    - cron: '0 19 * * *' # 2:00 PM CDT
+    - cron: '0 22 * * *' # 5:00 PM CDT
+    - cron: '0 1 * * *'  # 8:00 PM CDT
+
+    # --- Tier B: every ~4h, 9:30am/1:30pm/5:30pm CDT (offset :30 to stay distinct) ---
+    - cron: '30 14 * * *' # 9:30 AM CDT
+    - cron: '30 18 * * *' # 1:30 PM CDT
+    - cron: '30 22 * * *' # 5:30 PM CDT
+
+    # --- Marcus: 2x/day, 2:15pm and 6:15pm CDT ---
+    - cron: '15 19 * * *' # 2:15 PM CDT
+    - cron: '15 23 * * *' # 6:15 PM CDT
 
 jobs:
   run-shift:
@@ -37,18 +49,12 @@ jobs:
           SCHEDULE="${{ github.event.schedule }}"
           echo "fired cron: $SCHEDULE"
           case "$SCHEDULE" in
-            "0 16 * * *")  echo "roles=sam-support" >> "$GITHUB_OUTPUT" ;;
-            "30 16 * * *") echo "roles=eli-engineering" >> "$GITHUB_OUTPUT" ;;
-            "0 17 * * *")  echo "roles=sales-agents" >> "$GITHUB_OUTPUT" ;;
-            "0 19 * * *")  echo "roles=maya-marketing" >> "$GITHUB_OUTPUT" ;;
-            "30 19 * * *") echo "roles=oscar-operations" >> "$GITHUB_OUTPUT" ;;
-            "0 20 * * *")  echo "roles=piper-product" >> "$GITHUB_OUTPUT" ;;
-            "15 20 * * *") echo "roles=hr-associate" >> "$GITHUB_OUTPUT" ;;
-            "30 20 * * *") echo "roles=billing-associate" >> "$GITHUB_OUTPUT" ;;
-            "45 20 * * *") echo "roles=derek-sales-director" >> "$GITHUB_OUTPUT" ;;
-            "0 21 * * *")  echo "roles=hannah-hr" >> "$GITHUB_OUTPUT" ;;
-            "15 21 * * *") echo "roles=victoria-vp-sales,brianna-billing" >> "$GITHUB_OUTPUT" ;;
-            "30 22 * * *") echo "roles=marcus" >> "$GITHUB_OUTPUT" ;;
+            "0 13 * * *"|"0 16 * * *"|"0 19 * * *"|"0 22 * * *"|"0 1 * * *")
+              echo "roles=sam-support,sales-agents,derek-sales-director,victoria-vp-sales,maya-marketing" >> "$GITHUB_OUTPUT" ;;
+            "30 14 * * *"|"30 18 * * *"|"30 22 * * *")
+              echo "roles=eli-engineering,oscar-operations,piper-product,hr-associate,billing-associate,hannah-hr,brianna-billing" >> "$GITHUB_OUTPUT" ;;
+            "15 19 * * *"|"15 23 * * *")
+              echo "roles=marcus" >> "$GITHUB_OUTPUT" ;;
             *) echo "roles=marcus" >> "$GITHUB_OUTPUT" ;; # manual dispatch fallback
           esac
 

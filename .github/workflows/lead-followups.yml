@@ -1,13 +1,13 @@
 name: Lead Follow-Up
 
 # Native Vercel port of the old Base44 "Lead Follow-Up" workflow (which kept
-# getting cancelled once Base44 integration credits ran out). Runs every 6h,
+# getting cancelled once Base44 integration credits ran out). Runs every 3h,
 # free, no credit ceiling. See /api/cron/lead-followups.ts for the logic.
 
 on:
   workflow_dispatch: {}
   schedule:
-    - cron: '0 */6 * * *' # every 6 hours
+    - cron: '0 */3 * * *' # every 3 hours
 
 jobs:
   follow-up:
