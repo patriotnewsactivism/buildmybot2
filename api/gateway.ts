@@ -1,7 +1,14 @@
 import * as Sentry from '@sentry/node';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { callLLMMessages } from './ai-team/lib.js';
-import { ingestKnowledgeSource, scrapeUrl, searchKnowledge } from './rag.js';
+import {
+  ingestKnowledgeSource,
+  ingestPageChunks,
+  scrapeUrl,
+  scrapeUrlFirecrawl,
+  searchKnowledge,
+  startFirecrawlCrawl,
+} from './rag.js';
 
 // Initialize Sentry for production error monitoring
 if (process.env.SENTRY_DSN) {
@@ -1004,10 +1011,125 @@ async function handleVoice(
   } else res.status(405).json({ error: 'Method not allowed' });
 }
 
+const FIRECRAWL_WEBHOOK_SECRET = process.env.FIRECRAWL_WEBHOOK_SECRET || '';
+
+/** Distinct page count for a source, derived from chunk metadata->url. */
+async function countCrawledPages(sourceId: string): Promise<number> {
+  try {
+    const resp = await fetch(
+      `${SUPABASE_URL}/rest/v1/knowledge_chunks?source_id=eq.${sourceId}&select=metadata`,
+      { headers: SUPABASE_HEADERS },
+    );
+    if (!resp.ok) return 0;
+    const rows: any[] = await resp.json();
+    const urls = new Set(rows.map((r) => r.metadata?.url).filter(Boolean));
+    return urls.size;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Public webhook Firecrawl calls once per discovered page during a domain
+ * crawl ("crawl.page"), and once more on completion/failure. Each page is
+ * chunked + embedded and appended to the source's knowledge_chunks.
+ */
+async function handleFirecrawlWebhook(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+  if (FIRECRAWL_WEBHOOK_SECRET) {
+    const provided = req.headers['x-webhook-secret'];
+    if (provided !== FIRECRAWL_WEBHOOK_SECRET) {
+      return res.status(401).json({ error: 'Invalid webhook secret' });
+    }
+  }
+
+  const body: any = parseBody(req) || {};
+  const type = body.type as string;
+  const metadata = body.metadata || {};
+  const sourceId: string | undefined = metadata.sourceId;
+  const botId: string | undefined = metadata.botId;
+
+  if (!sourceId || !botId) {
+    console.error('[firecrawl-webhook] missing sourceId/botId in metadata', metadata);
+    // Still 200 so Firecrawl doesn't retry forever on a payload we can't use
+    return res.status(200).json({ received: true, warning: 'missing metadata' });
+  }
+
+  // NOTE: Vercel's Node.js runtime can freeze the function shortly after the
+  // response is sent, so all DB/embedding work must be awaited BEFORE we
+  // respond -- responding early and continuing "in the background" silently
+  // drops the work.
+  try {
+    if (type === 'crawl.page') {
+      const pages = Array.isArray(body.data) ? body.data : [body.data].filter(Boolean);
+      for (const page of pages) {
+        const markdown = page?.markdown || '';
+        const pageUrl = page?.metadata?.sourceURL || page?.metadata?.url || '';
+        if (markdown) await ingestPageChunks(sourceId, botId, pageUrl, markdown);
+      }
+      await sbUpdate(
+        'knowledge_sources',
+        {
+          status: 'processing',
+          pages_crawled: await countCrawledPages(sourceId),
+          last_crawled_at: new Date().toISOString(),
+        },
+        { id: `eq.${sourceId}` },
+      ).catch(() => {});
+    } else if (type === 'crawl.completed') {
+      await sbUpdate(
+        'knowledge_sources',
+        {
+          status: 'completed',
+          last_processed_at: new Date().toISOString(),
+          pages_crawled: await countCrawledPages(sourceId),
+        },
+        { id: `eq.${sourceId}` },
+      ).catch(() => {});
+    } else if (type === 'crawl.failed') {
+      await sbUpdate(
+        'knowledge_sources',
+        { status: 'failed', last_error: body.error || 'Crawl failed' },
+        { id: `eq.${sourceId}` },
+      ).catch(() => {});
+    }
+    return res.status(200).json({ received: true });
+  } catch (err: any) {
+    console.error('[firecrawl-webhook] processing error:', err.message);
+    await sbUpdate(
+      'knowledge_sources',
+      { status: 'failed', last_error: err.message },
+      { id: `eq.${sourceId}` },
+    ).catch(() => {});
+    // Still 200 -- we've recorded the failure ourselves; a 500 would just
+    // make Firecrawl retry and re-process pages we may have partially ingested.
+    return res.status(200).json({ received: true, error: err.message });
+  }
+}
+
+/** Maps a real knowledge_sources DB row (snake_case) to the camelCase
+ * shape the dashboard's KnowledgeBaseManager component expects. */
+function toKnowledgeSourceDTO(row: any, chunkCount = 0) {
+  return {
+    id: row.id,
+    sourceType: row.source_type,
+    sourceName: row.source_name,
+    sourceUrl: row.source_url,
+    status: row.status,
+    errorMessage: row.error_message || row.last_error || undefined,
+    pagesCrawled: row.pages_crawled ?? undefined,
+    chunkCount,
+    lastCrawledAt: row.last_crawled_at || undefined,
+    createdAt: row.created_at,
+  };
+}
+
 async function handleKnowledge(
   req: VercelRequest,
   res: VercelResponse,
-  _user: AuthUser,
+  user: AuthUser,
   pathParts: string[],
 ) {
   const sub = pathParts[0] || '';
@@ -1020,44 +1142,97 @@ async function handleKnowledge(
   } else if (sub === 'sources') {
     const botId = pathParts[1];
     if (req.method === 'GET') {
-      res.json(
-        await sbSelect(
-          'knowledge_sources',
-          '*',
-          botId ? { bot_id: `eq.${botId}` } : {},
-        ).catch(() => []),
+      const rows = await sbSelect(
+        'knowledge_sources',
+        '*',
+        botId ? { bot_id: `eq.${botId}` } : {},
+      ).catch(() => []);
+      // Chunk counts per source, for the dashboard's chunkCount column
+      const chunkCounts: Record<string, number> = {};
+      if (rows.length > 0) {
+        const chunkRows = await sbSelect('knowledge_chunks', 'source_id', {
+          bot_id: `eq.${botId}`,
+        }).catch(() => []);
+        for (const c of chunkRows) {
+          chunkCounts[c.source_id] = (chunkCounts[c.source_id] || 0) + 1;
+        }
+      }
+      const sources = rows.map((r: any) =>
+        toKnowledgeSourceDTO(r, chunkCounts[r.id] || 0),
       );
+      const totalTokens = 0; // not tracked cheaply here; chunkCount is the primary signal
+      res.json({
+        sources,
+        stats: { sources: sources.length, chunks: Object.values(chunkCounts).reduce((a, b) => a + b, 0), totalTokens },
+      });
     } else if (req.method === 'POST') {
       const body = parseBody(req);
       const r = await sbInsert('knowledge_sources', {
         id: crypto.randomUUID(),
         bot_id: botId,
-        type: body.type || 'website',
-        title: body.title || '',
-        url: body.url || '',
-        content: body.content || '',
+        organization_id: user.organizationId || null,
+        source_type: body.type || 'website',
+        source_name: body.title || '',
+        source_url: body.url || '',
+        source_text: body.content || '',
         status: 'active',
       });
-      res.status(201).json(r[0]);
+      res.status(201).json(toKnowledgeSourceDTO(r[0]));
     }
   } else if (sub === 'scrape') {
     const botId = pathParts[1];
     const body = parseBody(req);
     const sourceId = crypto.randomUUID();
     const url = body.url || '';
-    // Create the source record immediately
+    const crawlDepth = Math.max(1, Math.min(Number(body.crawlDepth) || 1, 3));
+    // depth 1 → 15 pages, 2 → 40 pages, 3 → 75 pages (keeps Firecrawl usage sane)
+    const pageLimit = { 1: 15, 2: 40, 3: 75 }[crawlDepth] || 15;
+
+    if (!url) {
+      return res.status(400).json({ error: 'url is required' });
+    }
+
+    // Create the source record immediately so the dashboard can show "processing"
     await sbInsert('knowledge_sources', {
       id: sourceId,
       bot_id: botId,
-      type: 'website',
-      title: url || 'Scraped content',
-      url,
-      content: '',
+      organization_id: user.organizationId || null,
+      source_type: 'url',
+      source_name: url,
+      source_url: url,
       status: 'processing',
-    }).catch(() => {});
-    // Actually scrape the URL and ingest into chunks
+    }).catch((err: any) => {
+      console.error('[knowledge] failed to create source record:', err.message);
+    });
+
+    // Real multi-page domain crawl via Firecrawl (async, webhook-driven)
+    const crawlJob = await startFirecrawlCrawl({
+      url,
+      sourceId,
+      botId,
+      organizationId: user.organizationId,
+      limit: pageLimit,
+    });
+
+    if (crawlJob) {
+      await sbUpdate(
+        'knowledge_sources',
+        { processing_state: { firecrawl_job_id: crawlJob.jobId, page_limit: pageLimit } },
+        { id: `eq.${sourceId}` },
+      ).catch(() => {});
+      return res.status(201).json({
+        id: sourceId,
+        success: true,
+        mode: 'crawl',
+        jobId: crawlJob.jobId,
+        message: `Crawling up to ${pageLimit} pages — this runs in the background.`,
+      });
+    }
+
+    // Fallback: Firecrawl not configured or failed to start — do a single-page
+    // scrape synchronously so the feature still works end to end.
     try {
-      const scrapedContent = await scrapeUrl(url);
+      const scrapedContent = await scrapeUrlFirecrawl(url);
       if (!scrapedContent) {
         await sbUpdate(
           'knowledge_sources',
@@ -1068,17 +1243,8 @@ async function handleKnowledge(
           .status(422)
           .json({ id: sourceId, error: 'Could not retrieve content from URL' });
       }
-      await sbUpdate(
-        'knowledge_sources',
-        { content: scrapedContent.slice(0, 65000) },
-        { id: `eq.${sourceId}` },
-      ).catch(() => {});
-      const result = await ingestKnowledgeSource(
-        sourceId,
-        botId,
-        scrapedContent,
-      );
-      res.status(201).json({ id: sourceId, success: true, ...result });
+      const result = await ingestKnowledgeSource(sourceId, botId, scrapedContent);
+      res.status(201).json({ id: sourceId, success: true, mode: 'single-page', ...result });
     } catch (err: any) {
       await sbUpdate(
         'knowledge_sources',
@@ -1096,18 +1262,26 @@ async function handleKnowledge(
     const r = await sbInsert('knowledge_sources', {
       id: sourceId,
       bot_id: botId,
-      type: 'file',
-      title: body.filename || 'Uploaded document',
-      content,
+      organization_id: user.organizationId || null,
+      source_type: 'document',
+      source_name: body.filename || 'Uploaded document',
       status: 'processing',
     }).catch(() => [{ id: sourceId }]);
     // Chunk + embed the uploaded content
     if (content) {
-      await ingestKnowledgeSource(sourceId, botId, content).catch(
+      const result = await ingestKnowledgeSource(sourceId, botId, content).catch(
         (err: any) => {
           console.error('[knowledge] ingest failed for upload:', err.message);
+          return null;
         },
       );
+      if (!result) {
+        await sbUpdate(
+          'knowledge_sources',
+          { status: 'failed', last_error: 'Ingestion failed' },
+          { id: `eq.${sourceId}` },
+        ).catch(() => {});
+      }
     }
     res.status(201).json({ ...(r[0] || {}), id: sourceId });
   } else if (sub === 'refresh') {
@@ -1121,7 +1295,7 @@ async function handleKnowledge(
     const d = await sbSelect('knowledge_sources', '*', {
       id: `eq.${pathParts[1]}`,
     }).catch(() => []);
-    res.json(d[0] || {});
+    res.json(d[0] ? toKnowledgeSourceDTO(d[0]) : {});
   } else res.status(404).json({ error: 'Not found' });
 }
 
@@ -4180,6 +4354,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return await handleEmailInbound(req, res);
     if (routeName === 'email' && pathParts[0] === 'dispatch-scheduled')
       return await handleEmailDispatchScheduled(req, res);
+    // Firecrawl domain-crawl webhook -- authenticated by x-webhook-secret
+    if (routeName === 'knowledge' && pathParts[0] === 'firecrawl-webhook')
+      return await handleFirecrawlWebhook(req, res);
 
     // Public embedded chat widget -- website visitors chatting with a
     // customer's bot are NOT logged into buildmybot.app, so this must not

@@ -119,7 +119,12 @@ export async function ingestKnowledgeSource(
   const hasEmbeddings = embeddings.some((e) => e !== null);
 
   // 4. Insert chunks with embeddings
+  // NOTE: the live knowledge_chunks table has no DB-side default for `id`
+  // (unlike the migration file) -- it MUST be set explicitly here or every
+  // insert 400s with a not-null violation and, since we only check
+  // Prefer:return=minimal with no status check, fails completely silently.
   const rows = chunks.map((text, i) => ({
+    id: crypto.randomUUID(),
     source_id: sourceId,
     bot_id: botId,
     chunk_index: i,
@@ -129,13 +134,25 @@ export async function ingestKnowledgeSource(
   }));
 
   // Insert in batches of 20 to avoid payload limits
+  let insertedCount = 0;
   for (let i = 0; i < rows.length; i += 20) {
     const batch = rows.slice(i, i + 20);
-    await fetch(`${SUPABASE_URL}/rest/v1/knowledge_chunks`, {
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/knowledge_chunks`, {
       method: 'POST',
       headers: { ...SUPABASE_HEADERS, Prefer: 'return=minimal' },
       body: JSON.stringify(batch),
     });
+    if (!resp.ok) {
+      const errText = await resp.text().catch(() => '');
+      console.error('[rag] knowledge_chunks insert failed:', resp.status, errText);
+    } else {
+      insertedCount += batch.length;
+    }
+  }
+  if (insertedCount < rows.length) {
+    console.error(
+      `[rag] ingestKnowledgeSource: only ${insertedCount}/${rows.length} chunks persisted for source ${sourceId}`,
+    );
   }
 
   // 5. Update source status
@@ -254,3 +271,150 @@ export async function scrapeUrl(url: string): Promise<string> {
     return '';
   }
 }
+
+// ─── Firecrawl — real single-page + multi-page domain crawling ────────
+// Firecrawl handles JS-rendered pages and returns clean markdown, which is
+// dramatically better than the regex-based HTML strip above. Falls back to
+// scrapeUrl() if no key is configured or the call fails.
+
+const FIRECRAWL_API_KEY = process.env.FIRECRAWL_API_KEY || '';
+const FIRECRAWL_BASE = 'https://api.firecrawl.dev/v1';
+const APP_BASE_URL =
+  process.env.APP_BASE_URL || 'https://www.buildmybot.app';
+const FIRECRAWL_WEBHOOK_SECRET = process.env.FIRECRAWL_WEBHOOK_SECRET || '';
+
+/** Single-page scrape via Firecrawl (JS-rendered, clean markdown). */
+export async function scrapeUrlFirecrawl(url: string): Promise<string> {
+  if (!FIRECRAWL_API_KEY) return scrapeUrl(url);
+  try {
+    const resp = await fetch(`${FIRECRAWL_BASE}/scrape`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${FIRECRAWL_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ url, formats: ['markdown'] }),
+      signal: AbortSignal.timeout(25000),
+    });
+    if (!resp.ok) throw new Error(`Firecrawl HTTP ${resp.status}`);
+    const data = await resp.json();
+    const md = data?.data?.markdown || '';
+    if (!md) throw new Error('Firecrawl returned no content');
+    return md.slice(0, 100000);
+  } catch (err: any) {
+    console.error(
+      '[rag] Firecrawl scrape failed, falling back to basic fetch:',
+      err.message,
+    );
+    return scrapeUrl(url);
+  }
+}
+
+/**
+ * Kicks off an async multi-page domain crawl via Firecrawl. Firecrawl will
+ * POST a webhook to our /api/knowledge/firecrawl-webhook endpoint for each
+ * page found (event "crawl.page") and once more on completion/failure.
+ * Returns the Firecrawl job id, or null if Firecrawl isn't configured.
+ */
+export async function startFirecrawlCrawl(opts: {
+  url: string;
+  sourceId: string;
+  botId: string;
+  organizationId?: string;
+  limit?: number;
+}): Promise<{ jobId: string } | null> {
+  if (!FIRECRAWL_API_KEY) return null;
+  const { url, sourceId, botId, organizationId, limit = 40 } = opts;
+  try {
+    const resp = await fetch(`${FIRECRAWL_BASE}/crawl`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${FIRECRAWL_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        url,
+        limit,
+        scrapeOptions: { formats: ['markdown'], onlyMainContent: true },
+        webhook: {
+          url: `${APP_BASE_URL}/api/knowledge/firecrawl-webhook`,
+          headers: FIRECRAWL_WEBHOOK_SECRET
+            ? { 'x-webhook-secret': FIRECRAWL_WEBHOOK_SECRET }
+            : undefined,
+          metadata: { sourceId, botId, organizationId },
+          events: ['completed', 'page', 'failed'],
+        },
+      }),
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!resp.ok) {
+      console.error('[rag] Firecrawl crawl start failed:', resp.status, await resp.text());
+      return null;
+    }
+    const data = await resp.json();
+    return data?.id ? { jobId: data.id } : null;
+  } catch (err: any) {
+    console.error('[rag] Firecrawl crawl start error:', err.message);
+    return null;
+  }
+}
+
+/**
+ * Ingests ONE page's content into an existing source's chunk set WITHOUT
+ * wiping prior pages (unlike ingestKnowledgeSource, which is a full
+ * re-ingestion / replace). Used by the crawl webhook, called once per page
+ * as Firecrawl discovers it.
+ */
+export async function ingestPageChunks(
+  sourceId: string,
+  botId: string,
+  pageUrl: string,
+  content: string,
+): Promise<{ chunksCreated: number }> {
+  const chunks = chunkText(content);
+  if (chunks.length === 0) return { chunksCreated: 0 };
+
+  const embeddings = await embedBatch(chunks);
+
+  // Find current max chunk_index for this source so appended pages don't collide
+  const existing = await fetch(
+    `${SUPABASE_URL}/rest/v1/knowledge_chunks?source_id=eq.${sourceId}&select=chunk_index&order=chunk_index.desc&limit=1`,
+    { headers: SUPABASE_HEADERS },
+  )
+    .then((r) => (r.ok ? r.json() : []))
+    .catch(() => []);
+  const startIndex =
+    Array.isArray(existing) && existing.length > 0
+      ? existing[0].chunk_index + 1
+      : 0;
+
+  const rows = chunks.map((text, i) => ({
+    id: crypto.randomUUID(),
+    source_id: sourceId,
+    bot_id: botId,
+    chunk_index: startIndex + i,
+    content: text,
+    token_count: Math.ceil(text.length / 4),
+    metadata: { url: pageUrl },
+    ...(embeddings[i] ? { embedding: JSON.stringify(embeddings[i]) } : {}),
+  }));
+
+  let insertedCount = 0;
+  for (let i = 0; i < rows.length; i += 20) {
+    const batch = rows.slice(i, i + 20);
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/knowledge_chunks`, {
+      method: 'POST',
+      headers: { ...SUPABASE_HEADERS, Prefer: 'return=minimal' },
+      body: JSON.stringify(batch),
+    });
+    if (!resp.ok) {
+      const errText = await resp.text().catch(() => '');
+      console.error('[rag] ingestPageChunks insert failed:', resp.status, errText);
+    } else {
+      insertedCount += batch.length;
+    }
+  }
+
+  return { chunksCreated: insertedCount };
+}
+
