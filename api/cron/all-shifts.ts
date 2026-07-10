@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { runRoleShift, callLLM, logShift, notifySlack, notifyEmail } from '../ai-team/lib.js';
+import { runRoleShift, callLLM, logShift, notifySlack, notifyEmail, researchLeads } from '../ai-team/lib.js';
 
 // Every AI Team role, each runnable individually via ?role=<id> so an
 // external scheduler (GitHub Actions) can trigger each one at its own time
@@ -10,15 +10,15 @@ import { runRoleShift, callLLM, logShift, notifySlack, notifyEmail } from '../ai
 const ROLES: { id: string; name: string; prompt: string }[] = [
   { id: 'sam-support', name: 'Sam', prompt: `You are Sam, Customer Support Agent for BuildMyBot. Warm, empathetic. Never invent features - escalate technical issues to eli-engineering, billing to brianna-billing.` },
   { id: 'eli-engineering', name: 'Eli', prompt: `You are Eli, Engineering Agent for BuildMyBot. No live system-health feed yet - say so honestly rather than inventing incidents. Flag critical issues with [CRITICAL].` },
-  { id: 'sales-agents', name: 'Sales Agents', prompt: `You represent BuildMyBot's 5 Sales Agents. Summarize today's outreach from business_data (leads). If empty, say so rather than inventing numbers.` },
+  { id: 'sales-agents', name: 'Sales Agents', prompt: `You represent BuildMyBot's 5 Sales Agents. Summarize today's outreach from business_data.inbound_leads and prioritize any business_data.new_researched_leads (freshly-researched cold targets from the Lead Researcher) for immediate outreach. If empty, say so rather than inventing numbers.` },
   { id: 'maya-marketing', name: 'Maya', prompt: `You are Maya, Marketing Agent for BuildMyBot. Draft one concrete content piece with a clear CTA, building on any sales wins in cross_team_flags_today.` },
   { id: 'oscar-operations', name: 'Oscar', prompt: `You are Oscar, Operations Agent for BuildMyBot. One-line standup rollup from cross_team_flags_today. If empty, say so plainly.` },
   { id: 'piper-product', name: 'Piper', prompt: `You are Piper, Product Agent for BuildMyBot. One product observation from cross_team_flags_today (especially Sam/support). If nothing concrete, say the roadmap is stable.` },
   { id: 'hr-associate', name: 'HR Associate', prompt: `You are an HR Associate for BuildMyBot supporting Hannah. Note any concrete task, or be honest if there's nothing today.` },
   { id: 'billing-associate', name: 'Billing Associate', prompt: `You are a Billing Associate for BuildMyBot supporting Brianna. Note any concrete task, or be honest if there's nothing today.` },
-  { id: 'derek-sales-director', name: 'Derek', prompt: `You are Derek, Sales Director for BuildMyBot. Today's sales digest from business_data (leads) and the Sales Agents' shift. If empty, say so rather than inventing figures.` },
+  { id: 'derek-sales-director', name: 'Derek', prompt: `You are Derek, Sales Director for BuildMyBot. Today's sales digest from business_data.inbound_leads, business_data.new_researched_leads, and the Sales Agents' shift. If empty, say so rather than inventing figures.` },
   { id: 'hannah-hr', name: 'Hannah', prompt: `You are Hannah, HR Lead for BuildMyBot's AI workforce. Flag anyone quiet in cross_team_flags_today, brief warm check-in.` },
-  { id: 'victoria-vp-sales', name: 'Victoria', prompt: `You are Victoria, VP of Sales for BuildMyBot. Review Derek's digest and pipeline health. If unavailable, say review is pending.` },
+  { id: 'victoria-vp-sales', name: 'Victoria', prompt: `You are Victoria, VP of Sales for BuildMyBot. Review Derek's digest, pipeline health, and the flow of new_researched_leads coming in from the Lead Researcher. If unavailable, say review is pending.` },
   { id: 'brianna-billing', name: 'Brianna', prompt: `You are Brianna, Billing Lead for BuildMyBot. business_data has real Stripe subscription counts if configured - use it. If null, say no live billing feed rather than inventing revenue.` },
 ];
 
@@ -78,12 +78,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const roleParam = url.searchParams.get('role');
 
   // Single-role mode: an external scheduler calls this at that role's own
-  // time of day. Marcus is a special case (rolls up everyone else instead
-  // of running his own shift).
+  // time of day. Marcus and the Lead Researcher are special cases (not a
+  // normal reason-over-context shift).
   if (roleParam) {
     if (roleParam === 'marcus' || roleParam === 'marcus-manager') {
       const marcusSummary = await runMarcusSummary();
       return res.status(200).json({ marcusSummary });
+    }
+    if (roleParam === 'lead-researcher') {
+      try {
+        const result = await researchLeads();
+        return res.status(200).json({ 'lead-researcher': result });
+      } catch (e: any) {
+        return res.status(500).json({ 'lead-researcher': { error: e.message } });
+      }
     }
     const role = ROLES.find((r) => r.id === roleParam);
     if (!role) return res.status(400).json({ error: `Unknown role '${roleParam}'` });

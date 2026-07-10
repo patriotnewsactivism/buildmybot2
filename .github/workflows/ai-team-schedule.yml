@@ -12,6 +12,9 @@ name: AI Team — Recurring Shifts
 #  - Sales (sales-agents, derek-sales-director, victoria-vp-sales): highest
 #    priority, most time-sensitive -> every 10 minutes, all day.
 #    144 runs/day x 3 roles = 432 calls/day.
+#  - Lead Researcher: steady drip of new real cold-outbound targets (Tavily
+#    web search, grounded -- never invents companies) -> every 2 hours.
+#    12 runs/day x 1 call each = 12 calls/day.
 #  - Tier A (sam-support, maya-marketing): real live data, less urgent than
 #    sales -> every 1 hour. 24 runs/day x 2 roles = 48 calls/day.
 #  - Tier B (eli-engineering, oscar-operations, piper-product, hr-associate,
@@ -20,7 +23,7 @@ name: AI Team — Recurring Shifts
 #    hours. 12 runs/day x 7 roles = 84 calls/day.
 #  - Marcus (executive rollup): every 4 hours -> 6 calls/day.
 #
-# Total: ~570 calls/day, leaving ~40% headroom under Groq's 1,000/day free
+# Total: ~582 calls/day, leaving ~40% headroom under Groq's 1,000/day free
 # cap before Cerebras fallback would ever need to kick in.
 #
 # Times below are America/Chicago, converted to UTC assuming CDT (summer,
@@ -33,6 +36,9 @@ on:
   schedule:
     # --- Sales: every 10 minutes, all day ---
     - cron: '*/10 * * * *'
+
+    # --- Lead Researcher: every 2 hours, offset :20 to stay a distinct entry ---
+    - cron: '20 */2 * * *'
 
     # --- Tier A: every 1 hour ---
     - cron: '0 * * * *'
@@ -55,6 +61,8 @@ jobs:
           case "$SCHEDULE" in
             "*/10 * * * *")
               echo "roles=sales-agents,derek-sales-director,victoria-vp-sales" >> "$GITHUB_OUTPUT" ;;
+            "20 */2 * * *")
+              echo "roles=lead-researcher" >> "$GITHUB_OUTPUT" ;;
             "0 * * * *")
               echo "roles=sam-support,maya-marketing" >> "$GITHUB_OUTPUT" ;;
             "0 */2 * * *")
