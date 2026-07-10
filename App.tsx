@@ -692,6 +692,7 @@ function App() {
           onLogin={handleHomepageLoginClick}
           onNavigateToPartner={() => setShowPartnerPage(true)}
           onAdminLogin={handleAdminLogin}
+          isAuthenticated={isLoggedIn && !!user}
         />
         <AuthModal
           isOpen={authModalOpen}

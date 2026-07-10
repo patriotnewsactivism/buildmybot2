@@ -72,6 +72,7 @@ import { SEO, SEOConfig } from '../SEO/SEO';
 
 interface LandingProps {
   onLogin: () => void;
+  isAuthenticated?: boolean;
   onNavigateToPartner?: () => void;
   onAdminLogin?: () => void;
 }
@@ -83,6 +84,7 @@ const AVATAR_COLORS = ['#1e3a8a', '#be123c', '#047857', '#d97706', '#7c3aed'];
 
 export const LandingPage: React.FC<LandingProps> = ({
   onLogin,
+  isAuthenticated = false,
   onNavigateToPartner,
   onAdminLogin,
 }) => {
@@ -669,7 +671,7 @@ export const LandingPage: React.FC<LandingProps> = ({
                 onClick={onLogin}
                 className="bg-blue-700 text-white px-4 sm:px-5 py-2 rounded-xl font-semibold text-sm sm:text-base hover:bg-blue-800 transition-all shadow-lg shadow-blue-700/25 hover:shadow-xl hover:shadow-blue-700/30"
               >
-                Start Free
+                {isAuthenticated ? 'Dashboard' : 'Start Free'}
               </button>
               <button
                 type="button"
