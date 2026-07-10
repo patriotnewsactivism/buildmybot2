@@ -268,16 +268,19 @@ async function handleBots(
 async function handleBotById(
   req: VercelRequest,
   res: VercelResponse,
-  _user: AuthUser,
+  user: AuthUser,
   botId: string,
 ) {
-  const filter = { id: `eq.${botId}` };
+  // SECURITY: scope by tenant too -- id alone let any authenticated user
+  // read/edit/delete ANY tenant's bot by guessing/enumerating UUIDs.
+  const filter = { id: `eq.${botId}`, ...ownerFilter(user) };
   if (req.method === 'GET') {
     const bots = await sbSelect('bots', '*', filter);
     if (!bots.length) return res.status(404).json({ error: 'Bot not found' });
     res.json(bots[0]);
   } else if (req.method === 'PATCH' || req.method === 'PUT') {
     const updated = await sbUpdate('bots', parseBody(req), filter);
+    if (!updated.length) return res.status(404).json({ error: 'Bot not found' });
     res.json(updated[0]);
   } else if (req.method === 'DELETE') {
     await sbDelete('bots', filter);
@@ -398,13 +401,15 @@ async function handleLeads(
       }).catch(() => {});
       return res.json({ success: true });
     }
-    const filter = { id: `eq.${leadId}` };
+    // SECURITY: scope by tenant too -- id alone let any authenticated user
+    // read/edit/delete ANY tenant's lead by guessing/enumerating UUIDs.
+    const filter = { id: `eq.${leadId}`, ...orgFilter };
     if (req.method === 'GET') {
       const l = await sbSelect('leads', '*', filter);
       res.json(l[0] || { error: 'Not found' });
     } else if (req.method === 'PATCH') {
       const u = await sbUpdate('leads', parseBody(req), filter);
-      res.json(u[0]);
+      res.json(u[0] || { error: 'Not found' });
     } else if (req.method === 'DELETE') {
       await sbDelete('leads', filter);
       res.json({ success: true });
@@ -467,7 +472,7 @@ async function handleAdmin(
   user: AuthUser,
   pathParts: string[],
 ) {
-  if (!['admin', 'ADMIN', 'owner', 'OWNER'].includes(user.role))
+  if (!['admin', 'ADMIN'].includes(user.role))
     return res.status(403).json({ error: 'Admin access required' });
   const sub = pathParts[0] || '';
 
@@ -624,7 +629,7 @@ async function handleConversations(
   }
   const url = new URL(req.url || '', 'http://localhost');
   const userId = url.searchParams.get('userId');
-  const isAdmin = ['admin', 'ADMIN', 'owner', 'OWNER'].includes(user.role);
+  const isAdmin = ['admin', 'ADMIN'].includes(user.role);
 
   // Non-admins may only ever see their own conversations.
   if (userId && !isAdmin && userId !== user.id) {
@@ -1397,14 +1402,18 @@ async function handleChat(
 async function handleSearch(
   req: VercelRequest,
   res: VercelResponse,
-  _user: AuthUser,
+  user: AuthUser,
 ) {
+  // SECURITY: this had no tenant scoping at all -- any logged-in user could
+  // search every tenant's bot/lead names (a cross-tenant data leak).
+  const orgF = ownerFilter(user);
   const q = new URL(req.url, 'http://localhost').searchParams.get('q') || '';
   const [bots, leads] = await Promise.all([
-    sbSelect('bots', 'id,name,description', { name: `ilike.%${q}%` }).catch(
-      () => [],
-    ),
-    sbSelect('leads', 'id,name,email', { name: `ilike.%${q}%` }).catch(
+    sbSelect('bots', 'id,name,description', {
+      name: `ilike.%${q}%`,
+      ...orgF,
+    }).catch(() => []),
+    sbSelect('leads', 'id,name,email', { name: `ilike.%${q}%`, ...orgF }).catch(
       () => [],
     ),
   ]);
@@ -1711,9 +1720,17 @@ async function handleBotHealth(
 async function handleBotErrors(
   _req: VercelRequest,
   res: VercelResponse,
-  _user: AuthUser,
+  user: AuthUser,
   pathParts: string[],
 ) {
+  // SECURITY: previously had no role check at all -- any logged-in user
+  // could read/resolve every tenant's error logs. error_logs has no
+  // documented schema (no migration defines it, table is empty in prod),
+  // so rather than guess at a filter column that may not exist, restrict
+  // this operational/system view to platform admins only.
+  if (!['admin', 'ADMIN'].includes(user.role)) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
   if (pathParts[0] === 'recent') {
     res.json(
       (await sbSelect('error_logs', '*', {}).catch(() => [])).slice(-50),
@@ -1812,9 +1829,19 @@ async function handleTeam(
 async function handleAudit(
   _req: VercelRequest,
   res: VercelResponse,
-  _user: AuthUser,
+  user: AuthUser,
 ) {
-  res.json((await sbSelect('audit_logs', '*', {}).catch(() => [])).slice(-100));
+  // SECURITY: previously had no role check AND no tenant scoping -- any
+  // logged-in user got every tenant's audit log. audit_logs has a real
+  // organization_id/user_id (confirmed via schema check), so scope
+  // non-admins to their own tenant; platform admins keep the global view.
+  const isAdmin = ['admin', 'ADMIN'].includes(user.role);
+  const filter = isAdmin ? {} : ownerFilter(user);
+  res.json(
+    (await sbSelect('audit_logs', '*', { ...filter, order: 'created_at.desc' }).catch(
+      () => [],
+    )).slice(0, 100),
+  );
 }
 
 async function handleSupport(
@@ -1885,7 +1912,7 @@ async function handleAiEmployees(
 
   // Live roster + activity monitoring -- admin/owner only, read-only.
   if (sub === '' && req.method === 'GET') {
-    if (!['admin', 'ADMIN', 'owner', 'OWNER'].includes(user.role))
+    if (!['admin', 'ADMIN'].includes(user.role))
       return res.status(403).json({ error: 'Admin access required' });
     const employees = await sbSelect(
       'AiEmployee',
@@ -1895,7 +1922,7 @@ async function handleAiEmployees(
   }
 
   if (sub === 'logs' && req.method === 'GET') {
-    if (!['admin', 'ADMIN', 'owner', 'OWNER'].includes(user.role))
+    if (!['admin', 'ADMIN'].includes(user.role))
       return res.status(403).json({ error: 'Admin access required' });
     const limitParam = Number((req.query?.limit as string) || 30);
     const limit = Number.isFinite(limitParam)
@@ -1910,7 +1937,7 @@ async function handleAiEmployees(
   }
 
   if (sub === 'escalations' && req.method === 'GET') {
-    if (!['admin', 'ADMIN', 'owner', 'OWNER'].includes(user.role))
+    if (!['admin', 'ADMIN'].includes(user.role))
       return res.status(403).json({ error: 'Admin access required' });
     const escalations = await sbSelect(
       'escalations',
@@ -3146,7 +3173,7 @@ async function handleEmail(
   user: AuthUser,
   pathParts: string[],
 ) {
-  if (!['admin', 'ADMIN', 'owner', 'OWNER'].includes(user.role)) {
+  if (!['admin', 'ADMIN'].includes(user.role)) {
     return res.status(403).json({ error: 'Admin access required' });
   }
   const sub = pathParts[0] || '';
