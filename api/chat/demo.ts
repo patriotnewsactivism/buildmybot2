@@ -4,7 +4,8 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 // Proxies to Base44 backend function which handles AI provider fallback.
 // This keeps AI keys off Vercel and eliminates Render dependency entirely.
 
-const BASE44_CHAT_URL = 'https://superagent-08b20413.base44.app/functions/chatDemo';
+const BASE44_CHAT_URL =
+  'https://superagent-08b20413.base44.app/functions/chatDemo';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // CORS
@@ -37,7 +38,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (!base44Response.ok) {
       const errorText = await base44Response.text();
-      console.error('[chat-demo] Base44 function error:', base44Response.status, errorText);
+      console.error(
+        '[chat-demo] Base44 function error:',
+        base44Response.status,
+        errorText,
+      );
       return res.status(500).json({
         error: 'Failed to get AI response',
         details: `AI service returned ${base44Response.status}`,

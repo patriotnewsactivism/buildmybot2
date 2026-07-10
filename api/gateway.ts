@@ -1,7 +1,7 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
 import * as Sentry from '@sentry/node';
+import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { callLLMMessages } from './ai-team/lib.js';
-import { ingestKnowledgeSource, searchKnowledge, scrapeUrl } from './rag.js';
+import { ingestKnowledgeSource, scrapeUrl, searchKnowledge } from './rag.js';
 
 // Initialize Sentry for production error monitoring
 if (process.env.SENTRY_DSN) {
@@ -18,11 +18,11 @@ if (process.env.SENTRY_DSN) {
 // Uses Supabase REST API for data, JWT cookies for auth
 // =====================================================================
 
-const SUPABASE_URL =
-  process.env.SUPABASE_URL ||
-  process.env.VITE_SUPABASE_URL;
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 if (!SUPABASE_URL) {
-  throw new Error('Missing SUPABASE_URL or VITE_SUPABASE_URL environment variable');
+  throw new Error(
+    'Missing SUPABASE_URL or VITE_SUPABASE_URL environment variable',
+  );
 }
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const SESSION_JWT_SECRET = process.env.SESSION_JWT_SECRET;
@@ -73,11 +73,11 @@ async function getAuthUser(req: VercelRequest): Promise<AuthUser | null> {
   const authHeader = req.headers.authorization;
   let token: string | null = null;
 
-  if (authHeader && authHeader.startsWith('Bearer ')) {
+  if (authHeader?.startsWith('Bearer ')) {
     token = authHeader.substring(7);
   } else {
     const cookies = parseCookies(req.headers.cookie);
-    token = cookies['bmb_session'] || cookies['session'];
+    token = cookies.bmb_session || cookies.session;
   }
 
   if (!token) return null;
@@ -96,7 +96,7 @@ async function getAuthUser(req: VercelRequest): Promise<AuthUser | null> {
     const [encoded, signature] = parts;
     if (!encoded || !signature) return null;
 
-    const crypto = await import('crypto');
+    const crypto = await import('node:crypto');
     const expectedSig = crypto.default
       .createHmac('sha256', SESSION_JWT_SECRET)
       .update(encoded)
@@ -168,17 +168,44 @@ export function ownerFilter(user: AuthUser): Record<string, string> {
 }
 
 // ─── Plan Limits & Usage Enforcement ──────────────────────────────────
-const PLAN_LIMITS_CONFIG: Record<string, {
-  bots: number;
-  conversations_per_month: number;
-  knowledge_sources: number;
-  leads: number;
-  trial_days: number;
-}> = {
-  FREE:         { bots: 1,    conversations_per_month: 250,    knowledge_sources: 3,   leads: 50,     trial_days: 0 },
-  STARTER:      { bots: 3,    conversations_per_month: 1000,   knowledge_sources: 10,  leads: 500,    trial_days: 0 },
-  PROFESSIONAL: { bots: 10,   conversations_per_month: 10000,  knowledge_sources: 50,  leads: 5000,   trial_days: 0 },
-  ENTERPRISE:   { bots: 9999, conversations_per_month: 999999, knowledge_sources: 999, leads: 999999, trial_days: 0 },
+const PLAN_LIMITS_CONFIG: Record<
+  string,
+  {
+    bots: number;
+    conversations_per_month: number;
+    knowledge_sources: number;
+    leads: number;
+    trial_days: number;
+  }
+> = {
+  FREE: {
+    bots: 1,
+    conversations_per_month: 250,
+    knowledge_sources: 3,
+    leads: 50,
+    trial_days: 0,
+  },
+  STARTER: {
+    bots: 3,
+    conversations_per_month: 1000,
+    knowledge_sources: 10,
+    leads: 500,
+    trial_days: 0,
+  },
+  PROFESSIONAL: {
+    bots: 10,
+    conversations_per_month: 10000,
+    knowledge_sources: 50,
+    leads: 5000,
+    trial_days: 0,
+  },
+  ENTERPRISE: {
+    bots: 9999,
+    conversations_per_month: 999999,
+    knowledge_sources: 999,
+    leads: 999999,
+    trial_days: 0,
+  },
 };
 const TRIAL_DURATION_DAYS = 14;
 const TRIAL_PLAN = 'PROFESSIONAL'; // trial users get Professional-level access
@@ -224,7 +251,7 @@ export async function checkQuota(
     }
     case 'knowledge_sources': {
       const sources = await sbSelect('knowledge_sources', 'id', {
-        bot_id: `not.is.null`, // only count real sources
+        bot_id: 'not.is.null', // only count real sources
       }).catch(() => []);
       current = sources.length;
       limit = limits.knowledge_sources;
@@ -243,11 +270,17 @@ export async function checkQuota(
 
 // ─── Trial System ─────────────────────────────────────────────────────
 
-async function checkAndApplyTrial(user: AuthUser): Promise<{ active: boolean; daysRemaining: number }> {
+async function checkAndApplyTrial(
+  user: AuthUser,
+): Promise<{ active: boolean; daysRemaining: number }> {
   // Fetch fresh user data to check trial fields
-  const users = await sbSelect('users', 'id,plan,trial_started_at,trial_ends_at', {
-    id: `eq.${user.id}`,
-  }).catch(() => []);
+  const users = await sbSelect(
+    'users',
+    'id,plan,trial_started_at,trial_ends_at',
+    {
+      id: `eq.${user.id}`,
+    },
+  ).catch(() => []);
   const u = users?.[0];
   if (!u) return { active: false, daysRemaining: 0 };
 
@@ -261,12 +294,16 @@ async function checkAndApplyTrial(user: AuthUser): Promise<{ active: boolean; da
     const endsAt = new Date(u.trial_ends_at);
     const now = new Date();
     if (now < endsAt) {
-      const daysRemaining = Math.ceil((endsAt.getTime() - now.getTime()) / 86400000);
+      const daysRemaining = Math.ceil(
+        (endsAt.getTime() - now.getTime()) / 86400000,
+      );
       return { active: true, daysRemaining };
     }
     // Trial expired — downgrade to FREE if still on TRIAL
     if (u.plan === 'TRIAL') {
-      await sbUpdate('users', { plan: 'FREE' }, { id: `eq.${user.id}` }).catch(() => {});
+      await sbUpdate('users', { plan: 'FREE' }, { id: `eq.${user.id}` }).catch(
+        () => {},
+      );
     }
     return { active: false, daysRemaining: 0 };
   }
@@ -274,7 +311,9 @@ async function checkAndApplyTrial(user: AuthUser): Promise<{ active: boolean; da
   return { active: false, daysRemaining: 0 };
 }
 
-async function startTrial(userId: string): Promise<{ success: boolean; endsAt: string }> {
+async function startTrial(
+  userId: string,
+): Promise<{ success: boolean; endsAt: string }> {
   const now = new Date();
   const endsAt = new Date(now.getTime() + TRIAL_DURATION_DAYS * 86400000);
   await sbUpdate(
@@ -424,7 +463,8 @@ async function handleBotById(
     res.json(bots[0]);
   } else if (req.method === 'PATCH' || req.method === 'PUT') {
     const updated = await sbUpdate('bots', parseBody(req), filter);
-    if (!updated.length) return res.status(404).json({ error: 'Bot not found' });
+    if (!updated.length)
+      return res.status(404).json({ error: 'Bot not found' });
     res.json(updated[0]);
   } else if (req.method === 'DELETE') {
     await sbDelete('bots', filter);
@@ -628,7 +668,11 @@ async function handleAdmin(
     const rows = await sbSelect(
       'researched_leads',
       'id,researched_by,company_name,industry,city,website,created_at',
-      { created_at: `gte.${today}T00:00:00Z`, order: 'created_at.desc', limit: '200' },
+      {
+        created_at: `gte.${today}T00:00:00Z`,
+        order: 'created_at.desc',
+        limit: '200',
+      },
     ).catch(() => []);
     res.json({
       date: today,
@@ -697,9 +741,11 @@ async function handleAdmin(
       // -- this used to return { mrr, arr, totalRevenue, ... } (different
       // field names entirely), so `displayOverview.churnRate.toFixed(2)`
       // read undefined and crashed, blanking the whole admin overview tab.
-      const orgs = await sbSelect('organizations', 'id,plan,is_active', {}).catch(
-        () => [],
-      );
+      const orgs = await sbSelect(
+        'organizations',
+        'id,plan,is_active',
+        {},
+      ).catch(() => []);
       const activeCustomers = orgs.filter((o: any) => o.is_active).length;
       const mrr = orgs.reduce(
         (sum: number, o: any) => sum + (PLAN_PRICES[o.plan] || 0),
@@ -712,7 +758,8 @@ async function handleAdmin(
         activeCustomers,
         churnedCustomers: 0,
         wired: false,
-        message: 'No billing provider connected yet -- churn/churned figures are not tracked until Stripe is wired up.',
+        message:
+          'No billing provider connected yet -- churn/churned figures are not tracked until Stripe is wired up.',
       });
     } else if (fsub === 'invoices') {
       res.json([]);
@@ -721,7 +768,11 @@ async function handleAdmin(
     } else if (fsub === 'stripe-health') {
       // FinancialDashboard.tsx reads `stripeHealth?.ok` -- include both keys
       // for compatibility.
-      res.json({ ok: false, connected: false, message: 'Stripe is not connected' });
+      res.json({
+        ok: false,
+        connected: false,
+        message: 'Stripe is not connected',
+      });
     } else if (fsub === 'features-usage') {
       // AdminFeaturesOverview.tsx expects { plans, addons, usage } -- this
       // used to return a bare `[]`, so `stats.usage.totalConversations`
@@ -1008,14 +1059,32 @@ async function handleKnowledge(
     try {
       const scrapedContent = await scrapeUrl(url);
       if (!scrapedContent) {
-        await sbUpdate('knowledge_sources', { status: 'failed', last_error: 'No content retrieved' }, { id: `eq.${sourceId}` }).catch(() => {});
-        return res.status(422).json({ id: sourceId, error: 'Could not retrieve content from URL' });
+        await sbUpdate(
+          'knowledge_sources',
+          { status: 'failed', last_error: 'No content retrieved' },
+          { id: `eq.${sourceId}` },
+        ).catch(() => {});
+        return res
+          .status(422)
+          .json({ id: sourceId, error: 'Could not retrieve content from URL' });
       }
-      await sbUpdate('knowledge_sources', { content: scrapedContent.slice(0, 65000) }, { id: `eq.${sourceId}` }).catch(() => {});
-      const result = await ingestKnowledgeSource(sourceId, botId, scrapedContent);
+      await sbUpdate(
+        'knowledge_sources',
+        { content: scrapedContent.slice(0, 65000) },
+        { id: `eq.${sourceId}` },
+      ).catch(() => {});
+      const result = await ingestKnowledgeSource(
+        sourceId,
+        botId,
+        scrapedContent,
+      );
       res.status(201).json({ id: sourceId, success: true, ...result });
     } catch (err: any) {
-      await sbUpdate('knowledge_sources', { status: 'failed', last_error: err.message }, { id: `eq.${sourceId}` }).catch(() => {});
+      await sbUpdate(
+        'knowledge_sources',
+        { status: 'failed', last_error: err.message },
+        { id: `eq.${sourceId}` },
+      ).catch(() => {});
       res.status(500).json({ id: sourceId, error: err.message });
     }
   } else if (sub === 'upload') {
@@ -1034,9 +1103,11 @@ async function handleKnowledge(
     }).catch(() => [{ id: sourceId }]);
     // Chunk + embed the uploaded content
     if (content) {
-      await ingestKnowledgeSource(sourceId, botId, content).catch((err: any) => {
-        console.error('[knowledge] ingest failed for upload:', err.message);
-      });
+      await ingestKnowledgeSource(sourceId, botId, content).catch(
+        (err: any) => {
+          console.error('[knowledge] ingest failed for upload:', err.message);
+        },
+      );
     }
     res.status(201).json({ ...(r[0] || {}), id: sourceId });
   } else if (sub === 'refresh') {
@@ -1082,7 +1153,7 @@ async function handleTemplates(
       id: crypto.randomUUID(),
       organization_id: user.organizationId,
       creator_id: user.id,
-      name: tpl.name + ' (Copy)',
+      name: `${tpl.name} (Copy)`,
       description: tpl.description || '',
       persona: tpl.persona || '',
       model: 'gpt-4o-mini',
@@ -1229,7 +1300,9 @@ async function handleAgency(
     // Real profit report from actual data
     const orgFilter = ownerFilter(user);
     const [bots, leads, conversations, wallets] = await Promise.all([
-      sbSelect('bots', 'id,name,conversations_count', orgFilter).catch(() => []),
+      sbSelect('bots', 'id,name,conversations_count', orgFilter).catch(
+        () => [],
+      ),
       sbSelect('leads', 'id,score,status', orgFilter).catch(() => []),
       sbSelect('conversations', 'id,created_at', orgFilter).catch(() => []),
       sbSelect('usage_wallets', '*', {
@@ -1239,17 +1312,24 @@ async function handleAgency(
     const wallet = wallets[0] || { balance: 0 };
     const totalConversations = conversations.length;
     const totalLeads = leads.length;
-    const qualifiedLeads = (leads as any[]).filter((l) => (l.score || 0) >= 50).length;
+    const qualifiedLeads = (leads as any[]).filter(
+      (l) => (l.score || 0) >= 50,
+    ).length;
     // Compute monthly breakdown (last 6 months)
-    const monthly: { month: string; conversations: number; leads: number }[] = [];
+    const monthly: { month: string; conversations: number; leads: number }[] =
+      [];
     for (let i = 5; i >= 0; i--) {
       const d = new Date();
       d.setMonth(d.getMonth() - i);
       const monthStr = d.toISOString().slice(0, 7);
       monthly.push({
         month: monthStr,
-        conversations: (conversations as any[]).filter((c) => c.created_at?.startsWith(monthStr)).length,
-        leads: (leads as any[]).filter((l) => l.created_at?.startsWith(monthStr)).length,
+        conversations: (conversations as any[]).filter((c) =>
+          c.created_at?.startsWith(monthStr),
+        ).length,
+        leads: (leads as any[]).filter((l) =>
+          l.created_at?.startsWith(monthStr),
+        ).length,
       });
     }
     res.json({
@@ -1259,9 +1339,15 @@ async function handleAgency(
       qualifiedLeads,
       walletBalance: wallet.balance,
       topBots: (bots as any[])
-        .sort((a, b) => (b.conversations_count || 0) - (a.conversations_count || 0))
+        .sort(
+          (a, b) => (b.conversations_count || 0) - (a.conversations_count || 0),
+        )
         .slice(0, 5)
-        .map((b) => ({ id: b.id, name: b.name, conversations: b.conversations_count || 0 })),
+        .map((b) => ({
+          id: b.id,
+          name: b.name,
+          conversations: b.conversations_count || 0,
+        })),
       monthly,
     });
   } else if (sub === 'overview') {
@@ -1270,7 +1356,9 @@ async function handleAgency(
     const [bots, leads, clients] = await Promise.all([
       sbSelect('bots', 'id', orgFilter).catch(() => []),
       sbSelect('leads', 'id', orgFilter).catch(() => []),
-      sbSelect('partner_clients', 'id', { organization_id: `eq.${user.organizationId}` }).catch(() => []),
+      sbSelect('partner_clients', 'id', {
+        organization_id: `eq.${user.organizationId}`,
+      }).catch(() => []),
     ]);
     res.json({
       activeBots: bots.length,
@@ -1355,11 +1443,7 @@ async function handleChannels(
   user: AuthUser,
 ) {
   res.json(
-    await sbSelect(
-      'bots',
-      'id,name,config',
-      ownerFilter(user),
-    ).catch(() => []),
+    await sbSelect('bots', 'id,name,config', ownerFilter(user)).catch(() => []),
   );
 }
 
@@ -1389,11 +1473,7 @@ async function handlePhone(
     res.json({ success: true });
   } else {
     res.json(
-      await sbSelect(
-        'phone_numbers',
-        '*',
-        ownerFilter(user),
-      ).catch(() => []),
+      await sbSelect('phone_numbers', '*', ownerFilter(user)).catch(() => []),
     );
   }
 }
@@ -1455,12 +1535,13 @@ async function handleClients(
     // handler at all, so it fell through to the client-by-id branch,
     // returning `{}` and crashing ClientOverview.tsx's `recentBots[0]?.id`
     // (recentBots was `undefined`, not `[]`) for EVERY user, new or existing.
-    const PLAN_LIMITS: Record<string, { bots: number; conversations: number }> = {
-      FREE: { bots: 1, conversations: 60 },
-      STARTER: { bots: 1, conversations: 750 },
-      PROFESSIONAL: { bots: 5, conversations: 5000 },
-      ENTERPRISE: { bots: 9999, conversations: 999999 },
-    };
+    const PLAN_LIMITS: Record<string, { bots: number; conversations: number }> =
+      {
+        FREE: { bots: 1, conversations: 60 },
+        STARTER: { bots: 1, conversations: 750 },
+        PROFESSIONAL: { bots: 5, conversations: 5000 },
+        ENTERPRISE: { bots: 9999, conversations: 999999 },
+      };
     const orgFilter = ownerFilter(user);
     const [bots, leads, conversations] = await Promise.all([
       sbSelect('bots', '*', orgFilter).catch(() => []),
@@ -1470,7 +1551,9 @@ async function handleClients(
 
     const botCount = bots.length;
     const leadCount = leads.length;
-    const scoredLeads = (leads as any[]).filter((l) => typeof l.score === 'number');
+    const scoredLeads = (leads as any[]).filter(
+      (l) => typeof l.score === 'number',
+    );
     const averageLeadScore =
       scoredLeads.length > 0
         ? scoredLeads.reduce((sum, l) => sum + l.score, 0) / scoredLeads.length
@@ -1485,10 +1568,14 @@ async function handleClients(
 
     const days: { date: string; count: number }[] = [];
     for (let i = 13; i >= 0; i--) {
-      const day = new Date(Date.now() - i * 86400000).toISOString().split('T')[0];
+      const day = new Date(Date.now() - i * 86400000)
+        .toISOString()
+        .split('T')[0];
       days.push({
         date: day,
-        count: (conversations as any[]).filter((c) => c.created_at?.startsWith(day)).length,
+        count: (conversations as any[]).filter((c) =>
+          c.created_at?.startsWith(day),
+        ).length,
       });
     }
 
@@ -1544,12 +1631,20 @@ async function handleClients(
         ? Number(((totalLeads / totalConversations) * 100).toFixed(1))
         : 0;
 
-    const days: { date: string; conversations: number; visitors: number; leads: number }[] = [];
+    const days: {
+      date: string;
+      conversations: number;
+      visitors: number;
+      leads: number;
+    }[] = [];
     for (let i = 29; i >= 0; i--) {
-      const day = new Date(Date.now() - i * 86400000).toISOString().split('T')[0];
+      const day = new Date(Date.now() - i * 86400000)
+        .toISOString()
+        .split('T')[0];
       days.push({
         date: day,
-        conversations: convs.filter((c: any) => c.created_at?.startsWith(day)).length,
+        conversations: convs.filter((c: any) => c.created_at?.startsWith(day))
+          .length,
         visitors: 0,
         leads: leads.filter((l: any) => l.created_at?.startsWith(day)).length,
       });
@@ -1557,7 +1652,9 @@ async function handleClients(
 
     const sourceCounts: Record<string, number> = {};
     for (const l of leads as any[]) {
-      const src = l.source_url ? new URL(l.source_url, 'http://x').hostname || 'direct' : 'direct';
+      const src = l.source_url
+        ? new URL(l.source_url, 'http://x').hostname || 'direct'
+        : 'direct';
       sourceCounts[src] = (sourceCounts[src] || 0) + 1;
     }
 
@@ -1573,10 +1670,12 @@ async function handleClients(
         conversionGrowth: 0,
       },
       timeSeriesData: days,
-      leadsBySource: Object.entries(sourceCounts).map(([source, leadsCount]) => ({
-        source,
-        leads: leadsCount,
-      })),
+      leadsBySource: Object.entries(sourceCounts).map(
+        ([source, leadsCount]) => ({
+          source,
+          leads: leadsCount,
+        }),
+      ),
       sentimentData: [],
       sessionDurationData: [],
       topIntents: [],
@@ -1645,28 +1744,35 @@ async function handleChat(
   const sessionId = body.sessionId || crypto.randomUUID();
 
   if (chatRateLimited(`${ip}:${botId || 'demo'}`)) {
-    return res.status(429).json({ error: 'Too many messages, please slow down.' });
+    return res
+      .status(429)
+      .json({ error: 'Too many messages, please slow down.' });
   }
 
-  let systemPrompt = typeof body.systemPrompt === 'string' ? body.systemPrompt : '';
+  let systemPrompt =
+    typeof body.systemPrompt === 'string' ? body.systemPrompt : '';
   let temperature = 0.7;
   let preferredModel: string | undefined;
   let bot: any = null;
 
   if (botId) {
-    const bots = await sbSelect('bots', '*', { id: `eq.${botId}` }).catch(() => []);
+    const bots = await sbSelect('bots', '*', { id: `eq.${botId}` }).catch(
+      () => [],
+    );
     bot = bots[0];
     if (!bot) return res.status(404).json({ error: 'Bot not found' });
     if (bot.active === false) {
       return res.status(403).json({ error: 'This bot is currently inactive.' });
     }
-    systemPrompt = bot.system_prompt || systemPrompt || 'You are a helpful assistant.';
+    systemPrompt =
+      bot.system_prompt || systemPrompt || 'You are a helpful assistant.';
     temperature = typeof bot.temperature === 'number' ? bot.temperature : 0.7;
     preferredModel = body.model || bot.model;
 
     // RAG: retrieve the most relevant knowledge chunks via vector similarity
     // search. Falls back to keyword search if embeddings aren't available.
-    const userMessage = rawHistory.at(-1)?.text || rawHistory.at(-1)?.content || '';
+    const userMessage =
+      rawHistory.at(-1)?.text || rawHistory.at(-1)?.content || '';
     if (userMessage && botId) {
       try {
         const relevantChunks = await searchKnowledge(botId, userMessage, 5);
@@ -1675,11 +1781,18 @@ async function handleChat(
           systemPrompt += `\n\nUse the following business knowledge to answer questions. If the answer isn't in here, say you don't have that information rather than guessing:\n${kbText}`;
         }
       } catch (err: any) {
-        console.error('[chat] RAG search failed, falling back to inline KB:', err.message);
+        console.error(
+          '[chat] RAG search failed, falling back to inline KB:',
+          err.message,
+        );
       }
     }
     // Fallback: inline knowledge_base field (for bots without chunked sources)
-    if (!systemPrompt.includes('business knowledge') && Array.isArray(bot.knowledge_base) && bot.knowledge_base.length) {
+    if (
+      !systemPrompt.includes('business knowledge') &&
+      Array.isArray(bot.knowledge_base) &&
+      bot.knowledge_base.length
+    ) {
       const kbText = bot.knowledge_base
         .map((k: any) => (typeof k === 'string' ? k : k.content || ''))
         .filter(Boolean)
@@ -1697,24 +1810,29 @@ async function handleChat(
   // to OpenAI-style role: 'user' | 'assistant' for the LLM call.
   const maxTurns = (bot?.max_messages as number) || 20;
   const history = rawHistory.slice(-maxTurns).map((m) => ({
-    role: (m.role === 'model' || m.role === 'assistant' ? 'assistant' : 'user') as
-      | 'user'
-      | 'assistant',
+    role: (m.role === 'model' || m.role === 'assistant'
+      ? 'assistant'
+      : 'user') as 'user' | 'assistant',
     content: m.text ?? m.content ?? '',
   }));
 
-  const llmMessages: { role: 'system' | 'user' | 'assistant'; content: string }[] = [
-    { role: 'system', content: systemPrompt },
-    ...history,
-  ];
+  const llmMessages: {
+    role: 'system' | 'user' | 'assistant';
+    content: string;
+  }[] = [{ role: 'system', content: systemPrompt }, ...history];
 
   let reply: string;
   try {
-    reply = await callLLMMessages(llmMessages, temperature, preferredModel as any);
+    reply = await callLLMMessages(
+      llmMessages,
+      temperature,
+      preferredModel as any,
+    );
   } catch (err: any) {
     console.error('[chat] LLM call failed:', err?.message || err);
     return res.status(502).json({
-      error: 'AI service is temporarily unavailable. Please try again in a moment.',
+      error:
+        'AI service is temporarily unavailable. Please try again in a moment.',
     });
   }
 
@@ -1723,7 +1841,11 @@ async function handleChat(
       id: crypto.randomUUID(),
       bot_id: botId,
       session_id: sessionId,
-      messages: [...rawHistory, { role: 'user', text: rawHistory.at(-1)?.text }, { role: 'model', text: reply }],
+      messages: [
+        ...rawHistory,
+        { role: 'user', text: rawHistory.at(-1)?.text },
+        { role: 'model', text: reply },
+      ],
       status: 'active',
     }).catch(() => {});
     await sbUpdate(
@@ -1769,7 +1891,7 @@ async function stripeRequest(
   params?: Record<string, any>,
 ) {
   if (!STRIPE_SECRET_KEY) throw new Error('STRIPE_SECRET_KEY not configured');
-  const auth = 'Basic ' + Buffer.from(`${STRIPE_SECRET_KEY}:`).toString('base64');
+  const auth = `Basic ${Buffer.from(`${STRIPE_SECRET_KEY}:`).toString('base64')}`;
   let url = `${STRIPE_API}${path}`;
   const opts: any = {
     method,
@@ -1873,7 +1995,9 @@ async function handleStripe(
       return res.json({ data: products });
     } catch (err: any) {
       console.error('[stripe] products fetch failed:', err.message);
-      return res.status(502).json({ error: 'Failed to load products', details: err.message });
+      return res
+        .status(502)
+        .json({ error: 'Failed to load products', details: err.message });
     }
   }
 
@@ -1899,13 +2023,22 @@ async function handleStripe(
           ...(metadata || {}),
         },
         ...(sessionMode === 'subscription'
-          ? { subscription_data: { metadata: { userId, organizationId: organizationId || user?.organizationId || '' } } }
+          ? {
+              subscription_data: {
+                metadata: {
+                  userId,
+                  organizationId: organizationId || user?.organizationId || '',
+                },
+              },
+            }
           : {}),
       });
       return res.json({ url: session.url });
     } catch (err: any) {
       console.error('[stripe] checkout failed:', err.message);
-      return res.status(502).json({ error: 'Checkout failed', details: err.message });
+      return res
+        .status(502)
+        .json({ error: 'Checkout failed', details: err.message });
     }
   }
 
@@ -1922,16 +2055,24 @@ async function handleStripe(
       return res.json({ url: session.url });
     } catch (err: any) {
       console.error('[stripe] portal failed:', err.message);
-      return res.status(502).json({ error: 'Failed to open billing portal', details: err.message });
+      return res
+        .status(502)
+        .json({ error: 'Failed to open billing portal', details: err.message });
     }
   }
 
-  if (sub === 'whitelabel' && pathParts[1] === 'checkout' && req.method === 'POST') {
+  if (
+    sub === 'whitelabel' &&
+    pathParts[1] === 'checkout' &&
+    req.method === 'POST'
+  ) {
     const body = parseBody(req) || {};
     const userId = body.userId || user?.id;
     const whitelabelPriceId = process.env.STRIPE_WHITELABEL_PRICE_ID;
     if (!whitelabelPriceId) {
-      return res.status(500).json({ error: 'STRIPE_WHITELABEL_PRICE_ID not configured' });
+      return res
+        .status(500)
+        .json({ error: 'STRIPE_WHITELABEL_PRICE_ID not configured' });
     }
     if (!userId) return res.status(400).json({ error: 'userId is required' });
     try {
@@ -1948,7 +2089,9 @@ async function handleStripe(
       return res.json({ url: session.url });
     } catch (err: any) {
       console.error('[stripe] whitelabel checkout failed:', err.message);
-      return res.status(502).json({ error: 'Checkout failed', details: err.message });
+      return res
+        .status(502)
+        .json({ error: 'Checkout failed', details: err.message });
     }
   }
 
@@ -1976,7 +2119,12 @@ async function handleNotifications(
         title: n.title || '',
         body: n.message || '',
         isPopup: false,
-        priority: n.type === 'urgent' ? 'urgent' : n.type === 'warning' ? 'high' : 'normal',
+        priority:
+          n.type === 'urgent'
+            ? 'urgent'
+            : n.type === 'warning'
+              ? 'high'
+              : 'normal',
         createdAt: n.created_at,
         receipt: {
           viewedAt: n.read ? n.updated_at || n.created_at : null,
@@ -1984,7 +2132,11 @@ async function handleNotifications(
         },
       }));
       const unread = mapped.filter((n) => !n.receipt.viewedAt);
-      res.json({ unread, recent: mapped.slice(0, 20), unreadCount: unread.length });
+      res.json({
+        unread,
+        recent: mapped.slice(0, 20),
+        unreadCount: unread.length,
+      });
     } else if (req.method === 'POST') {
       const body = parseBody(req);
       const r = await sbInsert('notifications', {
@@ -2153,11 +2305,7 @@ async function handleTeam(
   user: AuthUser,
 ) {
   const [members, roles] = await Promise.all([
-    sbSelect(
-      'organization_members',
-      '*',
-      ownerFilter(user),
-    ).catch(() => []),
+    sbSelect('organization_members', '*', ownerFilter(user)).catch(() => []),
     sbSelect('agent_roles', '*', {}).catch(() => []),
   ]);
   res.json({ members, roles });
@@ -2175,9 +2323,12 @@ async function handleAudit(
   const isAdmin = ['admin', 'ADMIN'].includes(user.role);
   const filter = isAdmin ? {} : ownerFilter(user);
   res.json(
-    (await sbSelect('audit_logs', '*', { ...filter, order: 'created_at.desc' }).catch(
-      () => [],
-    )).slice(0, 100),
+    (
+      await sbSelect('audit_logs', '*', {
+        ...filter,
+        order: 'created_at.desc',
+      }).catch(() => [])
+    ).slice(0, 100),
   );
 }
 
@@ -2265,23 +2416,98 @@ async function handleAiEmployees(
     const limit = Number.isFinite(limitParam)
       ? Math.min(Math.max(limitParam, 1), 200)
       : 30;
-    const logs = await sbSelect(
-      'EmployeeLog',
-      '*',
-      { order: 'createdAt.desc', limit: String(limit) },
-    ).catch(() => []);
+    const logs = await sbSelect('EmployeeLog', '*', {
+      order: 'createdAt.desc',
+      limit: String(limit),
+    }).catch(() => []);
     return res.json(logs);
   }
 
   if (sub === 'escalations' && req.method === 'GET') {
     if (!['admin', 'ADMIN'].includes(user.role))
       return res.status(403).json({ error: 'Admin access required' });
-    const escalations = await sbSelect(
-      'escalations',
-      '*',
-      { order: 'created_at.desc', limit: '50' },
-    ).catch(() => []);
+    const escalations = await sbSelect('escalations', '*', {
+      order: 'created_at.desc',
+      limit: '50',
+    }).catch(() => []);
     return res.json(escalations);
+  }
+
+  // Voice briefing — converts the latest Marcus executive summary to audio
+  // via OpenAI TTS so Don can listen instead of reading.
+  if (sub === 'briefing' && pathParts[1] === 'audio' && req.method === 'GET') {
+    if (!['admin', 'ADMIN'].includes(user.role))
+      return res.status(403).json({ error: 'Admin access required' });
+    const openaiKey = process.env.OPENAI_API_KEY;
+    if (!openaiKey)
+      return res.status(503).json({ error: 'OPENAI_API_KEY not configured' });
+    // Get today's Marcus summary (fall back to most recent)
+    const today = new Date().toISOString().slice(0, 10);
+    let summaryRows = await sbSelect('ai_team_log', 'summary,shift_date', {
+      role_id: 'eq.marcus-manager',
+      shift_date: `eq.${today}`,
+      order: 'created_at.desc',
+      limit: '1',
+    }).catch(() => []);
+    if (!summaryRows.length) {
+      summaryRows = await sbSelect('ai_team_log', 'summary,shift_date', {
+        role_id: 'eq.marcus-manager',
+        order: 'created_at.desc',
+        limit: '1',
+      }).catch(() => []);
+    }
+    if (!summaryRows.length)
+      return res.status(404).json({ error: 'No executive briefing found' });
+    const briefingText = summaryRows[0].summary;
+    const briefingDate = summaryRows[0].shift_date;
+    try {
+      const ttsResp = await fetch('https://api.openai.com/v1/audio/speech', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${openaiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'tts-1',
+          input: `BuildMyBot executive briefing for ${briefingDate}. ${briefingText}`,
+          voice: 'onyx',
+          response_format: 'mp3',
+        }),
+      });
+      if (!ttsResp.ok) {
+        const errText = await ttsResp.text();
+        return res.status(502).json({ error: 'TTS failed', details: errText });
+      }
+      const audioBuffer = Buffer.from(await ttsResp.arrayBuffer());
+      res.setHeader('Content-Type', 'audio/mpeg');
+      res.setHeader(
+        'Content-Disposition',
+        `inline; filename="briefing-${briefingDate}.mp3"`,
+      );
+      res.setHeader('Content-Length', String(audioBuffer.length));
+      return res.status(200).end(audioBuffer);
+    } catch (err: any) {
+      return res
+        .status(500)
+        .json({ error: 'TTS generation failed', details: err.message });
+    }
+  }
+
+  // Text briefing — returns the latest Marcus summary as JSON
+  if (sub === 'briefing' && req.method === 'GET') {
+    if (!['admin', 'ADMIN'].includes(user.role))
+      return res.status(403).json({ error: 'Admin access required' });
+    const today = new Date().toISOString().slice(0, 10);
+    const summaryRows = await sbSelect(
+      'ai_team_log',
+      'summary,shift_date,created_at',
+      {
+        role_id: 'eq.marcus-manager',
+        order: 'created_at.desc',
+        limit: '5',
+      },
+    ).catch(() => []);
+    return res.json({ briefings: summaryRows });
   }
 
   if (sub !== 'shift') {
@@ -2295,7 +2521,7 @@ async function handleAiEmployees(
   try {
     // Fetch all active AI employees
     const employees = await sbSelect('AiEmployee', '*', {
-      status: `eq.active`,
+      status: 'eq.active',
     });
     if (!employees || employees.length === 0) {
       return res
@@ -2361,13 +2587,21 @@ async function handleAiEmployees(
           case 'Engineering': {
             // Real system-health data: check recent Vercel deployments + error rate
             try {
-              const recentDeploys = await sbSelect('audit_logs', 'id,action,details,created_at', {
-                action: 'in.(deployment,payment_failed,api_error)',
-                order: 'created_at.desc',
-                limit: '20',
-              }).catch(() => []);
-              const errorCount = recentDeploys.filter((l: any) => l.action === 'api_error').length;
-              const failedPayments = recentDeploys.filter((l: any) => l.action === 'payment_failed').length;
+              const recentDeploys = await sbSelect(
+                'audit_logs',
+                'id,action,details,created_at',
+                {
+                  action: 'in.(deployment,payment_failed,api_error)',
+                  order: 'created_at.desc',
+                  limit: '20',
+                },
+              ).catch(() => []);
+              const errorCount = recentDeploys.filter(
+                (l: any) => l.action === 'api_error',
+              ).length;
+              const failedPayments = recentDeploys.filter(
+                (l: any) => l.action === 'payment_failed',
+              ).length;
               output = `System health check: ${recentDeploys.length} recent events, ${errorCount} API errors, ${failedPayments} payment failures in audit log. Sentry is wired for real-time error capture. Gateway.ts is ${3900}+ lines — consider splitting into route modules for maintainability.`;
               summary = `eng_health | ${errorCount} errors, ${failedPayments} payment failures`;
               status = 'completed';
@@ -2382,26 +2616,35 @@ async function handleAiEmployees(
             status = 'skipped';
             output =
               'No content-generation integration is configured for this deployment -- skipping rather than fabricating content.';
-            summary = `content_creation | not configured`;
+            summary = 'content_creation | not configured';
             break;
           case 'Billing': {
             if (!process.env.STRIPE_SECRET_KEY) {
               status = 'skipped';
-              output = 'STRIPE_SECRET_KEY not configured -- skipping rather than fabricating billing numbers.';
-              summary = `billing_report | not configured`;
+              output =
+                'STRIPE_SECRET_KEY not configured -- skipping rather than fabricating billing numbers.';
+              summary = 'billing_report | not configured';
               break;
             }
             const Stripe = (await import('stripe')).default;
-            const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2025-08-27.basil' as any });
+            const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+              apiVersion: '2025-08-27.basil' as any,
+            });
             const since = Math.floor((Date.now() - 24 * 60 * 60 * 1000) / 1000);
-            const soon = Math.floor((Date.now() + 7 * 24 * 60 * 60 * 1000) / 1000);
+            const soon = Math.floor(
+              (Date.now() + 7 * 24 * 60 * 60 * 1000) / 1000,
+            );
             const [charges, activeSubs, pastDueSubs] = await Promise.all([
               stripe.charges.list({ created: { gte: since }, limit: 100 }),
               stripe.subscriptions.list({ status: 'active', limit: 100 }),
               stripe.subscriptions.list({ status: 'past_due', limit: 100 }),
             ]);
-            const failed = charges.data.filter((c) => !c.paid || c.status === 'failed');
-            const succeeded = charges.data.filter((c) => c.paid && c.status === 'succeeded');
+            const failed = charges.data.filter(
+              (c) => !c.paid || c.status === 'failed',
+            );
+            const succeeded = charges.data.filter(
+              (c) => c.paid && c.status === 'succeeded',
+            );
             const revenue = succeeded.reduce((s, c) => s + c.amount, 0) / 100;
             const renewalsSoon = activeSubs.data.filter(
               (s) => s.current_period_end && s.current_period_end <= soon,
@@ -2430,10 +2673,12 @@ async function handleAiEmployees(
               sbSelect('sales_prospects', 'stage', {}).catch(() => []),
             ]);
             const counts: Record<string, number> = {};
-            for (const p of byStage) counts[p.stage] = (counts[p.stage] || 0) + 1;
-            const summaryLine = Object.entries(counts)
-              .map(([stage, n]) => `${stage}: ${n}`)
-              .join(', ') || 'pipeline empty';
+            for (const p of byStage)
+              counts[p.stage] = (counts[p.stage] || 0) + 1;
+            const summaryLine =
+              Object.entries(counts)
+                .map(([stage, n]) => `${stage}: ${n}`)
+                .join(', ') || 'pipeline empty';
             status = 'completed';
             output = `Real check: pipeline rollup across ${byStage.length} prospect(s) — ${summaryLine}.`;
             summary = `pipeline_rollup | ${summaryLine}`;
@@ -2444,9 +2689,15 @@ async function handleAiEmployees(
               order: 'createdAt.desc',
               limit: '50',
             }).catch(() => []);
-            const completed = recentLogs.filter((l: any) => l.status === 'completed').length;
-            const failed = recentLogs.filter((l: any) => l.status === 'failed').length;
-            const skipped = recentLogs.filter((l: any) => l.status === 'skipped').length;
+            const completed = recentLogs.filter(
+              (l: any) => l.status === 'completed',
+            ).length;
+            const failed = recentLogs.filter(
+              (l: any) => l.status === 'failed',
+            ).length;
+            const skipped = recentLogs.filter(
+              (l: any) => l.status === 'skipped',
+            ).length;
             status = 'completed';
             output = `Real check across last ${recentLogs.length} team log entries: ${completed} completed, ${failed} failed, ${skipped} skipped (no integration configured).`;
             summary = `team_rollup | ${completed} completed, ${failed} failed, ${skipped} skipped`;
@@ -2455,7 +2706,7 @@ async function handleAiEmployees(
           default:
             status = 'skipped';
             output = 'No real integration configured for this role.';
-            summary = `default_task | not configured`;
+            summary = 'default_task | not configured';
         }
       } catch (err) {
         status = 'failed';
@@ -3018,7 +3269,10 @@ Notes: ${prospect.notes || '(none)'}`;
   }
   const data = await resp.json();
   const parsed = JSON.parse(data.choices[0].message.content);
-  return { subject: String(parsed.subject || 'Following up'), body: String(parsed.body || '') };
+  return {
+    subject: String(parsed.subject || 'Following up'),
+    body: String(parsed.body || ''),
+  };
 }
 
 /** Runs the daily cold-outreach + follow-up cadence for one execution role
@@ -3046,7 +3300,9 @@ async function runSalesOutreachCadence(employee: {
   }).catch(() => []);
 
   if (!due || due.length === 0) {
-    const totalInPipeline = await sbSelect('sales_prospects', 'id', {}).catch(() => []);
+    const totalInPipeline = await sbSelect('sales_prospects', 'id', {}).catch(
+      () => [],
+    );
     return {
       status: 'completed',
       output: `No prospects due for outreach today. ${totalInPipeline.length} total prospect(s) in the pipeline. Import a target list into sales_prospects to start the cadence.`,
@@ -3054,7 +3310,10 @@ async function runSalesOutreachCadence(employee: {
     };
   }
 
-  const stageProgression: Record<string, { next: string; days: number; touch: 1 | 2 | 3 | 4 }> = {
+  const stageProgression: Record<
+    string,
+    { next: string; days: number; touch: 1 | 2 | 3 | 4 }
+  > = {
     new: { next: 'followup_1', days: 3, touch: 1 },
     followup_1: { next: 'followup_2', days: 4, touch: 2 },
     followup_2: { next: 'followup_3', days: 7, touch: 3 },
@@ -3081,7 +3340,9 @@ async function runSalesOutreachCadence(employee: {
         sent++;
         const nextTouchAt =
           prog.days > 0
-            ? new Date(Date.now() + prog.days * 24 * 60 * 60 * 1000).toISOString()
+            ? new Date(
+                Date.now() + prog.days * 24 * 60 * 60 * 1000,
+              ).toISOString()
             : null;
         await sbUpdate(
           'sales_prospects',
@@ -3168,7 +3429,7 @@ async function handleEmailInbound(req: VercelRequest, res: VercelResponse) {
       new URL(req.url || '/', 'http://localhost').searchParams.get('secret') ||
       '',
   );
-  const crypto = await import('crypto');
+  const crypto = await import('node:crypto');
   const a = Buffer.from(presented);
   const b = Buffer.from(secret);
   if (a.length !== b.length || !crypto.default.timingSafeEqual(a, b)) {
@@ -3392,7 +3653,9 @@ async function handleEmailInbound(req: VercelRequest, res: VercelResponse) {
   // scheduled delivery (scheduled_at) — it holds and sends the email itself
   // at the right time, no polling/cron needed on our side.
   const delaySeconds = 180 + Math.floor(Math.random() * (900 - 180));
-  const scheduledSendAt = new Date(Date.now() + delaySeconds * 1000).toISOString();
+  const scheduledSendAt = new Date(
+    Date.now() + delaySeconds * 1000,
+  ).toISOString();
 
   // Resend supports true scheduled delivery (scheduled_at) -- it holds and
   // sends the email itself later, so we can call sendEmail now. Without
@@ -3410,7 +3673,11 @@ async function handleEmailInbound(req: VercelRequest, res: VercelResponse) {
         text: decision.reply,
         scheduledAt: scheduledSendAt,
       })
-    : { sent: true, providerId: undefined as string | undefined, reason: undefined as string | undefined };
+    : {
+        sent: true,
+        providerId: undefined as string | undefined,
+        reason: undefined as string | undefined,
+      };
 
   try {
     await sbInsert('email_messages', {
@@ -3584,7 +3851,10 @@ async function handleEmailDispatchScheduled(
     return res.status(401).json({ error: 'unauthorized' });
   }
   if (process.env.RESEND_API_KEY) {
-    return res.json({ skipped: true, reason: 'resend_handles_scheduling_natively' });
+    return res.json({
+      skipped: true,
+      reason: 'resend_handles_scheduling_natively',
+    });
   }
 
   const nowIso = new Date().toISOString();
@@ -3596,12 +3866,16 @@ async function handleEmailDispatchScheduled(
       scheduled_send_at: `lte.${nowIso}`,
     });
   } catch (err) {
-    return res.status(500).json({ error: 'lookup_failed', detail: String(err) });
+    return res
+      .status(500)
+      .json({ error: 'lookup_failed', detail: String(err) });
   }
 
   const results: any[] = [];
   for (const row of due.slice(0, 50)) {
-    const employee = await getEmployeeByAddress(row.from_address).catch(() => null);
+    const employee = await getEmployeeByAddress(row.from_address).catch(
+      () => null,
+    );
     const send = await sendEmail({
       from: row.from_address,
       fromName: employee ? `${employee.name} (BuildMyBot)` : 'BuildMyBot',
@@ -3660,9 +3934,15 @@ async function handlePartners(
           total_paid: 0,
           pending_payout: 0,
         }).catch(() => []);
-        return res.json(newPartner[0] || { tier: 'bronze', commission_rate: 0.15 });
+        return res.json(
+          newPartner[0] || { tier: 'bronze', commission_rate: 0.15 },
+        );
       }
-      return res.json({ tier: 'bronze', commission_rate: 0.15, status: 'inactive' });
+      return res.json({
+        tier: 'bronze',
+        commission_rate: 0.15,
+        status: 'inactive',
+      });
     }
     if (req.method === 'PATCH') {
       const updated = await sbUpdate('partners', parseBody(req), {
@@ -3675,7 +3955,11 @@ async function handlePartners(
 
   if (sub === 'clients') {
     // Real client list for this partner
-    const partner = (await sbSelect('partners', 'id,referral_code', { user_id: `eq.${user.id}` }).catch(() => []))[0];
+    const partner = (
+      await sbSelect('partners', 'id,referral_code', {
+        user_id: `eq.${user.id}`,
+      }).catch(() => [])
+    )[0];
     if (!partner) return res.json([]);
     const clients = await sbSelect('partner_clients', '*', {
       partner_id: `eq.${partner.id}`,
@@ -3684,13 +3968,23 @@ async function handlePartners(
   }
 
   if (sub === 'earnings') {
-    const partner = (await sbSelect('partners', 'id', { user_id: `eq.${user.id}` }).catch(() => []))[0];
-    if (!partner) return res.json({ total_earned: 0, pending: 0, paid: 0, history: [] });
+    const partner = (
+      await sbSelect('partners', 'id', { user_id: `eq.${user.id}` }).catch(
+        () => [],
+      )
+    )[0];
+    if (!partner)
+      return res.json({ total_earned: 0, pending: 0, paid: 0, history: [] });
     const payouts = await sbSelect('partner_payouts', '*', {
       partner_id: `eq.${partner.id}`,
       order: 'created_at.desc',
     }).catch(() => []);
-    const partner_full = (await sbSelect('partners', '*', { id: `eq.${partner.id}` }).catch(() => []))[0] || {};
+    const partner_full =
+      (
+        await sbSelect('partners', '*', { id: `eq.${partner.id}` }).catch(
+          () => [],
+        )
+      )[0] || {};
     return res.json({
       total_earned: partner_full.total_earned || 0,
       pending: partner_full.pending_payout || 0,
@@ -3703,9 +3997,13 @@ async function handlePartners(
     const code = pathParts[1];
     if (!code) return res.status(400).json({ error: 'Referral code required' });
     // Look up partner by referral code and return public info
-    const partners = await sbSelect('partners', 'id,tier,referral_code,commission_rate', {
-      referral_code: `eq.${code}`,
-    }).catch(() => []);
+    const partners = await sbSelect(
+      'partners',
+      'id,tier,referral_code,commission_rate',
+      {
+        referral_code: `eq.${code}`,
+      },
+    ).catch(() => []);
     return res.json(partners[0] || { error: 'Invalid referral code' });
   }
 
@@ -3728,13 +4026,21 @@ async function handleResellers(
     }).catch(() => []);
     const reseller = resellers[0];
     if (!reseller) {
-      return res.json({ active: false, message: 'No reseller account found. Contact support to become a reseller.' });
+      return res.json({
+        active: false,
+        message:
+          'No reseller account found. Contact support to become a reseller.',
+      });
     }
     return res.json(reseller);
   }
 
   if (sub === 'clients') {
-    const reseller = (await sbSelect('resellers', 'id', { user_id: `eq.${user.id}` }).catch(() => []))[0];
+    const reseller = (
+      await sbSelect('resellers', 'id', { user_id: `eq.${user.id}` }).catch(
+        () => [],
+      )
+    )[0];
     if (!reseller) return res.json([]);
     const clients = await sbSelect('reseller_clients', '*', {
       reseller_id: `eq.${reseller.id}`,
@@ -3744,11 +4050,15 @@ async function handleResellers(
 
   if (sub === 'summary') {
     const code = pathParts[1];
-    const reseller = (await sbSelect('resellers', '*', code
-      ? { referral_code: `eq.${code}` }
-      : { user_id: `eq.${user.id}` },
-    ).catch(() => []))[0];
-    if (!reseller) return res.json({ error: 'Reseller not found', clients: 0, revenue: 0 });
+    const reseller = (
+      await sbSelect(
+        'resellers',
+        '*',
+        code ? { referral_code: `eq.${code}` } : { user_id: `eq.${user.id}` },
+      ).catch(() => [])
+    )[0];
+    if (!reseller)
+      return res.json({ error: 'Reseller not found', clients: 0, revenue: 0 });
     const clients = await sbSelect('reseller_clients', 'id', {
       reseller_id: `eq.${reseller.id}`,
     }).catch(() => []);
@@ -3780,15 +4090,24 @@ async function handleTrial(
     // Start a free trial
     const existing = await checkAndApplyTrial(user);
     if (existing.active) {
-      return res.status(400).json({ error: 'Trial already active', ...existing });
+      return res
+        .status(400)
+        .json({ error: 'Trial already active', ...existing });
     }
     // Check if user already had a trial
-    const users = await sbSelect('users', 'trial_started_at', { id: `eq.${user.id}` }).catch(() => []);
+    const users = await sbSelect('users', 'trial_started_at', {
+      id: `eq.${user.id}`,
+    }).catch(() => []);
     if (users[0]?.trial_started_at) {
-      return res.status(400).json({ error: 'Trial already used. Please upgrade to a paid plan.' });
+      return res
+        .status(400)
+        .json({ error: 'Trial already used. Please upgrade to a paid plan.' });
     }
     const result = await startTrial(user.id);
-    return res.json({ message: `${TRIAL_DURATION_DAYS}-day free trial activated!`, ...result });
+    return res.json({
+      message: `${TRIAL_DURATION_DAYS}-day free trial activated!`,
+      ...result,
+    });
   }
   return res.status(405).json({ error: 'Method not allowed' });
 }
@@ -3815,8 +4134,14 @@ async function handleQuota(
     trial,
     limits: effectiveLimits,
     usage: {
-      bots: { current: bots.current, limit: trial.active ? getPlanLimits(TRIAL_PLAN).bots : bots.limit },
-      leads: { current: leads.current, limit: trial.active ? getPlanLimits(TRIAL_PLAN).leads : leads.limit },
+      bots: {
+        current: bots.current,
+        limit: trial.active ? getPlanLimits(TRIAL_PLAN).bots : bots.limit,
+      },
+      leads: {
+        current: leads.current,
+        limit: trial.active ? getPlanLimits(TRIAL_PLAN).leads : leads.limit,
+      },
     },
   });
 }
@@ -3831,11 +4156,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   if (!SUPABASE_SERVICE_KEY || !SESSION_JWT_SECRET) {
-    return res
-      .status(500)
-      .json({
-        error: 'Server misconfigured: missing required environment variables',
-      });
+    return res.status(500).json({
+      error: 'Server misconfigured: missing required environment variables',
+    });
   }
 
   const url = new URL(req.url || '/', 'http://localhost');

@@ -11,7 +11,14 @@ export const Panel: React.FC<{
   className?: string;
   bodyClassName?: string;
   children: React.ReactNode;
-}> = ({ title, eyebrow, right, className = '', bodyClassName = '', children }) => {
+}> = ({
+  title,
+  eyebrow,
+  right,
+  className = '',
+  bodyClassName = '',
+  children,
+}) => {
   return (
     <div
       className={`relative overflow-hidden rounded-md border border-console-border bg-console-surface ${className}`}

@@ -60,13 +60,13 @@ import {
   TEMPLATE_MARKETPLACE_PRICING,
   VOICE_AGENT_PRICING,
 } from '../../constants';
+import { buildApiUrl } from '../../services/apiConfig';
 import {
   generateBotResponseDemo,
   generateMarketingContent,
   generateWebsiteStructure,
   scrapeWebsiteContent,
 } from '../../services/openaiService';
-import { buildApiUrl } from '../../services/apiConfig';
 import { PlanType } from '../../types';
 import { SEO, SEOConfig } from '../SEO/SEO';
 
@@ -128,7 +128,9 @@ export const LandingPage: React.FC<LandingProps> = ({
   };
 
   const [openFaq, setOpenFaq] = useState<number | null>(null);
-  const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
+  const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>(
+    'monthly',
+  );
 
   // Demo state (kept for future use)
   const [demoUrl, setDemoUrl] = useState('');
@@ -193,21 +195,25 @@ export const LandingPage: React.FC<LandingProps> = ({
     try {
       // Use browser SpeechSynthesis for instant voice demo
       const utterance = new SpeechSynthesisUtterance(
-        "Hi there! I'm your AI receptionist from BuildMyBot. I can answer questions, book appointments, and capture leads — all without missing a beat. How can I help you today?"
+        "Hi there! I'm your AI receptionist from BuildMyBot. I can answer questions, book appointments, and capture leads — all without missing a beat. How can I help you today?",
       );
-      
+
       // Try to use a natural-sounding voice
       const voices = window.speechSynthesis.getVoices();
-      const preferred = voices.find(v => 
-        v.name.includes('Samantha') || v.name.includes('Google') || v.name.includes('Natural') || v.lang === 'en-US'
+      const preferred = voices.find(
+        (v) =>
+          v.name.includes('Samantha') ||
+          v.name.includes('Google') ||
+          v.name.includes('Natural') ||
+          v.lang === 'en-US',
       );
       if (preferred) utterance.voice = preferred;
       utterance.rate = 1.0;
       utterance.pitch = 1.0;
-      
+
       utterance.onend = () => setIsVoiceActive(false);
       utterance.onerror = () => setIsVoiceActive(false);
-      
+
       window.speechSynthesis.speak(utterance);
     } catch (err) {
       console.error(err);
@@ -319,7 +325,7 @@ export const LandingPage: React.FC<LandingProps> = ({
   const faqs = [
     {
       q: 'How much does BuildMyBot cost?',
-      a: 'Plans start at $29/month for Starter (750 conversations). Professional is $99/month with 5 bots and 5,000 conversations. Save 17% with annual billing — that\'s 2 months free. There\'s also a free tier with 60 conversations so you can try it risk-free.',
+      a: "Plans start at $29/month for Starter (750 conversations). Professional is $99/month with 5 bots and 5,000 conversations. Save 17% with annual billing — that's 2 months free. There's also a free tier with 60 conversations so you can try it risk-free.",
     },
     {
       q: 'How realistic does the voice agent actually sound?',
@@ -367,10 +373,15 @@ export const LandingPage: React.FC<LandingProps> = ({
           <div>
             <div className="flex items-center gap-3 mb-6">
               <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-700 rounded-full flex items-center justify-center shadow-lg shadow-blue-500/30">
-                <Phone size={28} className={isVoiceActive ? 'animate-pulse' : ''} />
+                <Phone
+                  size={28}
+                  className={isVoiceActive ? 'animate-pulse' : ''}
+                />
               </div>
               <div>
-                <h3 className="text-2xl font-extrabold">Hear It For Yourself</h3>
+                <h3 className="text-2xl font-extrabold">
+                  Hear It For Yourself
+                </h3>
                 <p className="text-blue-400 text-sm font-semibold">
                   Real AI voice — not a recording
                 </p>
@@ -382,10 +393,14 @@ export const LandingPage: React.FC<LandingProps> = ({
                   <Phone size={14} />
                 </div>
                 <div>
-                  <p className="text-xs text-blue-400 font-semibold mb-1">AI VOICE AGENT — SARAH</p>
+                  <p className="text-xs text-blue-400 font-semibold mb-1">
+                    AI VOICE AGENT — SARAH
+                  </p>
                   <p className="text-slate-200 leading-relaxed italic">
-                    "Hello! This is Sarah from Riverside Dental. I see you're calling about scheduling an appointment.
-                    I'd love to help you find a time that works. Are you looking for a general checkup or something specific?"
+                    "Hello! This is Sarah from Riverside Dental. I see you're
+                    calling about scheduling an appointment. I'd love to help
+                    you find a time that works. Are you looking for a general
+                    checkup or something specific?"
                   </p>
                 </div>
               </div>
@@ -394,9 +409,12 @@ export const LandingPage: React.FC<LandingProps> = ({
                   <Users size={14} />
                 </div>
                 <div>
-                  <p className="text-xs text-slate-400 font-semibold mb-1">CALLER</p>
+                  <p className="text-xs text-slate-400 font-semibold mb-1">
+                    CALLER
+                  </p>
                   <p className="text-slate-300 leading-relaxed italic">
-                    "Yeah, I need a cleaning. Do you have anything this Thursday?"
+                    "Yeah, I need a cleaning. Do you have anything this
+                    Thursday?"
                   </p>
                 </div>
               </div>
@@ -418,16 +436,39 @@ export const LandingPage: React.FC<LandingProps> = ({
           </div>
           <div className="space-y-4">
             <div className="text-center mb-4">
-              <p className="text-slate-400 text-sm font-semibold uppercase tracking-wider">Why businesses choose our voice</p>
+              <p className="text-slate-400 text-sm font-semibold uppercase tracking-wider">
+                Why businesses choose our voice
+              </p>
             </div>
             {[
-              { label: 'Voice Realism', value: '99%', desc: 'Callers can\'t tell it\'s AI' },
-              { label: 'Response Speed', value: '<1s', desc: 'Natural conversation flow' },
-              { label: 'Call Handling', value: '24/7', desc: 'Never miss another call' },
-              { label: 'Lead Capture', value: '100%', desc: 'Every caller\'s info collected' },
+              {
+                label: 'Voice Realism',
+                value: '99%',
+                desc: "Callers can't tell it's AI",
+              },
+              {
+                label: 'Response Speed',
+                value: '<1s',
+                desc: 'Natural conversation flow',
+              },
+              {
+                label: 'Call Handling',
+                value: '24/7',
+                desc: 'Never miss another call',
+              },
+              {
+                label: 'Lead Capture',
+                value: '100%',
+                desc: "Every caller's info collected",
+              },
             ].map((stat) => (
-              <div key={stat.label} className="flex items-center gap-4 bg-white/5 rounded-xl p-4 border border-white/5 hover:bg-white/10 transition-colors">
-                <div className="text-2xl font-extrabold text-blue-400 w-16 text-right">{stat.value}</div>
+              <div
+                key={stat.label}
+                className="flex items-center gap-4 bg-white/5 rounded-xl p-4 border border-white/5 hover:bg-white/10 transition-colors"
+              >
+                <div className="text-2xl font-extrabold text-blue-400 w-16 text-right">
+                  {stat.value}
+                </div>
                 <div>
                   <p className="font-bold text-sm">{stat.label}</p>
                   <p className="text-slate-400 text-xs">{stat.desc}</p>
@@ -470,7 +511,8 @@ export const LandingPage: React.FC<LandingProps> = ({
           <div>
             <h4 className="font-bold">BuildMyBot Demo</h4>
             <p className="text-xs text-emerald-400 flex items-center gap-1">
-              <span className="w-2 h-2 bg-emerald-400 rounded-full inline-block animate-pulse" /> Live — Try it now
+              <span className="w-2 h-2 bg-emerald-400 rounded-full inline-block animate-pulse" />{' '}
+              Live — Try it now
             </p>
           </div>
         </div>
@@ -639,7 +681,10 @@ export const LandingPage: React.FC<LandingProps> = ({
               </span>
             </div>
             <div className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-600">
-              <a href="#how-it-works" className="hover:text-blue-700 transition-colors">
+              <a
+                href="#how-it-works"
+                className="hover:text-blue-700 transition-colors"
+              >
                 How It Works
               </a>
               <a
@@ -743,23 +788,25 @@ export const LandingPage: React.FC<LandingProps> = ({
 
         {/* ═══════════════════════════════ MAIN CONTENT ═══════════════════════════════ */}
         <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14 md:py-20 space-y-12 sm:space-y-16 md:space-y-24">
-
           {/* ──── 1. HERO — Pain-driven, specific outcome ──── */}
           <section className="text-center space-y-8 pt-6">
             <div className="inline-flex items-center gap-2 bg-gradient-to-r from-amber-50 to-orange-50 text-amber-700 px-4 py-2 rounded-full text-xs sm:text-sm font-semibold border border-amber-200 shadow-sm">
-              <Zap size={16} className="text-amber-500" /> 🚀 Launch Special — Lock In These Prices Forever
+              <Zap size={16} className="text-amber-500" /> 🚀 Launch Special —
+              Lock In These Prices Forever
             </div>
             <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-slate-900 leading-[1.1] tracking-tight px-2">
               Your Next Employee Works 24/7,
-              <br className="hidden sm:block" />{' '}
-              Never Calls In Sick,{' '}
+              <br className="hidden sm:block" /> Never Calls In Sick,{' '}
               <br className="hidden sm:block" />
-              <span className="bg-gradient-to-r from-blue-700 to-indigo-600 bg-clip-text text-transparent">And Costs Less Than $1/Day</span>
+              <span className="bg-gradient-to-r from-blue-700 to-indigo-600 bg-clip-text text-transparent">
+                And Costs Less Than $1/Day
+              </span>
             </h1>
             <p className="text-base sm:text-lg md:text-xl text-slate-600 max-w-3xl mx-auto leading-relaxed">
-              An AI chatbot and voice receptionist that sounds <strong>indistinguishable from a real person</strong>.
-              It answers every call, engages every website visitor, captures every lead, and books
-              appointments — automatically, while you sleep.
+              An AI chatbot and voice receptionist that sounds{' '}
+              <strong>indistinguishable from a real person</strong>. It answers
+              every call, engages every website visitor, captures every lead,
+              and books appointments — automatically, while you sleep.
             </p>
             <div className="flex flex-col sm:flex-row justify-center gap-4 pt-4">
               <button
@@ -778,13 +825,16 @@ export const LandingPage: React.FC<LandingProps> = ({
             </div>
             <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 pt-4 text-sm text-slate-500">
               <span className="flex items-center gap-2">
-                <CheckCircle size={16} className="text-emerald-500" /> No credit card required
+                <CheckCircle size={16} className="text-emerald-500" /> No credit
+                card required
               </span>
               <span className="flex items-center gap-2">
-                <CheckCircle size={16} className="text-emerald-500" /> Live in 5 minutes
+                <CheckCircle size={16} className="text-emerald-500" /> Live in 5
+                minutes
               </span>
               <span className="flex items-center gap-2">
-                <CheckCircle size={16} className="text-emerald-500" /> Cancel anytime
+                <CheckCircle size={16} className="text-emerald-500" /> Cancel
+                anytime
               </span>
             </div>
           </section>
@@ -793,38 +843,60 @@ export const LandingPage: React.FC<LandingProps> = ({
           <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 sm:p-8">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8 text-center">
               <div>
-                <div className="text-2xl sm:text-3xl font-extrabold text-blue-700">99%</div>
-                <p className="text-sm text-slate-500 mt-1">Voice Realism Score</p>
-                <p className="text-xs text-slate-400">Callers can't tell it's AI</p>
+                <div className="text-2xl sm:text-3xl font-extrabold text-blue-700">
+                  99%
+                </div>
+                <p className="text-sm text-slate-500 mt-1">
+                  Voice Realism Score
+                </p>
+                <p className="text-xs text-slate-400">
+                  Callers can't tell it's AI
+                </p>
               </div>
               <div>
-                <div className="text-2xl sm:text-3xl font-extrabold text-blue-700">&lt;1s</div>
+                <div className="text-2xl sm:text-3xl font-extrabold text-blue-700">
+                  &lt;1s
+                </div>
                 <p className="text-sm text-slate-500 mt-1">Response Time</p>
                 <p className="text-xs text-slate-400">Faster than any human</p>
               </div>
               <div>
-                <div className="text-2xl sm:text-3xl font-extrabold text-blue-700">12+</div>
-                <p className="text-sm text-slate-500 mt-1">Industry Templates</p>
-                <p className="text-xs text-slate-400">Pre-trained for your niche</p>
+                <div className="text-2xl sm:text-3xl font-extrabold text-blue-700">
+                  12+
+                </div>
+                <p className="text-sm text-slate-500 mt-1">
+                  Industry Templates
+                </p>
+                <p className="text-xs text-slate-400">
+                  Pre-trained for your niche
+                </p>
               </div>
               <div>
-                <div className="text-2xl sm:text-3xl font-extrabold text-blue-700">5 min</div>
+                <div className="text-2xl sm:text-3xl font-extrabold text-blue-700">
+                  5 min
+                </div>
                 <p className="text-sm text-slate-500 mt-1">Setup Time</p>
-                <p className="text-xs text-slate-400">No code. No developers.</p>
+                <p className="text-xs text-slate-400">
+                  No code. No developers.
+                </p>
               </div>
             </div>
             <div className="mt-6 pt-6 border-t border-slate-100 flex flex-wrap justify-center gap-4 sm:gap-8 text-xs text-slate-400">
               <span className="flex items-center gap-2">
-                <Sparkles size={14} className="text-blue-500" /> Powered by Grok 4.1
+                <Sparkles size={14} className="text-blue-500" /> Powered by Grok
+                4.1
               </span>
               <span className="flex items-center gap-2">
-                <Mic size={14} className="text-purple-500" /> Cartesia Neural Voice
+                <Mic size={14} className="text-purple-500" /> Cartesia Neural
+                Voice
               </span>
               <span className="flex items-center gap-2">
-                <Shield size={14} className="text-emerald-500" /> Enterprise-grade Security
+                <Shield size={14} className="text-emerald-500" />{' '}
+                Enterprise-grade Security
               </span>
               <span className="flex items-center gap-2">
-                <Globe size={14} className="text-amber-500" /> Works on Any Website
+                <Globe size={14} className="text-amber-500" /> Works on Any
+                Website
               </span>
             </div>
           </section>
@@ -841,7 +913,10 @@ export const LandingPage: React.FC<LandingProps> = ({
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8">
               {setupSteps.map((step, i) => (
-                <div key={step.title} className="text-center bg-white rounded-2xl p-6 sm:p-8 border border-slate-200 shadow-sm hover:shadow-lg transition-shadow">
+                <div
+                  key={step.title}
+                  className="text-center bg-white rounded-2xl p-6 sm:p-8 border border-slate-200 shadow-sm hover:shadow-lg transition-shadow"
+                >
                   <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-4 relative">
                     <step.icon className="text-blue-900" size={28} />
                     <div className="absolute -top-2 -right-2 w-8 h-8 bg-blue-900 text-white rounded-full flex items-center justify-center text-sm font-bold">
@@ -849,7 +924,9 @@ export const LandingPage: React.FC<LandingProps> = ({
                     </div>
                   </div>
                   <h3 className="font-bold text-lg mb-2">{step.title}</h3>
-                  <p className="text-slate-600 text-sm leading-relaxed">{step.description}</p>
+                  <p className="text-slate-600 text-sm leading-relaxed">
+                    {step.description}
+                  </p>
                 </div>
               ))}
             </div>
@@ -865,7 +942,10 @@ export const LandingPage: React.FC<LandingProps> = ({
           </section>
 
           {/* ──── 4. VOICE AGENT SHOWCASE — Condensed ──── */}
-          <section id="voice" className="relative bg-gradient-to-br from-slate-900 via-slate-800 to-blue-900 rounded-2xl sm:rounded-3xl p-6 sm:p-10 md:p-16 text-white shadow-2xl overflow-hidden">
+          <section
+            id="voice"
+            className="relative bg-gradient-to-br from-slate-900 via-slate-800 to-blue-900 rounded-2xl sm:rounded-3xl p-6 sm:p-10 md:p-16 text-white shadow-2xl overflow-hidden"
+          >
             <div className="absolute inset-0 opacity-5">
               <div className="absolute top-10 left-10 w-72 h-72 bg-blue-400 rounded-full blur-3xl" />
               <div className="absolute bottom-10 right-10 w-96 h-96 bg-indigo-500 rounded-full blur-3xl" />
@@ -878,11 +958,15 @@ export const LandingPage: React.FC<LandingProps> = ({
                 <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-4 leading-tight">
                   A Voice Agent So Real,
                   <br className="hidden sm:block" />{' '}
-                  <span className="bg-gradient-to-r from-blue-400 to-cyan-300 bg-clip-text text-transparent">Your Callers Won't Know It's AI</span>
+                  <span className="bg-gradient-to-r from-blue-400 to-cyan-300 bg-clip-text text-transparent">
+                    Your Callers Won't Know It's AI
+                  </span>
                 </h2>
                 <p className="text-slate-300 text-lg max-w-3xl mx-auto leading-relaxed">
-                  Powered by next-generation neural voice synthesis — the same technology used in Hollywood.
-                  Answers calls, qualifies leads, books appointments, and transfers when needed. No scripts. No robots.
+                  Powered by next-generation neural voice synthesis — the same
+                  technology used in Hollywood. Answers calls, qualifies leads,
+                  books appointments, and transfers when needed. No scripts. No
+                  robots.
                 </p>
               </div>
 
@@ -908,24 +992,43 @@ export const LandingPage: React.FC<LandingProps> = ({
                   <MessageSquare size={14} /> Live Demo
                 </div>
                 <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold">
-                  See It In Action.<br />Right Now.
+                  See It In Action.
+                  <br />
+                  Right Now.
                 </h2>
                 <p className="text-slate-600 text-lg leading-relaxed">
-                  This is a live BuildMyBot chatbot. Go ahead — ask it anything. This is exactly what your
-                  customers will experience on your website.
+                  This is a live BuildMyBot chatbot. Go ahead — ask it anything.
+                  This is exactly what your customers will experience on your
+                  website.
                 </p>
                 <ul className="space-y-3">
                   <li className="flex items-center gap-3 text-slate-700">
-                    <CheckCircle className="text-emerald-500 shrink-0" size={20} /> Instant responses powered by Grok 4.1 Fast
+                    <CheckCircle
+                      className="text-emerald-500 shrink-0"
+                      size={20}
+                    />{' '}
+                    Instant responses powered by Grok 4.1 Fast
                   </li>
                   <li className="flex items-center gap-3 text-slate-700">
-                    <CheckCircle className="text-emerald-500 shrink-0" size={20} /> Learns your business from your website
+                    <CheckCircle
+                      className="text-emerald-500 shrink-0"
+                      size={20}
+                    />{' '}
+                    Learns your business from your website
                   </li>
                   <li className="flex items-center gap-3 text-slate-700">
-                    <CheckCircle className="text-emerald-500 shrink-0" size={20} /> Captures leads and books appointments
+                    <CheckCircle
+                      className="text-emerald-500 shrink-0"
+                      size={20}
+                    />{' '}
+                    Captures leads and books appointments
                   </li>
                   <li className="flex items-center gap-3 text-slate-700">
-                    <CheckCircle className="text-emerald-500 shrink-0" size={20} /> Custom branding, personality, and tone
+                    <CheckCircle
+                      className="text-emerald-500 shrink-0"
+                      size={20}
+                    />{' '}
+                    Custom branding, personality, and tone
                   </li>
                 </ul>
                 <button
@@ -956,7 +1059,7 @@ export const LandingPage: React.FC<LandingProps> = ({
                   'Hiring receptionists costs $3,000+/month with turnover',
                   'Leads wait hours or days for a response',
                   'Staff overwhelmed with repetitive questions',
-                  'No idea how many leads you\'re losing every week',
+                  "No idea how many leads you're losing every week",
                 ].map((item) => (
                   <li
                     key={item}
@@ -1180,7 +1283,11 @@ export const LandingPage: React.FC<LandingProps> = ({
             <div className="text-center">
               <p className="text-sm text-slate-500">
                 Want to try first?{' '}
-                <button type="button" onClick={onLogin} className="text-blue-700 font-semibold hover:underline">
+                <button
+                  type="button"
+                  onClick={onLogin}
+                  className="text-blue-700 font-semibold hover:underline"
+                >
                   Start free with 60 conversations/month →
                 </button>
               </p>
@@ -1189,8 +1296,10 @@ export const LandingPage: React.FC<LandingProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
               {highlightedPlans.map(({ key, plan }) => {
                 const isPopular = key === PlanType.PROFESSIONAL;
-                const annualInfo = ANNUAL_PLAN_PRICING[key as keyof typeof ANNUAL_PLAN_PRICING];
-                const showAnnual = billingCycle === 'annual' && annualInfo && plan.price > 0;
+                const annualInfo =
+                  ANNUAL_PLAN_PRICING[key as keyof typeof ANNUAL_PLAN_PRICING];
+                const showAnnual =
+                  billingCycle === 'annual' && annualInfo && plan.price > 0;
                 const displayPrice = showAnnual
                   ? Math.round(annualInfo.annual / 12)
                   : plan.price;
@@ -1212,24 +1321,34 @@ export const LandingPage: React.FC<LandingProps> = ({
                     <h3 className="font-bold text-xl mb-1">{plan.name}</h3>
                     <div className="mb-2">
                       <div className="flex items-baseline gap-1">
-                        <span className={`text-4xl sm:text-5xl font-extrabold tracking-tight ${isPopular ? 'text-blue-700' : 'text-slate-900'}`}>
+                        <span
+                          className={`text-4xl sm:text-5xl font-extrabold tracking-tight ${isPopular ? 'text-blue-700' : 'text-slate-900'}`}
+                        >
                           ${displayPrice}
                         </span>
-                        <span className="text-slate-500 text-sm font-semibold">/mo</span>
+                        <span className="text-slate-500 text-sm font-semibold">
+                          /mo
+                        </span>
                       </div>
                       {showAnnual && (
                         <p className="text-emerald-600 text-xs font-semibold mt-1">
-                          ${annualInfo.annual}/yr — save ${(plan.price * 12) - annualInfo.annual}/yr
+                          ${annualInfo.annual}/yr — save $
+                          {plan.price * 12 - annualInfo.annual}/yr
                         </p>
                       )}
-                      {!showAnnual && billingCycle === 'monthly' && annualInfo && (
-                        <p className="text-slate-400 text-xs mt-1">
-                          or ${Math.round(annualInfo.annual / 12)}/mo billed annually
-                        </p>
-                      )}
+                      {!showAnnual &&
+                        billingCycle === 'monthly' &&
+                        annualInfo && (
+                          <p className="text-slate-400 text-xs mt-1">
+                            or ${Math.round(annualInfo.annual / 12)}/mo billed
+                            annually
+                          </p>
+                        )}
                     </div>
                     <div className="text-sm text-slate-600 mb-4 pb-4 border-b border-slate-100">
-                      {plan.bots >= 9999 ? 'Unlimited' : plan.bots} bot{plan.bots !== 1 ? 's' : ''} · {plan.conversations.toLocaleString()} convos/mo
+                      {plan.bots >= 9999 ? 'Unlimited' : plan.bots} bot
+                      {plan.bots !== 1 ? 's' : ''} ·{' '}
+                      {plan.conversations.toLocaleString()} convos/mo
                     </div>
                     <ul className="space-y-2 mb-6">
                       {plan.features.slice(0, 6).map((f) => (
@@ -1254,7 +1373,13 @@ export const LandingPage: React.FC<LandingProps> = ({
                           : 'bg-slate-900 text-white hover:bg-slate-800'
                       }`}
                     >
-                      {key === PlanType.STARTER ? 'Start Growing' : key === PlanType.PROFESSIONAL ? 'Start Scaling' : key === PlanType.EXECUTIVE ? 'Go Executive' : 'Go Enterprise'}
+                      {key === PlanType.STARTER
+                        ? 'Start Growing'
+                        : key === PlanType.PROFESSIONAL
+                          ? 'Start Scaling'
+                          : key === PlanType.EXECUTIVE
+                            ? 'Go Executive'
+                            : 'Go Enterprise'}
                     </button>
                   </div>
                 );
@@ -1265,8 +1390,13 @@ export const LandingPage: React.FC<LandingProps> = ({
             <div className="bg-gradient-to-r from-slate-900 to-blue-900 rounded-2xl p-6 sm:p-8 text-white text-center">
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-8">
                 <div className="text-left">
-                  <h3 className="text-xl font-bold">Need more? Enterprise starts at $499/mo — unlimited bots, 50K+ convos, white-label, SSO</h3>
-                  <p className="text-blue-200 text-sm mt-1">Built for high-volume businesses and agencies.</p>
+                  <h3 className="text-xl font-bold">
+                    Need more? Enterprise starts at $499/mo — unlimited bots,
+                    50K+ convos, white-label, SSO
+                  </h3>
+                  <p className="text-blue-200 text-sm mt-1">
+                    Built for high-volume businesses and agencies.
+                  </p>
                 </div>
                 <a
                   href="/pricing"
@@ -1278,13 +1408,17 @@ export const LandingPage: React.FC<LandingProps> = ({
             </div>
 
             <p className="text-xs text-slate-400 text-center">
-              All plans include AI chatbot. Voice agent available on Executive and above, or as a standalone product.
-              14-day money-back guarantee on all paid plans.
+              All plans include AI chatbot. Voice agent available on Executive
+              and above, or as a standalone product. 14-day money-back guarantee
+              on all paid plans.
             </p>
           </section>
 
           {/* ──── 8b. AI RECEPTIONIST STANDALONE ──── */}
-          <section id="receptionist" className="relative bg-gradient-to-br from-emerald-900 via-teal-900 to-cyan-900 rounded-2xl sm:rounded-3xl p-6 sm:p-10 md:p-16 text-white shadow-2xl overflow-hidden">
+          <section
+            id="receptionist"
+            className="relative bg-gradient-to-br from-emerald-900 via-teal-900 to-cyan-900 rounded-2xl sm:rounded-3xl p-6 sm:p-10 md:p-16 text-white shadow-2xl overflow-hidden"
+          >
             <div className="absolute inset-0 opacity-5">
               <div className="absolute top-10 left-10 w-72 h-72 bg-emerald-400 rounded-full blur-3xl" />
               <div className="absolute bottom-10 right-10 w-96 h-96 bg-cyan-500 rounded-full blur-3xl" />
@@ -1297,11 +1431,15 @@ export const LandingPage: React.FC<LandingProps> = ({
                 <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-4 leading-tight">
                   Just Need A Phone Agent?
                   <br className="hidden sm:block" />{' '}
-                  <span className="bg-gradient-to-r from-emerald-400 to-cyan-300 bg-clip-text text-transparent">We've Got You.</span>
+                  <span className="bg-gradient-to-r from-emerald-400 to-cyan-300 bg-clip-text text-transparent">
+                    We've Got You.
+                  </span>
                 </h2>
                 <p className="text-slate-300 text-lg max-w-3xl mx-auto leading-relaxed">
-                  Don't need a chatbot? No problem. Get a standalone AI receptionist that answers your phones 24/7,
-                  qualifies leads, books appointments, and transfers calls — for less than $3/day.
+                  Don't need a chatbot? No problem. Get a standalone AI
+                  receptionist that answers your phones 24/7, qualifies leads,
+                  books appointments, and transfers calls — for less than
+                  $3/day.
                 </p>
               </div>
 
@@ -1312,7 +1450,14 @@ export const LandingPage: React.FC<LandingProps> = ({
                     price: 79,
                     minutes: '150',
                     subtitle: 'Solopreneurs & Side Hustles',
-                    features: ['150 minutes/month', 'Ultra-realistic AI voice', 'Basic call routing', 'Call transcripts', 'Email support', '$0.50/min overage'],
+                    features: [
+                      '150 minutes/month',
+                      'Ultra-realistic AI voice',
+                      'Basic call routing',
+                      'Call transcripts',
+                      'Email support',
+                      '$0.50/min overage',
+                    ],
                   },
                   {
                     name: 'Pro',
@@ -1320,14 +1465,30 @@ export const LandingPage: React.FC<LandingProps> = ({
                     minutes: '450',
                     subtitle: 'Small Businesses',
                     popular: true,
-                    features: ['450 minutes/month', 'All premium voices', 'Advanced call routing', 'Call transfers', 'Scheduling workflows', 'Analytics dashboard', '$0.50/min overage'],
+                    features: [
+                      '450 minutes/month',
+                      'All premium voices',
+                      'Advanced call routing',
+                      'Call transfers',
+                      'Scheduling workflows',
+                      'Analytics dashboard',
+                      '$0.50/min overage',
+                    ],
                   },
                   {
                     name: 'Max',
                     price: 279,
                     minutes: '1,000',
                     subtitle: 'Multi-Location Businesses',
-                    features: ['1,000 minutes/month', 'CRM integration', 'Priority routing rules', 'API webhooks', 'Advanced analytics', 'Priority support', '$0.50/min overage'],
+                    features: [
+                      '1,000 minutes/month',
+                      'CRM integration',
+                      'Priority routing rules',
+                      'API webhooks',
+                      'Advanced analytics',
+                      'Priority support',
+                      '$0.50/min overage',
+                    ],
                   },
                 ].map((tier) => (
                   <div
@@ -1343,17 +1504,33 @@ export const LandingPage: React.FC<LandingProps> = ({
                         ⭐ MOST POPULAR
                       </div>
                     )}
-                    <h3 className="font-bold text-xl mb-1">AI Receptionist {tier.name}</h3>
-                    <p className="text-emerald-300 text-sm mb-3">{tier.subtitle}</p>
+                    <h3 className="font-bold text-xl mb-1">
+                      AI Receptionist {tier.name}
+                    </h3>
+                    <p className="text-emerald-300 text-sm mb-3">
+                      {tier.subtitle}
+                    </p>
                     <div className="flex items-baseline gap-1 mb-1">
-                      <span className="text-4xl sm:text-5xl font-extrabold tracking-tight">${tier.price}</span>
-                      <span className="text-slate-400 text-sm font-semibold">/mo</span>
+                      <span className="text-4xl sm:text-5xl font-extrabold tracking-tight">
+                        ${tier.price}
+                      </span>
+                      <span className="text-slate-400 text-sm font-semibold">
+                        /mo
+                      </span>
                     </div>
-                    <p className="text-emerald-300 text-sm mb-4">{tier.minutes} minutes included</p>
+                    <p className="text-emerald-300 text-sm mb-4">
+                      {tier.minutes} minutes included
+                    </p>
                     <ul className="space-y-2 mb-6">
                       {tier.features.map((f) => (
-                        <li key={f} className="flex items-start gap-2 text-sm text-slate-200">
-                          <CheckCircle size={16} className="text-emerald-400 shrink-0 mt-0.5" />
+                        <li
+                          key={f}
+                          className="flex items-start gap-2 text-sm text-slate-200"
+                        >
+                          <CheckCircle
+                            size={16}
+                            className="text-emerald-400 shrink-0 mt-0.5"
+                          />
                           {f}
                         </li>
                       ))}
@@ -1374,8 +1551,19 @@ export const LandingPage: React.FC<LandingProps> = ({
               </div>
 
               <div className="text-center text-sm text-slate-400">
-                <p>All voice plans include a dedicated phone number, call recording, and real-time transcripts.</p>
-                <p className="mt-1">Want chatbots too? <a href="#pricing" className="text-emerald-400 font-semibold hover:underline">Bundle with any chatbot plan →</a></p>
+                <p>
+                  All voice plans include a dedicated phone number, call
+                  recording, and real-time transcripts.
+                </p>
+                <p className="mt-1">
+                  Want chatbots too?{' '}
+                  <a
+                    href="#pricing"
+                    className="text-emerald-400 font-semibold hover:underline"
+                  >
+                    Bundle with any chatbot plan →
+                  </a>
+                </p>
               </div>
             </div>
           </section>
@@ -1387,7 +1575,8 @@ export const LandingPage: React.FC<LandingProps> = ({
                 Built for Your Industry
               </h2>
               <p className="text-slate-600 text-lg">
-                Pre-trained templates so your bot sounds like an expert from day one
+                Pre-trained templates so your bot sounds like an expert from day
+                one
               </p>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
@@ -1468,15 +1657,26 @@ export const LandingPage: React.FC<LandingProps> = ({
                 <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center text-white">
                   <Sparkles size={24} />
                 </div>
-                <h3 className="text-xl font-extrabold text-slate-900">Become a Beta Tester</h3>
+                <h3 className="text-xl font-extrabold text-slate-900">
+                  Become a Beta Tester
+                </h3>
               </div>
               <p className="text-slate-600 mb-4 leading-relaxed">
-                Get early access to our AI chatbot and voice receptionist platform. 
-                Help shape the product, get priority support, and lock in founder pricing.
+                Get early access to our AI chatbot and voice receptionist
+                platform. Help shape the product, get priority support, and lock
+                in founder pricing.
               </p>
               <ul className="space-y-2 mb-6">
-                {['Early access to all features', 'Direct line to the dev team', 'Founder pricing locked in forever', 'Your feedback shapes the roadmap'].map((f) => (
-                  <li key={f} className="flex items-center gap-2 text-sm text-slate-700">
+                {[
+                  'Early access to all features',
+                  'Direct line to the dev team',
+                  'Founder pricing locked in forever',
+                  'Your feedback shapes the roadmap',
+                ].map((f) => (
+                  <li
+                    key={f}
+                    className="flex items-center gap-2 text-sm text-slate-700"
+                  >
                     <CheckCircle size={16} className="text-blue-500 shrink-0" />
                     {f}
                   </li>
@@ -1489,7 +1689,13 @@ export const LandingPage: React.FC<LandingProps> = ({
                 <Mail size={18} /> Apply for Beta Access
               </a>
               <p className="text-xs text-slate-500 mt-3">
-                Or email <a href="mailto:support@buildmybot.app" className="text-blue-600 font-semibold hover:underline">support@buildmybot.app</a>
+                Or email{' '}
+                <a
+                  href="mailto:support@buildmybot.app"
+                  className="text-blue-600 font-semibold hover:underline"
+                >
+                  support@buildmybot.app
+                </a>
               </p>
             </div>
 
@@ -1502,16 +1708,30 @@ export const LandingPage: React.FC<LandingProps> = ({
                 <div className="w-12 h-12 bg-amber-600 rounded-xl flex items-center justify-center text-white">
                   <Users size={24} />
                 </div>
-                <h3 className="text-xl font-extrabold text-slate-900">Become a Partner or Sales Agent</h3>
+                <h3 className="text-xl font-extrabold text-slate-900">
+                  Become a Partner or Sales Agent
+                </h3>
               </div>
               <p className="text-slate-600 mb-4 leading-relaxed">
-                Resell AI chatbots and voice agents under your own brand. 
-                White-label the entire platform, earn up to 50% commission, and build a recurring revenue business.
+                Resell AI chatbots and voice agents under your own brand.
+                White-label the entire platform, earn up to 50% commission, and
+                build a recurring revenue business.
               </p>
               <ul className="space-y-2 mb-6">
-                {['White-label under your brand', 'Up to 50% recurring commission', 'Full sales & marketing support', 'Dedicated partner success manager'].map((f) => (
-                  <li key={f} className="flex items-center gap-2 text-sm text-slate-700">
-                    <CheckCircle size={16} className="text-amber-500 shrink-0" />
+                {[
+                  'White-label under your brand',
+                  'Up to 50% recurring commission',
+                  'Full sales & marketing support',
+                  'Dedicated partner success manager',
+                ].map((f) => (
+                  <li
+                    key={f}
+                    className="flex items-center gap-2 text-sm text-slate-700"
+                  >
+                    <CheckCircle
+                      size={16}
+                      className="text-amber-500 shrink-0"
+                    />
                     {f}
                   </li>
                 ))}
@@ -1523,7 +1743,13 @@ export const LandingPage: React.FC<LandingProps> = ({
                 <Briefcase size={18} /> Apply to Partner Program
               </a>
               <p className="text-xs text-slate-500 mt-3">
-                Or email <a href="mailto:president@buildmybot.app" className="text-amber-600 font-semibold hover:underline">president@buildmybot.app</a>
+                Or email{' '}
+                <a
+                  href="mailto:president@buildmybot.app"
+                  className="text-amber-600 font-semibold hover:underline"
+                >
+                  president@buildmybot.app
+                </a>
               </p>
             </div>
           </section>
@@ -1540,8 +1766,9 @@ export const LandingPage: React.FC<LandingProps> = ({
                 <br className="hidden sm:block" /> Your Competitor Gets the Call
               </h2>
               <p className="text-xl text-blue-200 mb-8 max-w-3xl mx-auto">
-                An AI chatbot and voice receptionist that sounds human, works 24/7,
-                and costs less than your daily coffee. Set up in 5 minutes. Cancel anytime.
+                An AI chatbot and voice receptionist that sounds human, works
+                24/7, and costs less than your daily coffee. Set up in 5
+                minutes. Cancel anytime.
               </p>
               <div className="flex flex-col sm:flex-row justify-center gap-4">
                 <button
@@ -1580,8 +1807,8 @@ export const LandingPage: React.FC<LandingProps> = ({
                 <Bot size={24} /> BuildMyBot
               </div>
               <p className="text-sm">
-                Intelligent AI chatbots and lifelike voice agents for businesses,
-                firms, and platforms. Deploy in minutes.
+                Intelligent AI chatbots and lifelike voice agents for
+                businesses, firms, and platforms. Deploy in minutes.
               </p>
             </div>
             <div>
@@ -1613,7 +1840,10 @@ export const LandingPage: React.FC<LandingProps> = ({
                   </a>
                 </li>
                 <li>
-                  <a href="/partner-program" className="hover:text-white transition">
+                  <a
+                    href="/partner-program"
+                    className="hover:text-white transition"
+                  >
                     Partner Program
                   </a>
                 </li>
@@ -1633,12 +1863,18 @@ export const LandingPage: React.FC<LandingProps> = ({
                   </a>
                 </li>
                 <li>
-                  <a href="mailto:support@buildmybot.app" className="hover:text-white transition">
+                  <a
+                    href="mailto:support@buildmybot.app"
+                    className="hover:text-white transition"
+                  >
                     support@buildmybot.app
                   </a>
                 </li>
                 <li>
-                  <a href="mailto:sales@buildmybot.app" className="hover:text-white transition">
+                  <a
+                    href="mailto:sales@buildmybot.app"
+                    className="hover:text-white transition"
+                  >
                     sales@buildmybot.app
                   </a>
                 </li>

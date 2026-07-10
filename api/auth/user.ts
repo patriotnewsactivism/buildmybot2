@@ -6,10 +6,13 @@ const JWT_SECRET = process.env.SESSION_JWT_SECRET;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'OPTIONS') return res.status(204).end();
-  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method !== 'GET')
+    return res.status(405).json({ error: 'Method not allowed' });
 
   if (!SUPABASE_KEY || !JWT_SECRET) {
-    console.error('[auth/user] FATAL: SUPABASE_SERVICE_ROLE_KEY / SESSION_JWT_SECRET not set');
+    console.error(
+      '[auth/user] FATAL: SUPABASE_SERVICE_ROLE_KEY / SESSION_JWT_SECRET not set',
+    );
     return res.status(500).json({ error: 'Server misconfigured' });
   }
 
@@ -21,14 +24,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const token = match[1];
     const [encoded, signature] = token.split('.');
-    if (!encoded || !signature) return res.status(401).json({ error: 'Not authenticated' });
+    if (!encoded || !signature)
+      return res.status(401).json({ error: 'Not authenticated' });
 
     // Verify JWT (constant-time comparison to avoid timing attacks)
-    const crypto = await import('crypto');
-    const expectedSig = crypto.default.createHmac('sha256', JWT_SECRET).update(encoded).digest('base64url');
+    const crypto = await import('node:crypto');
+    const expectedSig = crypto.default
+      .createHmac('sha256', JWT_SECRET)
+      .update(encoded)
+      .digest('base64url');
     const sigBuf = Buffer.from(signature);
     const expectedBuf = Buffer.from(expectedSig);
-    const sigValid = sigBuf.length === expectedBuf.length && crypto.default.timingSafeEqual(sigBuf, expectedBuf);
+    const sigValid =
+      sigBuf.length === expectedBuf.length &&
+      crypto.default.timingSafeEqual(sigBuf, expectedBuf);
     if (!sigValid) return res.status(401).json({ error: 'Not authenticated' });
 
     const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString());
@@ -50,7 +59,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       },
     });
 
-    if (!userRes.ok) return res.status(500).json({ error: 'Database query failed' });
+    if (!userRes.ok)
+      return res.status(500).json({ error: 'Database query failed' });
 
     const users = await userRes.json();
     const user = users[0];

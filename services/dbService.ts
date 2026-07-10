@@ -921,7 +921,11 @@ export const dbService = {
 
   /** Sales Agent: get overview metrics */
   getAgentOverview: async () => {
-    const response = await request('/agents/overview', { method: 'GET' }, false);
+    const response = await request(
+      '/agents/overview',
+      { method: 'GET' },
+      false,
+    );
     if (!response.ok) throw new Error('Failed to load agent overview');
     return response.json();
   },
@@ -956,7 +960,11 @@ export const dbService = {
 
   /** Partner: get agents under this partner */
   getPartnerAgents: async () => {
-    const response = await request('/partners/agents', { method: 'GET' }, false);
+    const response = await request(
+      '/partners/agents',
+      { method: 'GET' },
+      false,
+    );
     if (!response.ok) throw new Error('Failed to load partner agents');
     return response.json();
   },
@@ -1012,7 +1020,11 @@ export const dbService = {
 
   /** Admin: list all affiliates */
   getAdminAffiliates: async () => {
-    const response = await request('/admin/affiliates', { method: 'GET' }, false);
+    const response = await request(
+      '/admin/affiliates',
+      { method: 'GET' },
+      false,
+    );
     if (!response.ok) throw new Error('Failed to load affiliates');
     return response.json();
   },

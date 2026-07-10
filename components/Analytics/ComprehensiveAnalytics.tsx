@@ -227,18 +227,38 @@ export const ComprehensiveAnalytics: React.FC<ComprehensiveAnalyticsProps> = ({
 
   const qualityChartData = leadData
     ? [
-        { name: 'Excellent', value: leadData.qualityScores.excellent, fill: CHART_GREEN },
+        {
+          name: 'Excellent',
+          value: leadData.qualityScores.excellent,
+          fill: CHART_GREEN,
+        },
         { name: 'Good', value: leadData.qualityScores.good, fill: CHART_CYAN },
-        { name: 'Average', value: leadData.qualityScores.average, fill: CHART_AMBER },
+        {
+          name: 'Average',
+          value: leadData.qualityScores.average,
+          fill: CHART_AMBER,
+        },
         { name: 'Poor', value: leadData.qualityScores.poor, fill: CHART_RED },
       ]
     : [];
 
   const sentimentChartData = satisfactionData
     ? [
-        { name: 'Positive', value: satisfactionData.sentimentBreakdown.positive, fill: CHART_GREEN },
-        { name: 'Neutral', value: satisfactionData.sentimentBreakdown.neutral, fill: CHART_MUTED },
-        { name: 'Negative', value: satisfactionData.sentimentBreakdown.negative, fill: CHART_RED },
+        {
+          name: 'Positive',
+          value: satisfactionData.sentimentBreakdown.positive,
+          fill: CHART_GREEN,
+        },
+        {
+          name: 'Neutral',
+          value: satisfactionData.sentimentBreakdown.neutral,
+          fill: CHART_MUTED,
+        },
+        {
+          name: 'Negative',
+          value: satisfactionData.sentimentBreakdown.negative,
+          fill: CHART_RED,
+        },
       ]
     : [];
 
@@ -252,7 +272,11 @@ export const ComprehensiveAnalytics: React.FC<ComprehensiveAnalyticsProps> = ({
   };
 
   return (
-    <Panel eyebrow="Deep insights into bot performance" title="Analytics Dashboard" bodyClassName="p-0">
+    <Panel
+      eyebrow="Deep insights into bot performance"
+      title="Analytics Dashboard"
+      bodyClassName="p-0"
+    >
       {/* Tab Navigation */}
       <div className="flex border-b border-console-border">
         {tabs.map((tab) => (
@@ -289,7 +313,9 @@ export const ComprehensiveAnalytics: React.FC<ComprehensiveAnalyticsProps> = ({
                 icon={Clock}
                 label="Avg Duration"
                 value={
-                  conversationData ? formatDuration(conversationData.avgDuration) : '0m 0s'
+                  conversationData
+                    ? formatDuration(conversationData.avgDuration)
+                    : '0m 0s'
                 }
                 accent="cyan"
                 loading={loading}
@@ -305,30 +331,50 @@ export const ComprehensiveAnalytics: React.FC<ComprehensiveAnalyticsProps> = ({
 
             {conversationData && conversationData.activeHours.length > 0 && (
               <div className="border border-console-border bg-console-surface p-4">
- <h3 className="mb-3 flex items-center gap-2 text-xs uppercase tracking-widest text-console-muted">
+                <h3 className="mb-3 flex items-center gap-2 text-xs uppercase tracking-widest text-console-muted">
                   <Activity size={14} className="text-accent-cyan" />
                   Active Hours
                 </h3>
                 <ResponsiveContainer width="100%" height={280}>
                   <BarChart data={conversationData.activeHours}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_BORDER} />
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      stroke={CHART_BORDER}
+                    />
                     <XAxis
                       dataKey="hour"
                       stroke={CHART_MUTED}
                       tick={{ fontFamily: 'JetBrains Mono', fontSize: 11 }}
-                      label={{ value: 'Hour of Day', position: 'insideBottom', offset: -5, fill: CHART_MUTED }}
+                      label={{
+                        value: 'Hour of Day',
+                        position: 'insideBottom',
+                        offset: -5,
+                        fill: CHART_MUTED,
+                      }}
                     />
                     <YAxis
                       stroke={CHART_MUTED}
                       tick={{ fontFamily: 'JetBrains Mono', fontSize: 11 }}
-                      label={{ value: 'Count', angle: -90, position: 'insideLeft', fill: CHART_MUTED }}
+                      label={{
+                        value: 'Count',
+                        angle: -90,
+                        position: 'insideLeft',
+                        fill: CHART_MUTED,
+                      }}
                     />
-                    <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgba(45,226,230,0.06)' }} />
+                    <Tooltip
+                      contentStyle={tooltipStyle}
+                      cursor={{ fill: 'rgba(45,226,230,0.06)' }}
+                    />
                     <Bar dataKey="count" radius={[0, 0, 0, 0]}>
                       {conversationData.activeHours.map((entry, index) => (
                         <Cell
                           key={`cell-${index}`}
-                          fill={entry.hour === conversationData.peakHour ? CHART_CYAN : CHART_BORDER}
+                          fill={
+                            entry.hour === conversationData.peakHour
+                              ? CHART_CYAN
+                              : CHART_BORDER
+                          }
                         />
                       ))}
                     </Bar>
@@ -369,7 +415,7 @@ export const ComprehensiveAnalytics: React.FC<ComprehensiveAnalyticsProps> = ({
             {leadData && qualityChartData.length > 0 && (
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 <div className="border border-console-border bg-console-surface p-4">
- <h3 className="mb-3 flex items-center gap-2 text-xs uppercase tracking-widest text-console-muted">
+                  <h3 className="mb-3 flex items-center gap-2 text-xs uppercase tracking-widest text-console-muted">
                     <Star size={14} className="text-accent-cyan" />
                     Lead Quality Distribution
                   </h3>
@@ -395,7 +441,7 @@ export const ComprehensiveAnalytics: React.FC<ComprehensiveAnalyticsProps> = ({
                 </div>
 
                 <div className="border border-console-border bg-console-surface p-4">
- <h3 className="mb-3 flex items-center gap-2 text-xs uppercase tracking-widest text-console-muted">
+                  <h3 className="mb-3 flex items-center gap-2 text-xs uppercase tracking-widest text-console-muted">
                     <MessageSquare size={14} className="text-accent-cyan" />
                     Top Performing Bots
                   </h3>
@@ -406,14 +452,14 @@ export const ComprehensiveAnalytics: React.FC<ComprehensiveAnalyticsProps> = ({
                         className="flex items-center justify-between border border-console-border px-3 py-2"
                       >
                         <div className="flex items-center gap-2.5">
- <div className="flex h-6 w-6 items-center justify-center border border-accent-cyan/40 text-xs text-accent-cyan">
+                          <div className="flex h-6 w-6 items-center justify-center border border-accent-cyan/40 text-xs text-accent-cyan">
                             {index + 1}
                           </div>
- <span className="text-sm text-console-text">
+                          <span className="text-sm text-console-text">
                             {bot.botName}
                           </span>
                         </div>
- <span className="text-sm font-semibold text-accent-cyan">
+                        <span className="text-sm font-semibold text-accent-cyan">
                           {bot.count}
                         </span>
                       </div>
@@ -458,23 +504,35 @@ export const ComprehensiveAnalytics: React.FC<ComprehensiveAnalyticsProps> = ({
                 </div>
 
                 <div className="border border-console-border bg-console-surface p-4">
- <h3 className="mb-3 flex items-center gap-2 text-xs uppercase tracking-widest text-console-muted">
+                  <h3 className="mb-3 flex items-center gap-2 text-xs uppercase tracking-widest text-console-muted">
                     <TrendingUp size={14} className="text-accent-cyan" />
                     30-Day Trend
                   </h3>
- <div className="mb-2 flex gap-4 text-[11px] text-console-muted">
+                  <div className="mb-2 flex gap-4 text-[11px] text-console-muted">
                     <span className="flex items-center gap-1.5">
-                      <span className="h-1.5 w-1.5 rounded-full bg-accent-cyan" /> conversations
+                      <span className="h-1.5 w-1.5 rounded-full bg-accent-cyan" />{' '}
+                      conversations
                     </span>
                     <span className="flex items-center gap-1.5">
-                      <span className="h-1.5 w-1.5 rounded-full bg-accent-green" /> leads
+                      <span className="h-1.5 w-1.5 rounded-full bg-accent-green" />{' '}
+                      leads
                     </span>
                   </div>
                   <ResponsiveContainer width="100%" height={280}>
                     <LineChart data={trendsData.dailyTrend}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={CHART_BORDER} />
-                      <XAxis dataKey="date" stroke={CHART_MUTED} tick={{ fontFamily: 'JetBrains Mono', fontSize: 11 }} />
-                      <YAxis stroke={CHART_MUTED} tick={{ fontFamily: 'JetBrains Mono', fontSize: 11 }} />
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        stroke={CHART_BORDER}
+                      />
+                      <XAxis
+                        dataKey="date"
+                        stroke={CHART_MUTED}
+                        tick={{ fontFamily: 'JetBrains Mono', fontSize: 11 }}
+                      />
+                      <YAxis
+                        stroke={CHART_MUTED}
+                        tick={{ fontFamily: 'JetBrains Mono', fontSize: 11 }}
+                      />
                       <Tooltip contentStyle={tooltipStyle} />
                       <Line
                         type="monotone"
@@ -520,7 +578,7 @@ export const ComprehensiveAnalytics: React.FC<ComprehensiveAnalyticsProps> = ({
                         (satisfactionData.sentimentBreakdown.positive +
                           satisfactionData.sentimentBreakdown.neutral +
                           satisfactionData.sentimentBreakdown.negative || 1)) *
-                      100
+                        100
                     ).toFixed(0)}%`}
                     accent="green"
                     loading={loading}
@@ -536,7 +594,7 @@ export const ComprehensiveAnalytics: React.FC<ComprehensiveAnalyticsProps> = ({
 
                 {sentimentChartData.length > 0 && (
                   <div className="border border-console-border bg-console-surface p-4">
- <h3 className="mb-3 flex items-center gap-2 text-xs uppercase tracking-widest text-console-muted">
+                    <h3 className="mb-3 flex items-center gap-2 text-xs uppercase tracking-widest text-console-muted">
                       <Activity size={14} className="text-accent-cyan" />
                       Sentiment Breakdown
                     </h3>

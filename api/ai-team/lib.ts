@@ -14,11 +14,15 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 type Provider = 'groq' | 'gemini' | 'cerebras' | 'openrouter' | 'openai';
 
-const PROVIDER_CONFIG: Record<Provider, { baseURL: string; model: string; keyEnv: string }> = {
+const PROVIDER_CONFIG: Record<
+  Provider,
+  { baseURL: string; model: string; keyEnv: string }
+> = {
   // Google's free tier (no card) via their OpenAI-compatible endpoint. Most
   // accessible free baseline as of mid-2026.
   gemini: {
-    baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+    baseURL:
+      'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
     model: 'gemini-2.5-flash',
     keyEnv: 'GEMINI_API_KEY',
   },
@@ -50,9 +54,18 @@ const PROVIDER_CONFIG: Record<Provider, { baseURL: string; model: string; keyEnv
   },
 };
 
-const FALLBACK_ORDER: Provider[] = ['gemini', 'groq', 'cerebras', 'openrouter', 'openai'];
+const FALLBACK_ORDER: Provider[] = [
+  'gemini',
+  'groq',
+  'cerebras',
+  'openrouter',
+  'openai',
+];
 
-export async function callLLM(systemPrompt: string, userPrompt: string): Promise<string> {
+export async function callLLM(
+  systemPrompt: string,
+  userPrompt: string,
+): Promise<string> {
   const preferred = (process.env.AI_TEAM_LLM_PROVIDER as Provider) || 'groq';
   const order = [preferred, ...FALLBACK_ORDER.filter((p) => p !== preferred)];
 
@@ -165,7 +178,11 @@ async function callWithConfigMessages(
   return data.choices?.[0]?.message?.content ?? '';
 }
 
-async function supabaseFetch(table: string, params: string, init?: RequestInit) {
+async function supabaseFetch(
+  table: string,
+  params: string,
+  init?: RequestInit,
+) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params}`, {
     ...init,
     headers: {
@@ -177,7 +194,11 @@ async function supabaseFetch(table: string, params: string, init?: RequestInit) 
     },
   });
   if (!res.ok) {
-    console.error(`Supabase ${table} fetch failed:`, res.status, await res.text());
+    console.error(
+      `Supabase ${table} fetch failed:`,
+      res.status,
+      await res.text(),
+    );
     return null;
   }
   return res.json();
@@ -198,7 +219,7 @@ export async function getRoleContext(roleId: string): Promise<RoleContext> {
   const ownHistory =
     (await supabaseFetch(
       'ai_team_log',
-      `role_id=eq.${roleId}&order=created_at.desc&limit=5`
+      `role_id=eq.${roleId}&order=created_at.desc&limit=5`,
     )) || [];
 
   const todayLogs =
@@ -207,7 +228,10 @@ export async function getRoleContext(roleId: string): Promise<RoleContext> {
   // Don's own morning briefing/direction for the day, if he's given one --
   // every role reads this FIRST and should treat it as top priority.
   const briefingRows =
-    (await supabaseFetch('manager_briefings', `briefing_date=eq.${today}&order=created_at.desc&limit=1`)) || [];
+    (await supabaseFetch(
+      'manager_briefings',
+      `briefing_date=eq.${today}&order=created_at.desc&limit=1`,
+    )) || [];
   const managerBriefingToday = briefingRows[0]?.content || null;
 
   const crossTeamFlags = todayLogs
@@ -218,10 +242,18 @@ export async function getRoleContext(roleId: string): Promise<RoleContext> {
   if (roleId === 'sam-support') {
     businessData = await supabaseFetch(
       'email_messages',
-      'direction=eq.inbound&order=created_at.desc&limit=20'
+      'direction=eq.inbound&order=created_at.desc&limit=20',
     );
   } else if (
-    ['derek-sales-director', 'victoria-vp-sales', 'sales-agent-1', 'sales-agent-2', 'sales-agent-3', 'sales-agent-4', 'sales-agent-5'].includes(roleId)
+    [
+      'derek-sales-director',
+      'victoria-vp-sales',
+      'sales-agent-1',
+      'sales-agent-2',
+      'sales-agent-3',
+      'sales-agent-4',
+      'sales-agent-5',
+    ].includes(roleId)
   ) {
     const [existingLeads, freshResearchedLeads] = await Promise.all([
       supabaseFetch('leads', 'order=created_at.desc&limit=25'),
@@ -230,21 +262,28 @@ export async function getRoleContext(roleId: string): Promise<RoleContext> {
       // on top of the existing inbound-signup leads.
       supabaseFetch(
         'researched_leads',
-        'status=eq.new&order=created_at.desc&limit=15'
+        'status=eq.new&order=created_at.desc&limit=15',
       ),
     ]);
-    businessData = { inbound_leads: existingLeads, new_researched_leads: freshResearchedLeads };
+    businessData = {
+      inbound_leads: existingLeads,
+      new_researched_leads: freshResearchedLeads,
+    };
 
     // Mark whatever we just showed them as surfaced so the next shift (and
     // the next role) doesn't keep re-presenting the same stale batch.
     if (freshResearchedLeads?.length) {
       const ids = freshResearchedLeads.map((l: any) => l.id);
-      await supabaseFetch(
-        `researched_leads?id=in.(${ids.join(',')})`,
-        '',
-        { method: 'PATCH', body: JSON.stringify({ status: 'surfaced_to_sales', surfaced_to_sales_at: new Date().toISOString() }) }
-      );
+      await supabaseFetch(`researched_leads?id=in.(${ids.join(',')})`, '', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          status: 'surfaced_to_sales',
+          surfaced_to_sales_at: new Date().toISOString(),
+        }),
+      });
     }
+  } else if (roleId === 'eli-engineering') {
+    businessData = await getEngineeringHealth();
   } else if (roleId === 'brianna-billing') {
     businessData = await getStripeSummary();
   }
@@ -263,28 +302,112 @@ export async function getRoleContext(roleId: string): Promise<RoleContext> {
 // chat -- however it reaches the Superagent). One row per day; latest wins if
 // he gives more than one. Every role picks this up via getRoleContext above
 // on their NEXT shift after it's saved -- there's no separate "push" needed.
-export async function saveManagerBriefing(content: string, deliveredVia?: string) {
+export async function saveManagerBriefing(
+  content: string,
+  deliveredVia?: string,
+) {
   const today = new Date().toISOString().slice(0, 10);
   return supabaseFetch('manager_briefings', '', {
     method: 'POST',
     headers: { Prefer: 'return=representation' },
-    body: JSON.stringify({ briefing_date: today, content, delivered_via: deliveredVia || 'unspecified' }),
+    body: JSON.stringify({
+      briefing_date: today,
+      content,
+      delivered_via: deliveredVia || 'unspecified',
+    }),
   });
 }
 
+// ---------------------------------------------------------------------------
+// Eli / Luke Bradley — Engineering Health Feed
+// Pulls real deployment status from Vercel + recent audit log errors so the
+// Engineering shift can report on actual system state instead of guessing.
+// ---------------------------------------------------------------------------
+async function getEngineeringHealth() {
+  const result: Record<string, any> = {};
+
+  // 1. Vercel deployment status — last 5 deployments
+  const vercelToken = process.env.VERCEL_TOKEN || process.env.VERCEL_TOKEN_3;
+  const vercelProjectId = process.env.VERCEL_PROJECT_ID;
+  if (vercelToken) {
+    try {
+      const projectFilter = vercelProjectId
+        ? `&projectId=${vercelProjectId}`
+        : '';
+      const resp = await fetch(
+        `https://api.vercel.com/v6/deployments?limit=5${projectFilter}`,
+        { headers: { Authorization: `Bearer ${vercelToken}` } },
+      );
+      if (resp.ok) {
+        const data = await resp.json();
+        result.vercel_deployments = (data.deployments || []).map((d: any) => ({
+          id: d.uid,
+          state: d.state || d.readyState,
+          url: d.url,
+          created: d.created ? new Date(d.created).toISOString() : null,
+          source: d.meta?.githubCommitMessage?.slice(0, 80) || d.name,
+        }));
+      } else {
+        result.vercel_deployments = { error: `API ${resp.status}` };
+      }
+    } catch (e: any) {
+      result.vercel_deployments = { error: e.message };
+    }
+  } else {
+    result.vercel_deployments = null; // no token configured
+  }
+
+  // 2. Recent audit log entries flagged as errors or warnings
+  try {
+    const errorLogs = await supabaseFetch(
+      'audit_logs',
+      'order=created_at.desc&limit=10&or=(level.eq.error,level.eq.warning)',
+    );
+    result.recent_errors = errorLogs || [];
+  } catch {
+    result.recent_errors = [];
+  }
+
+  // 3. Recent failed function invocations (from error_logs if the table exists)
+  try {
+    const fnErrors = await supabaseFetch(
+      'error_logs',
+      'order=created_at.desc&limit=10',
+    );
+    result.recent_function_errors = fnErrors || [];
+  } catch {
+    result.recent_function_errors = [];
+  }
+
+  return result;
+}
+
 async function getStripeSummary() {
-  const key = process.env.BUILDMYBOT_STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY;
+  const key =
+    process.env.BUILDMYBOT_STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY;
   if (!key) return null;
   try {
-    const res = await fetch('https://api.stripe.com/v1/subscriptions?limit=20&status=all', {
-      headers: { Authorization: `Bearer ${key}` },
-    });
+    const res = await fetch(
+      'https://api.stripe.com/v1/subscriptions?limit=20&status=all',
+      {
+        headers: { Authorization: `Bearer ${key}` },
+      },
+    );
     if (!res.ok) return null;
     const data = await res.json();
     const active = data.data.filter((s: any) => s.status === 'active').length;
-    const pastDue = data.data.filter((s: any) => s.status === 'past_due').length;
-    const canceled = data.data.filter((s: any) => s.status === 'canceled').length;
-    return { active, past_due: pastDue, canceled, sample_size: data.data.length };
+    const pastDue = data.data.filter(
+      (s: any) => s.status === 'past_due',
+    ).length;
+    const canceled = data.data.filter(
+      (s: any) => s.status === 'canceled',
+    ).length;
+    return {
+      active,
+      past_due: pastDue,
+      canceled,
+      sample_size: data.data.length,
+    };
   } catch {
     return null;
   }
@@ -326,7 +449,7 @@ export async function runRoleShift(
   roleId: string,
   roleName: string,
   systemPrompt: string,
-  opts?: { notify?: boolean }
+  opts?: { notify?: boolean },
 ) {
   const context = await getRoleContext(roleId);
 
@@ -338,8 +461,13 @@ export async function runRoleShift(
 
   const raw = await callLLM(systemPrompt, userPrompt);
 
-  const summary = raw.match(/SUMMARY:\s*([\s\S]*?)(?:\nTASKS_COMPLETED:|$)/i)?.[1]?.trim() || raw;
-  const tasks = parseInt(raw.match(/TASKS_COMPLETED:\s*(\d+)/i)?.[1] || '0', 10);
+  const summary =
+    raw.match(/SUMMARY:\s*([\s\S]*?)(?:\nTASKS_COMPLETED:|$)/i)?.[1]?.trim() ||
+    raw;
+  const tasks = Number.parseInt(
+    raw.match(/TASKS_COMPLETED:\s*(\d+)/i)?.[1] || '0',
+    10,
+  );
   const flags = raw.match(/FLAGS:\s*(.*)/i)?.[1]?.trim() || '';
   const escalatedTo = raw.match(/ESCALATED_TO:\s*(.*)/i)?.[1]?.trim() || '';
 
@@ -353,7 +481,9 @@ export async function runRoleShift(
   });
 
   if (opts?.notify) {
-    await notifySlack(`*${roleName}* shift complete:\n${summary}${flags ? `\n:warning: ${flags}` : ''}`);
+    await notifySlack(
+      `*${roleName}* shift complete:\n${summary}${flags ? `\n:warning: ${flags}` : ''}`,
+    );
   }
 
   return { summary, tasks, flags, escalatedTo };
@@ -365,7 +495,10 @@ export async function notifyEmail(subject: string, bodyText: string) {
   if (!key) return;
   await fetch('https://api.resend.com/emails', {
     method: 'POST',
-    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    headers: {
+      Authorization: `Bearer ${key}`,
+      'Content-Type': 'application/json',
+    },
     body: JSON.stringify({
       from: 'AI Team <reports@buildmybot.app>',
       to: [to],
@@ -403,10 +536,26 @@ const ICP_INDUSTRIES = [
 ];
 
 const TARGET_CITIES = [
-  'Dallas TX', 'Houston TX', 'Austin TX', 'San Antonio TX', 'Phoenix AZ',
-  'Atlanta GA', 'Charlotte NC', 'Nashville TN', 'Tampa FL', 'Orlando FL',
-  'Denver CO', 'Las Vegas NV', 'Columbus OH', 'Indianapolis IN', 'Jacksonville FL',
-  'Oklahoma City OK', 'Memphis TN', 'Louisville KY', 'Kansas City MO', 'Raleigh NC',
+  'Dallas TX',
+  'Houston TX',
+  'Austin TX',
+  'San Antonio TX',
+  'Phoenix AZ',
+  'Atlanta GA',
+  'Charlotte NC',
+  'Nashville TN',
+  'Tampa FL',
+  'Orlando FL',
+  'Denver CO',
+  'Las Vegas NV',
+  'Columbus OH',
+  'Indianapolis IN',
+  'Jacksonville FL',
+  'Oklahoma City OK',
+  'Memphis TN',
+  'Louisville KY',
+  'Kansas City MO',
+  'Raleigh NC',
 ];
 
 // Deterministic rotation so we work through many different (industry, city)
@@ -418,13 +567,23 @@ const TARGET_CITIES = [
 function pickIcpQuery(offset = 0): { industry: string; city: string } {
   const hourSlot = Math.floor(Date.now() / (1000 * 60 * 60)) + offset; // changes every hour, shifted per identity
   const industry = ICP_INDUSTRIES[hourSlot % ICP_INDUSTRIES.length];
-  const city = TARGET_CITIES[Math.floor(hourSlot / ICP_INDUSTRIES.length) % TARGET_CITIES.length];
+  const city =
+    TARGET_CITIES[
+      Math.floor(hourSlot / ICP_INDUSTRIES.length) % TARGET_CITIES.length
+    ];
   return { industry, city };
 }
 
-interface TavilyResult { title: string; url: string; content: string }
+interface TavilyResult {
+  title: string;
+  url: string;
+  content: string;
+}
 
-async function webSearch(query: string, maxResults = 8): Promise<TavilyResult[]> {
+async function webSearch(
+  query: string,
+  maxResults = 8,
+): Promise<TavilyResult[]> {
   const apiKey = process.env.TAVILY_API_KEY;
   if (!apiKey) return [];
   try {
@@ -443,7 +602,11 @@ async function webSearch(query: string, maxResults = 8): Promise<TavilyResult[]>
       return [];
     }
     const data = await res.json();
-    return (data.results || []).map((r: any) => ({ title: r.title, url: r.url, content: (r.content || '').slice(0, 500) }));
+    return (data.results || []).map((r: any) => ({
+      title: r.title,
+      url: r.url,
+      content: (r.content || '').slice(0, 500),
+    }));
   } catch (err) {
     console.error('Tavily search error:', err);
     return [];
@@ -456,7 +619,11 @@ async function webSearch(query: string, maxResults = 8): Promise<TavilyResult[]>
 // their own name, each landing on a different (industry, city) combo via
 // their own fixed `offset` so they build the lead database in parallel
 // instead of duplicating each other's search.
-export async function researchLeads(identity?: { roleId: string; roleName: string; offset?: number }) {
+export async function researchLeads(identity?: {
+  roleId: string;
+  roleName: string;
+  offset?: number;
+}) {
   const roleId = identity?.roleId || 'lead-researcher';
   const roleName = identity?.roleName || 'Sarah Collins';
   const { industry, city } = pickIcpQuery(identity?.offset || 0);
@@ -466,7 +633,8 @@ export async function researchLeads(identity?: { roleId: string; roleName: strin
     await logShift({
       role_id: roleId,
       role_name: roleName,
-      summary: `No TAVILY_API_KEY configured yet — cannot search for real companies. Skipped this run rather than inventing fake leads.`,
+      summary:
+        'No TAVILY_API_KEY configured yet — cannot search for real companies. Skipped this run rather than inventing fake leads.',
       tasks_completed: 0,
       flags: 'TAVILY_API_KEY missing',
     });
@@ -487,8 +655,11 @@ export async function researchLeads(identity?: { roleId: string; roleName: strin
 
   // Check which of these we already have, so the LLM doesn't waste effort
   // re-qualifying companies already in the table.
-  const existing = (await supabaseFetch('researched_leads', 'select=website')) || [];
-  const knownDomains = new Set(existing.map((r: any) => new URL(r.website).hostname.replace(/^www\./, '')));
+  const existing =
+    (await supabaseFetch('researched_leads', 'select=website')) || [];
+  const knownDomains = new Set(
+    existing.map((r: any) => new URL(r.website).hostname.replace(/^www\./, '')),
+  );
 
   const newResults = results.filter((r) => {
     try {
@@ -528,7 +699,9 @@ CRITICAL RULE: You may ONLY reference real businesses that appear in the search 
   // matches one of the real search results we provided — never trust the
   // LLM's URL in isolation.
   const validUrls = new Set(newResults.map((r) => r.url));
-  const safeCandidates = candidates.filter((c) => c.website && validUrls.has(c.website));
+  const safeCandidates = candidates.filter(
+    (c) => c.website && validUrls.has(c.website),
+  );
 
   let inserted = 0;
   for (const c of safeCandidates) {
@@ -597,7 +770,11 @@ function linkedinConfigured() {
 }
 
 // OAuth 1.0a signing for X/Twitter API v2 (POST /2/tweets requires user-context auth).
-async function twitterOAuthHeader(method: string, url: string, extraParams: Record<string, string> = {}) {
+async function twitterOAuthHeader(
+  method: string,
+  url: string,
+  extraParams: Record<string, string> = {},
+) {
   const crypto = await import('node:crypto');
   const oauthParams: Record<string, string> = {
     oauth_consumer_key: process.env.TWITTER_API_KEY!,
@@ -615,18 +792,25 @@ async function twitterOAuthHeader(method: string, url: string, extraParams: Reco
     .join('&');
   const baseString = `${method.toUpperCase()}&${encodeURIComponent(url)}&${encodeURIComponent(paramString)}`;
   const signingKey = `${encodeURIComponent(process.env.TWITTER_API_SECRET!)}&${encodeURIComponent(process.env.TWITTER_ACCESS_TOKEN_SECRET!)}`;
-  const signature = crypto.createHmac('sha1', signingKey).update(baseString).digest('base64');
+  const signature = crypto
+    .createHmac('sha1', signingKey)
+    .update(baseString)
+    .digest('base64');
   const headerParams = { ...oauthParams, oauth_signature: signature };
-  const header =
-    'OAuth ' +
-    Object.keys(headerParams)
-      .sort()
-      .map((k) => `${encodeURIComponent(k)}="${encodeURIComponent(headerParams[k])}"`)
-      .join(', ');
+  const header = `OAuth ${Object.keys(headerParams)
+    .sort()
+    .map(
+      (k) =>
+        `${encodeURIComponent(k)}="${encodeURIComponent(headerParams[k])}"`,
+    )
+    .join(', ')}`;
   return header;
 }
 
-async function publishToTwitter(content: string, inReplyToId?: string): Promise<{ ok: boolean; id?: string; error?: string }> {
+async function publishToTwitter(
+  content: string,
+  inReplyToId?: string,
+): Promise<{ ok: boolean; id?: string; error?: string }> {
   if (!twitterConfigured()) return { ok: false, error: 'not_configured' };
   const url = 'https://api.twitter.com/2/tweets';
   try {
@@ -635,7 +819,10 @@ async function publishToTwitter(content: string, inReplyToId?: string): Promise<
     if (inReplyToId) body.reply = { in_reply_to_tweet_id: inReplyToId };
     const resp = await fetch(url, {
       method: 'POST',
-      headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+      headers: {
+        Authorization: authHeader,
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify(body),
     });
     const data = await resp.json();
@@ -646,7 +833,9 @@ async function publishToTwitter(content: string, inReplyToId?: string): Promise<
   }
 }
 
-async function publishToLinkedIn(content: string): Promise<{ ok: boolean; id?: string; error?: string }> {
+async function publishToLinkedIn(
+  content: string,
+): Promise<{ ok: boolean; id?: string; error?: string }> {
   if (!linkedinConfigured()) return { ok: false, error: 'not_configured' };
   try {
     const resp = await fetch('https://api.linkedin.com/v2/ugcPosts', {
@@ -700,8 +889,11 @@ export async function runSocialMediaShift() {
   // Context: recent own posts/drafts, recent marketing content from Amanda
   // Hayes and sales wins from the rest of the team, so Frankie posts about
   // real things instead of generic filler.
-  const recentPosts = (await supabaseFetch('social_posts', 'order=created_at.desc&limit=10')) || [];
-  const todayLogs = (await supabaseFetch('ai_team_log', `shift_date=eq.${today}`)) || [];
+  const recentPosts =
+    (await supabaseFetch('social_posts', 'order=created_at.desc&limit=10')) ||
+    [];
+  const todayLogs =
+    (await supabaseFetch('ai_team_log', `shift_date=eq.${today}`)) || [];
   const teamHighlights = todayLogs
     .filter((l: any) => l.role_id !== roleId)
     .map((l: any) => ({ role_name: l.role_name, summary: l.summary }));
@@ -714,7 +906,16 @@ export async function runSocialMediaShift() {
   const systemPrompt = `You are Frankie Mercer, Social Media Manager for BuildMyBot, a white-label AI chatbot/voice-agent platform for local service businesses (home services, legal, medical/esthetics, real estate). Voice: confident, helpful, a little punchy -- never corporate/generic. Never invent metrics, followers, or engagement that isn't in the data you're given.`;
 
   const userPrompt = `Today's real context:
-Recent posts/drafts (last 10): ${JSON.stringify(recentPosts.map((p: any) => ({ platform: p.platform, content: p.content, status: p.status, created_at: p.created_at })), null, 2)}
+Recent posts/drafts (last 10): ${JSON.stringify(
+    recentPosts.map((p: any) => ({
+      platform: p.platform,
+      content: p.content,
+      status: p.status,
+      created_at: p.created_at,
+    })),
+    null,
+    2,
+  )}
 Today's team activity you can draw content from: ${JSON.stringify(teamHighlights, null, 2)}
 Live platform connections: Twitter/X ${twitterOn ? 'CONNECTED' : 'NOT connected yet'}, LinkedIn ${linkedinOn ? 'CONNECTED' : 'NOT connected yet'}.
 Real unanswered mentions right now: ${JSON.stringify(mentions, null, 2)}
@@ -736,21 +937,37 @@ FLAGS: <anything urgent, or blank>`;
   const raw = await callLLM(systemPrompt, userPrompt);
 
   const draftBlocks = raw.split('---')[0];
-  const summary = raw.match(/SUMMARY:\s*([\s\S]*?)(?:\nFLAGS:|$)/i)?.[1]?.trim() || 'No summary produced.';
+  const summary =
+    raw.match(/SUMMARY:\s*([\s\S]*?)(?:\nFLAGS:|$)/i)?.[1]?.trim() ||
+    'No summary produced.';
   const flags = raw.match(/FLAGS:\s*(.*)/i)?.[1]?.trim() || '';
 
   const drafts: SocialDraft[] = [];
   const blocks = draftBlocks.split(/DRAFT_PLATFORM:/i).slice(1);
   for (const block of blocks) {
-    const platform = block.match(/^\s*(twitter|linkedin)/i)?.[1]?.toLowerCase() as 'twitter' | 'linkedin' | undefined;
-    const postType = block.match(/DRAFT_TYPE:\s*(post|reply)/i)?.[1]?.toLowerCase() as 'post' | 'reply' | undefined;
-    const rawReplyToId = block.match(/DRAFT_REPLY_TO_ID:[ \t]*([^\n]*)/i)?.[1]?.trim();
+    const platform = block
+      .match(/^\s*(twitter|linkedin)/i)?.[1]
+      ?.toLowerCase() as 'twitter' | 'linkedin' | undefined;
+    const postType = block
+      .match(/DRAFT_TYPE:\s*(post|reply)/i)?.[1]
+      ?.toLowerCase() as 'post' | 'reply' | undefined;
+    const rawReplyToId = block
+      .match(/DRAFT_REPLY_TO_ID:[ \t]*([^\n]*)/i)?.[1]
+      ?.trim();
     // Guard against the regex bleeding into the next field's label when the
     // model leaves this blank (seen live: captured "DRAFT_CONTENT:" itself).
-    const replyToId = rawReplyToId && !/^DRAFT_/i.test(rawReplyToId) ? rawReplyToId : undefined;
-    const draftContent = block.match(/DRAFT_CONTENT:\s*([\s\S]*)/i)?.[1]?.trim();
+    const replyToId =
+      rawReplyToId && !/^DRAFT_/i.test(rawReplyToId) ? rawReplyToId : undefined;
+    const draftContent = block
+      .match(/DRAFT_CONTENT:\s*([\s\S]*)/i)?.[1]
+      ?.trim();
     if (platform && draftContent) {
-      drafts.push({ platform, content: draftContent, post_type: postType || 'post', in_reply_to_id: replyToId || undefined });
+      drafts.push({
+        platform,
+        content: draftContent,
+        post_type: postType || 'post',
+        in_reply_to_id: replyToId || undefined,
+      });
     }
   }
 
@@ -789,7 +1006,11 @@ FLAGS: <anything urgent, or blank>`;
       }),
     });
     if (publishResult.ok) publishedCount++;
-    results.push({ ...draft, status: publishResult.ok ? 'published' : 'failed', error: publishResult.error });
+    results.push({
+      ...draft,
+      status: publishResult.ok ? 'published' : 'failed',
+      error: publishResult.error,
+    });
   }
 
   const credentialNote =
@@ -805,5 +1026,12 @@ FLAGS: <anything urgent, or blank>`;
     flags,
   });
 
-  return { summary, drafted: drafts.length, published: publishedCount, twitterOn, linkedinOn, results };
+  return {
+    summary,
+    drafted: drafts.length,
+    published: publishedCount,
+    twitterOn,
+    linkedinOn,
+    results,
+  };
 }

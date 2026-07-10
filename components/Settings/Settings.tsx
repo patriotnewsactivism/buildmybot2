@@ -231,7 +231,7 @@ export const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser }) => {
               <div>
                 <label
                   htmlFor="settings-industry"
-                    className="block text-sm font-medium text-slate-700 mb-2"
+                  className="block text-sm font-medium text-slate-700 mb-2"
                 >
                   Industry
                 </label>
@@ -368,19 +368,25 @@ export const Settings: React.FC<SettingsProps> = ({ user, onUpdateUser }) => {
                 </div>
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-600">Knowledge Base URLs</span>
+                    <span className="text-sm text-slate-600">
+                      Knowledge Base URLs
+                    </span>
                     <span className="text-sm font-medium text-emerald-600">
                       All URLs valid
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-600">Response Quality</span>
+                    <span className="text-sm text-slate-600">
+                      Response Quality
+                    </span>
                     <span className="text-sm font-medium text-amber-600">
                       2 warnings
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-600">Configuration</span>
+                    <span className="text-sm text-slate-600">
+                      Configuration
+                    </span>
                     <span className="text-sm font-medium text-emerald-600">
                       No issues
                     </span>

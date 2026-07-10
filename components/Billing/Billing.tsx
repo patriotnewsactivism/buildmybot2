@@ -145,8 +145,8 @@ export const Billing: React.FC<BillingProps> = ({ user }) => {
         <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl p-6 text-center shadow-lg">
           <h3 className="text-xl font-bold mb-2">🚀 Launching Soon!</h3>
           <p className="text-blue-100">
-            BuildMyBot is in pre-launch mode. Plans &amp; pricing are shown below for preview.
-            Purchases will be enabled once we go live!
+            BuildMyBot is in pre-launch mode. Plans &amp; pricing are shown
+            below for preview. Purchases will be enabled once we go live!
           </p>
         </div>
       )}
@@ -174,9 +174,7 @@ export const Billing: React.FC<BillingProps> = ({ user }) => {
           const isProfessional = key === PlanType.PROFESSIONAL;
           const isFree = key === PlanType.FREE;
 
-          const displayTitle = isEnterprise
-            ? 'Enterprise'
-            : plan.name;
+          const displayTitle = isEnterprise ? 'Enterprise' : plan.name;
 
           return (
             <div

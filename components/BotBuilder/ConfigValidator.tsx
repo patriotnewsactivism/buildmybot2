@@ -1,6 +1,13 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { AlertCircle, CheckCircle, Lightbulb, XCircle, Wrench } from 'lucide-react';
-import { BotConfig } from '../../shared/schema-agentic-os'; // Assuming a shared schema for bot config
+import {
+  AlertCircle,
+  CheckCircle,
+  Lightbulb,
+  Wrench,
+  XCircle,
+} from 'lucide-react';
+import type React from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import type { BotConfig } from '../../shared/schema-agentic-os'; // Assuming a shared schema for bot config
 
 interface ValidationResult {
   isValid: boolean;
@@ -22,7 +29,9 @@ const ConfigValidator: React.FC<ConfigValidatorProps> = ({
   onValidationChange,
   onFixAttempt,
 }) => {
-  const [validationResults, setValidationResults] = useState<ValidationResult[]>([]);
+  const [validationResults, setValidationResults] = useState<
+    ValidationResult[]
+  >([]);
 
   const validateConfig = useCallback(() => {
     const results: ValidationResult[] = [];
@@ -32,16 +41,20 @@ const ConfigValidator: React.FC<ConfigValidatorProps> = ({
     if (systemPrompt.length < 50) {
       results.push({
         isValid: false,
-        message: 'System prompt is too short. A detailed prompt improves bot performance.',
-        suggestion: 'Expand the system prompt to at least 50 characters, clearly defining the bot\'s role, goals, and interaction style.',
+        message:
+          'System prompt is too short. A detailed prompt improves bot performance.',
+        suggestion:
+          "Expand the system prompt to at least 50 characters, clearly defining the bot's role, goals, and interaction style.",
         severity: 'warning',
         field: 'systemPrompt',
       });
     } else if (systemPrompt.length > 2000) {
       results.push({
         isValid: false,
-        message: 'System prompt is too long. Consider refining for conciseness.',
-        suggestion: 'Condense the system prompt to under 2000 characters, focusing on essential instructions.',
+        message:
+          'System prompt is too long. Consider refining for conciseness.',
+        suggestion:
+          'Condense the system prompt to under 2000 characters, focusing on essential instructions.',
         severity: 'warning',
         field: 'systemPrompt',
       });
@@ -59,18 +72,23 @@ const ConfigValidator: React.FC<ConfigValidatorProps> = ({
     if (knowledgeSources.length === 0) {
       results.push({
         isValid: false,
-        message: 'No knowledge sources configured. Bot may lack specific domain information.',
-        suggestion: 'Add at least one knowledge source (PDF, URL, or text) to train your bot.',
+        message:
+          'No knowledge sources configured. Bot may lack specific domain information.',
+        suggestion:
+          'Add at least one knowledge source (PDF, URL, or text) to train your bot.',
         severity: 'warning',
         field: 'knowledgeBaseConfig.sources',
       });
     } else {
-      const invalidSources = knowledgeSources.filter(source => !source.url && !source.content && !source.fileId);
+      const invalidSources = knowledgeSources.filter(
+        (source) => !source.url && !source.content && !source.fileId,
+      );
       if (invalidSources.length > 0) {
         results.push({
           isValid: false,
-          message: `Some knowledge sources are incomplete. ${invalidSources.length} sources are missing content or URL.`, 
-          suggestion: 'Ensure all knowledge sources have either a URL, file, or direct content.',
+          message: `Some knowledge sources are incomplete. ${invalidSources.length} sources are missing content or URL.`,
+          suggestion:
+            'Ensure all knowledge sources have either a URL, file, or direct content.',
           severity: 'error',
           field: 'knowledgeBaseConfig.sources',
         });
@@ -99,8 +117,10 @@ const ConfigValidator: React.FC<ConfigValidatorProps> = ({
         if (!voiceConfig.voiceId || voiceConfig.voiceId.trim() === '') {
           results.push({
             isValid: false,
-            message: 'Voice ID is missing. A unique voice ID is required for human-like voice.',
-            suggestion: 'Select a voice ID from the available options or provide a custom one.',
+            message:
+              'Voice ID is missing. A unique voice ID is required for human-like voice.',
+            suggestion:
+              'Select a voice ID from the available options or provide a custom one.',
             severity: 'error',
             field: 'voiceConfig.voiceId',
           });
@@ -109,7 +129,8 @@ const ConfigValidator: React.FC<ConfigValidatorProps> = ({
           results.push({
             isValid: false,
             message: 'Voice provider is not selected.',
-            suggestion: 'Choose a voice provider (e.g., Cartesia) for voice synthesis.',
+            suggestion:
+              'Choose a voice provider (e.g., Cartesia) for voice synthesis.',
             severity: 'error',
             field: 'voiceConfig.provider',
           });
@@ -138,7 +159,8 @@ const ConfigValidator: React.FC<ConfigValidatorProps> = ({
     if (openaiApiKey && !openaiApiKey.startsWith('sk-')) {
       results.push({
         isValid: false,
-        message: 'OpenAI API Key format is incorrect. It should start with \'sk-\'.',
+        message:
+          "OpenAI API Key format is incorrect. It should start with 'sk-'.",
         suggestion: 'Please provide a valid OpenAI API key.',
         severity: 'warning',
         field: 'integrations.openaiApiKey',
@@ -153,7 +175,9 @@ const ConfigValidator: React.FC<ConfigValidatorProps> = ({
     }
 
     setValidationResults(results);
-    const overallValid = results.every(r => r.isValid || r.severity === 'info');
+    const overallValid = results.every(
+      (r) => r.isValid || r.severity === 'info',
+    );
     onValidationChange?.(overallValid, results);
   }, [botConfig, onValidationChange]);
 
@@ -187,7 +211,9 @@ const ConfigValidator: React.FC<ConfigValidatorProps> = ({
     }
   };
 
-  const filteredResults = validationResults.filter(r => !r.isValid || r.suggestion);
+  const filteredResults = validationResults.filter(
+    (r) => !r.isValid || r.suggestion,
+  );
 
   if (filteredResults.length === 0) {
     return (
@@ -207,12 +233,15 @@ const ConfigValidator: React.FC<ConfigValidatorProps> = ({
         >
           <div className="pt-1 flex-shrink-0">{getIcon(result.severity)}</div>
           <div className="flex-grow">
-            <p className={`font-medium ${result.severity === 'error' ? 'text-red-800' : result.severity === 'warning' ? 'text-yellow-800' : 'text-gray-800'}`}>
+            <p
+              className={`font-medium ${result.severity === 'error' ? 'text-red-800' : result.severity === 'warning' ? 'text-yellow-800' : 'text-gray-800'}`}
+            >
               {result.message}
             </p>
             {result.suggestion && (
               <p className="mt-1 text-gray-700">
-                <span className="font-semibold">Suggestion:</span> {result.suggestion}
+                <span className="font-semibold">Suggestion:</span>{' '}
+                {result.suggestion}
               </p>
             )}
             {result.fixAction && (

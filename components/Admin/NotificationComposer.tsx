@@ -61,7 +61,11 @@ interface NotificationPayload {
 }
 
 const priorityConfig = {
-  low: { label: 'Low', color: 'bg-console-surface-raised text-console-text', icon: Info },
+  low: {
+    label: 'Low',
+    color: 'bg-console-surface-raised text-console-text',
+    icon: Info,
+  },
   normal: { label: 'Normal', color: 'bg-blue-100 text-blue-700', icon: Bell },
   high: {
     label: 'High',
@@ -402,7 +406,9 @@ export const NotificationComposer: React.FC = () => {
                       }}
                       className="rounded border-slate-300 text-orange-500 focus:ring-orange-500"
                     />
-                    <span className="ml-2 text-sm text-console-text">{plan}</span>
+                    <span className="ml-2 text-sm text-console-text">
+                      {plan}
+                    </span>
                   </label>
                 ))}
               </div>
@@ -440,7 +446,9 @@ export const NotificationComposer: React.FC = () => {
                       }}
                       className="rounded border-slate-300 text-orange-500 focus:ring-orange-500"
                     />
-                    <span className="ml-2 text-sm text-console-text">{role}</span>
+                    <span className="ml-2 text-sm text-console-text">
+                      {role}
+                    </span>
                   </label>
                 ))}
               </div>

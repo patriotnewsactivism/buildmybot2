@@ -59,8 +59,10 @@ export default {
         'glow-green': '0 0 0 1px rgba(57,255,136,0.12)',
         'glow-amber': '0 0 0 1px rgba(245,185,66,0.12)',
         'glow-red': '0 0 0 1px rgba(255,77,94,0.12)',
-        panel: '0 1px 0 0 rgba(255,255,255,0.02) inset, 0 8px 16px -12px rgba(0,0,0,0.5)',
-        'panel-raised': '0 1px 0 0 rgba(255,255,255,0.03) inset, 0 10px 20px -12px rgba(0,0,0,0.5)',
+        panel:
+          '0 1px 0 0 rgba(255,255,255,0.02) inset, 0 8px 16px -12px rgba(0,0,0,0.5)',
+        'panel-raised':
+          '0 1px 0 0 rgba(255,255,255,0.03) inset, 0 10px 20px -12px rgba(0,0,0,0.5)',
       },
       animation: {
         'fade-in': 'fadeIn 0.5s ease-out forwards',

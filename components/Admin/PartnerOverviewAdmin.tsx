@@ -10,9 +10,9 @@ import {
 } from 'lucide-react';
 import type React from 'react';
 import { useCallback, useEffect, useState } from 'react';
+import { buildApiUrl } from '../../services/apiConfig';
 import { PlayfulMetricCard } from '../UI/PlayfulMetricCard';
 import { PartnerDetailModal } from './PartnerDetailModal';
-import { buildApiUrl } from '../../services/apiConfig';
 
 interface PartnerRow {
   partner: {
@@ -288,7 +288,7 @@ export const PartnerOverviewAdmin: React.FC = () => {
               {/* Footer */}
               <div className="flex items-center justify-between pt-4 border-t border-console-border">
                 {row.partner.resellerCode ? (
- <code className="px-3 py-1 bg-console-surface-raised rounded-lg text-xs text-console-muted">
+                  <code className="px-3 py-1 bg-console-surface-raised rounded-lg text-xs text-console-muted">
                     {row.partner.resellerCode}
                   </code>
                 ) : (

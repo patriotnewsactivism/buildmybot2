@@ -126,7 +126,7 @@ export const PartnerOversight: React.FC = () => {
       label: 'Code',
       sortable: true,
       render: (metric) => (
- <code className="px-2 py-1 bg-slate-100 rounded text-xs ">
+        <code className="px-2 py-1 bg-slate-100 rounded text-xs ">
           {metric.partner.resellerCode || '-'}
         </code>
       ),

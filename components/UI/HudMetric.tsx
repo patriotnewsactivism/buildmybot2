@@ -14,15 +14,39 @@ export const HudMetric: React.FC<{
   accent?: 'cyan' | 'green' | 'amber' | 'red' | 'none';
   loading?: boolean;
   trend?: { value: string; direction: 'up' | 'down' | 'flat' };
-}> = ({ icon: Icon, label, value, sublabel, accent = 'cyan', loading, trend }) => {
+}> = ({
+  icon: Icon,
+  label,
+  value,
+  sublabel,
+  accent = 'cyan',
+  loading,
+  trend,
+}) => {
   const theme =
     accent === 'none'
       ? null
       : {
-          cyan: { text: 'text-accent-cyan', iconBg: 'bg-console-surface', bar: 'bg-accent-cyan' },
-          green: { text: 'text-accent-green', iconBg: 'bg-console-surface', bar: 'bg-accent-green' },
-          amber: { text: 'text-accent-amber', iconBg: 'bg-console-surface', bar: 'bg-accent-amber' },
-          red: { text: 'text-accent-red', iconBg: 'bg-console-surface', bar: 'bg-accent-red' },
+          cyan: {
+            text: 'text-accent-cyan',
+            iconBg: 'bg-console-surface',
+            bar: 'bg-accent-cyan',
+          },
+          green: {
+            text: 'text-accent-green',
+            iconBg: 'bg-console-surface',
+            bar: 'bg-accent-green',
+          },
+          amber: {
+            text: 'text-accent-amber',
+            iconBg: 'bg-console-surface',
+            bar: 'bg-accent-amber',
+          },
+          red: {
+            text: 'text-accent-red',
+            iconBg: 'bg-console-surface',
+            bar: 'bg-accent-red',
+          },
         }[accent];
 
   return (
@@ -33,7 +57,10 @@ export const HudMetric: React.FC<{
         </span>
         {Icon && (
           <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded border border-console-border bg-console-surface">
-            <Icon size={12} className={theme ? theme.text : 'text-console-muted'} />
+            <Icon
+              size={12}
+              className={theme ? theme.text : 'text-console-muted'}
+            />
           </span>
         )}
       </div>
@@ -56,7 +83,11 @@ export const HudMetric: React.FC<{
                   : 'text-console-muted'
             }`}
           >
-            {trend.direction === 'up' ? '▲' : trend.direction === 'down' ? '▼' : '–'}{' '}
+            {trend.direction === 'up'
+              ? '▲'
+              : trend.direction === 'down'
+                ? '▼'
+                : '–'}{' '}
             {trend.value}
           </span>
         )}

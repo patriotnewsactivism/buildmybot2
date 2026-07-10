@@ -6,17 +6,18 @@
 
 import {
   Activity,
+  CheckCircle,
+  Clock,
+  Loader,
   Mail,
   RefreshCw,
   Send,
-  Zap,
-  Clock,
-  CheckCircle,
-  XCircle,
-  Loader,
   Users,
+  XCircle,
+  Zap,
 } from 'lucide-react';
-import React, { useState, useEffect, useCallback } from 'react';
+import type React from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { API_BASE, safeParseJson } from '../../services/apiConfig';
 
 interface AIEmployee {
@@ -102,7 +103,9 @@ export const AITeamDashboard: React.FC<{ user: any }> = ({ user }) => {
     setRunningShift(true);
     setShiftResults(null);
     try {
-      const res = await fetch(`${API_BASE}/ai-employees/shift`, { method: 'POST' });
+      const res = await fetch(`${API_BASE}/ai-employees/shift`, {
+        method: 'POST',
+      });
       const data = await safeParseJson<any>(res);
       if (data?.results) {
         setShiftResults(data.results);
@@ -114,7 +117,11 @@ export const AITeamDashboard: React.FC<{ user: any }> = ({ user }) => {
     setRunningShift(false);
   };
 
-  const triggerTask = async (employeeId: string, taskType: string, data?: any) => {
+  const triggerTask = async (
+    employeeId: string,
+    taskType: string,
+    data?: any,
+  ) => {
     setRunningTask(`${employeeId}-${taskType}`);
     try {
       await fetch(`${API_BASE}/ai-employees/${employeeId}/task`, {
@@ -158,7 +165,8 @@ export const AITeamDashboard: React.FC<{ user: any }> = ({ user }) => {
             AI Team
           </h2>
           <p className="text-sm text-gray-500 mt-1">
-            Your autonomous workforce — they run the company while you focus on the big picture.
+            Your autonomous workforce — they run the company while you focus on
+            the big picture.
           </p>
         </div>
         <button
@@ -227,16 +235,18 @@ export const AITeamDashboard: React.FC<{ user: any }> = ({ user }) => {
             {/* Quick Actions */}
             <div className="flex flex-wrap gap-2">
               {emp.id === 'sam-support' && (
-                <>
-                  <button
-                    onClick={() => triggerTask(emp.id, 'support_triage')}
-                    disabled={runningTask === `${emp.id}-support_triage`}
-                    className="text-xs px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center gap-1 disabled:opacity-50"
-                  >
-                    {runningTask === `${emp.id}-support_triage` ? <Loader className="w-3 h-3 animate-spin" /> : <Mail className="w-3 h-3" />}
-                    Triage Tickets
-                  </button>
-                </>
+                <button
+                  onClick={() => triggerTask(emp.id, 'support_triage')}
+                  disabled={runningTask === `${emp.id}-support_triage`}
+                  className="text-xs px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center gap-1 disabled:opacity-50"
+                >
+                  {runningTask === `${emp.id}-support_triage` ? (
+                    <Loader className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <Mail className="w-3 h-3" />
+                  )}
+                  Triage Tickets
+                </button>
               )}
               {emp.id === 'eli-engineering' && (
                 <button
@@ -244,7 +254,11 @@ export const AITeamDashboard: React.FC<{ user: any }> = ({ user }) => {
                   disabled={runningTask === `${emp.id}-health_check`}
                   className="text-xs px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center gap-1 disabled:opacity-50"
                 >
-                  {runningTask === `${emp.id}-health_check` ? <Loader className="w-3 h-3 animate-spin" /> : <Activity className="w-3 h-3" />}
+                  {runningTask === `${emp.id}-health_check` ? (
+                    <Loader className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <Activity className="w-3 h-3" />
+                  )}
                   Health Check
                 </button>
               )}
@@ -254,7 +268,11 @@ export const AITeamDashboard: React.FC<{ user: any }> = ({ user }) => {
                   disabled={runningTask === `${emp.id}-content_creation`}
                   className="text-xs px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center gap-1 disabled:opacity-50"
                 >
-                  {runningTask === `${emp.id}-content_creation` ? <Loader className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
+                  {runningTask === `${emp.id}-content_creation` ? (
+                    <Loader className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <Zap className="w-3 h-3" />
+                  )}
                   Create Content
                 </button>
               )}
@@ -264,7 +282,11 @@ export const AITeamDashboard: React.FC<{ user: any }> = ({ user }) => {
                   disabled={runningTask === `${emp.id}-daily_standup`}
                   className="text-xs px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center gap-1 disabled:opacity-50"
                 >
-                  {runningTask === `${emp.id}-daily_standup` ? <Loader className="w-3 h-3 animate-spin" /> : <Clock className="w-3 h-3" />}
+                  {runningTask === `${emp.id}-daily_standup` ? (
+                    <Loader className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <Clock className="w-3 h-3" />
+                  )}
                   Generate Standup
                 </button>
               )}
@@ -274,7 +296,11 @@ export const AITeamDashboard: React.FC<{ user: any }> = ({ user }) => {
                   disabled={runningTask === `${emp.id}-product_analysis`}
                   className="text-xs px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center gap-1 disabled:opacity-50"
                 >
-                  {runningTask === `${emp.id}-product_analysis` ? <Loader className="w-3 h-3 animate-spin" /> : <Activity className="w-3 h-3" />}
+                  {runningTask === `${emp.id}-product_analysis` ? (
+                    <Loader className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <Activity className="w-3 h-3" />
+                  )}
                   Analyze Feedback
                 </button>
               )}
@@ -300,7 +326,9 @@ export const AITeamDashboard: React.FC<{ user: any }> = ({ user }) => {
                 )}
                 <span className="font-medium">{r.employee}</span>
                 <span className="text-gray-500">{r.task}</span>
-                <span className={`text-xs ${r.status === 'completed' ? 'text-emerald-600' : 'text-red-600'}`}>
+                <span
+                  className={`text-xs ${r.status === 'completed' ? 'text-emerald-600' : 'text-red-600'}`}
+                >
                   {r.status}
                 </span>
               </div>
@@ -336,7 +364,9 @@ export const AITeamDashboard: React.FC<{ user: any }> = ({ user }) => {
                 className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors"
               >
                 <div className="mt-0.5">
-                  {TASK_STATUS_ICONS[log.status] || <Clock className="w-4 h-4 text-gray-400" />}
+                  {TASK_STATUS_ICONS[log.status] || (
+                    <Clock className="w-4 h-4 text-gray-400" />
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">

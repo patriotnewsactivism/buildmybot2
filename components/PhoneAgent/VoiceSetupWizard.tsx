@@ -17,8 +17,8 @@ import {
 } from 'lucide-react';
 import type React from 'react';
 import { useState } from 'react';
-import type { User } from '../../types';
 import { buildApiUrl } from '../../services/apiConfig';
+import type { User } from '../../types';
 
 interface VoiceSetupWizardProps {
   user: User;
@@ -302,7 +302,9 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
     }
 
     try {
-      const response = await fetch(buildApiUrl('/phone/release'), { method: 'POST' });
+      const response = await fetch(buildApiUrl('/phone/release'), {
+        method: 'POST',
+      });
       if (!response.ok) throw new Error('Failed to release number');
       setConfig({ ...config, phoneNumber: '', twilioSid: '' });
       setAvailableNumbers([]);

@@ -60,13 +60,27 @@ interface ConversationTranscriptProps {
 const SentimentBadge: React.FC<{ sentiment: string }> = ({ sentiment }) => {
   const s = (sentiment || 'neutral').toLowerCase();
   const config = {
-    positive: { bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200' },
-    negative: { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200' },
-    neutral: { bg: 'bg-slate-50', text: 'text-slate-600', border: 'border-slate-200' },
+    positive: {
+      bg: 'bg-green-50',
+      text: 'text-green-700',
+      border: 'border-green-200',
+    },
+    negative: {
+      bg: 'bg-red-50',
+      text: 'text-red-700',
+      border: 'border-red-200',
+    },
+    neutral: {
+      bg: 'bg-slate-50',
+      text: 'text-slate-600',
+      border: 'border-slate-200',
+    },
   };
   const c = config[s as keyof typeof config] || config.neutral;
   return (
-    <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${c.bg} ${c.text} ${c.border}`}>
+    <span
+      className={`px-2 py-0.5 rounded-full text-xs font-medium border ${c.bg} ${c.text} ${c.border}`}
+    >
       {sentiment || 'Neutral'}
     </span>
   );
@@ -128,7 +142,9 @@ export const ConversationTranscript: React.FC<ConversationTranscriptProps> = ({
       return;
     }
     // Default CSV export
-    const rows = [['Date', 'Bot', 'Sentiment', 'Messages', 'Transcript'].join(',')];
+    const rows = [
+      ['Date', 'Bot', 'Sentiment', 'Messages', 'Transcript'].join(','),
+    ];
     for (const c of filtered) {
       const transcript = (c.messages || [])
         .map((m) => `${m.role === 'user' ? 'Customer' : 'Bot'}: ${m.text}`)
@@ -176,7 +192,10 @@ export const ConversationTranscript: React.FC<ConversationTranscriptProps> = ({
           <div className="flex items-center gap-2">
             {/* Search */}
             <div className="relative flex-1 sm:w-64">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Search
+                size={14}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+              />
               <input
                 type="text"
                 placeholder="Search conversations..."
@@ -232,7 +251,9 @@ export const ConversationTranscript: React.FC<ConversationTranscriptProps> = ({
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
-                {s === 'all' ? 'All Sentiments' : s.charAt(0).toUpperCase() + s.slice(1)}
+                {s === 'all'
+                  ? 'All Sentiments'
+                  : s.charAt(0).toUpperCase() + s.slice(1)}
               </button>
             ))}
           </div>
@@ -253,7 +274,8 @@ export const ConversationTranscript: React.FC<ConversationTranscriptProps> = ({
             const messageCount = conv.messages?.length || 0;
             const preview =
               conv.messages?.[0]?.text?.slice(0, 80) +
-              (conv.messages?.[0]?.text?.length > 80 ? '...' : '') || 'No messages';
+                (conv.messages?.[0]?.text?.length > 80 ? '...' : '') ||
+              'No messages';
 
             return (
               <div key={conv.id}>
@@ -265,9 +287,15 @@ export const ConversationTranscript: React.FC<ConversationTranscriptProps> = ({
                 >
                   <div className="flex items-center gap-3">
                     {isExpanded ? (
-                      <ChevronDown size={16} className="text-slate-400 flex-shrink-0" />
+                      <ChevronDown
+                        size={16}
+                        className="text-slate-400 flex-shrink-0"
+                      />
                     ) : (
-                      <ChevronRight size={16} className="text-slate-400 flex-shrink-0" />
+                      <ChevronRight
+                        size={16}
+                        className="text-slate-400 flex-shrink-0"
+                      />
                     )}
 
                     <div className="flex-1 min-w-0">
@@ -295,7 +323,9 @@ export const ConversationTranscript: React.FC<ConversationTranscriptProps> = ({
                           </span>
                         )}
                       </div>
-                      <p className="text-sm text-slate-500 mt-1 truncate">{preview}</p>
+                      <p className="text-sm text-slate-500 mt-1 truncate">
+                        {preview}
+                      </p>
                     </div>
                   </div>
                 </button>
@@ -316,7 +346,11 @@ export const ConversationTranscript: React.FC<ConversationTranscriptProps> = ({
                                 : 'bg-slate-200 text-slate-600'
                             }`}
                           >
-                            {msg.role === 'model' ? <Bot size={14} /> : <User size={14} />}
+                            {msg.role === 'model' ? (
+                              <Bot size={14} />
+                            ) : (
+                              <User size={14} />
+                            )}
                           </div>
                           <div
                             className={`max-w-[75%] rounded-lg px-3 py-2 ${
@@ -325,11 +359,15 @@ export const ConversationTranscript: React.FC<ConversationTranscriptProps> = ({
                                 : 'bg-blue-600 text-white'
                             }`}
                           >
-                            <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
+                            <p className="text-sm whitespace-pre-wrap">
+                              {msg.text}
+                            </p>
                             {msg.timestamp && (
                               <span
                                 className={`text-[10px] mt-1 block ${
-                                  msg.role === 'model' ? 'text-slate-400' : 'text-blue-200'
+                                  msg.role === 'model'
+                                    ? 'text-slate-400'
+                                    : 'text-blue-200'
                                 }`}
                               >
                                 {formatTime(msg.timestamp)}

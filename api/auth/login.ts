@@ -12,10 +12,13 @@ const SESSION_JWT_TTL = 24 * 60 * 60;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'OPTIONS') return res.status(204).end();
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method !== 'POST')
+    return res.status(405).json({ error: 'Method not allowed' });
 
   if (!SUPABASE_KEY || !JWT_SECRET) {
-    console.error('[login] FATAL: SUPABASE_SERVICE_ROLE_KEY / SESSION_JWT_SECRET not set');
+    console.error(
+      '[login] FATAL: SUPABASE_SERVICE_ROLE_KEY / SESSION_JWT_SECRET not set',
+    );
     return res.status(500).json({ error: 'Server misconfigured' });
   }
 
@@ -74,18 +77,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }).catch(() => {});
 
     // Create JWT
-    const crypto = await import('crypto');
+    const crypto = await import('node:crypto');
     const payload = {
       sub: user.id,
       iat: Math.floor(Date.now() / 1000),
       exp: Math.floor(Date.now() / 1000) + SESSION_JWT_TTL,
     };
     const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url');
-    const signature = crypto.default.createHmac('sha256', JWT_SECRET).update(encoded).digest('base64url');
+    const signature = crypto.default
+      .createHmac('sha256', JWT_SECRET)
+      .update(encoded)
+      .digest('base64url');
     const token = `${encoded}.${signature}`;
 
     // Set cookie
-    res.setHeader('Set-Cookie', `bmb_session=${token}; HttpOnly; Secure; SameSite=Lax; Path=/`);
+    res.setHeader(
+      'Set-Cookie',
+      `bmb_session=${token}; HttpOnly; Secure; SameSite=Lax; Path=/`,
+    );
 
     // Return safe user (no password hash)
     const { password_hash, ...safeUser } = user;

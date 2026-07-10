@@ -1,14 +1,14 @@
 import {
+  AlertCircle,
   DollarSign,
   MessageSquare,
   Target,
   Users,
-  AlertCircle,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type React from 'react';
 import { useEffect, useState } from 'react';
 import { buildApiUrl } from '../../services/apiConfig';
-import type { LucideIcon } from 'lucide-react';
 import { HudMetric } from './HudMetric';
 
 interface QuickMetrics {
@@ -45,7 +45,12 @@ export const QuickMetricsWidget: React.FC<QuickMetricsWidgetProps> = ({
 
   useEffect(() => {
     // If props are provided, use them directly and skip API call
-    if (propTotalConversations !== undefined && propTotalLeads !== undefined && propConversionRate !== undefined && propEstimatedValue !== undefined) {
+    if (
+      propTotalConversations !== undefined &&
+      propTotalLeads !== undefined &&
+      propConversionRate !== undefined &&
+      propEstimatedValue !== undefined
+    ) {
       setMetrics({
         totalConversations: propTotalConversations,
         totalLeads: propTotalLeads,
@@ -70,18 +75,31 @@ export const QuickMetricsWidget: React.FC<QuickMetricsWidgetProps> = ({
         setMetrics(data);
       } catch (err) {
         console.error('Error fetching quick metrics:', err);
-        setError(err instanceof Error ? err.message : 'An unknown error occurred');
+        setError(
+          err instanceof Error ? err.message : 'An unknown error occurred',
+        );
       } finally {
         setLoading(false);
       }
     };
 
     fetchMetrics();
-  }, [propTotalConversations, propTotalLeads, propConversionRate, propEstimatedValue, propError]);
+  }, [
+    propTotalConversations,
+    propTotalLeads,
+    propConversionRate,
+    propEstimatedValue,
+    propError,
+  ]);
 
   const currentLoading = propLoading || loading;
   const currentError = propError || error;
-  const currentMetrics = metrics || { totalConversations: 0, totalLeads: 0, conversionRate: 0, estimatedValue: 0 };
+  const currentMetrics = metrics || {
+    totalConversations: 0,
+    totalLeads: 0,
+    conversionRate: 0,
+    estimatedValue: 0,
+  };
 
   const formatValue = (value: number | undefined, prefix = '', suffix = '') => {
     if (value === undefined || currentLoading) return '...';

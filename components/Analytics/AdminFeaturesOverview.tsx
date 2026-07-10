@@ -198,11 +198,15 @@ const AdminFeaturesOverview = () => {
                 const { icon: Icon, color } = getAddonIcon(addon.name);
                 return (
                   <div key={addon.name} className="flex items-center gap-4">
-                    <div className={`p-2 rounded-lg bg-console-surface ${color}`}>
+                    <div
+                      className={`p-2 rounded-lg bg-console-surface ${color}`}
+                    >
                       <Icon className="w-5 h-5" />
                     </div>
                     <div className="flex-1">
-                      <p className="font-medium text-console-text">{addon.name}</p>
+                      <p className="font-medium text-console-text">
+                        {addon.name}
+                      </p>
                       <p className="text-xs text-console-muted">
                         {addon.users} Subscriptions
                       </p>
@@ -216,7 +220,9 @@ const AdminFeaturesOverview = () => {
                 );
               })
             ) : (
-              <p className="text-console-muted text-sm">No addon data available</p>
+              <p className="text-console-muted text-sm">
+                No addon data available
+              </p>
             )}
           </div>
         </div>

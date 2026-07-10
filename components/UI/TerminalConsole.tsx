@@ -25,7 +25,12 @@ export const TerminalConsole: React.FC<{
   onCommand?: (cmd: string) => void | Promise<void>;
   placeholder?: string;
   className?: string;
-}> = ({ lines, onCommand, placeholder = 'Type a command…', className = '' }) => {
+}> = ({
+  lines,
+  onCommand,
+  placeholder = 'Type a command…',
+  className = '',
+}) => {
   const [input, setInput] = useState('');
   const [history, setHistory] = useState<string[]>([]);
   const [focused, setFocused] = useState(false);
@@ -68,7 +73,11 @@ export const TerminalConsole: React.FC<{
         {lines.map((l, i) => (
           <div key={i} className="flex gap-3">
             <span className="shrink-0 text-console-muted/70">{l.time}</span>
-            <span className={`min-w-0 flex-1 break-words ${LEVEL_COLOR[l.level]}`}>{l.text}</span>
+            <span
+              className={`min-w-0 flex-1 break-words ${LEVEL_COLOR[l.level]}`}
+            >
+              {l.text}
+            </span>
           </div>
         ))}
         {history.map((h, i) => (

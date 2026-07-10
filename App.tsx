@@ -22,14 +22,13 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { AITeamDashboard } from './components/Team/AITeamDashboard';
 import { AdminDashboard } from './components/Admin/AdminDashboard';
-import { AffiliateDashboard } from './components/Affiliate/AffiliateDashboard';
-import { AgentDashboard } from './components/Agent/AgentDashboard';
 import {
   AdminDashboardV2,
-  AdminTab,
+  type AdminTab,
 } from './components/Admin/AdminDashboardV2';
+import { AffiliateDashboard } from './components/Affiliate/AffiliateDashboard';
+import { AgentDashboard } from './components/Agent/AgentDashboard';
 import { AdvancedAnalytics } from './components/Analytics/AdvancedAnalytics';
 import { AuthModal } from './components/Auth/AuthModal';
 import { PartnerSignup } from './components/Auth/PartnerSignup';
@@ -69,6 +68,7 @@ import { Settings } from './components/Settings/Settings';
 import { StatusPage } from './components/Status/StatusPage';
 import { HelpCenter } from './components/Support/HelpCenter';
 import { SupportTicketSystem } from './components/Support/SupportTicketSystem';
+import { AITeamDashboard } from './components/Team/AITeamDashboard';
 import { ErrorBoundary } from './components/UI/ErrorBoundary';
 import { WebsiteBuilder } from './components/WebsiteBuilder/WebsiteBuilder';
 import { MOCK_ANALYTICS_DATA, PLANS } from './constants';
@@ -95,7 +95,11 @@ const INITIAL_RESELLER_STATS: ResellerStats = {
 };
 
 // MASTER ADMIN CONFIGURATION - Only MasterAdmin role users should be in this list
-const MASTER_ADMINS = ['mreardon@wtpnews.org', 'jadj19@gmail.com', 'patriotnewsactivism@gmail.com'];
+const MASTER_ADMINS = [
+  'mreardon@wtpnews.org',
+  'jadj19@gmail.com',
+  'patriotnewsactivism@gmail.com',
+];
 const PLATFORM_HOST = 'buildmybot.app';
 const PLATFORM_URL = `https://${PLATFORM_HOST}`;
 
@@ -169,7 +173,13 @@ function App() {
   // Dashboard tab state for controlled navigation
   const [adminActiveTab, setAdminActiveTab] = useState<AdminTab>('metrics');
   const [partnerActiveTab, setPartnerActiveTab] = useState<
-    'clients' | 'agents' | 'conversations' | 'commissions' | 'marketing' | 'analytics' | 'collaboration'
+    | 'clients'
+    | 'agents'
+    | 'conversations'
+    | 'commissions'
+    | 'marketing'
+    | 'analytics'
+    | 'collaboration'
   >('clients');
 
   useEffect(() => {
@@ -210,7 +220,10 @@ function App() {
         mappedUser.role === UserRole.ADMIN
       ) {
         setCurrentView('admin');
-      } else if (mappedUser.role === UserRole.PARTNER || mappedUser.role === UserRole.RESELLER) {
+      } else if (
+        mappedUser.role === UserRole.PARTNER ||
+        mappedUser.role === UserRole.RESELLER
+      ) {
         setCurrentView('reseller');
       } else if (mappedUser.role === UserRole.SALES_AGENT) {
         setCurrentView('agent');
@@ -1011,9 +1024,7 @@ function App() {
               />
             )}
 
-            {currentView === 'ai-team' && (
-              <AITeamDashboard user={user} />
-            )}
+            {currentView === 'ai-team' && <AITeamDashboard user={user} />}
             {currentView === 'support' && (
               <SupportTicketSystem user={activeUser || undefined} />
             )}

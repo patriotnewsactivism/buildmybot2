@@ -15,7 +15,8 @@ import {
   User,
   X,
 } from 'lucide-react';
-import React, { useRef, useState } from 'react';
+import type React from 'react';
+import { useRef, useState } from 'react';
 import { buildApiUrl } from '../../services/apiConfig';
 
 // --- Types ---
@@ -88,7 +89,9 @@ export default function SimplifiedBotWizard({
       return;
     }
 
-    const normalizedUrl = trimmed.startsWith('http') ? trimmed : `https://${trimmed}`;
+    const normalizedUrl = trimmed.startsWith('http')
+      ? trimmed
+      : `https://${trimmed}`;
 
     // Check for duplicates
     if (formData.knowledgeSources.some((s) => s.value === normalizedUrl)) {
@@ -100,7 +103,11 @@ export default function SimplifiedBotWizard({
       ...prev,
       knowledgeSources: [
         ...prev.knowledgeSources,
-        { type: 'url' as const, value: normalizedUrl, status: 'pending' as const },
+        {
+          type: 'url' as const,
+          value: normalizedUrl,
+          status: 'pending' as const,
+        },
       ],
     }));
     setUrlValue('');
@@ -126,7 +133,11 @@ export default function SimplifiedBotWizard({
         ...prev,
         knowledgeSources: [
           ...prev.knowledgeSources,
-          { type: 'file' as const, value: file.name, status: 'pending' as const },
+          {
+            type: 'file' as const,
+            value: file.name,
+            status: 'pending' as const,
+          },
         ],
       }));
     });
@@ -376,8 +387,9 @@ export default function SimplifiedBotWizard({
                       Knowledge Base
                     </h3>
                     <p className="text-sm text-blue-600 mt-1">
-                      Add your website URL and we'll crawl all its pages and posts.
-                      You can also upload documents. The bot uses this data to answer questions.
+                      Add your website URL and we'll crawl all its pages and
+                      posts. You can also upload documents. The bot uses this
+                      data to answer questions.
                     </p>
                   </div>
 
@@ -401,24 +413,36 @@ export default function SimplifiedBotWizard({
                         </h4>
                         <button
                           type="button"
-                          onClick={() => { setShowUrlInput(false); setUrlError(''); setUrlValue(''); }}
+                          onClick={() => {
+                            setShowUrlInput(false);
+                            setUrlError('');
+                            setUrlValue('');
+                          }}
                           className="p-1 text-gray-400 hover:text-gray-600"
                         >
                           <X size={16} />
                         </button>
                       </div>
                       <p className="text-xs text-slate-500">
-                        Enter your website URL. We'll crawl all pages and posts automatically after the bot is created.
+                        Enter your website URL. We'll crawl all pages and posts
+                        automatically after the bot is created.
                       </p>
                       <div className="flex gap-2">
                         <input
                           type="url"
                           value={urlValue}
-                          onChange={(e) => { setUrlValue(e.target.value); setUrlError(''); }}
-                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddUrl(); } }}
+                          onChange={(e) => {
+                            setUrlValue(e.target.value);
+                            setUrlError('');
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleAddUrl();
+                            }
+                          }}
                           placeholder="https://yourwebsite.com"
                           className="flex-1 px-4 py-2.5 border border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-sm"
-                          autoFocus
                         />
                         <button
                           type="button"
@@ -480,7 +504,8 @@ export default function SimplifiedBotWizard({
                     </p>
                     {formData.knowledgeSources.length === 0 ? (
                       <div className="mt-2 p-3 bg-white border rounded-lg text-sm text-gray-500 text-center italic">
-                        No sources added yet. Add a website URL or upload documents above.
+                        No sources added yet. Add a website URL or upload
+                        documents above.
                       </div>
                     ) : (
                       <div className="mt-2 space-y-2">
@@ -491,16 +516,24 @@ export default function SimplifiedBotWizard({
                           >
                             <div className="flex items-center gap-3 min-w-0">
                               {source.type === 'url' ? (
-                                <Globe size={16} className="text-blue-500 flex-shrink-0" />
+                                <Globe
+                                  size={16}
+                                  className="text-blue-500 flex-shrink-0"
+                                />
                               ) : (
-                                <Upload size={16} className="text-green-500 flex-shrink-0" />
+                                <Upload
+                                  size={16}
+                                  className="text-green-500 flex-shrink-0"
+                                />
                               )}
                               <div className="min-w-0">
                                 <p className="text-sm font-medium text-slate-700 truncate">
                                   {source.value}
                                 </p>
                                 <p className="text-xs text-slate-400">
-                                  {source.type === 'url' ? 'Website — will crawl after creation' : 'Document'}
+                                  {source.type === 'url'
+                                    ? 'Website — will crawl after creation'
+                                    : 'Document'}
                                 </p>
                               </div>
                             </div>
@@ -567,7 +600,8 @@ export default function SimplifiedBotWizard({
                   {formData.knowledgeSources.length > 0 && (
                     <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
                       <p className="text-xs text-blue-700 font-medium mb-2">
-                        📡 After creation, we'll automatically crawl these sources:
+                        📡 After creation, we'll automatically crawl these
+                        sources:
                       </p>
                       {formData.knowledgeSources.map((source, i) => (
                         <p key={i} className="text-xs text-blue-600 truncate">

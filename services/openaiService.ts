@@ -121,7 +121,7 @@ export const generateBotResponseDemo = async (
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 60000); // 60s — AI fallback chain needs time
-      
+
       const response = await fetch(buildApiUrl('/chat/demo'), {
         method: 'POST',
         headers: {
@@ -154,18 +154,21 @@ export const generateBotResponseDemo = async (
       return data.response || '';
     } catch (error: any) {
       const isAbort = error?.name === 'AbortError';
-      console.error(`Chat attempt ${attempt + 1} failed${isAbort ? ' (timeout)' : ''}:`, error);
+      console.error(
+        `Chat attempt ${attempt + 1} failed${isAbort ? ' (timeout)' : ''}:`,
+        error,
+      );
       if (attempt < maxRetries && !isAbort) {
-        await new Promise(r => setTimeout(r, 1000));
+        await new Promise((r) => setTimeout(r, 1000));
         continue;
       }
       if (isAbort) {
-        return "The AI is taking longer than expected. Please try again — the service may be under load.";
+        return 'The AI is taking longer than expected. Please try again — the service may be under load.';
       }
       return "I'm having trouble connecting right now. Please try again in a moment.";
     }
   }
-  return "Something went wrong. Please try again.";
+  return 'Something went wrong. Please try again.';
 };
 
 export const scrapeWebsiteContent = async (url: string): Promise<string> => {

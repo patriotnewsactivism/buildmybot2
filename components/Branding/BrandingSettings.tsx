@@ -5,16 +5,16 @@
  */
 
 import {
+  AlertCircle,
   Building2,
+  CheckCircle,
+  Eye,
+  Globe,
   Image as ImageIcon,
+  Loader,
   Palette,
   Save,
   Upload,
-  Globe,
-  CheckCircle,
-  Loader,
-  AlertCircle,
-  Eye,
 } from 'lucide-react';
 import type React from 'react';
 import { useEffect, useState } from 'react';
@@ -45,7 +45,9 @@ const DEFAULT_COLORS = {
   accentColor: '#F97316',
 };
 
-export const BrandingSettings: React.FC<BrandingSettingsProps> = ({ organizationId }) => {
+export const BrandingSettings: React.FC<BrandingSettingsProps> = ({
+  organizationId,
+}) => {
   const [branding, setBranding] = useState<BrandingData>({ ...DEFAULT_COLORS });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -107,7 +109,9 @@ export const BrandingSettings: React.FC<BrandingSettingsProps> = ({ organization
       const data = await res.json();
       setBranding((prev) => ({ ...prev, logoUrl: data.url }));
     } catch (err) {
-      setError('Failed to upload logo. Make sure your plan includes white-label.');
+      setError(
+        'Failed to upload logo. Make sure your plan includes white-label.',
+      );
     } finally {
       setUploading(false);
     }
@@ -118,7 +122,7 @@ export const BrandingSettings: React.FC<BrandingSettingsProps> = ({ organization
     try {
       const res = await fetch(
         buildApiUrl(`/branding/${organizationId}/verify-domain`),
-        { method: 'POST' }
+        { method: 'POST' },
       );
       if (res.ok) {
         setBranding((prev) => ({ ...prev, domainVerified: true }));
@@ -129,17 +133,24 @@ export const BrandingSettings: React.FC<BrandingSettingsProps> = ({ organization
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center p-12"><Loader className="animate-spin h-6 w-6 text-blue-500" /></div>;
+    return (
+      <div className="flex items-center justify-center p-12">
+        <Loader className="animate-spin h-6 w-6 text-blue-500" />
+      </div>
+    );
   }
 
   return (
     <div className="max-w-3xl mx-auto p-6 space-y-8">
       <div className="flex items-center gap-3 mb-2">
         <Building2 className="h-6 w-6 text-blue-500" />
-        <h2 className="text-2xl font-bold text-slate-900">White-Label Branding</h2>
+        <h2 className="text-2xl font-bold text-slate-900">
+          White-Label Branding
+        </h2>
       </div>
       <p className="text-slate-600 -mt-4">
-        Customize the platform with your agency's logo, colors, and domain. Changes apply instantly.
+        Customize the platform with your agency's logo, colors, and domain.
+        Changes apply instantly.
       </p>
 
       {error && (
@@ -162,7 +173,11 @@ export const BrandingSettings: React.FC<BrandingSettingsProps> = ({ organization
         <div className="flex items-center gap-6">
           <div className="h-20 w-20 rounded-lg border-2 border-dashed border-slate-300 flex items-center justify-center overflow-hidden bg-slate-50">
             {branding.logoUrl ? (
-              <img src={branding.logoUrl} alt="Logo" className="h-full w-full object-contain" />
+              <img
+                src={branding.logoUrl}
+                alt="Logo"
+                className="h-full w-full object-contain"
+              />
             ) : (
               <ImageIcon className="h-8 w-8 text-slate-300" />
             )}
@@ -170,17 +185,25 @@ export const BrandingSettings: React.FC<BrandingSettingsProps> = ({ organization
           <div>
             <label className="cursor-pointer">
               <span className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition">
-                {uploading ? <Loader className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                {uploading ? (
+                  <Loader className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Upload className="h-4 w-4" />
+                )}
                 {uploading ? 'Uploading...' : 'Upload Logo'}
               </span>
               <input
                 type="file"
                 accept="image/png,image/jpeg,image/svg+xml"
                 className="hidden"
-                onChange={(e) => e.target.files?.[0] && handleLogoUpload(e.target.files[0])}
+                onChange={(e) =>
+                  e.target.files?.[0] && handleLogoUpload(e.target.files[0])
+                }
               />
             </label>
-            <p className="text-xs text-slate-500 mt-2">PNG, JPG, or SVG. Recommended: 200x200px.</p>
+            <p className="text-xs text-slate-500 mt-2">
+              PNG, JPG, or SVG. Recommended: 200x200px.
+            </p>
           </div>
         </div>
       </section>
@@ -193,49 +216,85 @@ export const BrandingSettings: React.FC<BrandingSettingsProps> = ({ organization
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="text-sm font-medium text-slate-700 mb-1 block">Primary</label>
+            <label className="text-sm font-medium text-slate-700 mb-1 block">
+              Primary
+            </label>
             <div className="flex items-center gap-2">
               <input
                 type="color"
                 value={branding.primaryColor || '#3B82F6'}
-                onChange={(e) => setBranding((prev) => ({ ...prev, primaryColor: e.target.value }))}
+                onChange={(e) =>
+                  setBranding((prev) => ({
+                    ...prev,
+                    primaryColor: e.target.value,
+                  }))
+                }
                 className="h-10 w-12 rounded border border-slate-300 cursor-pointer"
               />
               <Input
                 value={branding.primaryColor || ''}
-                onChange={(e) => setBranding((prev) => ({ ...prev, primaryColor: e.target.value }))}
+                onChange={(e) =>
+                  setBranding((prev) => ({
+                    ...prev,
+                    primaryColor: e.target.value,
+                  }))
+                }
                 placeholder="#3B82F6"
               />
             </div>
           </div>
           <div>
-            <label className="text-sm font-medium text-slate-700 mb-1 block">Secondary</label>
+            <label className="text-sm font-medium text-slate-700 mb-1 block">
+              Secondary
+            </label>
             <div className="flex items-center gap-2">
               <input
                 type="color"
                 value={branding.secondaryColor || '#1E40AF'}
-                onChange={(e) => setBranding((prev) => ({ ...prev, secondaryColor: e.target.value }))}
+                onChange={(e) =>
+                  setBranding((prev) => ({
+                    ...prev,
+                    secondaryColor: e.target.value,
+                  }))
+                }
                 className="h-10 w-12 rounded border border-slate-300 cursor-pointer"
               />
               <Input
                 value={branding.secondaryColor || ''}
-                onChange={(e) => setBranding((prev) => ({ ...prev, secondaryColor: e.target.value }))}
+                onChange={(e) =>
+                  setBranding((prev) => ({
+                    ...prev,
+                    secondaryColor: e.target.value,
+                  }))
+                }
                 placeholder="#1E40AF"
               />
             </div>
           </div>
           <div>
-            <label className="text-sm font-medium text-slate-700 mb-1 block">Accent</label>
+            <label className="text-sm font-medium text-slate-700 mb-1 block">
+              Accent
+            </label>
             <div className="flex items-center gap-2">
               <input
                 type="color"
                 value={branding.accentColor || '#F97316'}
-                onChange={(e) => setBranding((prev) => ({ ...prev, accentColor: e.target.value }))}
+                onChange={(e) =>
+                  setBranding((prev) => ({
+                    ...prev,
+                    accentColor: e.target.value,
+                  }))
+                }
                 className="h-10 w-12 rounded border border-slate-300 cursor-pointer"
               />
               <Input
                 value={branding.accentColor || ''}
-                onChange={(e) => setBranding((prev) => ({ ...prev, accentColor: e.target.value }))}
+                onChange={(e) =>
+                  setBranding((prev) => ({
+                    ...prev,
+                    accentColor: e.target.value,
+                  }))
+                }
                 placeholder="#F97316"
               />
             </div>
@@ -244,7 +303,9 @@ export const BrandingSettings: React.FC<BrandingSettingsProps> = ({ organization
 
         {/* Live Preview */}
         <div className="mt-4 p-4 rounded-lg bg-slate-50 border border-slate-200">
-          <p className="text-xs text-slate-500 mb-2 flex items-center gap-1"><Eye className="h-3 w-3" /> Live Preview</p>
+          <p className="text-xs text-slate-500 mb-2 flex items-center gap-1">
+            <Eye className="h-3 w-3" /> Live Preview
+          </p>
           <div className="flex items-center gap-3">
             <div
               className="px-4 py-2 rounded-lg text-white text-sm font-medium"
@@ -260,7 +321,10 @@ export const BrandingSettings: React.FC<BrandingSettingsProps> = ({ organization
             </div>
             <div
               className="px-4 py-2 rounded-lg text-sm font-medium border-2"
-              style={{ borderColor: branding.accentColor, color: branding.accentColor }}
+              style={{
+                borderColor: branding.accentColor,
+                color: branding.accentColor,
+              }}
             >
               Accent Outline
             </div>
@@ -270,22 +334,38 @@ export const BrandingSettings: React.FC<BrandingSettingsProps> = ({ organization
 
       {/* Company Info */}
       <section className="bg-white rounded-xl border border-slate-200 p-6">
-        <h3 className="font-semibold text-slate-900 mb-4">Company Information</h3>
+        <h3 className="font-semibold text-slate-900 mb-4">
+          Company Information
+        </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="text-sm font-medium text-slate-700 mb-1 block">Company Name</label>
+            <label className="text-sm font-medium text-slate-700 mb-1 block">
+              Company Name
+            </label>
             <Input
               value={branding.companyName || ''}
-              onChange={(e) => setBranding((prev) => ({ ...prev, companyName: e.target.value }))}
+              onChange={(e) =>
+                setBranding((prev) => ({
+                  ...prev,
+                  companyName: e.target.value,
+                }))
+              }
               placeholder="Your Agency Name"
             />
           </div>
           <div>
-            <label className="text-sm font-medium text-slate-700 mb-1 block">Support Email</label>
+            <label className="text-sm font-medium text-slate-700 mb-1 block">
+              Support Email
+            </label>
             <Input
               type="email"
               value={branding.supportEmail || ''}
-              onChange={(e) => setBranding((prev) => ({ ...prev, supportEmail: e.target.value }))}
+              onChange={(e) =>
+                setBranding((prev) => ({
+                  ...prev,
+                  supportEmail: e.target.value,
+                }))
+              }
               placeholder="support@youragency.com"
             />
           </div>
@@ -301,7 +381,9 @@ export const BrandingSettings: React.FC<BrandingSettingsProps> = ({ organization
         <div className="flex items-center gap-3">
           <Input
             value={branding.customDomain || ''}
-            onChange={(e) => setBranding((prev) => ({ ...prev, customDomain: e.target.value }))}
+            onChange={(e) =>
+              setBranding((prev) => ({ ...prev, customDomain: e.target.value }))
+            }
             placeholder="app.youragency.com"
           />
           {branding.domainVerified ? (
@@ -309,11 +391,15 @@ export const BrandingSettings: React.FC<BrandingSettingsProps> = ({ organization
               <CheckCircle className="h-4 w-4" /> Verified
             </span>
           ) : (
-            <Button variant="outline" size="sm" onClick={handleVerifyDomain}>Verify</Button>
+            <Button variant="outline" size="sm" onClick={handleVerifyDomain}>
+              Verify
+            </Button>
           )}
         </div>
         <p className="text-xs text-slate-500 mt-2">
-          Add a CNAME record pointing to <code className="text-slate-700">branding.buildmybot.app</code> then click Verify.
+          Add a CNAME record pointing to{' '}
+          <code className="text-slate-700">branding.buildmybot.app</code> then
+          click Verify.
         </p>
       </section>
 
@@ -323,21 +409,36 @@ export const BrandingSettings: React.FC<BrandingSettingsProps> = ({ organization
           <input
             type="checkbox"
             checked={branding.hideBuiltWithBadge || false}
-            onChange={(e) => setBranding((prev) => ({ ...prev, hideBuiltWithBadge: e.target.checked }))}
+            onChange={(e) =>
+              setBranding((prev) => ({
+                ...prev,
+                hideBuiltWithBadge: e.target.checked,
+              }))
+            }
             className="h-5 w-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
           />
           <div>
-            <p className="font-medium text-slate-900">Hide "Built with BuildMyBot" badge</p>
-            <p className="text-sm text-slate-500">Remove all BuildMyBot branding from your white-labeled platform.</p>
+            <p className="font-medium text-slate-900">
+              Hide "Built with BuildMyBot" badge
+            </p>
+            <p className="text-sm text-slate-500">
+              Remove all BuildMyBot branding from your white-labeled platform.
+            </p>
           </div>
         </label>
       </section>
 
       {/* Save Button */}
       <div className="flex justify-end gap-3">
-        <Button variant="outline" onClick={fetchBranding}>Cancel</Button>
+        <Button variant="outline" onClick={fetchBranding}>
+          Cancel
+        </Button>
         <Button onClick={handleSave} disabled={saving}>
-          {saving ? <Loader className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+          {saving ? (
+            <Loader className="h-4 w-4 animate-spin mr-2" />
+          ) : (
+            <Save className="h-4 w-4 mr-2" />
+          )}
           {saving ? 'Saving...' : 'Save Branding'}
         </Button>
       </div>

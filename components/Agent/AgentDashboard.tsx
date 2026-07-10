@@ -16,8 +16,8 @@ import type React from 'react';
 import { useCallback, useEffect, useState } from 'react';
 import { dbService } from '../../services/dbService';
 import {
-  ConversationTranscript,
   type Conversation,
+  ConversationTranscript,
 } from '../UI/ConversationTranscript';
 
 interface AgentOverview {
@@ -48,7 +48,9 @@ const StatCard: React.FC<{
   color: string;
 }> = ({ label, value, icon, color }) => (
   <div className="bg-white rounded-xl border border-slate-200 p-5 flex items-start gap-4">
-    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${color}`}>
+    <div
+      className={`w-10 h-10 rounded-lg flex items-center justify-center ${color}`}
+    >
       {icon}
     </div>
     <div>
@@ -112,10 +114,15 @@ export const AgentDashboard: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Sales Agent Dashboard</h1>
+          <h1 className="text-2xl font-bold text-slate-900">
+            Sales Agent Dashboard
+          </h1>
           {overview?.partner && (
             <p className="text-sm text-slate-500 mt-1">
-              Partner: <span className="font-medium text-slate-700">{overview.partner.name}</span>
+              Partner:{' '}
+              <span className="font-medium text-slate-700">
+                {overview.partner.name}
+              </span>
             </p>
           )}
         </div>
@@ -178,7 +185,9 @@ export const AgentDashboard: React.FC = () => {
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
             <Users size={18} className="text-blue-600" />
-            <h3 className="text-base font-semibold text-slate-900">My Clients</h3>
+            <h3 className="text-base font-semibold text-slate-900">
+              My Clients
+            </h3>
             <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
               {clients.length}
             </span>
@@ -192,19 +201,36 @@ export const AgentDashboard: React.FC = () => {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50">
-                    <th className="text-left px-4 py-3 font-medium text-slate-600">Client</th>
-                    <th className="text-left px-4 py-3 font-medium text-slate-600">Plan</th>
-                    <th className="text-center px-4 py-3 font-medium text-slate-600">Bots</th>
-                    <th className="text-center px-4 py-3 font-medium text-slate-600">Leads</th>
-                    <th className="text-right px-4 py-3 font-medium text-slate-600">Commission</th>
-                    <th className="text-right px-4 py-3 font-medium text-slate-600">Since</th>
+                    <th className="text-left px-4 py-3 font-medium text-slate-600">
+                      Client
+                    </th>
+                    <th className="text-left px-4 py-3 font-medium text-slate-600">
+                      Plan
+                    </th>
+                    <th className="text-center px-4 py-3 font-medium text-slate-600">
+                      Bots
+                    </th>
+                    <th className="text-center px-4 py-3 font-medium text-slate-600">
+                      Leads
+                    </th>
+                    <th className="text-right px-4 py-3 font-medium text-slate-600">
+                      Commission
+                    </th>
+                    <th className="text-right px-4 py-3 font-medium text-slate-600">
+                      Since
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {clients.map((client) => (
-                    <tr key={client.id} className="hover:bg-slate-50 transition-colors">
+                    <tr
+                      key={client.id}
+                      className="hover:bg-slate-50 transition-colors"
+                    >
                       <td className="px-4 py-3">
-                        <p className="font-medium text-slate-900">{client.name || 'Unnamed'}</p>
+                        <p className="font-medium text-slate-900">
+                          {client.name || 'Unnamed'}
+                        </p>
                         <p className="text-xs text-slate-400">{client.email}</p>
                       </td>
                       <td className="px-4 py-3">
@@ -212,8 +238,12 @@ export const AgentDashboard: React.FC = () => {
                           {client.plan || 'FREE'}
                         </span>
                       </td>
-                      <td className="text-center px-4 py-3 text-slate-600">{client.botCount}</td>
-                      <td className="text-center px-4 py-3 text-slate-600">{client.leadCount}</td>
+                      <td className="text-center px-4 py-3 text-slate-600">
+                        {client.botCount}
+                      </td>
+                      <td className="text-center px-4 py-3 text-slate-600">
+                        {client.leadCount}
+                      </td>
                       <td className="text-right px-4 py-3">
                         <span className="text-emerald-600 font-medium">
                           {((client.commissionRate || 0) * 100).toFixed(0)}%

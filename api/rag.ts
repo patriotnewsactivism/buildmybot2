@@ -69,7 +69,9 @@ export async function embedText(text: string): Promise<number[] | null> {
   }
 }
 
-export async function embedBatch(texts: string[]): Promise<(number[] | null)[]> {
+export async function embedBatch(
+  texts: string[],
+): Promise<(number[] | null)[]> {
   if (!OPENAI_API_KEY || texts.length === 0) return texts.map(() => null);
   try {
     const resp = await fetch('https://api.openai.com/v1/embeddings', {
@@ -137,18 +139,15 @@ export async function ingestKnowledgeSource(
   }
 
   // 5. Update source status
-  await fetch(
-    `${SUPABASE_URL}/rest/v1/knowledge_sources?id=eq.${sourceId}`,
-    {
-      method: 'PATCH',
-      headers: { ...SUPABASE_HEADERS, Prefer: 'return=minimal' },
-      body: JSON.stringify({
-        status: 'ready',
-        last_processed_at: new Date().toISOString(),
-        processing_state: { chunks: chunks.length, embedded: hasEmbeddings },
-      }),
-    },
-  );
+  await fetch(`${SUPABASE_URL}/rest/v1/knowledge_sources?id=eq.${sourceId}`, {
+    method: 'PATCH',
+    headers: { ...SUPABASE_HEADERS, Prefer: 'return=minimal' },
+    body: JSON.stringify({
+      status: 'ready',
+      last_processed_at: new Date().toISOString(),
+      processing_state: { chunks: chunks.length, embedded: hasEmbeddings },
+    }),
+  });
 
   return { chunksCreated: chunks.length, embedded: hasEmbeddings };
 }
@@ -167,16 +166,19 @@ export async function searchKnowledge(
   if (queryEmbedding) {
     // Use Supabase RPC for vector similarity search
     // We call a Postgres function that does cosine similarity
-    const rpcResp = await fetch(`${SUPABASE_URL}/rest/v1/rpc/match_knowledge_chunks`, {
-      method: 'POST',
-      headers: SUPABASE_HEADERS,
-      body: JSON.stringify({
-        query_embedding: JSON.stringify(queryEmbedding),
-        match_bot_id: botId,
-        match_threshold: 0.5,
-        match_count: topK,
-      }),
-    });
+    const rpcResp = await fetch(
+      `${SUPABASE_URL}/rest/v1/rpc/match_knowledge_chunks`,
+      {
+        method: 'POST',
+        headers: SUPABASE_HEADERS,
+        body: JSON.stringify({
+          query_embedding: JSON.stringify(queryEmbedding),
+          match_bot_id: botId,
+          match_threshold: 0.5,
+          match_count: topK,
+        }),
+      },
+    );
 
     if (rpcResp.ok) {
       const results = await rpcResp.json();

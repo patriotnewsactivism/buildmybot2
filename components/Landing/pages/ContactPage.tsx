@@ -40,8 +40,8 @@ export const ContactPage: React.FC = () => {
             Contact Us
           </h1>
           <p className="text-xl text-slate-600 max-w-3xl mx-auto">
-            Have questions or need help getting started? We're here for you. Reach out and our
-            team will get back to you within 24 hours.
+            Have questions or need help getting started? We're here for you.
+            Reach out and our team will get back to you within 24 hours.
           </p>
         </section>
 
@@ -209,7 +209,8 @@ export const ContactPage: React.FC = () => {
                         Mark as priority for immediate review
                       </label>
                       <p className="text-xs text-slate-600">
-                        Urgent issues are flagged in the support inbox for immediate attention.
+                        Urgent issues are flagged in the support inbox for
+                        immediate attention.
                       </p>
                     </div>
                   </div>
@@ -334,7 +335,8 @@ export const ContactPage: React.FC = () => {
                 Get a Personalized Demo
               </h3>
               <p className="text-slate-600 text-sm mb-3">
-                See how BuildMyBot can automate your customer conversations and capture more leads.
+                See how BuildMyBot can automate your customer conversations and
+                capture more leads.
               </p>
               <p className="text-blue-700 font-medium text-sm">
                 Check the demo box above and we'll schedule a walkthrough!

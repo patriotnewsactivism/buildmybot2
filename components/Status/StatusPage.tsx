@@ -10,8 +10,8 @@ import {
 } from 'lucide-react';
 import type React from 'react';
 import { useCallback, useEffect, useState } from 'react';
-import { SEO, SEOConfig } from '../SEO/SEO';
 import { buildApiUrl } from '../../services/apiConfig';
+import { SEO, SEOConfig } from '../SEO/SEO';
 
 interface ServiceStatus {
   status: 'up' | 'down' | 'unknown';

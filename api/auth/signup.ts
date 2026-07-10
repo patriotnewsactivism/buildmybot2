@@ -10,14 +10,21 @@ const JWT_SECRET = process.env.SESSION_JWT_SECRET;
 // the browser session somehow lives longer.
 const SESSION_JWT_TTL = 24 * 60 * 60;
 // Single-sourced admin list — also keep App.tsx's MASTER_ADMINS in sync
-const MASTER_ADMINS = ['mreardon@wtpnews.org', 'jadj19@gmail.com', 'patriotnewsactivism@gmail.com'];
+const MASTER_ADMINS = [
+  'mreardon@wtpnews.org',
+  'jadj19@gmail.com',
+  'patriotnewsactivism@gmail.com',
+];
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'OPTIONS') return res.status(204).end();
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method !== 'POST')
+    return res.status(405).json({ error: 'Method not allowed' });
 
   if (!SUPABASE_KEY || !JWT_SECRET) {
-    console.error('[signup] FATAL: SUPABASE_SERVICE_ROLE_KEY / SESSION_JWT_SECRET not set');
+    console.error(
+      '[signup] FATAL: SUPABASE_SERVICE_ROLE_KEY / SESSION_JWT_SECRET not set',
+    );
     return res.status(500).json({ error: 'Server misconfigured' });
   }
 
@@ -34,17 +41,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     checkUrl.searchParams.set('limit', '1');
 
     const checkRes = await fetch(checkUrl.toString(), {
-      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${SUPABASE_KEY}`,
+      },
     });
     const existing = await checkRes.json();
-    if (existing[0]) return res.status(409).json({ error: 'Email already registered' });
+    if (existing[0])
+      return res.status(409).json({ error: 'Email already registered' });
 
     // Hash password
     const bcrypt = await import('bcryptjs');
     const passwordHash = await bcrypt.default.hash(password, 12);
 
     // Generate UUID
-    const crypto = await import('crypto');
+    const crypto = await import('node:crypto');
     const userId = crypto.default.randomUUID();
 
     const isAdmin = MASTER_ADMINS.includes(email.toLowerCase());
@@ -77,7 +88,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
     if (!createRes.ok) {
-      console.error('Create user failed:', createRes.status, await createRes.text());
+      console.error(
+        'Create user failed:',
+        createRes.status,
+        await createRes.text(),
+      );
       return res.status(500).json({ error: 'Failed to create account' });
     }
 
@@ -90,13 +105,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       exp: Math.floor(Date.now() / 1000) + SESSION_JWT_TTL,
     };
     const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url');
-    const signature = crypto.default.createHmac('sha256', JWT_SECRET).update(encoded).digest('base64url');
+    const signature = crypto.default
+      .createHmac('sha256', JWT_SECRET)
+      .update(encoded)
+      .digest('base64url');
     const token = `${encoded}.${signature}`;
 
-    res.setHeader('Set-Cookie', `bmb_session=${token}; HttpOnly; Secure; SameSite=Lax; Path=/`);
+    res.setHeader(
+      'Set-Cookie',
+      `bmb_session=${token}; HttpOnly; Secure; SameSite=Lax; Path=/`,
+    );
 
     const { password_hash, ...safeUser } = newUser;
-    return res.status(201).json({ user: safeUser, message: 'Account created successfully' });
+    return res
+      .status(201)
+      .json({ user: safeUser, message: 'Account created successfully' });
   } catch (error: any) {
     console.error('Signup error:', error);
     return res.status(500).json({ error: 'Signup failed' });

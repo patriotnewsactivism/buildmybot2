@@ -5,14 +5,24 @@
  * All task executions are logged in aiEmployeeLogs.
  */
 
-import { pgTable, text, timestamp, boolean, integer, jsonb, varchar } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
+import {
+  boolean,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  varchar,
+} from 'drizzle-orm/pg-core';
 import { organizations } from './schema';
 
 // ─── AI Employees ────────────────────────────────────────────
 export const aiEmployees = pgTable('ai_employees', {
   id: text('id').primaryKey(),
-  organizationId: text('organization_id').references(() => organizations.id, { onDelete: 'cascade' }),
+  organizationId: text('organization_id').references(() => organizations.id, {
+    onDelete: 'cascade',
+  }),
 
   // Identity
   name: varchar('name', { length: 100 }).notNull(),
@@ -33,7 +43,10 @@ export const aiEmployees = pgTable('ai_employees', {
   schedule: jsonb('schedule'), // { days: [1-5], startTime: '09:00', endTime: '17:00' }
 
   createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+  updatedAt: timestamp('updated_at')
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
 });
 
 export const aiEmployeesRelations = relations(aiEmployees, ({ many }) => ({
@@ -43,7 +56,9 @@ export const aiEmployeesRelations = relations(aiEmployees, ({ many }) => ({
 // ─── AI Employee Logs ────────────────────────────────────────
 export const aiEmployeeLogs = pgTable('ai_employee_logs', {
   id: text('id').primaryKey(),
-  employeeId: text('employee_id').references(() => aiEmployees.id, { onDelete: 'cascade' }),
+  employeeId: text('employee_id').references(() => aiEmployees.id, {
+    onDelete: 'cascade',
+  }),
   organizationId: text('organization_id'),
 
   // Task details

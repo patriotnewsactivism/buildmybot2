@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { Shield, X, Check, ArrowRight } from 'lucide-react';
+import { ArrowRight, Check, Shield, X } from 'lucide-react';
+import type React from 'react';
+import { useEffect, useState } from 'react';
 
 export const CookieConsent: React.FC = () => {
   const [isVisible, setIsVisible] = useState(false);
@@ -30,14 +31,14 @@ export const CookieConsent: React.FC = () => {
         <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
           <Shield size={80} />
         </div>
-        
+
         <div className="relative z-10">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-900/40">
               <Shield size={20} className="text-white" />
             </div>
             <h3 className="font-bold text-lg">Privacy Matters</h3>
-            <button 
+            <button
               onClick={() => setIsVisible(false)}
               className="ml-auto p-1 hover:bg-slate-800 rounded-lg transition-colors text-slate-400"
             >
@@ -46,7 +47,16 @@ export const CookieConsent: React.FC = () => {
           </div>
 
           <p className="text-slate-300 text-sm leading-relaxed mb-6">
-            We use cookies to enhance your experience, analyze site traffic, and support our lead generation features. By clicking "Accept", you agree to our use of cookies as detailed in our <a href="/privacy" className="text-blue-400 hover:text-blue-300 underline underline-offset-4">Privacy Policy</a>.
+            We use cookies to enhance your experience, analyze site traffic, and
+            support our lead generation features. By clicking "Accept", you
+            agree to our use of cookies as detailed in our{' '}
+            <a
+              href="/privacy"
+              className="text-blue-400 hover:text-blue-300 underline underline-offset-4"
+            >
+              Privacy Policy
+            </a>
+            .
           </p>
 
           <div className="flex flex-col sm:flex-row gap-3">
@@ -64,12 +74,15 @@ export const CookieConsent: React.FC = () => {
               Essential Only
             </button>
           </div>
-          
+
           <div className="mt-4 pt-4 border-t border-slate-800 flex items-center justify-between">
             <span className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold">
               GDPR & CCPA COMPLIANT
             </span>
-            <a href="/privacy" className="text-[10px] text-blue-400 font-bold hover:underline flex items-center gap-1">
+            <a
+              href="/privacy"
+              className="text-[10px] text-blue-400 font-bold hover:underline flex items-center gap-1"
+            >
               LEARN MORE <ArrowRight size={10} />
             </a>
           </div>

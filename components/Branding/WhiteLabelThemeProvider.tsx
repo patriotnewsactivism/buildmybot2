@@ -6,7 +6,13 @@
  */
 
 import type React from 'react';
-import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from 'react';
 import { buildApiUrl } from '../../services/apiConfig';
 
 interface BrandingData {
@@ -35,10 +41,10 @@ export const WhiteLabelContext = createContext<WhiteLabelContextValue>({
 
 export const useWhiteLabel = () => useContext(WhiteLabelContext);
 
-export const WhiteLabelThemeProvider: React.FC<{ children: React.ReactNode; organizationId?: string }> = ({
-  children,
-  organizationId,
-}) => {
+export const WhiteLabelThemeProvider: React.FC<{
+  children: React.ReactNode;
+  organizationId?: string;
+}> = ({ children, organizationId }) => {
   const [branding, setBranding] = useState<BrandingData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -91,7 +97,9 @@ export const WhiteLabelThemeProvider: React.FC<{ children: React.ReactNode; orga
 
     // Apply favicon
     if (branding.faviconUrl) {
-      let favicon = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
+      let favicon = document.querySelector(
+        'link[rel="icon"]',
+      ) as HTMLLinkElement;
       if (!favicon) {
         favicon = document.createElement('link');
         favicon.rel = 'icon';
@@ -107,7 +115,9 @@ export const WhiteLabelThemeProvider: React.FC<{ children: React.ReactNode; orga
 
     // Apply custom CSS
     if (branding.customCss) {
-      let styleEl = document.getElementById('whitelabel-custom-css') as HTMLStyleElement;
+      let styleEl = document.getElementById(
+        'whitelabel-custom-css',
+      ) as HTMLStyleElement;
       if (!styleEl) {
         styleEl = document.createElement('style');
         styleEl.id = 'whitelabel-custom-css';
@@ -125,7 +135,9 @@ export const WhiteLabelThemeProvider: React.FC<{ children: React.ReactNode; orga
   }, [branding]);
 
   return (
-    <WhiteLabelContext.Provider value={{ branding, loading, refresh: fetchBranding }}>
+    <WhiteLabelContext.Provider
+      value={{ branding, loading, refresh: fetchBranding }}
+    >
       {children}
     </WhiteLabelContext.Provider>
   );

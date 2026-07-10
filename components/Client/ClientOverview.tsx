@@ -74,11 +74,11 @@ interface LeadData {
 }
 
 /** Tiny inline sparkline component — pure SVG, no dependencies */
-const Sparkline: React.FC<{ data: number[]; color?: string; height?: number }> = ({
-  data,
-  color = '#3b82f6',
-  height = 40,
-}) => {
+const Sparkline: React.FC<{
+  data: number[];
+  color?: string;
+  height?: number;
+}> = ({ data, color = '#3b82f6', height = 40 }) => {
   if (!data.length) return null;
   const max = Math.max(...data, 1);
   const width = 120;
@@ -88,13 +88,26 @@ const Sparkline: React.FC<{ data: number[]; color?: string; height?: number }> =
     return `${x},${y}`;
   });
   return (
-    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="overflow-visible">
-      <polyline fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" points={pts.join(' ')} />
+    <svg
+      width={width}
+      height={height}
+      viewBox={`0 0 ${width} ${height}`}
+      className="overflow-visible"
+    >
+      <polyline
+        fill="none"
+        stroke={color}
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        points={pts.join(' ')}
+      />
       {/* Dot on last point */}
-      {pts.length > 0 && (() => {
-        const [lx, ly] = pts[pts.length - 1].split(',');
-        return <circle cx={lx} cy={ly} r="3" fill={color} />;
-      })()}
+      {pts.length > 0 &&
+        (() => {
+          const [lx, ly] = pts[pts.length - 1].split(',');
+          return <circle cx={lx} cy={ly} r="3" fill={color} />;
+        })()}
     </svg>
   );
 };
@@ -114,11 +127,24 @@ const UsageBar: React.FC<{
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
-          <Icon size={14} className={isFull ? 'text-red-500' : isHigh ? 'text-amber-500' : 'text-slate-400'} />
+          <Icon
+            size={14}
+            className={
+              isFull
+                ? 'text-red-500'
+                : isHigh
+                  ? 'text-amber-500'
+                  : 'text-slate-400'
+            }
+          />
           {label}
         </div>
-        <span className={`text-xs font-semibold ${isFull ? 'text-red-600' : isHigh ? 'text-amber-600' : 'text-slate-500'}`}>
-          {used.toLocaleString()}{unit} / {limit >= 9999 ? '∞' : limit.toLocaleString()}{unit}
+        <span
+          className={`text-xs font-semibold ${isFull ? 'text-red-600' : isHigh ? 'text-amber-600' : 'text-slate-500'}`}
+        >
+          {used.toLocaleString()}
+          {unit} / {limit >= 9999 ? '∞' : limit.toLocaleString()}
+          {unit}
         </span>
       </div>
       <div className="w-full bg-slate-100 rounded-full h-2">
@@ -377,7 +403,9 @@ export const ClientOverview: React.FC<ClientOverviewProps> = ({
             value={stats.leadCount}
             gradient="from-pink-500 to-rose-600"
             illustration="💼"
-            trend={stats.leadCount > 0 ? `${stats.leadCount} captured` : undefined}
+            trend={
+              stats.leadCount > 0 ? `${stats.leadCount} captured` : undefined
+            }
             loading={loading}
             onClick={onOpenLeads}
           />
@@ -415,7 +443,9 @@ export const ClientOverview: React.FC<ClientOverviewProps> = ({
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <Zap size={18} className="text-blue-600" />
-                <h3 className="text-sm md:text-base font-semibold text-slate-900">Plan Usage</h3>
+                <h3 className="text-sm md:text-base font-semibold text-slate-900">
+                  Plan Usage
+                </h3>
               </div>
               <span className="px-2.5 py-1 bg-blue-50 text-blue-700 text-xs font-semibold rounded-full">
                 {usage.plan} Plan
@@ -467,12 +497,20 @@ export const ClientOverview: React.FC<ClientOverviewProps> = ({
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <TrendingUp size={18} className="text-emerald-600" />
-                <h3 className="text-sm md:text-base font-semibold text-slate-900">7-Day Activity</h3>
+                <h3 className="text-sm md:text-base font-semibold text-slate-900">
+                  7-Day Activity
+                </h3>
               </div>
-              <p className="text-xs text-slate-500 mb-4">Conversations per day</p>
+              <p className="text-xs text-slate-500 mb-4">
+                Conversations per day
+              </p>
             </div>
             <div className="flex items-end justify-between gap-4">
-              <Sparkline data={conversationTrend.map((t) => t.count)} color="#10b981" height={48} />
+              <Sparkline
+                data={conversationTrend.map((t) => t.count)}
+                color="#10b981"
+                height={48}
+              />
               <div className="text-right">
                 <div className="text-2xl font-bold text-slate-900">
                   {conversationTrend.reduce((s, t) => s + t.count, 0)}
@@ -482,7 +520,9 @@ export const ClientOverview: React.FC<ClientOverviewProps> = ({
             </div>
             {voice && (
               <div className="mt-4 pt-4 border-t border-slate-100 flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${voice.enabled ? 'bg-green-500' : 'bg-slate-300'}`} />
+                <div
+                  className={`w-2 h-2 rounded-full ${voice.enabled ? 'bg-green-500' : 'bg-slate-300'}`}
+                />
                 <span className="text-xs text-slate-600">
                   Voice Agent {voice.enabled ? 'Active' : 'Inactive'}
                 </span>
@@ -617,17 +657,22 @@ export const ClientOverview: React.FC<ClientOverviewProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
           <button
             type="button"
-            onClick={() => window.open('/marketing/quick-start-guide.pdf', '_blank')}
+            onClick={() =>
+              window.open('/marketing/quick-start-guide.pdf', '_blank')
+            }
             className="text-left bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4 hover:shadow-md transition-shadow"
           >
             <div className="flex items-center gap-2 mb-2">
               <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
                 <BookOpen size={16} className="text-white" />
               </div>
-              <span className="font-semibold text-slate-900 text-sm">Quick Start Guide</span>
+              <span className="font-semibold text-slate-900 text-sm">
+                Quick Start Guide
+              </span>
             </div>
             <p className="text-xs text-slate-600">
-              Your first chatbot in 5 minutes — step-by-step setup, deployment, and voice agent activation.
+              Your first chatbot in 5 minutes — step-by-step setup, deployment,
+              and voice agent activation.
             </p>
           </button>
           <button
@@ -639,25 +684,33 @@ export const ClientOverview: React.FC<ClientOverviewProps> = ({
               <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center">
                 <Star size={16} className="text-white" />
               </div>
-              <span className="font-semibold text-slate-900 text-sm">Product Overview</span>
+              <span className="font-semibold text-slate-900 text-sm">
+                Product Overview
+              </span>
             </div>
             <p className="text-xs text-slate-600">
-              One-page summary of everything BuildMyBot can do — features, pricing, and key stats.
+              One-page summary of everything BuildMyBot can do — features,
+              pricing, and key stats.
             </p>
           </button>
           <button
             type="button"
-            onClick={() => window.open('/marketing/roi-calculator.xlsx', '_blank')}
+            onClick={() =>
+              window.open('/marketing/roi-calculator.xlsx', '_blank')
+            }
             className="text-left bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-lg p-4 hover:shadow-md transition-shadow"
           >
             <div className="flex items-center gap-2 mb-2">
               <div className="w-8 h-8 bg-amber-600 rounded-lg flex items-center justify-center">
                 <TrendingUp size={16} className="text-white" />
               </div>
-              <span className="font-semibold text-slate-900 text-sm">ROI Calculator</span>
+              <span className="font-semibold text-slate-900 text-sm">
+                ROI Calculator
+              </span>
             </div>
             <p className="text-xs text-slate-600">
-              See exactly how much BuildMyBot saves your business — plug in your numbers and get instant results.
+              See exactly how much BuildMyBot saves your business — plug in your
+              numbers and get instant results.
             </p>
           </button>
         </div>

@@ -99,7 +99,7 @@ export const RESELLER_TIERS = [
 
 /** Affiliate program: 20% lifetime commission on referred accounts */
 export const AFFILIATE_COMMISSION = {
-  rate: 0.20,
+  rate: 0.2,
   label: '20% Lifetime',
   description: 'Earn 20% of every referred account subscription — for life.',
   minPayoutCents: 2500, // $25 minimum payout
@@ -177,10 +177,18 @@ export function estimatePlanMarginUsd(plan: keyof typeof PLANS): number {
 export function applyCommissionSafeguard(
   plan: keyof typeof PLANS,
   computedCommissionUsd: number,
-): { cappedCommissionUsd: number; wasCapped: boolean; estimatedMarginUsd: number } {
+): {
+  cappedCommissionUsd: number;
+  wasCapped: boolean;
+  estimatedMarginUsd: number;
+} {
   const estimatedMarginUsd = estimatePlanMarginUsd(plan);
-  const maxSafeCommissionUsd = Math.max(0, estimatedMarginUsd) * MAX_COMMISSION_SHARE_OF_MARGIN;
-  const cappedCommissionUsd = Math.min(computedCommissionUsd, maxSafeCommissionUsd);
+  const maxSafeCommissionUsd =
+    Math.max(0, estimatedMarginUsd) * MAX_COMMISSION_SHARE_OF_MARGIN;
+  const cappedCommissionUsd = Math.min(
+    computedCommissionUsd,
+    maxSafeCommissionUsd,
+  );
   return {
     cappedCommissionUsd,
     wasCapped: cappedCommissionUsd < computedCommissionUsd,
@@ -605,7 +613,8 @@ export const PREMIUM_SERVICES = [
         id: 'custom_bot_standard',
         name: 'Standard Custom Bot',
         price: 2999,
-        description: 'Custom-built AI bot with specialized workflows and integrations',
+        description:
+          'Custom-built AI bot with specialized workflows and integrations',
         deliveryDays: 14,
         includes: [
           '1 custom AI bot',
@@ -727,7 +736,8 @@ export const PREMIUM_SERVICES = [
         id: 'strategy_session',
         name: 'Strategy Session (2 hr)',
         price: 499,
-        description: 'Expert consultation on AI chatbot strategy for your business',
+        description:
+          'Expert consultation on AI chatbot strategy for your business',
         deliveryDays: 3,
         includes: [
           '2-hour strategy session',
@@ -741,7 +751,8 @@ export const PREMIUM_SERVICES = [
         id: 'strategy_roadmap',
         name: 'Full AI Roadmap',
         price: 2999,
-        description: 'Complete AI automation strategy with implementation roadmap',
+        description:
+          'Complete AI automation strategy with implementation roadmap',
         deliveryDays: 14,
         includes: [
           'Business process audit',
@@ -798,7 +809,8 @@ export const PREMIUM_SERVICES = [
         id: 'audit_standard',
         name: 'Standard Audit',
         price: 1499,
-        description: 'Deep-dive audit of your bot performance and conversion rates',
+        description:
+          'Deep-dive audit of your bot performance and conversion rates',
         deliveryDays: 7,
         includes: [
           'Conversation flow analysis',
@@ -850,7 +862,8 @@ export const COMMISSION_ACCELERATORS = {
       revenueTarget: 5000,
       bonus: 500,
       badge: '⭐',
-      description: 'Earn $500 bonus when you generate $5K in monthly recurring revenue',
+      description:
+        'Earn $500 bonus when you generate $5K in monthly recurring revenue',
     },
     {
       id: 'milestone_10k',
@@ -882,7 +895,8 @@ export const COMMISSION_ACCELERATORS = {
       revenueTarget: 100000,
       bonus: 40000,
       badge: '👑',
-      description: 'Earn $40,000 bonus when you hit $100K MRR. You\'re a legend.',
+      description:
+        "Earn $40,000 bonus when you hit $100K MRR. You're a legend.",
     },
   ],
 
@@ -937,7 +951,8 @@ export const COMMISSION_ACCELERATORS = {
     },
     {
       scenario: 'Growing Agent',
-      description: '20 Professional clients ($99/mo) + 10 with add-ons ($49 avg)',
+      description:
+        '20 Professional clients ($99/mo) + 10 with add-ons ($49 avg)',
       monthlyRevenue: 2470,
       commissionRate: 0.2,
       monthlyEarnings: 494,
@@ -961,7 +976,8 @@ export const COMMISSION_ACCELERATORS = {
     },
     {
       scenario: 'Platinum Partner',
-      description: '300+ clients, enterprise deals, white-label, custom services',
+      description:
+        '300+ clients, enterprise deals, white-label, custom services',
       monthlyRevenue: 65000,
       commissionRate: 0.5,
       monthlyEarnings: 32500,

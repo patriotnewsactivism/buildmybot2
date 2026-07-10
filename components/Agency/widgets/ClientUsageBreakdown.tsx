@@ -22,8 +22,8 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { type Column, DataTable } from '../../UI/DataTable';
 import { buildApiUrl } from '../../../services/apiConfig';
+import { type Column, DataTable } from '../../UI/DataTable';
 
 interface ClientUsage {
   id: string;

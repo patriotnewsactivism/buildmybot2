@@ -61,8 +61,23 @@ type MarketingSection =
   | 'downloads';
 
 // Build earnings chart from referred users' signup dates
-function buildEarningsChart(referredUsers: User[]): { month: string; amount: number }[] {
-  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function buildEarningsChart(
+  referredUsers: User[],
+): { month: string; amount: number }[] {
+  const monthNames = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
   const now = new Date();
   const chart: { month: string; amount: number }[] = [];
   for (let i = 5; i >= 0; i--) {

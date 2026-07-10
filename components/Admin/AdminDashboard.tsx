@@ -196,7 +196,20 @@ export const AdminDashboard: React.FC = () => {
 
         // Build revenue chart from real user data by signup month
         const monthlyRevenue: Record<string, number> = {};
-        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const monthNames = [
+          'Jan',
+          'Feb',
+          'Mar',
+          'Apr',
+          'May',
+          'Jun',
+          'Jul',
+          'Aug',
+          'Sep',
+          'Oct',
+          'Nov',
+          'Dec',
+        ];
         const now = new Date();
         // Show last 6 months
         for (let i = 5; i >= 0; i--) {
@@ -219,7 +232,10 @@ export const AdminDashboard: React.FC = () => {
           }
         }
         setRevenueData(
-          Object.entries(monthlyRevenue).map(([month, amount]) => ({ month, amount })),
+          Object.entries(monthlyRevenue).map(([month, amount]) => ({
+            month,
+            amount,
+          })),
         );
       } catch (e) {
         console.error('Admin Load Error:', e);
@@ -678,7 +694,7 @@ export const AdminDashboard: React.FC = () => {
                         {bot.name}
                       </td>
                       <td className="px-4 py-3 text-slate-600">{bot.type}</td>
- <td className="px-4 py-3 text-slate-500 text-xs ">
+                      <td className="px-4 py-3 text-slate-500 text-xs ">
                         {bot.userId?.slice(0, 8)}...
                       </td>
                       <td className="px-4 py-3">
@@ -729,7 +745,7 @@ export const AdminDashboard: React.FC = () => {
                       <td className="px-4 py-3 text-slate-800 font-medium">
                         {org.name}
                       </td>
- <td className="px-4 py-3 text-slate-500 text-xs">
+                      <td className="px-4 py-3 text-slate-500 text-xs">
                         {org.slug}
                       </td>
                       <td className="px-4 py-3">
@@ -846,7 +862,7 @@ export const AdminDashboard: React.FC = () => {
                 <tbody className="divide-y divide-slate-100">
                   {discountCodes.map((code) => (
                     <tr key={code.id} className="hover:bg-slate-50">
- <td className="px-4 py-3 font-bold text-slate-800">
+                      <td className="px-4 py-3 font-bold text-slate-800">
                         {code.code}
                       </td>
                       <td className="px-4 py-3 text-slate-600 capitalize">
@@ -961,7 +977,7 @@ export const AdminDashboard: React.FC = () => {
                 <tbody className="divide-y divide-slate-100">
                   {freeCodes.map((code) => (
                     <tr key={code.id} className="hover:bg-slate-50">
- <td className="px-4 py-3 font-bold text-slate-800">
+                      <td className="px-4 py-3 font-bold text-slate-800">
                         {code.code}
                       </td>
                       <td className="px-4 py-3">

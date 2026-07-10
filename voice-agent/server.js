@@ -1,17 +1,18 @@
+import http from 'node:http';
 import dotenv from 'dotenv';
 import express from 'express';
-import http from 'http';
 import { v4 as uuid } from 'uuid';
 import { WebSocketServer } from 'ws';
-import { getSTTProvider } from './src/services/stt/index.js';
 import { getLLMProvider } from './src/services/llm/index.js';
+import { getSTTProvider } from './src/services/stt/index.js';
 import { getTTSProvider } from './src/services/tts/index.js';
 
 dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 3000;
-const BUILDMYBOT_API_URL = process.env.BUILDMYBOT_API_URL || 'https://www.buildmybot.app';
+const BUILDMYBOT_API_URL =
+  process.env.BUILDMYBOT_API_URL || 'https://www.buildmybot.app';
 
 // Health check endpoint
 app.get('/health', (_req, res) => {
@@ -21,7 +22,10 @@ app.get('/health', (_req, res) => {
 // CORS for the main app
 app.use((_req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+  res.header(
+    'Access-Control-Allow-Headers',
+    'Origin, X-Requested-With, Content-Type, Accept',
+  );
   next();
 });
 
@@ -48,7 +52,9 @@ async function endCall(callId) {
   if (session) {
     const durationMs = Date.now() - session.startedAt;
     const minutes = Math.ceil(durationMs / 60000);
-    console.log(`[${callId}] Call ended. Duration: ${minutes} min. Tier: ${session.tier}`);
+    console.log(
+      `[${callId}] Call ended. Duration: ${minutes} min. Tier: ${session.tier}`,
+    );
 
     // Report usage back to BuildMyBot for billing
     try {
@@ -92,7 +98,9 @@ wss.on('connection', async (ws) => {
         startCall(callId, metadata);
         session = sessions.get(callId);
         tts = getTTSProvider({ tier: session.tier });
-        console.log(`[${callId}] Orchestrating call for bot: ${metadata.botId} with ${session.tier} voice.`);
+        console.log(
+          `[${callId}] Orchestrating call for bot: ${metadata.botId} with ${session.tier} voice.`,
+        );
 
         // Initialize STT streaming
         try {
@@ -112,9 +120,12 @@ wss.on('connection', async (ws) => {
                 session.memory.shift();
               }
 
-              console.log(`[${callId}] Generating AI response (Tier: ${session.tier})...`);
+              console.log(
+                `[${callId}] Generating AI response (Tier: ${session.tier})...`,
+              );
               const aiResponse = await llm.complete(session.memory, {
-                system: 'You are a professional voice agent. Be concise and helpful. (Max 2-3 sentences)',
+                system:
+                  'You are a professional voice agent. Be concise and helpful. (Max 2-3 sentences)',
               });
 
               console.log(`[${callId}] AI: ${aiResponse}`);
@@ -123,10 +134,14 @@ wss.on('connection', async (ws) => {
               const clientStream = {
                 write: (chunk) => {
                   if (ws.readyState === ws.OPEN) {
-                    ws.send(JSON.stringify({
-                      event: 'media',
-                      media: { payload: Buffer.from(chunk).toString('base64') },
-                    }));
+                    ws.send(
+                      JSON.stringify({
+                        event: 'media',
+                        media: {
+                          payload: Buffer.from(chunk).toString('base64'),
+                        },
+                      }),
+                    );
                   }
                 },
                 end: () => {},
@@ -152,7 +167,9 @@ wss.on('connection', async (ws) => {
 
   ws.on('close', () => {
     if (dgConnection) {
-      try { dgConnection.finish(); } catch (_) {}
+      try {
+        dgConnection.finish();
+      } catch (_) {}
     }
     endCall(callId);
   });
@@ -164,5 +181,5 @@ wss.on('connection', async (ws) => {
 
 server.listen(port, () => {
   console.log(`Voice Agent server running on port ${port}`);
-  console.log(`WebSocket server ready for connections`);
+  console.log('WebSocket server ready for connections');
 });

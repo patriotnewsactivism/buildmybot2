@@ -26,7 +26,8 @@ function createProvider(name) {
 // Factory to get the configured provider
 export function getTTSProvider(context = {}) {
   // Tiered Rollout Logic: Standard (Cartesia) vs Premium (ElevenLabs)
-  let primaryName = context.preferredProvider || process.env.TTS_PROVIDER || 'cartesia';
+  let primaryName =
+    context.preferredProvider || process.env.TTS_PROVIDER || 'cartesia';
 
   if (context.tier === 'premium') {
     primaryName = 'elevenlabs';

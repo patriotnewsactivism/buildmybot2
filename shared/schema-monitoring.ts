@@ -9,11 +9,11 @@
  */
 
 import {
+  boolean,
   integer,
   json,
   pgTable,
   real,
-  boolean,
   text,
   timestamp,
   varchar,

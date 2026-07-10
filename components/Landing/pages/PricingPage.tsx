@@ -154,8 +154,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onLogin }) => {
             const displayPrice = showAnnual
               ? Math.round(annualInfo.annual / 12)
               : plan.price;
-            const priceLabel =
-              plan.price === 0 ? 'Free' : `$${displayPrice}`;
+            const priceLabel = plan.price === 0 ? 'Free' : `$${displayPrice}`;
             const savings = showAnnual
               ? annualInfo.monthly * 12 - annualInfo.annual
               : 0;
@@ -247,8 +246,8 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onLogin }) => {
               Premium Add-Ons
             </h2>
             <p className="text-lg text-slate-600 max-w-3xl mx-auto">
-              Supercharge any plan with professional add-ons. Stack multiple
-              for maximum impact.
+              Supercharge any plan with professional add-ons. Stack multiple for
+              maximum impact.
             </p>
           </div>
 
@@ -505,13 +504,10 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onLogin }) => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {SALES_AGENT_TIERS.map((t) => {
               const colors: Record<string, string> = {
-                Bronze:
-                  'from-amber-700 to-amber-600 border-amber-300',
-                Silver:
-                  'from-slate-500 to-slate-400 border-slate-300',
+                Bronze: 'from-amber-700 to-amber-600 border-amber-300',
+                Silver: 'from-slate-500 to-slate-400 border-slate-300',
                 Gold: 'from-yellow-500 to-amber-400 border-yellow-300',
-                Platinum:
-                  'from-slate-900 to-slate-700 border-slate-400',
+                Platinum: 'from-slate-900 to-slate-700 border-slate-400',
               };
               return (
                 <div
@@ -559,9 +555,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onLogin }) => {
           <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 rounded-2xl p-8 text-white">
             <div className="flex items-center gap-3 mb-6">
               <Rocket size={24} className="text-yellow-400" />
-              <h3 className="text-2xl font-bold">
-                Revenue Milestone Bonuses
-              </h3>
+              <h3 className="text-2xl font-bold">Revenue Milestone Bonuses</h3>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
               {COMMISSION_ACCELERATORS.milestones.map((m) => (
@@ -597,9 +591,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onLogin }) => {
                   className="bg-slate-50 rounded-xl p-4 border border-slate-200"
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <span className="font-bold text-slate-900">
-                      {s.name}
-                    </span>
+                    <span className="font-bold text-slate-900">{s.name}</span>
                     <span className="text-lg font-extrabold text-emerald-600">
                       +${s.bonus}
                     </span>

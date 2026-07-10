@@ -1,8 +1,18 @@
-import { AlertTriangle, CheckCircle, Clock, Cpu, RefreshCw, Wrench, Search, Filter, XCircle } from 'lucide-react';
-import { useEffect, useState, useCallback } from 'react';
-import { DataTable, type Column } from '../UI/DataTable';
-import { MetricCard } from '../UI/MetricCard';
+import {
+  AlertTriangle,
+  CheckCircle,
+  Clock,
+  Cpu,
+  Filter,
+  RefreshCw,
+  Search,
+  Wrench,
+  XCircle,
+} from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { type Column, DataTable } from '../UI/DataTable';
 import { ErrorBoundary } from '../UI/ErrorBoundary';
+import { MetricCard } from '../UI/MetricCard';
 
 interface RepairLog {
   id: string;
@@ -40,7 +50,10 @@ function LoadingSkeleton() {
       {/* Summary Cards Skeleton */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="bg-white rounded-lg border border-slate-200 p-6">
+          <div
+            key={i}
+            className="bg-white rounded-lg border border-slate-200 p-6"
+          >
             <div className="h-10 w-10 bg-slate-200 rounded-lg mb-4" />
             <div className="h-8 bg-slate-200 rounded w-24 mb-2" />
             <div className="h-4 bg-slate-200 rounded w-32" />
@@ -65,9 +78,12 @@ function EmptyState({ lastChecked }: { lastChecked: Date | null }) {
       <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mb-6">
         <CheckCircle className="w-12 h-12 text-green-600" />
       </div>
-      <h3 className="text-xl font-semibold text-slate-900 mb-2">No Issues Found</h3>
+      <h3 className="text-xl font-semibold text-slate-900 mb-2">
+        No Issues Found
+      </h3>
       <p className="text-slate-600 text-center max-w-md mb-4">
-        All systems are operating normally. No repair logs or errors have been recorded.
+        All systems are operating normally. No repair logs or errors have been
+        recorded.
       </p>
       {lastChecked && (
         <p className="text-sm text-slate-400">
@@ -78,13 +94,18 @@ function EmptyState({ lastChecked }: { lastChecked: Date | null }) {
   );
 }
 
-function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
+function ErrorState({
+  message,
+  onRetry,
+}: { message: string; onRetry: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 px-4">
       <div className="w-24 h-24 bg-red-100 rounded-full flex items-center justify-center mb-6">
         <AlertTriangle className="w-12 h-12 text-red-600" />
       </div>
-      <h3 className="text-xl font-semibold text-slate-900 mb-2">Failed to Load Dashboard</h3>
+      <h3 className="text-xl font-semibold text-slate-900 mb-2">
+        Failed to Load Dashboard
+      </h3>
       <p className="text-slate-600 text-center max-w-md mb-6">{message}</p>
       <button
         type="button"
@@ -113,13 +134,16 @@ function ErrorRecoveryDashboardContent() {
       const response = await fetch('/api/admin/repair-logs');
       if (!response.ok) {
         const errorData: RepairLogsError = await response.json();
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+        throw new Error(
+          errorData.error || `HTTP error! status: ${response.status}`,
+        );
       }
       const result: RepairLogsResponse = await response.json();
       setData(result);
       setLastChecked(new Date());
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'An unexpected error occurred';
+      const message =
+        err instanceof Error ? err.message : 'An unexpected error occurred';
       setError(message);
     } finally {
       setLoading(false);
@@ -141,11 +165,14 @@ function ErrorRecoveryDashboardContent() {
       });
       if (!response.ok) {
         const errorData: RepairLogsError = await response.json();
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+        throw new Error(
+          errorData.error || `HTTP error! status: ${response.status}`,
+        );
       }
       await fetchRepairLogs();
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to apply quick fix';
+      const message =
+        err instanceof Error ? err.message : 'Failed to apply quick fix';
       setError(message);
     } finally {
       setFixingId(null);
@@ -182,7 +209,8 @@ function ErrorRecoveryDashboardContent() {
 
   const filteredLogs = logs.filter((log) => {
     if (filterStatus !== 'all' && log.status !== filterStatus) return false;
-    if (filterIssueType !== 'all' && log.issue_type !== filterIssueType) return false;
+    if (filterIssueType !== 'all' && log.issue_type !== filterIssueType)
+      return false;
     return true;
   });
 
@@ -196,7 +224,9 @@ function ErrorRecoveryDashboardContent() {
       render: (item) => (
         <span className="inline-flex items-center gap-1.5">
           <AlertTriangle className="w-4 h-4 text-amber-500" />
-          <span className="capitalize">{item.issue_type.replace(/_/g, ' ')}</span>
+          <span className="capitalize">
+            {item.issue_type.replace(/_/g, ' ')}
+          </span>
         </span>
       ),
     },
@@ -212,7 +242,9 @@ function ErrorRecoveryDashboardContent() {
           failed: 'bg-red-100 text-red-800',
         };
         return (
-          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusStyles[item.status] || 'bg-slate-100 text-slate-800'}`}>
+          <span
+            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusStyles[item.status] || 'bg-slate-100 text-slate-800'}`}
+          >
             {item.status.replace(/_/g, ' ')}
           </span>
         );
@@ -230,7 +262,9 @@ function ErrorRecoveryDashboardContent() {
           critical: 'bg-red-100 text-red-700',
         };
         return (
-          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${severityStyles[item.severity] || 'bg-slate-100 text-slate-700'}`}>
+          <span
+            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${severityStyles[item.severity] || 'bg-slate-100 text-slate-700'}`}
+          >
             {item.severity}
           </span>
         );
@@ -241,8 +275,8 @@ function ErrorRecoveryDashboardContent() {
       label: 'Bot ID',
       sortable: true,
       render: (item) => (
- <span className="text-xs">
-          {item.bot_id ? item.bot_id.substring(0, 8) + '...' : 'N/A'}
+        <span className="text-xs">
+          {item.bot_id ? `${item.bot_id.substring(0, 8)}...` : 'N/A'}
         </span>
       ),
     },
@@ -251,11 +285,17 @@ function ErrorRecoveryDashboardContent() {
       label: 'Auto-Fixable',
       sortable: true,
       render: (item) => (
-        <span className={`inline-flex items-center gap-1 ${item.auto_fixable ? 'text-green-600' : 'text-slate-400'}`}>
+        <span
+          className={`inline-flex items-center gap-1 ${item.auto_fixable ? 'text-green-600' : 'text-slate-400'}`}
+        >
           {item.auto_fixable ? (
-            <><Cpu className="w-4 h-4" /> Yes</>
+            <>
+              <Cpu className="w-4 h-4" /> Yes
+            </>
           ) : (
-            <><XCircle className="w-4 h-4" /> No</>
+            <>
+              <XCircle className="w-4 h-4" /> No
+            </>
           )}
         </span>
       ),
@@ -309,7 +349,9 @@ function ErrorRecoveryDashboardContent() {
         }
         return (
           <span className="text-slate-400 text-sm">
-            {item.status === 'in_progress' ? 'In Progress' : 'Manual Fix Required'}
+            {item.status === 'in_progress'
+              ? 'In Progress'
+              : 'Manual Fix Required'}
           </span>
         );
       },
@@ -354,7 +396,10 @@ function ErrorRecoveryDashboardContent() {
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
         <div className="flex flex-wrap gap-3">
           <div className="relative">
-            <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={16} />
+            <Filter
+              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400"
+              size={16}
+            />
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
@@ -368,7 +413,10 @@ function ErrorRecoveryDashboardContent() {
             </select>
           </div>
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={16} />
+            <Search
+              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400"
+              size={16}
+            />
             <select
               value={filterIssueType}
               onChange={(e) => setFilterIssueType(e.target.value)}

@@ -67,7 +67,8 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
       user.role === UserRole.MASTER_ADMIN ||
       user.role === UserRole.ADMIN_LEGACY;
     if (isAdmin) return 'admin';
-    if (user.role === UserRole.PARTNER || user.role === UserRole.RESELLER) return 'partner';
+    if (user.role === UserRole.PARTNER || user.role === UserRole.RESELLER)
+      return 'partner';
     if (user.role === UserRole.SALES_AGENT) return 'sales_agent';
     if (user.role === UserRole.AFFILIATE) return 'affiliate';
     if (user.role === UserRole.CLIENT) return 'client';

@@ -1,5 +1,5 @@
+import crypto from 'node:crypto';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import crypto from 'crypto';
 
 // This is a dedicated Vercel function (not routed through gateway.ts) so we
 // can read the raw request body -- Stripe signature verification requires
@@ -10,8 +10,7 @@ export const config = {
   },
 };
 
-const SUPABASE_URL =
-  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const SUPABASE_HEADERS = {
   apikey: SUPABASE_KEY,
@@ -21,7 +20,11 @@ const SUPABASE_HEADERS = {
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || '';
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
 
-async function sbSelect(table: string, select = '*', filters: Record<string, string> = {}) {
+async function sbSelect(
+  table: string,
+  select = '*',
+  filters: Record<string, string> = {},
+) {
   const params = new URLSearchParams({ select });
   for (const [k, v] of Object.entries(filters)) params.set(k, v);
   const resp = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params}`, {
@@ -31,7 +34,11 @@ async function sbSelect(table: string, select = '*', filters: Record<string, str
   return resp.json();
 }
 
-async function sbUpdate(table: string, data: any, filters: Record<string, string>) {
+async function sbUpdate(
+  table: string,
+  data: any,
+  filters: Record<string, string>,
+) {
   const params = new URLSearchParams();
   for (const [k, v] of Object.entries(filters)) params.set(k, v);
   const resp = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params}`, {
@@ -60,7 +67,7 @@ async function sbUpsert(table: string, data: any, onConflict: string) {
 }
 
 async function stripeGet(path: string) {
-  const auth = 'Basic ' + Buffer.from(`${STRIPE_SECRET_KEY}:`).toString('base64');
+  const auth = `Basic ${Buffer.from(`${STRIPE_SECRET_KEY}:`).toString('base64')}`;
   const resp = await fetch(`https://api.stripe.com/v1${path}`, {
     headers: { Authorization: auth },
   });
@@ -85,12 +92,14 @@ function verifyStripeSignature(
   secret: string,
   toleranceSeconds = 300,
 ): boolean {
-  const parts = sigHeader.split(',').reduce<Record<string, string[]>>((acc, part) => {
-    const [k, v] = part.split('=');
-    if (!k || !v) return acc;
-    (acc[k] = acc[k] || []).push(v);
-    return acc;
-  }, {});
+  const parts = sigHeader
+    .split(',')
+    .reduce<Record<string, string[]>>((acc, part) => {
+      const [k, v] = part.split('=');
+      if (!k || !v) return acc;
+      (acc[k] = acc[k] || []).push(v);
+      return acc;
+    }, {});
   const timestamp = parts.t?.[0];
   const signatures = parts.v1 || [];
   if (!timestamp || signatures.length === 0) return false;
@@ -115,12 +124,20 @@ async function planKeyForPrice(priceId: string): Promise<string | null> {
     const price = await stripeGet(`/prices/${priceId}?expand[]=product`);
     return price?.product?.metadata?.planKey || null;
   } catch (err) {
-    console.error('[stripe-webhook] failed to resolve planKey for price', priceId, err);
+    console.error(
+      '[stripe-webhook] failed to resolve planKey for price',
+      priceId,
+      err,
+    );
     return null;
   }
 }
 
-async function creditUsagePool(organizationId: string, resourceType: string, amount: number) {
+async function creditUsagePool(
+  organizationId: string,
+  resourceType: string,
+  amount: number,
+) {
   if (!organizationId || !amount) return;
   const existing = await sbSelect('usage_pools', 'id,total_credits', {
     organization_id: `eq.${organizationId}`,
@@ -151,7 +168,10 @@ async function handleSubscriptionChange(subscription: any) {
   const meta = subscription.metadata || {};
   const userId = meta.userId;
   if (!userId) {
-    console.warn('[stripe-webhook] subscription has no userId metadata, skipping', subscription.id);
+    console.warn(
+      '[stripe-webhook] subscription has no userId metadata, skipping',
+      subscription.id,
+    );
     return;
   }
   const priceId = subscription.items?.data?.[0]?.price?.id;
@@ -164,7 +184,9 @@ async function handleSubscriptionChange(subscription: any) {
       {
         whitelabel_subscription_id: subscription.id,
         whitelabel_enabled: isActive,
-        ...(isActive ? { whitelabel_enabled_at: new Date().toISOString() } : {}),
+        ...(isActive
+          ? { whitelabel_enabled_at: new Date().toISOString() }
+          : {}),
       },
       { id: `eq.${userId}` },
     );
@@ -188,10 +210,14 @@ async function handleSubscriptionChange(subscription: any) {
   if (isActive && planKey !== 'FREE') {
     try {
       // Check if this user was referred by a partner
-      const partnerClients = await sbSelect('partner_clients', 'id,partner_id', {
-        client_email: `eq.${meta.email || ''}`,
-        status: 'eq.active',
-      }).catch(() => []);
+      const partnerClients = await sbSelect(
+        'partner_clients',
+        'id,partner_id',
+        {
+          client_email: `eq.${meta.email || ''}`,
+          status: 'eq.active',
+        },
+      ).catch(() => []);
 
       if (partnerClients?.[0]) {
         const pc = partnerClients[0];
@@ -202,27 +228,40 @@ async function handleSubscriptionChange(subscription: any) {
 
         if (partners?.[0]) {
           const partner = partners[0];
-          const amount = (subscription.items?.data?.[0]?.price?.unit_amount || 0) / 100;
-          const commission = +(amount * (partner.commission_rate || 0.15)).toFixed(2);
+          const amount =
+            (subscription.items?.data?.[0]?.price?.unit_amount || 0) / 100;
+          const commission = +(
+            amount * (partner.commission_rate || 0.15)
+          ).toFixed(2);
           if (commission > 0) {
-            await sbUpdate('partners', {
-              total_earned: `${(partner.total_earned || 0) + commission}`,
-              pending_payout: `${(partner.pending_payout || 0) + commission}`,
-            }, { id: `eq.${partner.id}` }).catch(() => {});
-            await sbInsert('partner_payouts', [{
-              partner_id: partner.id,
-              amount: commission,
-              status: 'pending',
-            }]).catch(() => {});
+            await sbUpdate(
+              'partners',
+              {
+                total_earned: `${(partner.total_earned || 0) + commission}`,
+                pending_payout: `${(partner.pending_payout || 0) + commission}`,
+              },
+              { id: `eq.${partner.id}` },
+            ).catch(() => {});
+            await sbInsert('partner_payouts', [
+              {
+                partner_id: partner.id,
+                amount: commission,
+                status: 'pending',
+              },
+            ]).catch(() => {});
           }
         }
       }
 
       // Check if referred by a reseller
-      const resellerClients = await sbSelect('reseller_clients', 'id,reseller_id', {
-        client_email: `eq.${meta.email || ''}`,
-        status: 'eq.active',
-      }).catch(() => []);
+      const resellerClients = await sbSelect(
+        'reseller_clients',
+        'id,reseller_id',
+        {
+          client_email: `eq.${meta.email || ''}`,
+          status: 'eq.active',
+        },
+      ).catch(() => []);
 
       if (resellerClients?.[0]) {
         const rc = resellerClients[0];
@@ -233,13 +272,20 @@ async function handleSubscriptionChange(subscription: any) {
 
         if (resellers?.[0]) {
           const reseller = resellers[0];
-          const amount = (subscription.items?.data?.[0]?.price?.unit_amount || 0) / 100;
-          const commission = +(amount * (reseller.commission_rate || 0.20)).toFixed(2);
+          const amount =
+            (subscription.items?.data?.[0]?.price?.unit_amount || 0) / 100;
+          const commission = +(
+            amount * (reseller.commission_rate || 0.2)
+          ).toFixed(2);
           if (commission > 0) {
-            await sbUpdate('resellers', {
-              total_earned: `${(reseller.total_earned || 0) + commission}`,
-              pending_payout: `${(reseller.pending_payout || 0) + commission}`,
-            }, { id: `eq.${reseller.id}` }).catch(() => {});
+            await sbUpdate(
+              'resellers',
+              {
+                total_earned: `${(reseller.total_earned || 0) + commission}`,
+                pending_payout: `${(reseller.pending_payout || 0) + commission}`,
+              },
+              { id: `eq.${reseller.id}` },
+            ).catch(() => {});
           }
         }
       }
@@ -323,7 +369,11 @@ async function handlePaymentFailed(invoice: any) {
   if (attemptCount >= 3 && !nextAttemptAt) {
     await sbUpdate(
       'users',
-      { plan: 'FREE', payment_status: 'canceled', stripe_subscription_id: null },
+      {
+        plan: 'FREE',
+        payment_status: 'canceled',
+        stripe_subscription_id: null,
+      },
       { id: `eq.${user.id}` },
     ).catch(() => {});
   }
@@ -337,11 +387,18 @@ async function handleOneTimeCheckout(session: any) {
   const meta = session.metadata || {};
   const { type, organizationId } = meta;
   if (!type || !organizationId) {
-    console.warn('[stripe-webhook] one-time checkout missing type/organizationId metadata', session.id);
+    console.warn(
+      '[stripe-webhook] one-time checkout missing type/organizationId metadata',
+      session.id,
+    );
     return;
   }
   if (type === 'voice_minutes') {
-    await creditUsagePool(organizationId, 'voice_minutes', Number(meta.minutes || 0));
+    await creditUsagePool(
+      organizationId,
+      'voice_minutes',
+      Number(meta.minutes || 0),
+    );
   } else {
     // sms_credits, storage_mb, etc.
     await creditUsagePool(organizationId, type, Number(meta.credits || 0));
@@ -349,7 +406,8 @@ async function handleOneTimeCheckout(session: any) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method !== 'POST')
+    return res.status(405).json({ error: 'Method not allowed' });
   if (!STRIPE_WEBHOOK_SECRET) {
     console.error('[stripe-webhook] STRIPE_WEBHOOK_SECRET not configured');
     return res.status(500).json({ error: 'Webhook not configured' });
@@ -396,7 +454,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     return res.status(200).json({ received: true });
   } catch (err: any) {
-    console.error('[stripe-webhook] handler error for', event.type, err.message);
+    console.error(
+      '[stripe-webhook] handler error for',
+      event.type,
+      err.message,
+    );
     // Return 500 so Stripe retries -- our own bug shouldn't silently drop the event.
     return res.status(500).json({ error: 'Webhook handler failed' });
   }

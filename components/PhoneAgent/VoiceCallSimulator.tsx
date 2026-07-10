@@ -97,7 +97,9 @@ export const VoiceCallSimulator: React.FC<VoiceCallSimulatorProps> = ({
         }
       }
 
-      const voiceUrl = import.meta.env.VITE_VOICE_AGENT_URL || 'wss://buildmybot2-backend-production.up.railway.app';
+      const voiceUrl =
+        import.meta.env.VITE_VOICE_AGENT_URL ||
+        'wss://buildmybot2-backend-production.up.railway.app';
       ws.current = new WebSocket(voiceUrl);
 
       ws.current.onopen = () => {

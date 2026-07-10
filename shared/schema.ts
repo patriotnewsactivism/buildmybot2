@@ -7,7 +7,18 @@
  * If you change a table here, apply the same change to production with
  * `npm run db:push` (drizzle-kit) or a SQL migration in supabase/migrations/.
  */
-import { pgTable, boolean, doublePrecision, integer, json, jsonb, numeric, text, timestamp, varchar } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  doublePrecision,
+  integer,
+  json,
+  jsonb,
+  numeric,
+  pgTable,
+  text,
+  timestamp,
+  varchar,
+} from 'drizzle-orm/pg-core';
 
 export const analyticsEvents = pgTable('analytics_events', {
   id: text('id').primaryKey(),
@@ -692,7 +703,8 @@ export type NewConversation = typeof conversations.$inferInsert;
 export type InsertConversation = typeof conversations.$inferInsert;
 export type ImpersonationSession = typeof impersonationSessions.$inferSelect;
 export type NewImpersonationSession = typeof impersonationSessions.$inferInsert;
-export type InsertImpersonationSession = typeof impersonationSessions.$inferInsert;
+export type InsertImpersonationSession =
+  typeof impersonationSessions.$inferInsert;
 export type Integration = typeof integrations.$inferSelect;
 export type NewIntegration = typeof integrations.$inferInsert;
 export type InsertIntegration = typeof integrations.$inferInsert;
@@ -716,7 +728,8 @@ export type NewMarketingMaterial = typeof marketingMaterials.$inferInsert;
 export type InsertMarketingMaterial = typeof marketingMaterials.$inferInsert;
 export type NotificationReceipt = typeof notificationReceipts.$inferSelect;
 export type NewNotificationReceipt = typeof notificationReceipts.$inferInsert;
-export type InsertNotificationReceipt = typeof notificationReceipts.$inferInsert;
+export type InsertNotificationReceipt =
+  typeof notificationReceipts.$inferInsert;
 export type Notification = typeof notifications.$inferSelect;
 export type NewNotification = typeof notifications.$inferInsert;
 export type InsertNotification = typeof notifications.$inferInsert;

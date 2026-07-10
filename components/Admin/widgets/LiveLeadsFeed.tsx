@@ -73,7 +73,10 @@ export const LiveLeadsFeed: React.FC = () => {
   }, []);
 
   const timeAgo = (iso: string) => {
-    const secs = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
+    const secs = Math.max(
+      0,
+      Math.floor((Date.now() - new Date(iso).getTime()) / 1000),
+    );
     if (secs < 60) return `${secs}s ago`;
     const mins = Math.floor(secs / 60);
     if (mins < 60) return `${mins}m ago`;
@@ -125,14 +128,20 @@ export const LiveLeadsFeed: React.FC = () => {
             }`}
           >
             <div className="min-w-0 flex-1">
-              <div className="truncate text-sm text-console-text">{lead.company_name}</div>
+              <div className="truncate text-sm text-console-text">
+                {lead.company_name}
+              </div>
               <div className="truncate text-[11px] text-console-muted">
                 {lead.industry} · {lead.city}
               </div>
             </div>
             <div className="ml-3 shrink-0 text-right">
-              <div className="text-[11px] text-emerald-400">{lead.researched_by}</div>
-              <div className="text-[10px] text-console-muted">{timeAgo(lead.created_at)}</div>
+              <div className="text-[11px] text-emerald-400">
+                {lead.researched_by}
+              </div>
+              <div className="text-[10px] text-console-muted">
+                {timeAgo(lead.created_at)}
+              </div>
             </div>
           </div>
         ))}

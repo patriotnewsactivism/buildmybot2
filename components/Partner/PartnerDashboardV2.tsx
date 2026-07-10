@@ -20,8 +20,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { dbService } from '../../services/dbService';
 import type { User } from '../../types';
 import {
-  ConversationTranscript,
   type Conversation,
+  ConversationTranscript,
 } from '../UI/ConversationTranscript';
 import { ClientManagement } from './widgets/ClientManagement';
 import { CommissionsEarnings } from './widgets/CommissionsEarnings';
@@ -52,7 +52,9 @@ const PartnerAgentsView: React.FC = () => {
     <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
       <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
         <Users size={18} className="text-blue-600" />
-        <h3 className="text-base font-semibold text-slate-900">My Sales Agents</h3>
+        <h3 className="text-base font-semibold text-slate-900">
+          My Sales Agents
+        </h3>
         <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
           {agents.length}
         </span>
@@ -66,19 +68,29 @@ const PartnerAgentsView: React.FC = () => {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50">
-                <th className="text-left px-4 py-3 font-medium text-slate-600">Agent</th>
-                <th className="text-center px-4 py-3 font-medium text-slate-600">Clients</th>
-                <th className="text-right px-4 py-3 font-medium text-slate-600">Override %</th>
+                <th className="text-left px-4 py-3 font-medium text-slate-600">
+                  Agent
+                </th>
+                <th className="text-center px-4 py-3 font-medium text-slate-600">
+                  Clients
+                </th>
+                <th className="text-right px-4 py-3 font-medium text-slate-600">
+                  Override %
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {agents.map((agent: any) => (
                 <tr key={agent.id} className="hover:bg-slate-50">
                   <td className="px-4 py-3">
-                    <p className="font-medium text-slate-900">{agent.name || 'Unnamed'}</p>
+                    <p className="font-medium text-slate-900">
+                      {agent.name || 'Unnamed'}
+                    </p>
                     <p className="text-xs text-slate-400">{agent.email}</p>
                   </td>
-                  <td className="text-center px-4 py-3 text-slate-600">{agent.clientCount}</td>
+                  <td className="text-center px-4 py-3 text-slate-600">
+                    {agent.clientCount}
+                  </td>
                   <td className="text-right px-4 py-3">
                     <span className="text-emerald-600 font-medium">
                       {((agent.overrideRate || 0) * 100).toFixed(0)}%
@@ -335,12 +347,8 @@ export const PartnerDashboardV2: React.FC<PartnerDashboardV2Props> = ({
         {activeTab === 'clients' && (
           <ClientManagement onImpersonate={onImpersonate} />
         )}
-        {activeTab === 'agents' && (
-          <PartnerAgentsView />
-        )}
-        {activeTab === 'conversations' && (
-          <PartnerConversationsView />
-        )}
+        {activeTab === 'agents' && <PartnerAgentsView />}
+        {activeTab === 'conversations' && <PartnerConversationsView />}
         {activeTab === 'commissions' && <CommissionsEarnings />}
         {activeTab === 'marketing' && <MarketingMaterials />}
 

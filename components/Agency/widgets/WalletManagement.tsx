@@ -11,9 +11,9 @@ import {
 } from 'lucide-react';
 import type React from 'react';
 import { useCallback, useEffect, useState } from 'react';
+import { buildApiUrl } from '../../../services/apiConfig';
 import { type Column, DataTable } from '../../UI/DataTable';
 import { MetricCard } from '../../UI/MetricCard';
-import { buildApiUrl } from '../../../services/apiConfig';
 
 interface WalletData {
   balanceCents: number;
@@ -97,16 +97,19 @@ export const WalletManagement: React.FC = () => {
 
   const handleAutoRechargeToggle = async () => {
     try {
-      const response = await fetch(buildApiUrl('/agency/wallet/auto-recharge'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          enabled: !wallet.autoRechargeEnabled,
-          thresholdCents:
-            Number.parseFloat(autoRechargeSettings.threshold) * 100,
-          amountCents: Number.parseFloat(autoRechargeSettings.amount) * 100,
-        }),
-      });
+      const response = await fetch(
+        buildApiUrl('/agency/wallet/auto-recharge'),
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            enabled: !wallet.autoRechargeEnabled,
+            thresholdCents:
+              Number.parseFloat(autoRechargeSettings.threshold) * 100,
+            amountCents: Number.parseFloat(autoRechargeSettings.amount) * 100,
+          }),
+        },
+      );
 
       if (!response.ok) throw new Error('Failed to update auto-recharge');
 

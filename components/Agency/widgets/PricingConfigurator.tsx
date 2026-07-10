@@ -9,8 +9,8 @@ import {
 } from 'lucide-react';
 import type React from 'react';
 import { useCallback, useEffect, useState } from 'react';
-import { MetricCard } from '../../UI/MetricCard';
 import { buildApiUrl } from '../../../services/apiConfig';
+import { MetricCard } from '../../UI/MetricCard';
 
 interface PricingTier {
   id: string;

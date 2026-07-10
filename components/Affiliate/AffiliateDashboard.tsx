@@ -46,7 +46,9 @@ const StatCard: React.FC<{
   subtext?: string;
 }> = ({ label, value, icon, color, subtext }) => (
   <div className="bg-white rounded-xl border border-slate-200 p-5 flex items-start gap-4">
-    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${color}`}>
+    <div
+      className={`w-10 h-10 rounded-lg flex items-center justify-center ${color}`}
+    >
       {icon}
     </div>
     <div>
@@ -113,9 +115,13 @@ export const AffiliateDashboard: React.FC = () => {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Affiliate Dashboard</h1>
+        <h1 className="text-2xl font-bold text-slate-900">
+          Affiliate Dashboard
+        </h1>
         <p className="text-sm text-slate-500 mt-1">
-          Earn <span className="font-semibold text-emerald-600">20% lifetime</span> commission on every referred account
+          Earn{' '}
+          <span className="font-semibold text-emerald-600">20% lifetime</span>{' '}
+          commission on every referred account
         </p>
       </div>
 
@@ -152,7 +158,9 @@ export const AffiliateDashboard: React.FC = () => {
       <div className="bg-white rounded-xl border border-slate-200 p-6">
         <div className="flex items-center gap-2 mb-4">
           <Link2 size={18} className="text-blue-600" />
-          <h3 className="text-base font-semibold text-slate-900">Your Referral Link</h3>
+          <h3 className="text-base font-semibold text-slate-900">
+            Your Referral Link
+          </h3>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 font-mono text-sm text-slate-700 truncate">
@@ -193,7 +201,9 @@ export const AffiliateDashboard: React.FC = () => {
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
           <Users size={18} className="text-blue-600" />
-          <h3 className="text-base font-semibold text-slate-900">My Referrals</h3>
+          <h3 className="text-base font-semibold text-slate-900">
+            My Referrals
+          </h3>
           <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
             {referrals.length}
           </span>
@@ -211,19 +221,33 @@ export const AffiliateDashboard: React.FC = () => {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50">
-                  <th className="text-left px-4 py-3 font-medium text-slate-600">Referred User</th>
-                  <th className="text-left px-4 py-3 font-medium text-slate-600">Plan</th>
-                  <th className="text-center px-4 py-3 font-medium text-slate-600">Status</th>
-                  <th className="text-right px-4 py-3 font-medium text-slate-600">Earned</th>
-                  <th className="text-right px-4 py-3 font-medium text-slate-600">Joined</th>
+                  <th className="text-left px-4 py-3 font-medium text-slate-600">
+                    Referred User
+                  </th>
+                  <th className="text-left px-4 py-3 font-medium text-slate-600">
+                    Plan
+                  </th>
+                  <th className="text-center px-4 py-3 font-medium text-slate-600">
+                    Status
+                  </th>
+                  <th className="text-right px-4 py-3 font-medium text-slate-600">
+                    Earned
+                  </th>
+                  <th className="text-right px-4 py-3 font-medium text-slate-600">
+                    Joined
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {referrals.map((ref) => (
                   <tr key={ref.id} className="hover:bg-slate-50">
                     <td className="px-4 py-3">
-                      <p className="font-medium text-slate-900">{ref.referredUserName}</p>
-                      <p className="text-xs text-slate-400">{ref.referredUserEmail}</p>
+                      <p className="font-medium text-slate-900">
+                        {ref.referredUserName}
+                      </p>
+                      <p className="text-xs text-slate-400">
+                        {ref.referredUserEmail}
+                      </p>
                     </td>
                     <td className="px-4 py-3">
                       <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
@@ -257,7 +281,9 @@ export const AffiliateDashboard: React.FC = () => {
 
       {/* How it works */}
       <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100 p-6">
-        <h3 className="text-base font-semibold text-slate-900 mb-3">How It Works</h3>
+        <h3 className="text-base font-semibold text-slate-900 mb-3">
+          How It Works
+        </h3>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {[
             {
@@ -273,7 +299,7 @@ export const AffiliateDashboard: React.FC = () => {
             {
               step: '3',
               title: 'Earn 20% Forever',
-              desc: "You earn 20% of their subscription payment every month — for the life of their account",
+              desc: 'You earn 20% of their subscription payment every month — for the life of their account',
             },
           ].map((item) => (
             <div key={item.step} className="flex items-start gap-3">
@@ -281,7 +307,9 @@ export const AffiliateDashboard: React.FC = () => {
                 {item.step}
               </div>
               <div>
-                <p className="font-medium text-slate-900 text-sm">{item.title}</p>
+                <p className="font-medium text-slate-900 text-sm">
+                  {item.title}
+                </p>
                 <p className="text-xs text-slate-500 mt-0.5">{item.desc}</p>
               </div>
             </div>

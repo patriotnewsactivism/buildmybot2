@@ -47,13 +47,15 @@ export const MarketingMaterials: React.FC = () => {
   const salesDownloads = [
     {
       title: 'Sales Pitch Deck',
-      description: 'Full presentation deck for prospects — problem, solution, voice agent, pricing, ROI',
+      description:
+        'Full presentation deck for prospects — problem, solution, voice agent, pricing, ROI',
       downloadUrl: '/marketing/sales-pitch-deck.pdf',
       badge: 'NEW',
     },
     {
       title: 'Sales Playbook',
-      description: 'Battle cards vs competitors, objection handling scripts, and 10-min demo walkthrough',
+      description:
+        'Battle cards vs competitors, objection handling scripts, and 10-min demo walkthrough',
       downloadUrl: '/marketing/sales-playbook.pdf',
       badge: 'NEW',
     },
@@ -65,7 +67,8 @@ export const MarketingMaterials: React.FC = () => {
     },
     {
       title: 'ROI Calculator (Excel)',
-      description: 'Interactive spreadsheet — plug in leads, deal value, missed calls to show exact savings',
+      description:
+        'Interactive spreadsheet — plug in leads, deal value, missed calls to show exact savings',
       downloadUrl: '/marketing/roi-calculator.xlsx',
       badge: 'NEW',
     },
@@ -112,7 +115,8 @@ export const MarketingMaterials: React.FC = () => {
   const clientDownloads = [
     {
       title: 'Client Quick Start Guide',
-      description: 'Step-by-step: first chatbot in 5 minutes + voice agent setup',
+      description:
+        'Step-by-step: first chatbot in 5 minutes + voice agent setup',
       downloadUrl: '/marketing/quick-start-guide.pdf',
       badge: 'NEW',
     },
@@ -281,12 +285,17 @@ export const MarketingMaterials: React.FC = () => {
       </div>
 
       {downloadSections.map((section) => (
-        <div key={section.title} className="bg-white rounded-xl border border-slate-200 p-4 md:p-6">
+        <div
+          key={section.title}
+          className="bg-white rounded-xl border border-slate-200 p-4 md:p-6"
+        >
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm md:text-base font-semibold text-slate-800">
               {section.title}
             </h3>
-            <span className="text-xs text-slate-400">{section.items.length} files</span>
+            <span className="text-xs text-slate-400">
+              {section.items.length} files
+            </span>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
             {section.items.map((item) => (
@@ -296,7 +305,9 @@ export const MarketingMaterials: React.FC = () => {
               >
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="font-medium text-slate-900">{item.title}</span>
+                    <span className="font-medium text-slate-900">
+                      {item.title}
+                    </span>
                     {'badge' in item && (item as any).badge && (
                       <span className="px-1.5 py-0.5 bg-orange-100 text-orange-700 text-[10px] font-bold rounded">
                         {String((item as any).badge)}
