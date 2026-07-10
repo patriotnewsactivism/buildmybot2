@@ -678,7 +678,7 @@ export const AdminDashboard: React.FC = () => {
                         {bot.name}
                       </td>
                       <td className="px-4 py-3 text-slate-600">{bot.type}</td>
-                      <td className="px-4 py-3 text-slate-500 text-xs font-mono">
+ <td className="px-4 py-3 text-slate-500 text-xs ">
                         {bot.userId?.slice(0, 8)}...
                       </td>
                       <td className="px-4 py-3">
@@ -729,7 +729,7 @@ export const AdminDashboard: React.FC = () => {
                       <td className="px-4 py-3 text-slate-800 font-medium">
                         {org.name}
                       </td>
-                      <td className="px-4 py-3 text-slate-500 font-mono text-xs">
+ <td className="px-4 py-3 text-slate-500 text-xs">
                         {org.slug}
                       </td>
                       <td className="px-4 py-3">
@@ -846,7 +846,7 @@ export const AdminDashboard: React.FC = () => {
                 <tbody className="divide-y divide-slate-100">
                   {discountCodes.map((code) => (
                     <tr key={code.id} className="hover:bg-slate-50">
-                      <td className="px-4 py-3 font-mono font-bold text-slate-800">
+ <td className="px-4 py-3 font-bold text-slate-800">
                         {code.code}
                       </td>
                       <td className="px-4 py-3 text-slate-600 capitalize">
@@ -961,7 +961,7 @@ export const AdminDashboard: React.FC = () => {
                 <tbody className="divide-y divide-slate-100">
                   {freeCodes.map((code) => (
                     <tr key={code.id} className="hover:bg-slate-50">
-                      <td className="px-4 py-3 font-mono font-bold text-slate-800">
+ <td className="px-4 py-3 font-bold text-slate-800">
                         {code.code}
                       </td>
                       <td className="px-4 py-3">

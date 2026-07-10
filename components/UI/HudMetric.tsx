@@ -28,7 +28,7 @@ export const HudMetric: React.FC<{
   return (
     <div className="relative overflow-hidden rounded-md border border-console-border bg-console-surface-raised/40 px-3 py-3 transition-colors duration-150 hover:border-console-border-strong sm:px-4 sm:py-3.5">
       <div className="flex items-start justify-between">
-        <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-console-muted">
+        <span className="text-[11px] font-medium uppercase tracking-wide text-console-muted">
           {label}
         </span>
         {Icon && (
@@ -40,7 +40,7 @@ export const HudMetric: React.FC<{
 
       <div className="mt-3 flex items-baseline gap-2">
         <span
-          className={`font-mono text-xl font-semibold leading-none tabular-nums tracking-tight sm:text-2xl ${
+          className={`text-xl font-semibold leading-none tabular-nums tracking-tight sm:text-2xl ${
             loading ? 'text-console-muted' : 'text-console-text'
           }`}
         >
@@ -48,7 +48,7 @@ export const HudMetric: React.FC<{
         </span>
         {trend && !loading && (
           <span
-            className={`font-mono text-[11px] ${
+            className={`text-[11px] font-medium ${
               trend.direction === 'up'
                 ? 'text-accent-green'
                 : trend.direction === 'down'
@@ -62,7 +62,7 @@ export const HudMetric: React.FC<{
         )}
       </div>
       {sublabel && (
-        <div className="mt-1 font-mono text-[11px] text-console-muted">{sublabel}</div>
+        <div className="mt-1 text-[11px] text-console-muted">{sublabel}</div>
       )}
     </div>
   );

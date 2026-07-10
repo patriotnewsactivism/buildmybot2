@@ -10,28 +10,28 @@ const STATUS_STYLES: Record<
     dot: 'bg-accent-green',
     text: 'text-accent-green',
     glow: '',
-    label: 'ONLINE',
+    label: 'Online',
     breathe: false,
   },
   processing: {
     dot: 'bg-accent-amber',
     text: 'text-accent-amber',
     glow: '',
-    label: 'PROCESSING',
+    label: 'Processing',
     breathe: true,
   },
   warning: {
     dot: 'bg-accent-amber',
     text: 'text-accent-amber',
     glow: '',
-    label: 'WARNING',
+    label: 'Warning',
     breathe: false,
   },
   offline: {
     dot: 'bg-accent-red',
     text: 'text-accent-red',
     glow: '',
-    label: 'OFFLINE',
+    label: 'Offline',
     breathe: false,
   },
 };
@@ -49,7 +49,7 @@ export const StatusDot: React.FC<{
   const s = STATUS_STYLES[status];
   return (
     <span
-      className={`inline-flex items-center gap-2 font-mono text-xs tracking-wide ${className}`}
+      className={`inline-flex items-center gap-2 text-xs font-medium ${className}`}
     >
       <span
         className={`h-1.5 w-1.5 rounded-full ${s.dot} ${s.breathe ? 'animate-breathe' : ''}`}

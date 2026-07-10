@@ -20,12 +20,12 @@ export const Panel: React.FC<{
         <div className="relative flex items-center justify-between border-b border-console-border/80 px-4 py-3">
           <div>
             {eyebrow && (
-              <div className="font-mono text-[10px] uppercase tracking-[0.15em] text-console-muted">
+              <div className="text-[11px] font-medium uppercase tracking-wide text-console-muted">
                 {eyebrow}
               </div>
             )}
             {title && (
-              <h3 className="mt-0.5 font-mono text-sm font-semibold tracking-tight text-console-text">
+              <h3 className="mt-0.5 text-sm font-semibold tracking-tight text-console-text">
                 {title}
               </h3>
             )}

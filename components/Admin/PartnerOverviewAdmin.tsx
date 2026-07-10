@@ -288,7 +288,7 @@ export const PartnerOverviewAdmin: React.FC = () => {
               {/* Footer */}
               <div className="flex items-center justify-between pt-4 border-t border-console-border">
                 {row.partner.resellerCode ? (
-                  <code className="px-3 py-1 bg-console-surface-raised rounded-lg text-xs font-mono text-console-muted">
+ <code className="px-3 py-1 bg-console-surface-raised rounded-lg text-xs text-console-muted">
                     {row.partner.resellerCode}
                   </code>
                 ) : (

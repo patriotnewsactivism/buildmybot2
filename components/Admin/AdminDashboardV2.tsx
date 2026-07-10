@@ -171,7 +171,7 @@ export const AdminDashboardV2: React.FC<AdminDashboardV2Props> = ({
   ) as { label: string; detail: string; status: 'online' | 'processing' | 'offline' }[];
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-console-bg font-mono text-console-text">
+ <div className="min-h-screen overflow-x-hidden bg-console-bg text-console-text">
       <div className="p-3 sm:p-4 lg:p-6">
         {/* Top Status Bar */}
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-console-border bg-console-surface px-4 py-2.5">
@@ -197,7 +197,7 @@ export const AdminDashboardV2: React.FC<AdminDashboardV2Props> = ({
             <h1 className="text-lg font-semibold tracking-tight text-console-text">
               ADMIN_DASHBOARD<span className="text-accent-cyan">.v2</span>
             </h1>
-            <p className="mt-1 font-mono text-[11px] text-console-muted">
+ <p className="mt-1 text-[11px] text-console-muted">
               Overview of system health, user activity &amp; financial performance
             </p>
           </div>

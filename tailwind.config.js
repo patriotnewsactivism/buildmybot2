@@ -14,22 +14,28 @@ export default {
         // Used by the admin/ops surfaces (AdminDashboardV2, analytics,
         // bot builder). Kept separate from the marketing-site tokens above
         // so the landing pages are unaffected.
+        // --- Professional facelift (2026-07-10): same token names so no
+        // component needs touching, but the palette moved from a neon
+        // "hacker HUD" look to a calm, modern SaaS-admin look (closer to
+        // Linear/Stripe/Vercel dashboards) -- neutral cool-gray surfaces,
+        // ONE restrained primary accent, and desaturated semantic colors
+        // instead of glowing neon.
         console: {
-          bg: '#07090C', // deepest page background
-          surface: '#0F1319', // panel background
-          'surface-raised': '#161B23', // hovered / nested panel
-          'surface-glass': 'rgba(20,24,31,0.6)', // glass panel over bg
-          border: '#20252E', // 1px hairline borders
-          'border-strong': '#323944',
-          'border-glow': 'rgba(45,226,230,0.35)',
-          muted: '#6B7280', // secondary text
-          text: '#E4E9F0', // primary text
+          bg: '#0A0C10', // deepest page background
+          surface: '#12151B', // panel background
+          'surface-raised': '#1A1E27', // hovered / nested panel
+          'surface-glass': 'rgba(18,21,27,0.7)', // glass panel over bg
+          border: '#232830', // 1px hairline borders
+          'border-strong': '#333A46',
+          'border-glow': 'rgba(99,132,255,0.18)',
+          muted: '#8B93A3', // secondary text — softer, more legible gray
+          text: '#EDEFF3', // primary text
         },
         accent: {
-          cyan: '#2DE2E6', // primary accent (electric cyan)
-          green: '#39FF88', // matrix green — success / online
-          amber: '#F5B942', // processing / warning
-          red: '#FF4D5E', // error / critical
+          cyan: '#5B8DEF', // primary accent — muted blue instead of neon cyan
+          green: '#3FB27F', // success / online — desaturated green
+          amber: '#D9A441', // processing / warning — desaturated amber
+          red: '#E5484D', // error / critical — desaturated red
         },
       },
       fontFamily: {

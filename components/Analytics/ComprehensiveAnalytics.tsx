@@ -305,7 +305,7 @@ export const ComprehensiveAnalytics: React.FC<ComprehensiveAnalyticsProps> = ({
 
             {conversationData && conversationData.activeHours.length > 0 && (
               <div className="border border-console-border bg-console-surface p-4">
-                <h3 className="mb-3 flex items-center gap-2 font-mono text-xs uppercase tracking-widest text-console-muted">
+ <h3 className="mb-3 flex items-center gap-2 text-xs uppercase tracking-widest text-console-muted">
                   <Activity size={14} className="text-accent-cyan" />
                   Active Hours
                 </h3>
@@ -369,7 +369,7 @@ export const ComprehensiveAnalytics: React.FC<ComprehensiveAnalyticsProps> = ({
             {leadData && qualityChartData.length > 0 && (
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 <div className="border border-console-border bg-console-surface p-4">
-                  <h3 className="mb-3 flex items-center gap-2 font-mono text-xs uppercase tracking-widest text-console-muted">
+ <h3 className="mb-3 flex items-center gap-2 text-xs uppercase tracking-widest text-console-muted">
                     <Star size={14} className="text-accent-cyan" />
                     Lead Quality Distribution
                   </h3>
@@ -395,7 +395,7 @@ export const ComprehensiveAnalytics: React.FC<ComprehensiveAnalyticsProps> = ({
                 </div>
 
                 <div className="border border-console-border bg-console-surface p-4">
-                  <h3 className="mb-3 flex items-center gap-2 font-mono text-xs uppercase tracking-widest text-console-muted">
+ <h3 className="mb-3 flex items-center gap-2 text-xs uppercase tracking-widest text-console-muted">
                     <MessageSquare size={14} className="text-accent-cyan" />
                     Top Performing Bots
                   </h3>
@@ -406,14 +406,14 @@ export const ComprehensiveAnalytics: React.FC<ComprehensiveAnalyticsProps> = ({
                         className="flex items-center justify-between border border-console-border px-3 py-2"
                       >
                         <div className="flex items-center gap-2.5">
-                          <div className="flex h-6 w-6 items-center justify-center border border-accent-cyan/40 font-mono text-xs text-accent-cyan">
+ <div className="flex h-6 w-6 items-center justify-center border border-accent-cyan/40 text-xs text-accent-cyan">
                             {index + 1}
                           </div>
-                          <span className="font-mono text-sm text-console-text">
+ <span className="text-sm text-console-text">
                             {bot.botName}
                           </span>
                         </div>
-                        <span className="font-mono text-sm font-semibold text-accent-cyan">
+ <span className="text-sm font-semibold text-accent-cyan">
                           {bot.count}
                         </span>
                       </div>
@@ -458,11 +458,11 @@ export const ComprehensiveAnalytics: React.FC<ComprehensiveAnalyticsProps> = ({
                 </div>
 
                 <div className="border border-console-border bg-console-surface p-4">
-                  <h3 className="mb-3 flex items-center gap-2 font-mono text-xs uppercase tracking-widest text-console-muted">
+ <h3 className="mb-3 flex items-center gap-2 text-xs uppercase tracking-widest text-console-muted">
                     <TrendingUp size={14} className="text-accent-cyan" />
                     30-Day Trend
                   </h3>
-                  <div className="mb-2 flex gap-4 font-mono text-[11px] text-console-muted">
+ <div className="mb-2 flex gap-4 text-[11px] text-console-muted">
                     <span className="flex items-center gap-1.5">
                       <span className="h-1.5 w-1.5 rounded-full bg-accent-cyan" /> conversations
                     </span>
@@ -536,7 +536,7 @@ export const ComprehensiveAnalytics: React.FC<ComprehensiveAnalyticsProps> = ({
 
                 {sentimentChartData.length > 0 && (
                   <div className="border border-console-border bg-console-surface p-4">
-                    <h3 className="mb-3 flex items-center gap-2 font-mono text-xs uppercase tracking-widest text-console-muted">
+ <h3 className="mb-3 flex items-center gap-2 text-xs uppercase tracking-widest text-console-muted">
                       <Activity size={14} className="text-accent-cyan" />
                       Sentiment Breakdown
                     </h3>

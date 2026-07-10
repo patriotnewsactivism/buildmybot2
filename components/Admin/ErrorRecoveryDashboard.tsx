@@ -241,7 +241,7 @@ function ErrorRecoveryDashboardContent() {
       label: 'Bot ID',
       sortable: true,
       render: (item) => (
-        <span className="font-mono text-xs">
+ <span className="text-xs">
           {item.bot_id ? item.bot_id.substring(0, 8) + '...' : 'N/A'}
         </span>
       ),

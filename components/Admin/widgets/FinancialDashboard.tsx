@@ -145,7 +145,7 @@ export const FinancialDashboard: React.FC = () => {
       key: 'id',
       label: 'ID',
       render: (refund) => (
-        <code className="text-xs font-mono">
+ <code className="text-xs ">
           {refund.id.substring(0, 20)}...
         </code>
       ),
@@ -196,7 +196,7 @@ export const FinancialDashboard: React.FC = () => {
       key: 'partnerId',
       label: 'Partner ID',
       render: (payout) => (
-        <code className="text-xs font-mono">
+ <code className="text-xs ">
           {payout.partnerId.substring(0, 12)}...
         </code>
       ),
