@@ -13,17 +13,38 @@ import { runRoleShift, callLLM, logShift, notifySlack, notifyEmail, researchLead
 const ROLES: { id: string; name: string; prompt: string }[] = [
   { id: 'sam-support', name: 'Jack Miller', prompt: `You are Jack Miller, Customer Support Agent for BuildMyBot. Warm, empathetic. Never invent features - escalate technical issues to Luke Bradley (Engineering), billing to John Garrison (Billing).` },
   { id: 'eli-engineering', name: 'Luke Bradley', prompt: `You are Luke Bradley, Engineering Agent for BuildMyBot. No live system-health feed yet - say so honestly rather than inventing incidents. Flag critical issues with [CRITICAL].` },
-  { id: 'sales-agents', name: 'Charles Hudson', prompt: `You are Charles Hudson, leading BuildMyBot's Sales Agent team. Summarize today's outreach from business_data.inbound_leads and prioritize any business_data.new_researched_leads (freshly-researched cold targets from Sarah Collins, Lead Researcher) for immediate outreach. If empty, say so rather than inventing numbers.` },
   { id: 'maya-marketing', name: 'Amanda Hayes', prompt: `You are Amanda Hayes, Marketing Agent for BuildMyBot. Draft one concrete content piece with a clear CTA, building on any sales wins in cross_team_flags_today.` },
   { id: 'oscar-operations', name: 'Michael Easton', prompt: `You are Michael Easton, Operations Agent for BuildMyBot. One-line standup rollup from cross_team_flags_today. If empty, say so plainly.` },
   { id: 'piper-product', name: 'James Cooper', prompt: `You are James Cooper, Product Agent for BuildMyBot. One product observation from cross_team_flags_today (especially Jack Miller/support). If nothing concrete, say the roadmap is stable.` },
   { id: 'hr-associate', name: 'David Briggs', prompt: `You are David Briggs, HR Associate for BuildMyBot supporting William Cross (HR Lead). Note any concrete task, or be honest if there's nothing today.` },
   { id: 'billing-associate', name: 'Travis Cordell', prompt: `You are Travis Cordell, Billing Associate for BuildMyBot supporting John Garrison (Billing Lead). Note any concrete task, or be honest if there's nothing today.` },
-  { id: 'derek-sales-director', name: 'Robert Vance', prompt: `You are Robert Vance, Sales Director for BuildMyBot. Today's sales digest from business_data.inbound_leads, business_data.new_researched_leads, and the Sales Agent team's shift. If empty, say so rather than inventing figures.` },
+  { id: 'derek-sales-director', name: 'Robert Vance', prompt: `You are Robert Vance, Sales Director for BuildMyBot. Pre-launch: the 5 Sales Agents are in research mode (building the lead database, not yet calling). Today's digest from business_data.inbound_leads and business_data.new_researched_leads (fresh cold targets found by the research team). If empty, say so rather than inventing figures.` },
   { id: 'hannah-hr', name: 'William Cross', prompt: `You are William Cross, HR Lead for BuildMyBot's AI workforce. Flag anyone quiet in cross_team_flags_today, brief warm check-in.` },
   { id: 'victoria-vp-sales', name: 'Thomas Sterling', prompt: `You are Thomas Sterling, VP of Sales for BuildMyBot. Review Robert Vance's digest, pipeline health, and the flow of new_researched_leads coming in from Sarah Collins (Lead Researcher). If unavailable, say review is pending.` },
   { id: 'brianna-billing', name: 'John Garrison', prompt: `You are John Garrison, Billing Lead for BuildMyBot. business_data has real Stripe subscription counts if configured - use it. If null, say no live billing feed rather than inventing revenue.` },
 ];
+
+// The 5 Sales Agents, pre-launch (2026-07-10 onward): Don wants them building
+// the biggest possible lead database until BuildMyBot actually launches and
+// they start making real sales calls. Each has a fixed `offset` into the ICP
+// rotation (api/ai-team/lib.ts pickIcpQuery) so all 5 -- plus Sarah Collins,
+// the primary Lead Researcher -- cover DIFFERENT industry/city combos in the
+// same pass instead of duplicating each other's search.
+//
+// Flip SALES_AGENTS_MODE=outreach (Vercel env var) once real sales calls
+// start -- no redeploy needed -- and they'll switch to normal reasoning
+// shifts over business_data.new_researched_leads instead of researching.
+const SALES_AGENT_RESEARCHERS: { id: string; name: string; offset: number }[] = [
+  { id: 'sales-agent-1', name: 'Charles Hudson', offset: 37 },
+  { id: 'sales-agent-2', name: 'Brian Walsh', offset: 74 },
+  { id: 'sales-agent-3', name: 'Kevin Prescott', offset: 111 },
+  { id: 'sales-agent-4', name: 'Nathan Doyle', offset: 148 },
+  { id: 'sales-agent-5', name: 'Ryan Fletcher', offset: 185 },
+];
+
+function salesAgentsInResearchMode() {
+  return (process.env.SALES_AGENTS_MODE || 'research') !== 'outreach';
+}
 
 async function runMarcusSummary(precomputedResults?: Record<string, any>) {
   const today = new Date().toISOString().slice(0, 10);
@@ -102,6 +123,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(200).json({ 'frankie-social': result });
       } catch (e: any) {
         return res.status(500).json({ 'frankie-social': { error: e.message } });
+      }
+    }
+    const salesAgent = SALES_AGENT_RESEARCHERS.find((a) => a.id === roleParam);
+    if (salesAgent) {
+      if (salesAgentsInResearchMode()) {
+        try {
+          const result = await researchLeads({ roleId: salesAgent.id, roleName: salesAgent.name, offset: salesAgent.offset });
+          return res.status(200).json({ [salesAgent.id]: result });
+        } catch (e: any) {
+          return res.status(500).json({ [salesAgent.id]: { error: e.message } });
+        }
+      }
+      // Post-launch (SALES_AGENTS_MODE=outreach): normal reasoning shift over real leads.
+      try {
+        const result = await runRoleShift(
+          salesAgent.id,
+          salesAgent.name,
+          `You are ${salesAgent.name}, a Sales Agent for BuildMyBot. Review business_data.inbound_leads and business_data.new_researched_leads and report your outreach activity. If empty, say so rather than inventing numbers.`,
+        );
+        return res.status(200).json({ [salesAgent.id]: result });
+      } catch (e: any) {
+        return res.status(500).json({ [salesAgent.id]: { error: e.message } });
       }
     }
     const role = ROLES.find((r) => r.id === roleParam);

@@ -156,7 +156,7 @@ export async function getRoleContext(roleId: string): Promise<RoleContext> {
       'direction=eq.inbound&order=created_at.desc&limit=20'
     );
   } else if (
-    ['derek-sales-director', 'victoria-vp-sales', 'sales-agents'].includes(roleId)
+    ['derek-sales-director', 'victoria-vp-sales', 'sales-agent-1', 'sales-agent-2', 'sales-agent-3', 'sales-agent-4', 'sales-agent-5'].includes(roleId)
   ) {
     const [existingLeads, freshResearchedLeads] = await Promise.all([
       supabaseFetch('leads', 'order=created_at.desc&limit=25'),
@@ -328,9 +328,12 @@ const TARGET_CITIES = [
 
 // Deterministic rotation so we work through many different (industry, city)
 // combos over time instead of hammering the same query every run — driven off
-// the current hour so different runs across the day naturally vary.
-function pickIcpQuery(): { industry: string; city: string } {
-  const hourSlot = Math.floor(Date.now() / (1000 * 60 * 60)); // changes every hour
+// the current hour so different runs across the day naturally vary. `offset`
+// lets multiple researcher identities running in the same hour each land on a
+// DIFFERENT combo instead of duplicating each other's search (each of the 5
+// sales-agent researchers passes its own fixed offset — see all-shifts.ts).
+function pickIcpQuery(offset = 0): { industry: string; city: string } {
+  const hourSlot = Math.floor(Date.now() / (1000 * 60 * 60)) + offset; // changes every hour, shifted per identity
   const industry = ICP_INDUSTRIES[hourSlot % ICP_INDUSTRIES.length];
   const city = TARGET_CITIES[Math.floor(hourSlot / ICP_INDUSTRIES.length) % TARGET_CITIES.length];
   return { industry, city };
@@ -364,14 +367,22 @@ async function webSearch(query: string, maxResults = 8): Promise<TavilyResult[]>
   }
 }
 
-export async function researchLeads() {
-  const { industry, city } = pickIcpQuery();
+// `identity` lets any of the 6 researcher roles (Sarah Collins, the primary
+// Lead Researcher, plus the 5 sales agents temporarily in research mode
+// pre-launch -- see all-shifts.ts) run this same grounded-search engine under
+// their own name, each landing on a different (industry, city) combo via
+// their own fixed `offset` so they build the lead database in parallel
+// instead of duplicating each other's search.
+export async function researchLeads(identity?: { roleId: string; roleName: string; offset?: number }) {
+  const roleId = identity?.roleId || 'lead-researcher';
+  const roleName = identity?.roleName || 'Sarah Collins';
+  const { industry, city } = pickIcpQuery(identity?.offset || 0);
   const query = `${industry} in ${city}`;
 
   if (!process.env.TAVILY_API_KEY) {
     await logShift({
-      role_id: 'lead-researcher',
-      role_name: 'Sarah Collins',
+      role_id: roleId,
+      role_name: roleName,
       summary: `No TAVILY_API_KEY configured yet — cannot search for real companies. Skipped this run rather than inventing fake leads.`,
       tasks_completed: 0,
       flags: 'TAVILY_API_KEY missing',
@@ -383,8 +394,8 @@ export async function researchLeads() {
 
   if (!results.length) {
     await logShift({
-      role_id: 'lead-researcher',
-      role_name: 'Sarah Collins',
+      role_id: roleId,
+      role_name: roleName,
       summary: `Searched "${query}" but got zero results. Nothing new to add this run.`,
       tasks_completed: 0,
     });
@@ -406,15 +417,15 @@ export async function researchLeads() {
 
   if (!newResults.length) {
     await logShift({
-      role_id: 'lead-researcher',
-      role_name: 'Sarah Collins',
+      role_id: roleId,
+      role_name: roleName,
       summary: `Searched "${query}" — all ${results.length} results were companies we already have on file. No new leads this run.`,
       tasks_completed: 0,
     });
     return { found: 0, query, duplicates: results.length };
   }
 
-  const systemPrompt = `You are Sarah Collins, BuildMyBot's Lead Researcher. BuildMyBot sells a white-label AI chatbot/voice-agent platform that fixes "speed to lead" for local service businesses. ICP: Home Services (HVAC/Roofing/Plumbing/Solar), Legal (Personal Injury/DUI/Family Law), Medical/Esthetics (MedSpa/Plastic Surgery/Dental Implants), Real Estate brokerages. AVOID: restaurants, generic retail, large corporations.
+  const systemPrompt = `You are ${roleName}, one of BuildMyBot's researchers building the outbound lead database. BuildMyBot sells a white-label AI chatbot/voice-agent platform that fixes "speed to lead" for local service businesses. ICP: Home Services (HVAC/Roofing/Plumbing/Solar), Legal (Personal Injury/DUI/Family Law), Medical/Esthetics (MedSpa/Plastic Surgery/Dental Implants), Real Estate brokerages. AVOID: restaurants, generic retail, large corporations.
 
 CRITICAL RULE: You may ONLY reference real businesses that appear in the search results provided below. NEVER invent a company name, website, or detail that isn't directly supported by a provided result. If a result is a directory/listicle page rather than an actual business, skip it. If NONE of the results are real qualifying businesses, return an empty JSON array.`;
 
@@ -427,7 +438,7 @@ CRITICAL RULE: You may ONLY reference real businesses that appear in the search 
     const jsonMatch = raw.match(/\[[\s\S]*\]/);
     candidates = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
   } catch (err) {
-    console.error('Lead Researcher: failed to parse LLM JSON output:', raw);
+    console.error(`${roleName}: failed to parse LLM JSON output:`, raw);
   }
 
   // Belt-and-suspenders: only keep candidates whose website URL actually
@@ -449,6 +460,7 @@ CRITICAL RULE: You may ONLY reference real businesses that appear in the search 
         why_good_fit: c.why_good_fit,
         suggested_angle: c.suggested_angle,
         source_query: query,
+        researched_by: roleName,
         status: 'new',
       }),
     });
@@ -460,8 +472,8 @@ CRITICAL RULE: You may ONLY reference real businesses that appear in the search 
     : `Researched "${query}" (${results.length} results) but none were qualifying real businesses matching ICP this run.`;
 
   await logShift({
-    role_id: 'lead-researcher',
-    role_name: 'Sarah Collins',
+    role_id: roleId,
+    role_name: roleName,
     summary,
     tasks_completed: inserted,
   });
