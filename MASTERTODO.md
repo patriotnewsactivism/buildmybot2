@@ -56,7 +56,7 @@ Last updated: 2026-07-10
 - [x] `ai_team_log` persistence confirmed live; Marcus's executive rollup reads real shift data.
 - [x] Lead-researcher pipeline confirmed working end-to-end (manually verified: found 7 real candidates on a live test call).
 - [ ] Eli (Engineering) shift is an honest placeholder — no real system-health data source wired in yet. Wire Vercel deployment status + error rate from Sentry into Eli's shift output.
-- [ ] Brianna (Billing) needs `BUILDMYBOT_STRIPE_SECRET_KEY` set in Vercel to pull real subscription data instead of placeholder text.
+- [x] Brianna (Billing) uses `STRIPE_SECRET_KEY` which is already set in Vercel production. No additional key needed.
 - [ ] Frankie (Social) drafts content but has no live Twitter/LinkedIn API credentials — nothing publishes yet.
 - [ ] Sales agent researchers are pre-launch (research-only mode). Flip `SALES_AGENTS_MODE=outreach` once the lead database is deep enough to start real outreach — no redeploy needed, it's an env var toggle.
 - [ ] No voice/conference-call briefing loop yet (text-based manager briefing exists; voice doesn't).
