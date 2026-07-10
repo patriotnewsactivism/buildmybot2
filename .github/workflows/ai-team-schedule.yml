@@ -3,26 +3,29 @@ name: AI Team — Recurring Shifts
 # Replaces the old Base44 cron workflows entirely — this repo owns its own
 # scheduling now, free of any Base44 integration-credit ceiling.
 #
-# Two cadence tiers so the team feels genuinely "always on" instead of
-# checking in once a day:
-#  - Tier A (customer/revenue-facing, has real live data to react to):
-#    sam-support, sales-agents, derek-sales-director, victoria-vp-sales,
-#    maya-marketing -> every 3 hours, 5x/day.
-#  - Tier B (internal/ops functions, still valuable but less time-sensitive,
-#    some still honest placeholders with no live data source yet):
-#    eli-engineering, oscar-operations, piper-product, hr-associate,
-#    billing-associate, hannah-hr, brianna-billing -> every ~4 hours, 3x/day.
-#  - Marcus (executive rollup) -> 2x/day (midday + evening) instead of once,
-#    so Don gets a fresher picture without waiting for end of day.
+# Three cadence tiers so the team feels genuinely "always on":
+#  - Sales (sales-agents, derek-sales-director, victoria-vp-sales): the
+#    highest-priority, most time-sensitive roles. Run every 30 minutes,
+#    all day, every day — steady constant output, never waiting around.
+#  - Tier A (sam-support, maya-marketing): still customer-facing with real
+#    live data, but less urgent than sales -> every 3 hours, 5x/day.
+#  - Tier B (eli-engineering, oscar-operations, piper-product, hr-associate,
+#    billing-associate, hannah-hr, brianna-billing): internal/ops functions,
+#    some still honest placeholders with no live data source yet -> every
+#    ~4 hours, 3x/day.
+#  - Marcus (executive rollup): 2x/day (midday + evening).
 #
 # Times below are America/Chicago, converted to UTC assuming CDT (summer,
 # UTC-5) — shift by an hour in winter (CST, UTC-6) if exact timing matters.
 # github.event.schedule tells us exactly which entry fired, so there's no
-# flaky wall-clock matching, even with entries at the same clock time.
+# flaky wall-clock matching, even when entries land on the same clock time.
 
 on:
   workflow_dispatch: {} # manual "Run workflow" from the Actions tab -> runs Marcus's rollup
   schedule:
+    # --- Sales: every 30 minutes, all day ---
+    - cron: '*/30 * * * *'
+
     # --- Tier A: every 3h, 8am/11am/2pm/5pm/8pm CDT ---
     - cron: '0 13 * * *' # 8:00 AM CDT
     - cron: '0 16 * * *' # 11:00 AM CDT
@@ -49,8 +52,10 @@ jobs:
           SCHEDULE="${{ github.event.schedule }}"
           echo "fired cron: $SCHEDULE"
           case "$SCHEDULE" in
+            "*/30 * * * *")
+              echo "roles=sales-agents,derek-sales-director,victoria-vp-sales" >> "$GITHUB_OUTPUT" ;;
             "0 13 * * *"|"0 16 * * *"|"0 19 * * *"|"0 22 * * *"|"0 1 * * *")
-              echo "roles=sam-support,sales-agents,derek-sales-director,victoria-vp-sales,maya-marketing" >> "$GITHUB_OUTPUT" ;;
+              echo "roles=sam-support,maya-marketing" >> "$GITHUB_OUTPUT" ;;
             "30 14 * * *"|"30 18 * * *"|"30 22 * * *")
               echo "roles=eli-engineering,oscar-operations,piper-product,hr-associate,billing-associate,hannah-hr,brianna-billing" >> "$GITHUB_OUTPUT" ;;
             "15 19 * * *"|"15 23 * * *")
