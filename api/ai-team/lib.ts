@@ -204,6 +204,345 @@ async function supabaseFetch(
   return res.json();
 }
 
+// ---------------------------------------------------------------------------
+// Agent Memory (pgvector) — the persistence layer that makes the AI Team
+// actually remember. Before ANY agent executes a task it MUST call
+// recallMemories() to retrieve historical context about the lead, company,
+// or internal system state; after acting it calls rememberMemory() so the
+// observation is embedded back into Supabase for future recall.
+// Embeddings: OpenAI text-embedding-3-small (1536 dims) — the exact same
+// model/dimensions as knowledge_chunks (see api/rag.ts), so one provider
+// key powers both RAG and agent memory.
+// ---------------------------------------------------------------------------
+
+const EMBEDDING_MODEL = 'text-embedding-3-small';
+
+export type MemorySubjectType = 'lead' | 'company' | 'system';
+
+export interface AgentMemoryRow {
+  id: string;
+  role_id: string;
+  subject_type: MemorySubjectType;
+  subject_id: string | null;
+  content: string;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  similarity?: number;
+}
+
+async function embedText(text: string): Promise<number[] | null> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return null; // memory degrades to recency-based recall, never crashes a shift
+  try {
+    const resp = await fetch('https://api.openai.com/v1/embeddings', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: EMBEDDING_MODEL,
+        input: text.slice(0, 8000),
+      }),
+    });
+    if (!resp.ok) {
+      console.error('[memory] embedding failed:', resp.status);
+      return null;
+    }
+    const data = await resp.json();
+    return data.data?.[0]?.embedding || null;
+  } catch (err: any) {
+    console.error('[memory] embedding error:', err.message);
+    return null;
+  }
+}
+
+/** Retrieve the most relevant historical memories for a task. Vector
+ * similarity when an embedding key is configured; recency-scoped REST
+ * fallback otherwise — so agents always get SOME context, never a crash. */
+export async function recallMemories(
+  query: string,
+  opts: {
+    subjectType?: MemorySubjectType;
+    subjectId?: string;
+    roleId?: string;
+    limit?: number;
+  } = {},
+): Promise<AgentMemoryRow[]> {
+  const limit = opts.limit ?? 8;
+
+  const queryEmbedding = await embedText(query);
+  if (queryEmbedding) {
+    try {
+      const res = await fetch(
+        `${SUPABASE_URL}/rest/v1/rpc/match_agent_memories`,
+        {
+          method: 'POST',
+          headers: {
+            apikey: SUPABASE_SERVICE_ROLE_KEY,
+            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            query_embedding: JSON.stringify(queryEmbedding),
+            match_subject_type: opts.subjectType ?? null,
+            match_subject_id: opts.subjectId ?? null,
+            match_role_id: opts.roleId ?? null,
+            match_threshold: 0.3,
+            match_count: limit,
+          }),
+        },
+      );
+      if (res.ok) return (await res.json()) as AgentMemoryRow[];
+      console.error('[memory] match_agent_memories RPC failed:', res.status);
+    } catch (err: any) {
+      console.error('[memory] recall error:', err.message);
+    }
+  }
+
+  // Fallback: most recent memories for the same subject/role (no vector math).
+  const filters: string[] = [`order=created_at.desc`, `limit=${limit}`];
+  if (opts.subjectType) filters.push(`subject_type=eq.${opts.subjectType}`);
+  if (opts.subjectId) filters.push(`subject_id=eq.${opts.subjectId}`);
+  if (opts.roleId) filters.push(`role_id=eq.${opts.roleId}`);
+  const rows = await supabaseFetch('ai_agent_memories', filters.join('&'));
+  return (rows as AgentMemoryRow[]) || [];
+}
+
+/** Persist an observation back to the memory store with its embedding so
+ * every future shift can recall it. Failures are logged, never thrown —
+ * a memory write must not kill the action that produced it. */
+export async function rememberMemory(entry: {
+  roleId: string;
+  subjectType: MemorySubjectType;
+  subjectId?: string;
+  content: string;
+  metadata?: Record<string, unknown>;
+}): Promise<void> {
+  const embedding = await embedText(entry.content);
+  const row = await supabaseFetch('ai_agent_memories', '', {
+    method: 'POST',
+    body: JSON.stringify({
+      role_id: entry.roleId,
+      subject_type: entry.subjectType,
+      subject_id: entry.subjectId ?? null,
+      content: entry.content,
+      metadata: entry.metadata ?? {},
+      ...(embedding ? { embedding: JSON.stringify(embedding) } : {}),
+    }),
+  });
+  if (!row) console.error('[memory] failed to persist memory for', entry.roleId);
+}
+
+/** Format recalled memories into a prompt-ready block. */
+export function formatMemories(memories: AgentMemoryRow[]): string {
+  if (!memories.length) return 'No prior memories on record for this subject.';
+  return memories
+    .map(
+      (m) =>
+        `- [${m.created_at.slice(0, 10)}] (${m.role_id}) ${m.content}`,
+    )
+    .join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// Error Recovery — every unresolvable agent state lands in error_logs, the
+// table the ErrorRecoveryDashboard reads via /api/bots/errors/recent
+// (gateway handleBotErrors). Admins see it, can mark it resolved.
+// ---------------------------------------------------------------------------
+
+export async function logAgentError(entry: {
+  source: string;
+  message: string;
+  level?: 'warning' | 'error' | 'critical';
+  botId?: string;
+  context?: Record<string, unknown>;
+}): Promise<void> {
+  const row = await supabaseFetch('error_logs', '', {
+    method: 'POST',
+    body: JSON.stringify({
+      source: entry.source,
+      message: entry.message.slice(0, 2000),
+      level: entry.level ?? 'error',
+      bot_id: entry.botId ?? null,
+      context: entry.context ?? {},
+      status: 'open',
+    }),
+  });
+  if (!row) {
+    // Last-resort visibility: the console shows up in Vercel function logs.
+    console.error(`[error-recovery] ${entry.source}: ${entry.message}`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Thought → Action → Observation loop (ReAct). The core reasoning engine
+// every agent runs through. Enforces:
+//   1. Strict memory retrieval BEFORE any task execution.
+//   2. Explicit tool calls only — the model never "pretends" it acted.
+//   3. A hard deadline budget so background workers finish before serverless
+//      timeouts; on exhaustion the agent gracefully pauses its shift and
+//      files an actionable error_logs row for admin review.
+//   4. Every completed run writes its outcome back as a vector memory.
+// ---------------------------------------------------------------------------
+
+export type AgentTool = (
+  args: Record<string, unknown>,
+) => Promise<string>;
+
+export interface AgentStep {
+  thought: string;
+  action: { tool: string; args: Record<string, unknown> };
+  observation: string;
+}
+
+export interface AgentTaskResult {
+  status: 'completed' | 'paused' | 'failed';
+  finalAnswer: string;
+  steps: AgentStep[];
+}
+
+export async function runAgentTask(opts: {
+  roleId: string;
+  roleName: string;
+  objective: string;
+  persona: string;
+  tools: Record<string, { description: string; run: AgentTool }>;
+  subjectType?: MemorySubjectType;
+  subjectId?: string;
+  maxSteps?: number;
+  deadlineAt?: number; // epoch ms — hard stop for serverless budgets
+}): Promise<AgentTaskResult> {
+  const maxSteps = opts.maxSteps ?? 6;
+  const deadlineAt = opts.deadlineAt ?? Date.now() + 45_000;
+  const source = `ai-team/${opts.roleId}`;
+  const steps: AgentStep[] = [];
+
+  // 1. MANDATORY memory retrieval before executing anything.
+  const memories = await recallMemories(opts.objective, {
+    subjectType: opts.subjectType,
+    subjectId: opts.subjectId,
+  });
+
+  const toolCatalog = Object.entries(opts.tools)
+    .map(([name, t]) => `- ${name}: ${t.description}`)
+    .join('\n');
+
+  const systemPrompt = `${opts.persona}
+
+You work in a strict Thought -> Action -> Observation loop.
+Available tools:
+${toolCatalog}
+- finish: end the task. args: {"answer": "<final outcome summary>"}
+
+Respond with EXACTLY this format every turn (no markdown, no commentary):
+THOUGHT: <your reasoning about the current state>
+ACTION: {"tool": "<tool name>", "args": {<json args>}}
+
+Rules: one action per turn. Never claim an action happened unless a prior OBSERVATION confirms it. If you cannot make progress, call finish with an honest explanation.`;
+
+  let transcript = `OBJECTIVE: ${opts.objective}
+
+HISTORICAL MEMORY (retrieved from the vector store — factor this in before acting):
+${formatMemories(memories)}`;
+
+  for (let i = 0; i < maxSteps; i++) {
+    // 3. Graceful pause when the serverless budget is nearly spent.
+    if (Date.now() > deadlineAt) {
+      await logAgentError({
+        source,
+        level: 'warning',
+        message: `Agent paused mid-task: serverless time budget exhausted after ${i} step(s).`,
+        context: { objective: opts.objective, stepsCompleted: steps },
+      });
+      return {
+        status: 'paused',
+        finalAnswer: `Paused after ${i} step(s) — time budget exhausted. Logged for admin review.`,
+        steps,
+      };
+    }
+
+    let raw: string;
+    try {
+      raw = await callLLM(systemPrompt, transcript);
+    } catch (err: any) {
+      // LLM providers all failed (rate limits, outage) — unresolvable state.
+      await logAgentError({
+        source,
+        level: 'critical',
+        message: `All LLM providers failed mid-task: ${err.message}`,
+        context: { objective: opts.objective, stepsCompleted: steps },
+      });
+      return {
+        status: 'failed',
+        finalAnswer: 'LLM providers unavailable — task paused and escalated.',
+        steps,
+      };
+    }
+
+    const thought =
+      raw.match(/THOUGHT:\s*([\s\S]*?)(?:\nACTION:|$)/i)?.[1]?.trim() || '';
+    const actionJson = raw.match(/ACTION:\s*(\{[\s\S]*\})/i)?.[1];
+
+    let action: { tool: string; args: Record<string, unknown> };
+    try {
+      const parsed = JSON.parse(actionJson || '');
+      action = { tool: String(parsed.tool), args: parsed.args ?? {} };
+    } catch {
+      // Malformed action — feed the format error back as an observation once.
+      transcript += `\n\nTHOUGHT: ${thought}\nOBSERVATION: Your last ACTION was not valid JSON in the required format. Retry with ACTION: {"tool": "...", "args": {...}}.`;
+      continue;
+    }
+
+    if (action.tool === 'finish') {
+      const answer = String(action.args.answer ?? 'Done.');
+      steps.push({ thought, action, observation: 'Task finished.' });
+      // 4. Write the outcome back to the vector store for future recall.
+      await rememberMemory({
+        roleId: opts.roleId,
+        subjectType: opts.subjectType ?? 'system',
+        subjectId: opts.subjectId,
+        content: `${opts.roleName} completed: ${opts.objective} — outcome: ${answer}`,
+        metadata: { steps: steps.length },
+      });
+      return { status: 'completed', finalAnswer: answer, steps };
+    }
+
+    const tool = opts.tools[action.tool];
+    let observation: string;
+    if (!tool) {
+      observation = `Unknown tool "${action.tool}". Valid tools: ${Object.keys(opts.tools).join(', ')}, finish.`;
+    } else {
+      try {
+        observation = await tool.run(action.args);
+      } catch (err: any) {
+        observation = `Tool "${action.tool}" failed: ${err.message}`;
+        await logAgentError({
+          source,
+          message: `Tool "${action.tool}" threw during agent task: ${err.message}`,
+          context: { objective: opts.objective, args: action.args },
+        });
+      }
+    }
+
+    steps.push({ thought, action, observation });
+    transcript += `\n\nTHOUGHT: ${thought}\nACTION: ${JSON.stringify(action)}\nOBSERVATION: ${observation}`;
+  }
+
+  // Step ceiling hit without finish — unresolvable state, pause + log.
+  await logAgentError({
+    source,
+    level: 'warning',
+    message: `Agent hit the ${maxSteps}-step ceiling without finishing. Paused for admin review.`,
+    context: { objective: opts.objective, steps },
+  });
+  return {
+    status: 'paused',
+    finalAnswer: `Paused: exceeded ${maxSteps} reasoning steps without completion.`,
+    steps,
+  };
+}
+
 export interface RoleContext {
   role_id: string;
   today: string;
@@ -211,6 +550,7 @@ export interface RoleContext {
   cross_team_flags_today: any[];
   business_data: any;
   manager_briefing_today: string | null;
+  relevant_memories: AgentMemoryRow[];
 }
 
 export async function getRoleContext(roleId: string): Promise<RoleContext> {
@@ -288,6 +628,13 @@ export async function getRoleContext(roleId: string): Promise<RoleContext> {
     businessData = await getStripeSummary();
   }
 
+  // Strict memory-retrieval step: pull this role's most relevant historical
+  // context from the vector store before it does ANY work this shift.
+  const relevantMemories = await recallMemories(
+    `${roleId} shift context ${today}: prior findings, open threads, lead and system state`,
+    { roleId, limit: 8 },
+  );
+
   return {
     role_id: roleId,
     today,
@@ -295,6 +642,7 @@ export async function getRoleContext(roleId: string): Promise<RoleContext> {
     cross_team_flags_today: crossTeamFlags,
     business_data: businessData,
     manager_briefing_today: managerBriefingToday,
+    relevant_memories: relevantMemories,
   };
 }
 
@@ -444,22 +792,55 @@ export async function notifySlack(text: string) {
   });
 }
 
-// Runs one role's full shift: gather context -> reason -> log -> (optionally notify).
+// Runs one role's full shift: retrieve memory -> gather context -> reason ->
+// log -> write memory back -> (optionally notify). Unresolvable failures land
+// in error_logs for the ErrorRecoveryDashboard instead of vanishing.
 export async function runRoleShift(
   roleId: string,
   roleName: string,
   systemPrompt: string,
   opts?: { notify?: boolean },
 ) {
-  const context = await getRoleContext(roleId);
+  let context: RoleContext;
+  try {
+    context = await getRoleContext(roleId);
+  } catch (err: any) {
+    await logAgentError({
+      source: `ai-team/runRoleShift/${roleId}`,
+      level: 'critical',
+      message: `Context gathering failed — shift paused: ${err.message}`,
+    });
+    throw err;
+  }
 
   const briefingLine = context.manager_briefing_today
     ? `DON'S BRIEFING FOR THE TEAM TODAY (top priority -- factor this into your work above everything else): "${context.manager_briefing_today}"\n\n`
     : '';
 
-  const userPrompt = `${briefingLine}Today's context:\n${JSON.stringify(context, null, 2)}\n\nDo your shift's work based on this context. Be honest if data is missing rather than inventing activity. Respond in this exact format:\nSUMMARY: <what you did/found>\nTASKS_COMPLETED: <number>\nFLAGS: <anything urgent, or leave blank>\nESCALATED_TO: <role_id if escalating, or leave blank>`;
+  const memoryBlock = `WHAT YOU REMEMBER FROM PAST SHIFTS (vector-recalled — build on this, don't repeat completed work):\n${formatMemories(context.relevant_memories)}\n\n`;
 
-  const raw = await callLLM(systemPrompt, userPrompt);
+  const userPrompt = `${briefingLine}${memoryBlock}Today's context:\n${JSON.stringify({ ...context, relevant_memories: undefined }, null, 2)}\n\nDo your shift's work based on this context. Be honest if data is missing rather than inventing activity. Respond in this exact format:\nSUMMARY: <what you did/found>\nTASKS_COMPLETED: <number>\nFLAGS: <anything urgent, or leave blank>\nESCALATED_TO: <role_id if escalating, or leave blank>`;
+
+  let raw: string;
+  try {
+    raw = await callLLM(systemPrompt, userPrompt);
+  } catch (err: any) {
+    // All providers down — gracefully pause the shift and file it for review.
+    await logAgentError({
+      source: `ai-team/runRoleShift/${roleId}`,
+      level: 'critical',
+      message: `All LLM providers failed — shift paused: ${err.message}`,
+    });
+    await logShift({
+      role_id: roleId,
+      role_name: roleName,
+      summary:
+        'Shift paused: no LLM provider was reachable. Logged to error recovery for admin review.',
+      tasks_completed: 0,
+      flags: 'LLM_PROVIDERS_DOWN',
+    });
+    throw err;
+  }
 
   const summary =
     raw.match(/SUMMARY:\s*([\s\S]*?)(?:\nTASKS_COMPLETED:|$)/i)?.[1]?.trim() ||
@@ -478,6 +859,14 @@ export async function runRoleShift(
     tasks_completed: tasks,
     flags,
     escalated_to: escalatedTo,
+  });
+
+  // Write-back: embed this shift's outcome so future shifts recall it.
+  await rememberMemory({
+    roleId,
+    subjectType: 'system',
+    content: `${roleName} shift outcome: ${summary}${flags ? ` | Flags: ${flags}` : ''}`,
+    metadata: { tasks_completed: tasks, escalated_to: escalatedTo },
   });
 
   if (opts?.notify) {
