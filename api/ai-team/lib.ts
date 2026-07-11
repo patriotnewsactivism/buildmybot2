@@ -373,6 +373,16 @@ export async function logAgentError(entry: {
     // Last-resort visibility: the console shows up in Vercel function logs.
     console.error(`[error-recovery] ${entry.source}: ${entry.message}`);
   }
+  // Critical failures also ping Discord + Slack so Don sees them without
+  // opening the ErrorRecoveryDashboard.
+  if ((entry.level ?? 'error') === 'critical') {
+    await notifyDiscord(
+      `🚨 **CRITICAL** — \`${entry.source}\`\n${entry.message.slice(0, 500)}`,
+    );
+    await notifySlack(
+      `:rotating_light: *CRITICAL* — \`${entry.source}\`\n${entry.message.slice(0, 500)}`,
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -782,14 +792,44 @@ export async function logShift(entry: {
   });
 }
 
+/** Post to Slack via incoming webhook. Configure via the SLACK_WEBHOOK_URL
+ * env var — never hardcode the URL, it's a live credential. Failures are
+ * swallowed: a dead webhook must never break an agent's actual work. */
 export async function notifySlack(text: string) {
   const webhook = process.env.SLACK_WEBHOOK_URL;
   if (!webhook) return;
-  await fetch(webhook, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text }),
-  });
+  try {
+    await fetch(webhook, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+  } catch (err: any) {
+    console.error('[slack] webhook post failed:', err.message);
+  }
+}
+
+/** Post a summary message to Discord when a notable agent action happens
+ * (shift completions, lead follow-up runs, critical failures, daily exec
+ * summary). Configure via the DISCORD_WEBHOOK_URL env var — never hardcode
+ * the webhook URL, it's a live credential. Failures are swallowed: a dead
+ * webhook must never break an agent's actual work. */
+export async function notifyDiscord(text: string) {
+  const webhook = process.env.DISCORD_WEBHOOK_URL;
+  if (!webhook) return;
+  try {
+    await fetch(webhook, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: 'BuildMyBot AI Team',
+        // Discord hard-caps content at 2000 chars; leave headroom.
+        content: text.slice(0, 1900),
+      }),
+    });
+  } catch (err: any) {
+    console.error('[discord] webhook post failed:', err.message);
+  }
 }
 
 // Runs one role's full shift: retrieve memory -> gather context -> reason ->
@@ -872,6 +912,9 @@ export async function runRoleShift(
   if (opts?.notify) {
     await notifySlack(
       `*${roleName}* shift complete:\n${summary}${flags ? `\n:warning: ${flags}` : ''}`,
+    );
+    await notifyDiscord(
+      `**${roleName}** shift complete:\n${summary}${flags ? `\n⚠️ ${flags}` : ''}`,
     );
   }
 

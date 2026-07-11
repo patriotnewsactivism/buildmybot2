@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import {
   callLLM,
   logShift,
+  notifyDiscord,
   notifyEmail,
   notifySlack,
   researchLeads,
@@ -177,6 +178,9 @@ async function runMarcusSummary(precomputedResults?: Record<string, any>) {
     tasks_completed: totalTasks,
   });
   await notifySlack(`*Daily AI Team Executive Summary*\n${marcusSummary}`);
+  await notifyDiscord(
+    `📊 **Daily AI Team Executive Summary (${today})**\n${marcusSummary}`,
+  );
   await notifyEmail(
     `BuildMyBot AI Team — Daily Summary (${today})`,
     marcusSummary,

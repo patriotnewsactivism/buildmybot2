@@ -2,6 +2,8 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import {
   logAgentError,
   logShift,
+  notifyDiscord,
+  notifySlack,
   rememberMemory,
   runAgentTask,
 } from '../ai-team/lib.js';
@@ -441,13 +443,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const escalated = results.filter((r) => r.action === 'escalated').length;
   const skipped = results.filter((r) => r.action === 'skipped').length;
 
+  const runSummary = `48h follow-up run: ${leads.length} overdue lead(s) reviewed — ${sent} personalized email(s) sent, ${repliedDetected} reply/replies detected, ${skipped} skipped, ${escalated} escalated to human review.${paused ? ` Paused with ${remaining.length} lead(s) remaining (time budget).` : ''}`;
+
   await logShift({
     role_id: ROLE_ID,
     role_name: ROLE_NAME,
-    summary: `48h follow-up run: ${leads.length} overdue lead(s) reviewed — ${sent} personalized email(s) sent, ${repliedDetected} reply/replies detected, ${skipped} skipped, ${escalated} escalated to human review.${paused ? ` Paused with ${remaining.length} lead(s) remaining (time budget).` : ''}`,
+    summary: runSummary,
     tasks_completed: sent + repliedDetected,
     flags: escalated ? `${escalated} lead(s) escalated to human review` : '',
   });
+
+  // Discord summary whenever the run actually did something worth knowing
+  // about (emails out, escalations, or a paused run needing attention).
+  if (sent > 0 || escalated > 0 || paused) {
+    await notifyDiscord(`📬 **${ROLE_NAME} — Lead Follow-Ups**\n${runSummary}`);
+    await notifySlack(`:mailbox: *${ROLE_NAME} — Lead Follow-Ups*\n${runSummary}`);
+  }
 
   return res.status(200).json({
     success: true,

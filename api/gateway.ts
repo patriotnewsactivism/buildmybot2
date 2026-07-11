@@ -580,6 +580,90 @@ async function handleLeads(
   const orgFilter = ownerFilter(user);
 
   if (leadId) {
+    // Unified interaction timeline: human actions (CRM emails via
+    // nurture_steps), AI agent actions (ai_agent_memories written by the
+    // background reasoning loops), and the lead's own milestones (created,
+    // replied). Powers the LeadsCRM timeline drawer.
+    if (pathParts[1] === 'timeline' && req.method === 'GET') {
+      // Tenant-scope the lead lookup first; memories/steps are only fetched
+      // for a lead this user is allowed to see.
+      const leadRows = await sbSelect('leads', '*', {
+        id: `eq.${leadId}`,
+        ...orgFilter,
+      }).catch(() => []);
+      const lead = leadRows[0];
+      if (!lead) return res.status(404).json({ error: 'Not found' });
+
+      const [memories, nurtureSteps] = await Promise.all([
+        sbSelect('ai_agent_memories', 'id,role_id,content,metadata,created_at', {
+          subject_type: 'eq.lead',
+          subject_id: `eq.${leadId}`,
+          order: 'created_at.desc',
+          limit: '50',
+        }).catch(() => []),
+        sbSelect('nurture_steps', 'id,step_type,subject,content,status,created_at', {
+          lead_id: `eq.${leadId}`,
+          order: 'created_at.desc',
+          limit: '50',
+        }).catch(() => []),
+      ]);
+
+      const events: Array<{
+        id: string;
+        actor: 'ai' | 'human' | 'lead';
+        actor_name: string;
+        type: string;
+        summary: string;
+        timestamp: string;
+      }> = [];
+
+      events.push({
+        id: `created-${lead.id}`,
+        actor: 'lead',
+        actor_name: lead.name || lead.email || 'Lead',
+        type: 'created',
+        summary: `Lead captured${lead.source ? ` via ${lead.source}` : ''}.`,
+        timestamp: lead.created_at,
+      });
+      if (lead.replied_at) {
+        events.push({
+          id: `replied-${lead.id}`,
+          actor: 'lead',
+          actor_name: lead.name || lead.email || 'Lead',
+          type: 'replied',
+          summary: 'Lead replied by email.',
+          timestamp: lead.replied_at,
+        });
+      }
+      for (const m of memories) {
+        events.push({
+          id: m.id,
+          actor: 'ai',
+          actor_name: m.role_id,
+          type: (m.metadata?.decision as string) || 'ai_action',
+          summary: m.content,
+          timestamp: m.created_at,
+        });
+      }
+      for (const s of nurtureSteps) {
+        events.push({
+          id: s.id,
+          actor: 'human',
+          actor_name: 'Team',
+          type: s.step_type || 'email',
+          summary: s.subject
+            ? `Email sent: "${s.subject}"`
+            : `${s.step_type || 'step'} (${s.status})`,
+          timestamp: s.created_at,
+        });
+      }
+
+      events.sort(
+        (a, b) =>
+          new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+      );
+      return res.json({ lead_id: leadId, events });
+    }
     if (pathParts[1] === 'email' && req.method === 'POST') {
       const body = parseBody(req);
       await sbInsert('nurture_steps', {

@@ -1,10 +1,12 @@
 import {
   ArrowUpRight,
+  Bot,
   Check,
   Download,
   Filter,
   Flame,
   GripVertical,
+  History,
   LayoutGrid,
   List,
   Mail,
@@ -17,6 +19,7 @@ import {
 } from 'lucide-react';
 import type React from 'react';
 import { useState } from 'react';
+import { useLiveLeads } from '../../hooks/useLiveLeads';
 import { buildApiUrl } from '../../services/apiConfig';
 import type { Lead } from '../../types';
 
@@ -25,7 +28,26 @@ interface LeadsCRMProps {
   onUpdateLead: (lead: Lead) => void;
 }
 
-export const LeadsCRM: React.FC<LeadsCRMProps> = ({ leads, onUpdateLead }) => {
+// One entry in a lead's unified interaction timeline — served by
+// GET /api/leads/:id/timeline, which merges human CRM actions, background
+// AI agent actions (ai_agent_memories), and the lead's own milestones.
+interface TimelineEvent {
+  id: string;
+  actor: 'ai' | 'human' | 'lead';
+  actor_name: string;
+  type: string;
+  summary: string;
+  timestamp: string;
+}
+
+export const LeadsCRM: React.FC<LeadsCRMProps> = ({
+  leads: initialLeads,
+  onUpdateLead,
+}) => {
+  // Live sync: background AI agents (cron shifts, lead follow-ups) modify
+  // leads server-side; useLiveLeads keeps this view current automatically.
+  const { leads, refresh, hold, lastSyncedAt } = useLiveLeads(initialLeads);
+
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
   const [filter, setFilter] = useState('All');
   const [searchTerm, setSearchTerm] = useState('');
@@ -39,6 +61,34 @@ export const LeadsCRM: React.FC<LeadsCRMProps> = ({ leads, onUpdateLead }) => {
   const [emailSubject, setEmailSubject] = useState('');
   const [emailBody, setEmailBody] = useState('');
   const [emailSent, setEmailSent] = useState(false);
+
+  // Timeline Drawer State
+  const [timelineLead, setTimelineLead] = useState<Lead | null>(null);
+  const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
+  const [timelineLoading, setTimelineLoading] = useState(false);
+  const [timelineError, setTimelineError] = useState<string | null>(null);
+
+  const openTimeline = async (lead: Lead) => {
+    setTimelineLead(lead);
+    setTimelineEvents([]);
+    setTimelineError(null);
+    setTimelineLoading(true);
+    try {
+      const res = await fetch(buildApiUrl(`/leads/${lead.id}/timeline`), {
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error(`Timeline fetch failed (${res.status})`);
+      const data: { events: TimelineEvent[] } = await res.json();
+      setTimelineEvents(data.events || []);
+    } catch (err) {
+      console.error('Timeline load error:', err);
+      setTimelineError(
+        err instanceof Error ? err.message : 'Failed to load timeline',
+      );
+    } finally {
+      setTimelineLoading(false);
+    }
+  };
 
   const filteredLeads = leads.filter((lead) => {
     // Only apply status filter in List mode. In Kanban, we show all columns.
@@ -72,9 +122,11 @@ export const LeadsCRM: React.FC<LeadsCRMProps> = ({ leads, onUpdateLead }) => {
     }
   };
 
-  // Drag and Drop Handlers
+  // Drag and Drop Handlers — hold() pauses live sync mid-drag so a background
+  // refresh can never yank a card out from under the cursor.
   const handleDragStart = (e: React.DragEvent, leadId: string) => {
     setDraggedLeadId(leadId);
+    hold(true);
     e.dataTransfer.effectAllowed = 'move';
   };
 
@@ -89,6 +141,7 @@ export const LeadsCRM: React.FC<LeadsCRMProps> = ({ leads, onUpdateLead }) => {
       handleStatusChange(draggedLeadId, newStatus);
       setDraggedLeadId(null);
     }
+    hold(false);
   };
 
   const openEmailModal = (lead: Lead) => {
@@ -99,6 +152,12 @@ export const LeadsCRM: React.FC<LeadsCRMProps> = ({ leads, onUpdateLead }) => {
     );
     setEmailModalOpen(true);
     setEmailSent(false);
+    hold(true); // pause live sync while composing
+  };
+
+  const closeEmailModal = () => {
+    setEmailModalOpen(false);
+    hold(false);
   };
 
   const handleSendEmail = async () => {
@@ -116,8 +175,9 @@ export const LeadsCRM: React.FC<LeadsCRMProps> = ({ leads, onUpdateLead }) => {
         throw new Error(data.error || 'Send failed');
       }
       setTimeout(() => {
-        setEmailModalOpen(false);
+        closeEmailModal();
         handleStatusChange(selectedLead.id, 'Contacted');
+        void refresh(); // pull the nurture step into the timeline immediately
       }, 1200);
     } catch (err) {
       console.error('Email send error:', err);
@@ -212,13 +272,23 @@ export const LeadsCRM: React.FC<LeadsCRMProps> = ({ leads, onUpdateLead }) => {
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => openEmailModal(lead)}
-              className="w-full py-1.5 rounded bg-slate-50 text-blue-900 text-xs font-medium hover:bg-blue-50 border border-slate-100 flex items-center justify-center gap-1.5 transition"
-            >
-              <ArrowUpRight size={12} /> Email Lead
-            </button>
+            <div className="flex gap-1.5">
+              <button
+                type="button"
+                onClick={() => openEmailModal(lead)}
+                className="flex-1 py-1.5 rounded bg-slate-50 text-blue-900 text-xs font-medium hover:bg-blue-50 border border-slate-100 flex items-center justify-center gap-1.5 transition"
+              >
+                <ArrowUpRight size={12} /> Email Lead
+              </button>
+              <button
+                type="button"
+                onClick={() => openTimeline(lead)}
+                className="py-1.5 px-2 rounded bg-slate-50 text-violet-700 text-xs font-medium hover:bg-violet-50 border border-slate-100 flex items-center justify-center transition"
+                title="Interaction Timeline"
+              >
+                <History size={12} />
+              </button>
+            </div>
           </div>
         ))}
         {items.length === 0 && (
@@ -242,7 +312,7 @@ export const LeadsCRM: React.FC<LeadsCRMProps> = ({ leads, onUpdateLead }) => {
               </h3>
               <button
                 type="button"
-                onClick={() => setEmailModalOpen(false)}
+                onClick={closeEmailModal}
                 className="text-slate-400 hover:text-slate-600 p-2 -mr-2 min-h-[44px] min-w-[44px] flex items-center justify-center"
               >
                 <X size={22} />
@@ -313,13 +383,108 @@ export const LeadsCRM: React.FC<LeadsCRMProps> = ({ leads, onUpdateLead }) => {
         </div>
       )}
 
+      {/* Interaction Timeline Drawer — unified human + AI activity feed */}
+      {timelineLead && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/50 backdrop-blur-sm p-0 sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-fade-in">
+            <div className="bg-slate-50 border-b border-slate-100 p-4 flex justify-between items-center sticky top-0 z-10">
+              <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                <History size={18} /> Timeline — {timelineLead.name}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setTimelineLead(null)}
+                className="text-slate-400 hover:text-slate-600 p-2 -mr-2 min-h-[44px] min-w-[44px] flex items-center justify-center"
+              >
+                <X size={22} />
+              </button>
+            </div>
+            <div className="p-4 md:p-6">
+              {timelineLoading && (
+                <div className="py-10 text-center text-slate-400 text-sm">
+                  Loading interaction history…
+                </div>
+              )}
+              {timelineError && (
+                <div className="py-10 text-center text-red-500 text-sm">
+                  {timelineError}
+                </div>
+              )}
+              {!timelineLoading && !timelineError && (
+                <ol className="relative border-l border-slate-200 ml-3 space-y-6">
+                  {timelineEvents.map((event) => (
+                    <li key={event.id} className="ml-5">
+                      <span
+                        className={`absolute -left-[13px] flex h-6 w-6 items-center justify-center rounded-full ring-4 ring-white ${
+                          event.actor === 'ai'
+                            ? 'bg-violet-100 text-violet-700'
+                            : event.actor === 'human'
+                              ? 'bg-blue-100 text-blue-800'
+                              : 'bg-emerald-100 text-emerald-700'
+                        }`}
+                      >
+                        {event.actor === 'ai' ? (
+                          <Bot size={13} />
+                        ) : event.actor === 'human' ? (
+                          <UserIcon size={13} />
+                        ) : (
+                          <Flame size={13} />
+                        )}
+                      </span>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-bold text-slate-700">
+                          {event.actor === 'ai'
+                            ? `AI · ${event.actor_name}`
+                            : event.actor_name}
+                        </span>
+                        <span
+                          className={`text-[10px] font-semibold px-1.5 py-0.5 rounded uppercase tracking-wide ${
+                            event.actor === 'ai'
+                              ? 'bg-violet-50 text-violet-600'
+                              : event.actor === 'human'
+                                ? 'bg-blue-50 text-blue-700'
+                                : 'bg-emerald-50 text-emerald-600'
+                          }`}
+                        >
+                          {event.type.replace(/_/g, ' ')}
+                        </span>
+                        <span className="text-[11px] text-slate-400">
+                          {new Date(event.timestamp).toLocaleString()}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-sm text-slate-600 whitespace-pre-wrap">
+                        {event.summary}
+                      </p>
+                    </li>
+                  ))}
+                  {timelineEvents.length === 0 && (
+                    <li className="ml-5 text-sm text-slate-400 py-6">
+                      No interactions recorded for this lead yet.
+                    </li>
+                  )}
+                </ol>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
         <div>
           <h2 className="text-xl md:text-2xl font-bold text-slate-800">
             Lead CRM
           </h2>
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-slate-500 flex items-center gap-2">
             Manage pipeline and track leads.
+            <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 font-medium">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+              </span>
+              Live
+              {lastSyncedAt &&
+                ` · synced ${lastSyncedAt.toLocaleTimeString()}`}
+            </span>
           </p>
         </div>
         <div className="flex gap-2 w-full sm:w-auto">
@@ -490,6 +655,13 @@ export const LeadsCRM: React.FC<LeadsCRMProps> = ({ leads, onUpdateLead }) => {
                   >
                     <Mail size={14} /> Email
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => openTimeline(lead)}
+                    className="px-3 py-2 bg-violet-50 text-violet-700 hover:bg-violet-100 rounded-lg transition text-xs font-medium flex items-center gap-1 w-full sm:w-auto justify-center"
+                  >
+                    <History size={14} /> Timeline
+                  </button>
                 </div>
               </div>
             ))}
@@ -587,14 +759,24 @@ export const LeadsCRM: React.FC<LeadsCRMProps> = ({ leads, onUpdateLead }) => {
                       Bot #{lead.sourceBotId}
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <button
-                        type="button"
-                        onClick={() => openEmailModal(lead)}
-                        className="px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg transition text-xs font-medium flex items-center gap-1 ml-auto"
-                        title="Send Email"
-                      >
-                        <Mail size={14} /> Email
-                      </button>
+                      <div className="flex items-center gap-2 justify-end">
+                        <button
+                          type="button"
+                          onClick={() => openTimeline(lead)}
+                          className="px-3 py-1.5 bg-violet-50 text-violet-700 hover:bg-violet-100 rounded-lg transition text-xs font-medium flex items-center gap-1"
+                          title="Interaction Timeline (human + AI)"
+                        >
+                          <History size={14} /> Timeline
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openEmailModal(lead)}
+                          className="px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg transition text-xs font-medium flex items-center gap-1"
+                          title="Send Email"
+                        >
+                          <Mail size={14} /> Email
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
