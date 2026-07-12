@@ -1,0 +1,31 @@
+name: AI Team — Pulse (around-the-clock persistence)
+
+# Runs /api/cron/pulse every 10 minutes. The pulse is deliberately cheap:
+# an idle run is a handful of Supabase reads and ZERO LLM calls. It only
+# spends tokens when there's real work:
+#   - overdue leads (48h+ no follow-up) -> dispatches lead-followups NOW
+#     instead of waiting for its 3-hour slot
+#   - unread internal agent mail -> the recipient role answers it (tight,
+#     budgeted LLM call; "Re:" threads are never auto-answered, capping
+#     every thread at one round trip)
+#   - open CRITICAL errors older than 2h -> one Discord+Slack reminder each
+#
+# Scheduled here (not only vercel.json crons) because GitHub Actions runs
+# regardless of Vercel plan tier, same pattern as ai-team-schedule.yml.
+# GitHub cron timing is best-effort (runs can be a few minutes late under
+# load) — fine for a persistence heartbeat.
+
+on:
+  workflow_dispatch: {} # manual "Run workflow" from the Actions tab
+  schedule:
+    - cron: '*/10 * * * *'
+
+jobs:
+  pulse:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run pulse
+        run: |
+          curl -sf -X POST "https://www.buildmybot.app/api/cron/pulse" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -w "\nHTTP %{http_code}\n" || echo "::warning::pulse call failed (non-fatal, next pulse in 10 minutes)"
