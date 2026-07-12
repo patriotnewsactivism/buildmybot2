@@ -296,7 +296,7 @@ async function reasonAndFollowUp(
   return outcome;
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export async function leadFollowupsHandler(req: VercelRequest, res: VercelResponse) {
   if (req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) {
     return res.status(401).json({ error: 'unauthorized' });
   }

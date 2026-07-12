@@ -247,7 +247,7 @@ async function runMarcusSummary(precomputedResults?: Record<string, any>) {
   return marcusSummary;
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export async function allShiftsHandler(req: VercelRequest, res: VercelResponse) {
   if (req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`)
     return res.status(401).end();
 
