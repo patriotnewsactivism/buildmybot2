@@ -178,7 +178,7 @@ async function callWithConfigMessages(
   return data.choices?.[0]?.message?.content ?? '';
 }
 
-async function supabaseFetch(
+export async function supabaseFetch(
   table: string,
   params: string,
   init?: RequestInit,
@@ -561,6 +561,7 @@ export interface RoleContext {
   business_data: any;
   manager_briefing_today: string | null;
   relevant_memories: AgentMemoryRow[];
+  unread_messages: any[];
 }
 
 export async function getRoleContext(roleId: string): Promise<RoleContext> {
@@ -583,6 +584,15 @@ export async function getRoleContext(roleId: string): Promise<RoleContext> {
       `briefing_date=eq.${today}&order=created_at.desc&limit=1`,
     )) || [];
   const managerBriefingToday = briefingRows[0]?.content || null;
+
+  // Internal inbox: unread messages other agents sent this role. The role
+  // reads them as part of its shift context and they're marked read after
+  // the shift completes (markMessagesRead in runRoleShift).
+  const unreadMessages =
+    (await supabaseFetch(
+      'agent_messages',
+      `to_employee=eq.${roleId}&status=eq.sent&order=created_at.asc&limit=10&select=id,from_employee,subject,body,created_at`,
+    )) || [];
 
   const crossTeamFlags = todayLogs
     .filter((l: any) => l.role_id !== roleId && l.flags)
@@ -653,7 +663,56 @@ export async function getRoleContext(roleId: string): Promise<RoleContext> {
     business_data: businessData,
     manager_briefing_today: managerBriefingToday,
     relevant_memories: relevantMemories,
+    unread_messages: unreadMessages,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Internal agent-to-agent email. agent_messages is the team's mail system:
+// every escalation, question, or handoff between AI employees is a row here.
+// Recipients read their unread inbox as part of shift context (getRoleContext)
+// and the 10-minute pulse worker (api/cron/pulse.ts) answers urgent mail
+// between shifts. Messages flagged requires_president ALSO go to Don's real
+// inbox via notifyEmail so nothing needing a human decision sits unseen.
+// ---------------------------------------------------------------------------
+
+export async function messageAgent(opts: {
+  fromRoleId: string;
+  fromRoleName?: string;
+  toRoleId: string;
+  subject: string;
+  body: string;
+  threadId?: string;
+  requiresPresident?: boolean;
+}) {
+  const rows = await supabaseFetch('agent_messages', '', {
+    method: 'POST',
+    body: JSON.stringify({
+      from_employee: opts.fromRoleId,
+      to_employee: opts.toRoleId,
+      subject: opts.subject.slice(0, 200),
+      body: opts.body.slice(0, 4000),
+      thread_id: opts.threadId ?? null,
+      requires_president: opts.requiresPresident ?? false,
+      status: 'sent',
+    }),
+  });
+  if (opts.requiresPresident) {
+    await notifyEmail(
+      `[AI Team escalation] ${opts.subject}`,
+      `From: ${opts.fromRoleName || opts.fromRoleId}\nTo: ${opts.toRoleId}\n\n${opts.body}`,
+    );
+  }
+  return rows?.[0] ?? null;
+}
+
+/** Mark a role's unread inbox as read — called after the shift that consumed it. */
+export async function markMessagesRead(roleId: string) {
+  await supabaseFetch(
+    'agent_messages',
+    `to_employee=eq.${roleId}&status=eq.sent`,
+    { method: 'PATCH', body: JSON.stringify({ status: 'read' }) },
+  );
 }
 
 // Called whenever Don gives a briefing/direction for the day (voice, WhatsApp,
@@ -908,6 +967,24 @@ export async function runRoleShift(
     content: `${roleName} shift outcome: ${summary}${flags ? ` | Flags: ${flags}` : ''}`,
     metadata: { tasks_completed: tasks, escalated_to: escalatedTo },
   });
+
+  // Inbox hygiene: this shift's context included the unread mail — mark it
+  // read so the pulse worker doesn't re-answer it.
+  await markMessagesRead(roleId);
+
+  // Escalation = internal email to the target (manager/peer). President-bound
+  // escalations also land in Don's real inbox via messageAgent.
+  if (escalatedTo) {
+    const toPresident = /don|president/i.test(escalatedTo);
+    await messageAgent({
+      fromRoleId: roleId,
+      fromRoleName: roleName,
+      toRoleId: toPresident ? 'president' : escalatedTo,
+      subject: `Escalation from ${roleName} (${new Date().toISOString().slice(0, 10)})`,
+      body: `${summary}${flags ? `\n\nFlags: ${flags}` : ''}`,
+      requiresPresident: toPresident,
+    });
+  }
 
   if (opts?.notify) {
     await notifySlack(

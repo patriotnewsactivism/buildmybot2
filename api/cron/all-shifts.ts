@@ -163,12 +163,48 @@ async function runMarcusSummary(precomputedResults?: Record<string, any>) {
     ? `\n\nDon's briefing to the team today: "${briefingToday}"`
     : '';
 
+  // ── Hard numbers for the conference call — pulled from real tables, never
+  // from the LLM. Marcus narrates them; he doesn't get to make them up.
+  const sbCount = async (table: string, filter: string): Promise<number> => {
+    const resp = await fetch(
+      `${SUPABASE_URL2}/rest/v1/${table}?select=id&${filter}&limit=1000`,
+      {
+        headers: {
+          apikey: SUPABASE_SERVICE_ROLE_KEY2,
+          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY2}`,
+        },
+      },
+    );
+    const rows = resp.ok ? await resp.json() : [];
+    return Array.isArray(rows) ? rows.length : 0;
+  };
+  const dayStart = `${today}T00:00:00Z`;
+  const [leadsNew, followUpsSent, repliesIn, openErrors, mailUnread] =
+    await Promise.all([
+      sbCount('leads', `created_at=gte.${dayStart}`),
+      sbCount('leads', `follow_up_sent_at=gte.${dayStart}`),
+      sbCount('leads', `replied_at=gte.${dayStart}`),
+      sbCount('error_logs', 'status=eq.open'),
+      sbCount('agent_messages', 'status=eq.sent'),
+    ]);
+  const numbers = {
+    date: today,
+    roles_reported: roleCount,
+    roles_total: ROLES.length,
+    tasks_completed_total: totalTasks,
+    leads_created_today: leadsNew,
+    follow_ups_sent_today: followUpsSent,
+    lead_replies_today: repliesIn,
+    open_errors: openErrors,
+    unread_internal_mail: mailUnread,
+  };
+
   const marcusSummary =
     roleCount === 0
-      ? `No shifts logged yet today (${today}) — nothing to report.${briefingContext}`
+      ? `No shifts logged yet today (${today}) — nothing to report.${briefingContext}\n\nNumbers: ${JSON.stringify(numbers)}`
       : await callLLM(
-          `You are Marcus Stone, the Manager overseeing BuildMyBot's AI employee team.`,
-          `Today's shift results from every role that has reported in so far (${roleCount} of ${ROLES.length} roles):\n\n${JSON.stringify(results, null, 2)}${briefingContext}\n\nWrite ONE clear, prioritized executive summary for Don (the President): what happened, what needs a decision, what's urgent, and if he gave the team a briefing today, confirm how it's being acted on. Keep it tight and scannable. If a role hasn't reported, don't invent their activity.`,
+          `You are Marcus Stone, Manager of BuildMyBot's AI employee team, chairing the DAILY COMPANY CONFERENCE CALL. Don (the President) reads these minutes every day to run the business.`,
+          `Today's shift reports (${roleCount} of ${ROLES.length} roles):\n\n${JSON.stringify(results, null, 2)}\n\nHARD NUMBERS (from the database — use these verbatim, never invent or adjust them):\n${JSON.stringify(numbers, null, 2)}${briefingContext}\n\nProduce the conference call minutes in exactly this structure:\nATTENDANCE: which roles reported, which are missing\nNUMBERS: today's metrics with one-line commentary on each trend\nWINS: what actually got done (only from reports above)\nRISKS & BLOCKERS: what's stuck, errors open, escalations pending\nDECISIONS NEEDED FROM DON: numbered, each with a recommendation\nTOMORROW'S PLAN: one concrete priority per department\n\nIf a role hasn't reported, list it as absent — never invent its activity.`,
         );
 
   await logShift({
@@ -176,13 +212,36 @@ async function runMarcusSummary(precomputedResults?: Record<string, any>) {
     role_name: 'Marcus Stone',
     summary: marcusSummary,
     tasks_completed: totalTasks,
+    flags: openErrors > 0 ? `${openErrors} open error(s)` : '',
   });
-  await notifySlack(`*Daily AI Team Executive Summary*\n${marcusSummary}`);
+
+  // Tomorrow's plan becomes tomorrow's standing briefing so the whole team
+  // wakes up already steered. If Don posts his own briefing in the morning
+  // it's newer and wins (getRoleContext takes latest by created_at).
+  const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+  const planMatch = marcusSummary.match(/TOMORROW'S PLAN:([\s\S]*)$/i);
+  if (planMatch?.[1]?.trim()) {
+    await fetch(`${SUPABASE_URL2}/rest/v1/manager_briefings`, {
+      method: 'POST',
+      headers: {
+        apikey: SUPABASE_SERVICE_ROLE_KEY2,
+        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY2}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        briefing_date: tomorrow,
+        content: `Plan agreed on yesterday's conference call (Don's own briefing overrides this if given):\n${planMatch[1].trim().slice(0, 3000)}`,
+        delivered_via: 'daily-conference',
+      }),
+    });
+  }
+
+  await notifySlack(`*📞 Daily Conference Call — ${today}*\n${marcusSummary}`);
   await notifyDiscord(
-    `📊 **Daily AI Team Executive Summary (${today})**\n${marcusSummary}`,
+    `📞 **Daily Conference Call (${today})**\n${marcusSummary}`,
   );
   await notifyEmail(
-    `BuildMyBot AI Team — Daily Summary (${today})`,
+    `BuildMyBot Daily Conference Call — ${today}`,
     marcusSummary,
   );
   return marcusSummary;
