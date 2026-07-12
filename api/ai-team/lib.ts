@@ -201,7 +201,19 @@ export async function supabaseFetch(
     );
     return null;
   }
-  return res.json();
+  // PostgREST returns 204 No Content with an EMPTY body for successful
+  // writes (PATCH/DELETE/PUT) unless Prefer: return=representation was
+  // sent -- res.ok is true for 204, so calling res.json() on the empty
+  // body throws "Unexpected end of JSON input". Guard against that (and
+  // any other genuinely empty-but-ok response) before parsing.
+  const text = await res.text();
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    console.error(`Supabase ${table} fetch: non-JSON body`, text.slice(0, 200));
+    return null;
+  }
 }
 
 // ---------------------------------------------------------------------------
