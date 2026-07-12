@@ -489,6 +489,31 @@ async function handleBotById(
   }
 }
 
+async function handlePublicBotById(
+  req: VercelRequest,
+  res: VercelResponse,
+  botId: string,
+) {
+  if (req.method !== 'GET')
+    return res.status(405).json({ error: 'Method not allowed' });
+  const bots = await sbSelect('bots', '*', {
+    id: `eq.${botId}`,
+    is_public: 'eq.true',
+  });
+  if (!bots.length || bots[0].active === false)
+    return res.status(404).json({ error: 'Bot not found' });
+  const b = bots[0];
+  res.json({
+    id: b.id,
+    name: b.name,
+    themeColor: b.theme_color,
+    avatar: b.avatar,
+    active: b.active,
+    leadCapture: b.lead_capture,
+    responseDelay: b.response_delay,
+  });
+}
+
 async function handleAnalytics(
   _req: VercelRequest,
   res: VercelResponse,
@@ -4562,6 +4587,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // require a session. Scoped safely: handleChat only ever reads/writes
     // the ONE bot id in the URL/body, never the caller's own tenant data.
     if (routeName === 'chat') return await handleChat(req, res, pathParts);
+
+    // Public bot lookup for the shareable /chat/:botId page -- anonymous
+    // visitors following a shared link are NOT logged in. Was previously
+    // missing entirely (fell through to the auth-required switch below
+    // and 401'd every anonymous visitor), which silently broke every
+    // shared bot link. Only ever returns a bot that its owner explicitly
+    // marked is_public, and only the fields the public chat UI needs --
+    // never system_prompt/model/knowledge_base/user_id/organization_id.
+    if (routeName === 'public' && pathParts[0] === 'bots' && pathParts[1])
+      return await handlePublicBotById(req, res, pathParts[1]);
 
     // Auth extras (don't conflict with /api/auth/* serverless functions)
     if (
