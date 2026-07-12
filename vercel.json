@@ -19,11 +19,7 @@
   ],
   "rewrites": [
     {
-      "source": "/api/cron/:path*",
-      "destination": "/api/cron/:path*"
-    },
-    {
-      "source": "/api/:path*",
+      "source": "/api/((?!cron/).*)",
       "destination": "/api/gateway"
     },
     {
