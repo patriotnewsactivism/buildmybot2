@@ -449,7 +449,7 @@ export const LeadsCRM: React.FC<LeadsCRMProps> = ({
                           {event.type.replace(/_/g, ' ')}
                         </span>
                         <span className="text-[11px] text-slate-400">
-                          {new Date(event.timestamp).toLocaleString()}
+                          {new Date(event.timestamp).toLocaleString('en-US', { timeZone: 'America/Chicago' })}
                         </span>
                       </div>
                       <p className="mt-1 text-sm text-slate-600 whitespace-pre-wrap">
@@ -482,7 +482,7 @@ export const LeadsCRM: React.FC<LeadsCRMProps> = ({
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
               </span>
               Live
-              {lastSyncedAt && ` · synced ${lastSyncedAt.toLocaleTimeString()}`}
+              {lastSyncedAt && ` · synced ${lastSyncedAt.toLocaleTimeString('en-US', { timeZone: 'America/Chicago' })}`}
             </span>
           </p>
         </div>
@@ -596,7 +596,7 @@ export const LeadsCRM: React.FC<LeadsCRMProps> = ({
                         {lead.name}
                       </p>
                       <p className="text-xs text-slate-400">
-                        {new Date(lead.createdAt).toLocaleDateString()}
+                        {new Date(lead.createdAt).toLocaleDateString('en-US', { timeZone: 'America/Chicago' })}
                       </p>
                     </div>
                   </div>
@@ -703,7 +703,7 @@ export const LeadsCRM: React.FC<LeadsCRMProps> = ({
                             {lead.name}
                           </p>
                           <p className="text-xs text-slate-400">
-                            {new Date(lead.createdAt).toLocaleDateString()}
+                            {new Date(lead.createdAt).toLocaleDateString('en-US', { timeZone: 'America/Chicago' })}
                           </p>
                         </div>
                       </div>
@@ -798,3 +798,4 @@ export const LeadsCRM: React.FC<LeadsCRMProps> = ({
     </div>
   );
 };
+
