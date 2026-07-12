@@ -1,3 +1,7 @@
+> **⚠️ 2026-07-12 correction:** This file describes a `server/` Express app (routes, migrations, seeds, services). That directory **does not exist anywhere in this repo's git history** — confirmed via `git log --diff-filter=D -- server/` (empty) and a live GitHub API check. The actual, deployed architecture is **100% Vercel serverless functions** under `api/*.ts` (see `api/gateway.ts`, `api/cron/`, `api/ai-team/`, `api/rag.ts`). `package.json`'s `start`/`server` scripts still reference the phantom `server/index.ts` and will fail if run — this is exactly why a Railway deployment attempt (`buildmybot2-api` service) has been failing. Treat every `server/` reference below as historical/aspirational, not current. For the real structure, see `DEPLOYMENT.md` and `ARCHITECTURE_REVIEW.md`.
+>
+
+
 # Repository Guidelines
 
 ## Project Structure & Module Organization
