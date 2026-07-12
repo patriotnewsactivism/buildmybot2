@@ -774,13 +774,16 @@ async function getEngineeringHealth() {
     result.vercel_deployments = null; // no token configured
   }
 
-  // 2. Recent audit log entries flagged as errors or warnings
+  // 2. Recent audit log entries. NOTE: the live audit_logs table has no
+  // `level` column (user_id/action/resource_type/metadata only) — filtering
+  // on it 400'd on every engineering shift. Open problems come from
+  // error_logs (below); audit_logs contributes recent admin/user actions.
   try {
-    const errorLogs = await supabaseFetch(
+    const auditRows = await supabaseFetch(
       'audit_logs',
-      'order=created_at.desc&limit=10&or=(level.eq.error,level.eq.warning)',
+      'order=created_at.desc&limit=10&select=action,resource_type,user_email,created_at',
     );
-    result.recent_errors = errorLogs || [];
+    result.recent_errors = auditRows || [];
   } catch {
     result.recent_errors = [];
   }
@@ -1446,105 +1449,4 @@ DRAFT_CONTENT: <the actual post/reply text>
 SUMMARY: <one line: what you drafted/posted/replied to>
 FLAGS: <anything urgent, or blank>`;
 
-  const raw = await callLLM(systemPrompt, userPrompt);
-
-  const draftBlocks = raw.split('---')[0];
-  const summary =
-    raw.match(/SUMMARY:\s*([\s\S]*?)(?:\nFLAGS:|$)/i)?.[1]?.trim() ||
-    'No summary produced.';
-  const flags = raw.match(/FLAGS:\s*(.*)/i)?.[1]?.trim() || '';
-
-  const drafts: SocialDraft[] = [];
-  const blocks = draftBlocks.split(/DRAFT_PLATFORM:/i).slice(1);
-  for (const block of blocks) {
-    const platform = block
-      .match(/^\s*(twitter|linkedin)/i)?.[1]
-      ?.toLowerCase() as 'twitter' | 'linkedin' | undefined;
-    const postType = block
-      .match(/DRAFT_TYPE:\s*(post|reply)/i)?.[1]
-      ?.toLowerCase() as 'post' | 'reply' | undefined;
-    const rawReplyToId = block
-      .match(/DRAFT_REPLY_TO_ID:[ \t]*([^\n]*)/i)?.[1]
-      ?.trim();
-    // Guard against the regex bleeding into the next field's label when the
-    // model leaves this blank (seen live: captured "DRAFT_CONTENT:" itself).
-    const replyToId =
-      rawReplyToId && !/^DRAFT_/i.test(rawReplyToId) ? rawReplyToId : undefined;
-    const draftContent = block
-      .match(/DRAFT_CONTENT:\s*([\s\S]*)/i)?.[1]
-      ?.trim();
-    if (platform && draftContent) {
-      drafts.push({
-        platform,
-        content: draftContent,
-        post_type: postType || 'post',
-        in_reply_to_id: replyToId || undefined,
-      });
-    }
-  }
-
-  let publishedCount = 0;
-  const results: any[] = [];
-  for (const draft of drafts) {
-    const configured = draft.platform === 'twitter' ? twitterOn : linkedinOn;
-    if (!configured) {
-      await supabaseFetch('social_posts', '', {
-        method: 'POST',
-        body: JSON.stringify({
-          platform: draft.platform,
-          content: draft.content,
-          post_type: draft.post_type,
-          in_reply_to_id: draft.in_reply_to_id || null,
-          status: 'draft_awaiting_credentials',
-        }),
-      });
-      results.push({ ...draft, status: 'draft_awaiting_credentials' });
-      continue;
-    }
-    const publishResult =
-      draft.platform === 'twitter'
-        ? await publishToTwitter(draft.content, draft.in_reply_to_id)
-        : await publishToLinkedIn(draft.content);
-    await supabaseFetch('social_posts', '', {
-      method: 'POST',
-      body: JSON.stringify({
-        platform: draft.platform,
-        content: draft.content,
-        post_type: draft.post_type,
-        in_reply_to_id: draft.in_reply_to_id || null,
-        status: publishResult.ok ? 'published' : 'failed',
-        external_post_id: publishResult.id || null,
-        error: publishResult.error || null,
-      }),
-    });
-    if (publishResult.ok) publishedCount++;
-    results.push({
-      ...draft,
-      status: publishResult.ok ? 'published' : 'failed',
-      error: publishResult.error,
-    });
-  }
-
-  const credentialNote =
-    !twitterOn && !linkedinOn
-      ? ' No platform is connected yet — all content saved as drafts only, nothing was actually posted.'
-      : '';
-
-  await logShift({
-    role_id: roleId,
-    role_name: roleName,
-    summary: summary + credentialNote,
-    tasks_completed: publishedCount,
-    flags,
-  });
-
-  return {
-    summary,
-    drafted: drafts.length,
-    published: publishedCount,
-    twitterOn,
-    linkedinOn,
-    results,
-  };
-}
-// EOF
+  const raw = aw
