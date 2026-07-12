@@ -112,8 +112,8 @@
   ],
   "crons": [
     {
-      "path": "/api/ai-employees/shift",
+      "path": "/api/cron/all-shifts",
       "schedule": "0 13 * * *"
-    }
-  ]
-}
+    },
+    {
+   

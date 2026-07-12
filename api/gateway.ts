@@ -715,6 +715,57 @@ async function handleLeadCapture(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST')
     return res.status(405).json({ error: 'Method not allowed' });
   const body = parseBody(req);
+
+  // Portfolio intake: trusted sibling sites (donmatthews.live waitlist/notify)
+  // push leads straight into the CRM so the AI lead-followup worker nurtures
+  // them automatically. Authenticated by a shared secret header, attributed
+  // to the portfolio owner's account — no botId involved.
+  if (!body.botId && body.portfolio) {
+    const secret = process.env.PORTFOLIO_INTAKE_SECRET;
+    const provided = req.headers['x-portfolio-secret'];
+    if (!secret || provided !== secret) {
+      return res.status(401).json({ error: 'Invalid portfolio intake secret' });
+    }
+    if (!body.email || typeof body.email !== 'string' || !body.email.includes('@')) {
+      return res.status(400).json({ error: 'Valid email is required' });
+    }
+    const ownerEmail =
+      process.env.PORTFOLIO_OWNER_EMAIL || 'president@buildmybot.app';
+    const owners = await sbSelect('users', 'id', {
+      email: `eq.${ownerEmail}`,
+    }).catch(() => []);
+    if (!owners[0]?.id) {
+      console.error(
+        `[handleLeadCapture] portfolio owner ${ownerEmail} not found — lead dropped`,
+      );
+      return res.status(500).json({ error: 'Portfolio owner account not found' });
+    }
+    // Dedupe: same email from the same portfolio source is one lead.
+    const existing = await sbSelect('leads', 'id', {
+      email: `eq.${body.email}`,
+      user_id: `eq.${owners[0].id}`,
+    }).catch(() => []);
+    if (existing[0]?.id) {
+      return res.status(200).json({ success: true, leadId: existing[0].id, deduped: true });
+    }
+    try {
+      const r = await sbInsert('leads', {
+        id: crypto.randomUUID(),
+        user_id: owners[0].id,
+        name: body.name || '',
+        email: body.email,
+        phone: body.phone || null,
+        source: body.source || 'donmatthews.live',
+        status: 'New',
+        score: 50,
+      });
+      return res.status(201).json({ success: true, leadId: r[0]?.id });
+    } catch (err) {
+      console.error('[handleLeadCapture] portfolio insert failed:', err);
+      return res.status(500).json({ error: 'Failed to save lead' });
+    }
+  }
+
   if (!body.botId) {
     return res.status(400).json({ error: 'botId is required to attribute a lead to its owner' });
   }

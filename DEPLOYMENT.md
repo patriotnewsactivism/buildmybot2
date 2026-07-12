@@ -44,6 +44,14 @@ so redeploy after changing them.
 | `PRESIDENT_EMAIL` | optional | Defaults to `president@buildmybot.app`. |
 | `AI_EMPLOYEE_MODEL` | optional | Defaults to `gpt-4o-mini`. |
 | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | when billing goes live | Stripe. |
+| `CRON_SECRET` | ✅ | Auths Vercel cron invocations + APEX `buildmybot_run_workforce`. |
+| `DISCORD_WEBHOOK_URL` | recommended | Agent notifications (shift summaries, critical errors, lead follow-ups). |
+| `SLACK_WEBHOOK_URL` | recommended | Same notifications, Slack channel. |
+| `PORTFOLIO_INTAKE_SECRET` | ✅ for portfolio leads | Shared secret for `POST /api/leads/capture` portfolio intake (donmatthews.live). Same value on the Railway project. |
+| `PORTFOLIO_OWNER_EMAIL` | optional | `users` row that owns portfolio leads; defaults to `president@buildmybot.app`. |
+
+See `Apex-Agent/APEX_INTEGRATION.md` for the APEX command-layer setup
+(briefings, workforce triggers, telemetry reads).
 
 ### Frontend (build-time)
 

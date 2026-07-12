@@ -1228,7 +1228,10 @@ async function twitterOAuthHeader(
     .createHmac('sha1', signingKey)
     .update(baseString)
     .digest('base64');
-  const headerParams = { ...oauthParams, oauth_signature: signature };
+  const headerParams: Record<string, string> = {
+    ...oauthParams,
+    oauth_signature: signature,
+  };
   const header = `OAuth ${Object.keys(headerParams)
     .sort()
     .map(
@@ -1467,3 +1470,4 @@ FLAGS: <anything urgent, or blank>`;
     results,
   };
 }
+// EOF

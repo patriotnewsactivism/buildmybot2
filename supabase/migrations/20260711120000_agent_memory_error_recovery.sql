@@ -89,3 +89,11 @@ ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS replied_at         timestamptz
 ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS follow_up_sent_at  timestamptz;
 ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS last_ai_action_at  timestamptz;
 ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS ai_notes           text;
+
+-- ── 5. Lead attribution columns ──────────────────────────────────────────────
+-- api/gateway.ts handleLeadCapture writes source_bot_id (widget captures) and
+-- source (portfolio-site captures, e.g. 'donmatthews.live'); the CRM timeline
+-- reads source. Neither column existed in the baseline schema — inserts would
+-- fail with PostgREST schema errors.
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS source             text;
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS source_bot_id      uuid;
