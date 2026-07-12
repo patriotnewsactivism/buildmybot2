@@ -87,7 +87,7 @@ export const AdminDashboardV2: React.FC<AdminDashboardV2Props> = ({
   };
 
   const pushLog = useCallback((level: LogLine['level'], text: string) => {
-    const time = new Date().toLocaleTimeString('en-US', { hour12: false });
+    const time = new Date().toLocaleTimeString('en-US', { hour12: false, timeZone: 'America/Chicago' });
     setLog((prev) => [...prev.slice(-49), { time, level, text }]);
   }, []);
 
@@ -432,3 +432,4 @@ export const AdminDashboardV2: React.FC<AdminDashboardV2Props> = ({
     </div>
   );
 };
+
