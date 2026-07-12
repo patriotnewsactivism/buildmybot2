@@ -144,7 +144,7 @@ export const AITeamDashboard: React.FC<{ user: any }> = ({ user }) => {
     if (diff < 60000) return 'Just now';
     if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
     if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
-    return d.toLocaleDateString();
+    return d.toLocaleDateString('en-US', { timeZone: 'America/Chicago' });
   };
 
   if (loading) {
