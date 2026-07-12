@@ -85,7 +85,7 @@ const BotBuilder: React.FC<BotBuilderProps> = ({
   const handleWizardComplete = async (payload: WizardPayload) => {
     setShowWizard(false);
     const newBot: Bot = {
-      id: `bot_${Date.now()}`,
+      id: 'new',
       name: payload.name || 'New Bot',
       type: 'assistant',
       systemPrompt: payload.systemPrompt || 'You are a helpful AI assistant.',
