@@ -301,7 +301,7 @@ export async function recallMemories(
   }
 
   // Fallback: most recent memories for the same subject/role (no vector math).
-  const filters: string[] = [`order=created_at.desc`, `limit=${limit}`];
+  const filters: string[] = ['order=created_at.desc', `limit=${limit}`];
   if (opts.subjectType) filters.push(`subject_type=eq.${opts.subjectType}`);
   if (opts.subjectId) filters.push(`subject_id=eq.${opts.subjectId}`);
   if (opts.roleId) filters.push(`role_id=eq.${opts.roleId}`);
@@ -331,17 +331,15 @@ export async function rememberMemory(entry: {
       ...(embedding ? { embedding: JSON.stringify(embedding) } : {}),
     }),
   });
-  if (!row) console.error('[memory] failed to persist memory for', entry.roleId);
+  if (!row)
+    console.error('[memory] failed to persist memory for', entry.roleId);
 }
 
 /** Format recalled memories into a prompt-ready block. */
 export function formatMemories(memories: AgentMemoryRow[]): string {
   if (!memories.length) return 'No prior memories on record for this subject.';
   return memories
-    .map(
-      (m) =>
-        `- [${m.created_at.slice(0, 10)}] (${m.role_id}) ${m.content}`,
-    )
+    .map((m) => `- [${m.created_at.slice(0, 10)}] (${m.role_id}) ${m.content}`)
     .join('\n');
 }
 
@@ -396,9 +394,7 @@ export async function logAgentError(entry: {
 //   4. Every completed run writes its outcome back as a vector memory.
 // ---------------------------------------------------------------------------
 
-export type AgentTool = (
-  args: Record<string, unknown>,
-) => Promise<string>;
+export type AgentTool = (args: Record<string, unknown>) => Promise<string>;
 
 export interface AgentStep {
   thought: string;

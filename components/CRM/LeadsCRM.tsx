@@ -482,8 +482,7 @@ export const LeadsCRM: React.FC<LeadsCRMProps> = ({
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
               </span>
               Live
-              {lastSyncedAt &&
-                ` · synced ${lastSyncedAt.toLocaleTimeString()}`}
+              {lastSyncedAt && ` · synced ${lastSyncedAt.toLocaleTimeString()}`}
             </span>
           </p>
         </div>

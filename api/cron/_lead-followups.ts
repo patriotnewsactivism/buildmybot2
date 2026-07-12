@@ -183,9 +183,17 @@ async function staticFollowup(lead: LeadRow): Promise<LeadResult> {
     buildEmailText(lead.name),
   );
   if (!send.sent) {
-    return { id: lead.id, email: lead.email, action: 'error', detail: send.reason };
+    return {
+      id: lead.id,
+      email: lead.email,
+      action: 'error',
+      detail: send.reason,
+    };
   }
-  await markFollowupSent(lead.id, 'Static template follow-up sent (LLM unavailable).');
+  await markFollowupSent(
+    lead.id,
+    'Static template follow-up sent (LLM unavailable).',
+  );
   await rememberMemory({
     roleId: ROLE_ID,
     subjectType: 'lead',
@@ -193,7 +201,12 @@ async function staticFollowup(lead: LeadRow): Promise<LeadResult> {
     content: `Sent static-template 48h follow-up email to ${lead.name} <${lead.email}> (subject: "${subject}").`,
     metadata: { channel: 'email', mode: 'static_fallback' },
   });
-  return { id: lead.id, email: lead.email, action: 'sent', detail: 'static_fallback' };
+  return {
+    id: lead.id,
+    email: lead.email,
+    action: 'sent',
+    detail: 'static_fallback',
+  };
 }
 
 /** Route one lead through the core reasoning loop. */
@@ -233,7 +246,10 @@ async function reasonAndFollowUp(
           const send = await sendFollowupEmail(
             lead.email,
             subject,
-            buildEmailHtml(lead.name, opening ? `<p>${opening}</p>` : undefined),
+            buildEmailHtml(
+              lead.name,
+              opening ? `<p>${opening}</p>` : undefined,
+            ),
             buildEmailText(lead.name, opening || undefined),
           );
           if (!send.sent) {
@@ -296,7 +312,10 @@ async function reasonAndFollowUp(
   return outcome;
 }
 
-export async function leadFollowupsHandler(req: VercelRequest, res: VercelResponse) {
+export async function leadFollowupsHandler(
+  req: VercelRequest,
+  res: VercelResponse,
+) {
   if (req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) {
     return res.status(401).json({ error: 'unauthorized' });
   }
@@ -367,9 +386,7 @@ export async function leadFollowupsHandler(req: VercelRequest, res: VercelRespon
     // Graceful pause: leave headroom for the memory writes + response below.
     if (Date.now() + PER_LEAD_BUDGET_MS > globalDeadline) {
       paused = true;
-      remaining.push(
-        ...leads.slice(leads.indexOf(lead)).map((l) => l.id),
-      );
+      remaining.push(...leads.slice(leads.indexOf(lead)).map((l) => l.id));
       break;
     }
 
@@ -457,7 +474,9 @@ export async function leadFollowupsHandler(req: VercelRequest, res: VercelRespon
   // about (emails out, escalations, or a paused run needing attention).
   if (sent > 0 || escalated > 0 || paused) {
     await notifyDiscord(`📬 **${ROLE_NAME} — Lead Follow-Ups**\n${runSummary}`);
-    await notifySlack(`:mailbox: *${ROLE_NAME} — Lead Follow-Ups*\n${runSummary}`);
+    await notifySlack(
+      `:mailbox: *${ROLE_NAME} — Lead Follow-Ups*\n${runSummary}`,
+    );
   }
 
   return res.status(200).json({

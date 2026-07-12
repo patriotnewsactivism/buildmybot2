@@ -144,7 +144,11 @@ export async function ingestKnowledgeSource(
     });
     if (!resp.ok) {
       const errText = await resp.text().catch(() => '');
-      console.error('[rag] knowledge_chunks insert failed:', resp.status, errText);
+      console.error(
+        '[rag] knowledge_chunks insert failed:',
+        resp.status,
+        errText,
+      );
     } else {
       insertedCount += batch.length;
     }
@@ -279,8 +283,7 @@ export async function scrapeUrl(url: string): Promise<string> {
 
 const FIRECRAWL_API_KEY = process.env.FIRECRAWL_API_KEY || '';
 const FIRECRAWL_BASE = 'https://api.firecrawl.dev/v1';
-const APP_BASE_URL =
-  process.env.APP_BASE_URL || 'https://www.buildmybot.app';
+const APP_BASE_URL = process.env.APP_BASE_URL || 'https://www.buildmybot.app';
 const FIRECRAWL_WEBHOOK_SECRET = process.env.FIRECRAWL_WEBHOOK_SECRET || '';
 
 /** Single-page scrape via Firecrawl (JS-rendered, clean markdown). */
@@ -348,7 +351,11 @@ export async function startFirecrawlCrawl(opts: {
       signal: AbortSignal.timeout(15000),
     });
     if (!resp.ok) {
-      console.error('[rag] Firecrawl crawl start failed:', resp.status, await resp.text());
+      console.error(
+        '[rag] Firecrawl crawl start failed:',
+        resp.status,
+        await resp.text(),
+      );
       return null;
     }
     const data = await resp.json();
@@ -409,7 +416,11 @@ export async function ingestPageChunks(
     });
     if (!resp.ok) {
       const errText = await resp.text().catch(() => '');
-      console.error('[rag] ingestPageChunks insert failed:', resp.status, errText);
+      console.error(
+        '[rag] ingestPageChunks insert failed:',
+        resp.status,
+        errText,
+      );
     } else {
       insertedCount += batch.length;
     }
@@ -417,4 +428,3 @@ export async function ingestPageChunks(
 
   return { chunksCreated: insertedCount };
 }
-

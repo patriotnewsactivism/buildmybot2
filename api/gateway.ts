@@ -435,7 +435,8 @@ async function handleBots(
       organization_id: user.organizationId || body.organizationId || null,
       name: body.name || 'New Bot',
       type: body.type || 'general',
-      system_prompt: body.systemPrompt || body.persona || 'You are a helpful assistant.',
+      system_prompt:
+        body.systemPrompt || body.persona || 'You are a helpful assistant.',
       model: body.model || 'gpt-4o-mini',
       temperature: body.temperature ?? 0.7,
       knowledge_base: body.knowledgeBase || [],
@@ -447,7 +448,13 @@ async function handleBots(
       avatar: body.avatar || null,
       response_delay: body.responseDelay ?? 0,
       embed_type: body.embedType || 'hover',
-      lead_capture: body.leadCapture || { enabled: false, promptAfter: 3, emailRequired: true, nameRequired: false, phoneRequired: false },
+      lead_capture: body.leadCapture || {
+        enabled: false,
+        promptAfter: 3,
+        emailRequired: true,
+        nameRequired: false,
+        phoneRequired: false,
+      },
       is_public: body.isPublic ?? false,
     });
     res.status(201).json(newBot[0]);
@@ -596,17 +603,25 @@ async function handleLeads(
       if (!lead) return res.status(404).json({ error: 'Not found' });
 
       const [memories, nurtureSteps] = await Promise.all([
-        sbSelect('ai_agent_memories', 'id,role_id,content,metadata,created_at', {
-          subject_type: 'eq.lead',
-          subject_id: `eq.${leadId}`,
-          order: 'created_at.desc',
-          limit: '50',
-        }).catch(() => []),
-        sbSelect('nurture_steps', 'id,step_type,subject,content,status,created_at', {
-          lead_id: `eq.${leadId}`,
-          order: 'created_at.desc',
-          limit: '50',
-        }).catch(() => []),
+        sbSelect(
+          'ai_agent_memories',
+          'id,role_id,content,metadata,created_at',
+          {
+            subject_type: 'eq.lead',
+            subject_id: `eq.${leadId}`,
+            order: 'created_at.desc',
+            limit: '50',
+          },
+        ).catch(() => []),
+        sbSelect(
+          'nurture_steps',
+          'id,step_type,subject,content,status,created_at',
+          {
+            lead_id: `eq.${leadId}`,
+            order: 'created_at.desc',
+            limit: '50',
+          },
+        ).catch(() => []),
       ]);
 
       const events: Array<{
@@ -726,7 +741,11 @@ async function handleLeadCapture(req: VercelRequest, res: VercelResponse) {
     if (!secret || provided !== secret) {
       return res.status(401).json({ error: 'Invalid portfolio intake secret' });
     }
-    if (!body.email || typeof body.email !== 'string' || !body.email.includes('@')) {
+    if (
+      !body.email ||
+      typeof body.email !== 'string' ||
+      !body.email.includes('@')
+    ) {
       return res.status(400).json({ error: 'Valid email is required' });
     }
     const ownerEmail =
@@ -738,7 +757,9 @@ async function handleLeadCapture(req: VercelRequest, res: VercelResponse) {
       console.error(
         `[handleLeadCapture] portfolio owner ${ownerEmail} not found — lead dropped`,
       );
-      return res.status(500).json({ error: 'Portfolio owner account not found' });
+      return res
+        .status(500)
+        .json({ error: 'Portfolio owner account not found' });
     }
     // Dedupe: same email from the same portfolio source is one lead.
     const existing = await sbSelect('leads', 'id', {
@@ -746,7 +767,9 @@ async function handleLeadCapture(req: VercelRequest, res: VercelResponse) {
       user_id: `eq.${owners[0].id}`,
     }).catch(() => []);
     if (existing[0]?.id) {
-      return res.status(200).json({ success: true, leadId: existing[0].id, deduped: true });
+      return res
+        .status(200)
+        .json({ success: true, leadId: existing[0].id, deduped: true });
     }
     try {
       const r = await sbInsert('leads', {
@@ -767,13 +790,19 @@ async function handleLeadCapture(req: VercelRequest, res: VercelResponse) {
   }
 
   if (!body.botId) {
-    return res.status(400).json({ error: 'botId is required to attribute a lead to its owner' });
+    return res
+      .status(400)
+      .json({ error: 'botId is required to attribute a lead to its owner' });
   }
   // Public widget has no authenticated user — resolve the owning bot to find user_id (NOT NULL on leads).
-  const ownerBots = await sbSelect('bots', 'id,user_id', { id: `eq.${body.botId}` }).catch(() => []);
+  const ownerBots = await sbSelect('bots', 'id,user_id', {
+    id: `eq.${body.botId}`,
+  }).catch(() => []);
   const ownerUserId = ownerBots[0]?.user_id;
   if (!ownerUserId) {
-    return res.status(404).json({ error: 'Bot not found — cannot attribute lead' });
+    return res
+      .status(404)
+      .json({ error: 'Bot not found — cannot attribute lead' });
   }
   try {
     const r = await sbInsert('leads', {
@@ -1197,9 +1226,14 @@ async function handleFirecrawlWebhook(req: VercelRequest, res: VercelResponse) {
   const botId: string | undefined = metadata.botId;
 
   if (!sourceId || !botId) {
-    console.error('[firecrawl-webhook] missing sourceId/botId in metadata', metadata);
+    console.error(
+      '[firecrawl-webhook] missing sourceId/botId in metadata',
+      metadata,
+    );
     // Still 200 so Firecrawl doesn't retry forever on a payload we can't use
-    return res.status(200).json({ received: true, warning: 'missing metadata' });
+    return res
+      .status(200)
+      .json({ received: true, warning: 'missing metadata' });
   }
 
   // NOTE: Vercel's Node.js runtime can freeze the function shortly after the
@@ -1208,11 +1242,14 @@ async function handleFirecrawlWebhook(req: VercelRequest, res: VercelResponse) {
   // drops the work.
   try {
     if (type === 'crawl.page') {
-      const pages = Array.isArray(body.data) ? body.data : [body.data].filter(Boolean);
+      const pages = Array.isArray(body.data)
+        ? body.data
+        : [body.data].filter(Boolean);
       for (const page of pages) {
         const markdown = page?.markdown || '';
         const pageUrl = page?.metadata?.sourceURL || page?.metadata?.url || '';
-        if (markdown) await ingestPageChunks(sourceId, botId, pageUrl, markdown);
+        if (markdown)
+          await ingestPageChunks(sourceId, botId, pageUrl, markdown);
       }
       await sbUpdate(
         'knowledge_sources',
@@ -1308,7 +1345,11 @@ async function handleKnowledge(
       const totalTokens = 0; // not tracked cheaply here; chunkCount is the primary signal
       res.json({
         sources,
-        stats: { sources: sources.length, chunks: Object.values(chunkCounts).reduce((a, b) => a + b, 0), totalTokens },
+        stats: {
+          sources: sources.length,
+          chunks: Object.values(chunkCounts).reduce((a, b) => a + b, 0),
+          totalTokens,
+        },
       });
     } else if (req.method === 'POST') {
       const body = parseBody(req);
@@ -1362,7 +1403,12 @@ async function handleKnowledge(
     if (crawlJob) {
       await sbUpdate(
         'knowledge_sources',
-        { processing_state: { firecrawl_job_id: crawlJob.jobId, page_limit: pageLimit } },
+        {
+          processing_state: {
+            firecrawl_job_id: crawlJob.jobId,
+            page_limit: pageLimit,
+          },
+        },
         { id: `eq.${sourceId}` },
       ).catch(() => {});
       return res.status(201).json({
@@ -1388,8 +1434,14 @@ async function handleKnowledge(
           .status(422)
           .json({ id: sourceId, error: 'Could not retrieve content from URL' });
       }
-      const result = await ingestKnowledgeSource(sourceId, botId, scrapedContent);
-      res.status(201).json({ id: sourceId, success: true, mode: 'single-page', ...result });
+      const result = await ingestKnowledgeSource(
+        sourceId,
+        botId,
+        scrapedContent,
+      );
+      res
+        .status(201)
+        .json({ id: sourceId, success: true, mode: 'single-page', ...result });
     } catch (err: any) {
       await sbUpdate(
         'knowledge_sources',
@@ -1414,12 +1466,14 @@ async function handleKnowledge(
     }).catch(() => [{ id: sourceId }]);
     // Chunk + embed the uploaded content
     if (content) {
-      const result = await ingestKnowledgeSource(sourceId, botId, content).catch(
-        (err: any) => {
-          console.error('[knowledge] ingest failed for upload:', err.message);
-          return null;
-        },
-      );
+      const result = await ingestKnowledgeSource(
+        sourceId,
+        botId,
+        content,
+      ).catch((err: any) => {
+        console.error('[knowledge] ingest failed for upload:', err.message);
+        return null;
+      });
       if (!result) {
         await sbUpdate(
           'knowledge_sources',
