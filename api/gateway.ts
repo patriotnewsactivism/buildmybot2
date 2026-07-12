@@ -699,13 +699,13 @@ async function handleLeads(
     const r = await sbInsert('leads', {
       id: crypto.randomUUID(),
       user_id: user.id,
-      bot_id: body.botId || null,
+      organization_id: user.organizationId || body.organizationId || null,
+      source_bot_id: body.botId || null,
       name: body.name || '',
       email: body.email || '',
       phone: body.phone || null,
       status: body.status || 'New',
       score: body.score ?? 50,
-      metadata: { source: body.source || 'website', notes: body.notes || '', ...(body.metadata || {}) },
     });
     res.status(201).json(r[0]);
   } else res.status(405).json({ error: 'Method not allowed' });
@@ -728,18 +728,12 @@ async function handleLeadCapture(req: VercelRequest, res: VercelResponse) {
     const r = await sbInsert('leads', {
       id: crypto.randomUUID(),
       user_id: ownerUserId,
-      bot_id: body.botId,
+      source_bot_id: body.botId,
       name: body.name || '',
       email: body.email || '',
       phone: body.phone || null,
       status: 'New',
       score: 50,
-      metadata: {
-        source: body.source || 'chat_widget',
-        notes: body.message || '',
-        conversationId: body.conversationId,
-        page: body.page,
-      },
     });
     res.status(201).json({ success: true, leadId: r[0]?.id });
   } catch (err) {
