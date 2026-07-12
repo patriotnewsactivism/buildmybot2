@@ -12,18 +12,19 @@ name: AI Team — Recurring Shifts
 #  - Sales leadership (derek-sales-director, victoria-vp-sales): reasoning
 #    only, no Tavily cost -> every 10 minutes, all day.
 #    144 runs/day x 2 roles = 288 calls/day.
-#  - Sarah Collins (Lead Researcher): steady drip of new real cold-outbound
-#    targets (Tavily web search, grounded -- never invents companies) ->
-#    every 3 hours. 8 runs/day = 8 Tavily credits/day (~240/month).
+#  - Sarah Collins (Lead Researcher): every 20 minutes -> 72 runs/day =
+#    72 Tavily credits/day.
 #  - Sales Agent Researchers (Charles Hudson, Brian Walsh, Kevin Prescott,
 #    Nathan Doyle, Ryan Fletcher): pre-launch, all 5 building the lead
 #    database alongside Sarah instead of making calls yet (Don's direction,
-#    2026-07-10) -> every 6 hours. 4 runs/day x 5 agents = 20 Tavily
-#    credits/day (~600/month). Combined with Sarah: ~28 credits/day
-#    (~840/month), safely under Tavily's 1,000/month free cap. Flip
-#    SALES_AGENTS_MODE=outreach (Vercel env var) once real sales calls
-#    start -- these switch to normal lead-review shifts instead, no
-#    redeploy needed.
+#    2026-07-10) -> 3x/hour (offset from Sarah) = 72 runs/day EACH x 5 =
+#    360 Tavily credits/day. Combined with Sarah: ~432 credits/day --
+#    Don's explicit direction 2026-07-12: burn through the 1,000/month
+#    free Tavily tier in ~2-3 days on purpose and rotate in a fresh API
+#    key/account each time (Tavily's free tier is per-account, easy to
+#    re-roll). Flip SALES_AGENTS_MODE=outreach (Vercel env var) once real
+#    sales calls start -- these switch to normal lead-review shifts
+#    instead, no redeploy needed.
 #  - Tier A (sam-support, maya-marketing): real live data, less urgent than
 #    sales -> every 1 hour. 24 runs/day x 2 roles = 48 calls/day.
 #  - Tier B (eli-engineering, oscar-operations, piper-product, hr-associate,
@@ -35,8 +36,11 @@ name: AI Team — Recurring Shifts
 #    real platform API keys are set -- publishes/replies -> every 2 hours,
 #    offset :10 past Tier B. 12 runs/day x 1 call = 12 calls/day.
 #
-# Total Groq/LLM calls: ~466/day, leaving very comfortable headroom under
-# Groq's 1,000/day free cap.
+# Total Groq/LLM calls: ~466 (non-research) + ~432 (research roles above,
+# up from 28/day) = ~898/day. Still under Groq's 1,000/day free cap, but
+# with much less headroom than before -- if Groq starts rate-limiting,
+# callLLM automatically falls back to Cerebras (~1M tokens/day) per role,
+# so shifts won't break, they'll just use the fallback provider.
 #
 # Times below are America/Chicago, converted to UTC assuming CDT (summer,
 # UTC-5) -- shift by an hour in winter (CST, UTC-6) if exact timing matters.
@@ -49,11 +53,11 @@ on:
     # --- Sales leadership: every 10 minutes, all day (reasoning only, no Tavily cost) ---
     - cron: '*/10 * * * *'
 
-    # --- Sarah Collins (Lead Researcher): every 3 hours ---
-    - cron: '20 */3 * * *'
+    # --- Sarah Collins (Lead Researcher): every 20 minutes (burn-through-1000-in-2-3-days mode) ---
+    - cron: '*/20 * * * *'
 
-    # --- Sales Agent Researchers (5, pre-launch): every 6 hours ---
-    - cron: '40 */6 * * *'
+    # --- Sales Agent Researchers (5, pre-launch): 3x/hour, offset from Sarah ---
+    - cron: '10,30,50 * * * *'
 
     # --- Tier A: every 1 hour ---
     - cron: '0 * * * *'
@@ -79,9 +83,9 @@ jobs:
           case "$SCHEDULE" in
             "*/10 * * * *")
               echo "roles=derek-sales-director,victoria-vp-sales" >> "$GITHUB_OUTPUT" ;;
-            "20 */3 * * *")
+            "*/20 * * * *")
               echo "roles=lead-researcher" >> "$GITHUB_OUTPUT" ;;
-            "40 */6 * * *")
+            "10,30,50 * * * *")
               echo "roles=sales-agent-1,sales-agent-2,sales-agent-3,sales-agent-4,sales-agent-5" >> "$GITHUB_OUTPUT" ;;
             "0 * * * *")
               echo "roles=sam-support,maya-marketing" >> "$GITHUB_OUTPUT" ;;
