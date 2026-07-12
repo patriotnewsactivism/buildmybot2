@@ -112,7 +112,7 @@ export const ChatLogs: React.FC<ChatLogsProps> = ({ conversations }) => {
                   Visitor #{conv.id.substring(0, 4)}
                 </span>
                 <span className="text-[10px] text-slate-400">
-                  {new Date(conv.timestamp).toLocaleTimeString(undefined, {
+                  {new Date(conv.timestamp).toLocaleTimeString('en-US', { timeZone: 'America/Chicago',
                     hour: '2-digit',
                     minute: '2-digit',
                   })}
@@ -166,7 +166,7 @@ export const ChatLogs: React.FC<ChatLogsProps> = ({ conversations }) => {
                     <Clock size={12} />{' '}
                     {new Date(
                       activeConversation.timestamp,
-                    ).toLocaleDateString()}
+                    ).toLocaleDateString('en-US', { timeZone: 'America/Chicago' })}
                   </span>
                   <span className="hidden sm:inline mx-1">•</span>
                   <span className="flex items-center gap-1">
@@ -223,7 +223,7 @@ export const ChatLogs: React.FC<ChatLogsProps> = ({ conversations }) => {
                   <p
                     className={`text-[10px] text-slate-400 mt-1 ${msg.role === 'user' ? 'text-left' : 'text-right'}`}
                   >
-                    {new Date(msg.timestamp).toLocaleTimeString()}
+                    {new Date(msg.timestamp).toLocaleTimeString('en-US', { timeZone: 'America/Chicago' })}
                   </p>
                 </div>
                 <div
@@ -269,3 +269,4 @@ export const ChatLogs: React.FC<ChatLogsProps> = ({ conversations }) => {
     </div>
   );
 };
+
