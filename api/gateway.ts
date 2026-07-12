@@ -431,23 +431,24 @@ async function handleBots(
     const body = parseBody(req);
     const newBot = await sbInsert('bots', {
       id: crypto.randomUUID(),
-      organization_id: user.organizationId || body.organizationId,
-      creator_id: user.id,
+      user_id: user.id,
+      organization_id: user.organizationId || body.organizationId || null,
       name: body.name || 'New Bot',
-      description: body.description || '',
-      persona: body.persona || '',
-      identity: body.identity || '',
-      tone: body.tone || 'professional',
-      behavior: body.behavior || '',
+      type: body.type || 'general',
+      system_prompt: body.systemPrompt || body.persona || 'You are a helpful assistant.',
       model: body.model || 'gpt-4o-mini',
-      temperature: body.temperature ?? 70,
-      max_tokens: body.maxTokens ?? 500,
-      voice_enabled: body.voiceEnabled ?? false,
-      voice_id: body.voiceId || null,
-      status: body.status || 'draft',
-      crm_config: body.crmConfig || {},
-      marketing_config: body.marketingConfig || {},
-      config: body.config || {},
+      temperature: body.temperature ?? 0.7,
+      knowledge_base: body.knowledgeBase || [],
+      active: body.active ?? true,
+      theme_color: body.themeColor || '#2563eb',
+      website_url: body.websiteUrl || null,
+      max_messages: body.maxMessages ?? null,
+      randomize_identity: body.randomizeIdentity ?? false,
+      avatar: body.avatar || null,
+      response_delay: body.responseDelay ?? 0,
+      embed_type: body.embedType || 'hover',
+      lead_capture: body.leadCapture || { enabled: false, promptAfter: 3, emailRequired: true, nameRequired: false, phoneRequired: false },
+      is_public: body.isPublic ?? false,
     });
     res.status(201).json(newBot[0]);
   } else {
@@ -697,16 +698,14 @@ async function handleLeads(
     const body = parseBody(req);
     const r = await sbInsert('leads', {
       id: crypto.randomUUID(),
-      organization_id: user.organizationId || body.organizationId,
+      user_id: user.id,
       bot_id: body.botId || null,
       name: body.name || '',
       email: body.email || '',
-      phone: body.phone || '',
-      status: body.status || 'new',
-      score: body.score || 0,
-      source: body.source || 'website',
-      notes: body.notes || '',
-      metadata: body.metadata || {},
+      phone: body.phone || null,
+      status: body.status || 'New',
+      score: body.score ?? 50,
+      metadata: { source: body.source || 'website', notes: body.notes || '', ...(body.metadata || {}) },
     });
     res.status(201).json(r[0]);
   } else res.status(405).json({ error: 'Method not allowed' });
@@ -716,20 +715,37 @@ async function handleLeadCapture(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST')
     return res.status(405).json({ error: 'Method not allowed' });
   const body = parseBody(req);
-  const r = await sbInsert('leads', {
-    id: crypto.randomUUID(),
-    organization_id: body.organizationId || null,
-    bot_id: body.botId || null,
-    name: body.name || '',
-    email: body.email || '',
-    phone: body.phone || '',
-    status: 'new',
-    score: 50,
-    source: body.source || 'chat_widget',
-    notes: body.message || '',
-    metadata: { conversationId: body.conversationId, page: body.page },
-  }).catch(() => [{ id: 'ok', success: true }]);
-  res.status(201).json({ success: true, leadId: r[0]?.id });
+  if (!body.botId) {
+    return res.status(400).json({ error: 'botId is required to attribute a lead to its owner' });
+  }
+  // Public widget has no authenticated user — resolve the owning bot to find user_id (NOT NULL on leads).
+  const ownerBots = await sbSelect('bots', 'id,user_id', { id: `eq.${body.botId}` }).catch(() => []);
+  const ownerUserId = ownerBots[0]?.user_id;
+  if (!ownerUserId) {
+    return res.status(404).json({ error: 'Bot not found — cannot attribute lead' });
+  }
+  try {
+    const r = await sbInsert('leads', {
+      id: crypto.randomUUID(),
+      user_id: ownerUserId,
+      bot_id: body.botId,
+      name: body.name || '',
+      email: body.email || '',
+      phone: body.phone || null,
+      status: 'New',
+      score: 50,
+      metadata: {
+        source: body.source || 'chat_widget',
+        notes: body.message || '',
+        conversationId: body.conversationId,
+        page: body.page,
+      },
+    });
+    res.status(201).json({ success: true, leadId: r[0]?.id });
+  } catch (err) {
+    console.error('[handleLeadCapture] insert failed:', err);
+    res.status(500).json({ error: 'Failed to save lead' });
+  }
 }
 
 // Must match the product list in handleStripe below — kept as one constant so
