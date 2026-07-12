@@ -808,7 +808,7 @@ async function handleAdmin(
   user: AuthUser,
   pathParts: string[],
 ) {
-  if (!['admin', 'ADMIN'].includes(user.role))
+  if (!['admin', 'ADMIN', 'owner', 'OWNER'].includes(user.role))
     return res.status(403).json({ error: 'Admin access required' });
   const sub = pathParts[0] || '';
 
@@ -976,7 +976,7 @@ async function handleConversations(
   }
   const url = new URL(req.url || '', 'http://localhost');
   const userId = url.searchParams.get('userId');
-  const isAdmin = ['admin', 'ADMIN'].includes(user.role);
+  const isAdmin = ['admin', 'ADMIN', 'owner', 'OWNER'].includes(user.role);
 
   // Non-admins may only ever see their own conversations.
   if (userId && !isAdmin && userId !== user.id) {
@@ -2536,7 +2536,7 @@ async function handleBotErrors(
   // documented schema (no migration defines it, table is empty in prod),
   // so rather than guess at a filter column that may not exist, restrict
   // this operational/system view to platform admins only.
-  if (!['admin', 'ADMIN'].includes(user.role)) {
+  if (!['admin', 'ADMIN', 'owner', 'OWNER'].includes(user.role)) {
     return res.status(403).json({ error: 'Admin access required' });
   }
   if (pathParts[0] === 'recent') {
@@ -2639,7 +2639,7 @@ async function handleAudit(
   // logged-in user got every tenant's audit log. audit_logs has a real
   // organization_id/user_id (confirmed via schema check), so scope
   // non-admins to their own tenant; platform admins keep the global view.
-  const isAdmin = ['admin', 'ADMIN'].includes(user.role);
+  const isAdmin = ['admin', 'ADMIN', 'owner', 'OWNER'].includes(user.role);
   const filter = isAdmin ? {} : ownerFilter(user);
   res.json(
     (
@@ -2719,7 +2719,7 @@ async function handleAiEmployees(
 
   // Live roster + activity monitoring -- admin/owner only, read-only.
   if (sub === '' && req.method === 'GET') {
-    if (!['admin', 'ADMIN'].includes(user.role))
+    if (!['admin', 'ADMIN', 'owner', 'OWNER'].includes(user.role))
       return res.status(403).json({ error: 'Admin access required' });
     const employees = await sbSelect(
       'AiEmployee',
@@ -2729,7 +2729,7 @@ async function handleAiEmployees(
   }
 
   if (sub === 'logs' && req.method === 'GET') {
-    if (!['admin', 'ADMIN'].includes(user.role))
+    if (!['admin', 'ADMIN', 'owner', 'OWNER'].includes(user.role))
       return res.status(403).json({ error: 'Admin access required' });
     const limitParam = Number((req.query?.limit as string) || 30);
     const limit = Number.isFinite(limitParam)
@@ -2743,7 +2743,7 @@ async function handleAiEmployees(
   }
 
   if (sub === 'escalations' && req.method === 'GET') {
-    if (!['admin', 'ADMIN'].includes(user.role))
+    if (!['admin', 'ADMIN', 'owner', 'OWNER'].includes(user.role))
       return res.status(403).json({ error: 'Admin access required' });
     const escalations = await sbSelect('escalations', '*', {
       order: 'created_at.desc',
@@ -2755,7 +2755,7 @@ async function handleAiEmployees(
   // Voice briefing — converts the latest Marcus executive summary to audio
   // via OpenAI TTS so Don can listen instead of reading.
   if (sub === 'briefing' && pathParts[1] === 'audio' && req.method === 'GET') {
-    if (!['admin', 'ADMIN'].includes(user.role))
+    if (!['admin', 'ADMIN', 'owner', 'OWNER'].includes(user.role))
       return res.status(403).json({ error: 'Admin access required' });
     const openaiKey = process.env.OPENAI_API_KEY;
     if (!openaiKey)
@@ -2814,7 +2814,7 @@ async function handleAiEmployees(
 
   // Text briefing — returns the latest Marcus summary as JSON
   if (sub === 'briefing' && req.method === 'GET') {
-    if (!['admin', 'ADMIN'].includes(user.role))
+    if (!['admin', 'ADMIN', 'owner', 'OWNER'].includes(user.role))
       return res.status(403).json({ error: 'Admin access required' });
     const today = new Date().toISOString().slice(0, 10);
     const summaryRows = await sbSelect(
@@ -4110,7 +4110,7 @@ async function handleEmail(
   user: AuthUser,
   pathParts: string[],
 ) {
-  if (!['admin', 'ADMIN'].includes(user.role)) {
+  if (!['admin', 'ADMIN', 'owner', 'OWNER'].includes(user.role)) {
     return res.status(403).json({ error: 'Admin access required' });
   }
   const sub = pathParts[0] || '';
