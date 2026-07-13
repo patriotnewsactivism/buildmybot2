@@ -54,8 +54,7 @@ interface LeadRow {
   email: string;
   created_at: string;
   status: string | null;
-  source_url: string | null;
-  metadata: Record<string, unknown> | null;
+  source: string | null;
 }
 
 interface LeadResult {
@@ -167,7 +166,6 @@ async function markFollowupSent(leadId: string, note: string) {
       follow_up_sent_at: new Date().toISOString(),
       last_ai_action_at: new Date().toISOString(),
       ai_notes: note.slice(0, 1000),
-      updated_at: new Date().toISOString(),
     }),
   });
 }
@@ -228,7 +226,7 @@ async function reasonAndFollowUp(
     roleId: ROLE_ID,
     roleName: ROLE_NAME,
     persona: `You are ${ROLE_NAME}, the Lead Follow-Up Agent for BuildMyBot, a white-label AI chatbot/voice-agent platform that fixes "speed to lead" for local service businesses. Voice: warm, concise, zero pressure. Never invent details about the lead that aren't in the objective or your memory.`,
-    objective: `Lead ${lead.name || '(no name)'} <${lead.email}> signed up ${hoursSince}h ago (status: ${lead.status || 'New'}, source: ${lead.source_url || 'unknown'}) and has never replied. Decide the right follow-up: send ONE personalized email via send_followup_email, or finish with a reason to skip, or escalate_to_human if something looks wrong (e.g. memory shows prior complaints or an unsubscribe request).`,
+    objective: `Lead ${lead.name || '(no name)'} <${lead.email}> signed up ${hoursSince}h ago (status: ${lead.status || 'New'}, source: ${lead.source || 'unknown'}) and has never replied. Decide the right follow-up: send ONE personalized email via send_followup_email, or finish with a reason to skip, or escalate_to_human if something looks wrong (e.g. memory shows prior complaints or an unsubscribe request).`,
     subjectType: 'lead',
     subjectId: lead.id,
     maxSteps: 3,
@@ -331,7 +329,7 @@ export async function leadFollowupsHandler(
   const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
 
   const listResp = await sbFetch(
-    `leads?replied_at=is.null&follow_up_sent_at=is.null&created_at=lte.${encodeURIComponent(cutoff)}&select=id,name,email,created_at,status,source_url,metadata&order=created_at.asc`,
+    `leads?replied_at=is.null&follow_up_sent_at=is.null&created_at=lte.${encodeURIComponent(cutoff)}&select=id,name,email,created_at,status,source&order=created_at.asc`,
   );
   if (!listResp.ok) {
     const text = await listResp.text();
