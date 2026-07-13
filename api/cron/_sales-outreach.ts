@@ -89,7 +89,13 @@ interface ResearchedLead {
 interface OutreachResult {
   id: string;
   company: string;
-  action: 'email_sent' | 'call_initiated' | 'promoted_to_crm' | 'skipped' | 'escalated' | 'error';
+  action:
+    | 'email_sent'
+    | 'call_initiated'
+    | 'promoted_to_crm'
+    | 'skipped'
+    | 'escalated'
+    | 'error';
   detail?: string;
 }
 
@@ -117,7 +123,9 @@ async function decideContactMethod(
 /**
  * Draft a cold outreach email for a researched lead.
  */
-async function draftColdEmail(lead: ResearchedLead): Promise<{ subject: string; body: string }> {
+async function draftColdEmail(
+  lead: ResearchedLead,
+): Promise<{ subject: string; body: string }> {
   const prompt = `You are Jordan Blake, Sales Outreach Agent for BuildMyBot. Draft a short, specific cold-outreach email to a potential customer.
 
 Company: ${lead.company_name}
@@ -144,7 +152,9 @@ Respond with ONLY a JSON object: {"subject": "...", "body": "..."}`;
   try {
     const parsed = JSON.parse(raw.match(/\{[\s\S]*\}/)?.[0] || '{}');
     return {
-      subject: String(parsed.subject || `AI chatbot for your ${lead.industry} business`),
+      subject: String(
+        parsed.subject || `AI chatbot for your ${lead.industry} business`,
+      ),
       body: String(parsed.body || ''),
     };
   } catch {
@@ -227,15 +237,22 @@ async function processLead(lead: ResearchedLead): Promise<OutreachResult> {
   }
 
   // Step 1: Promote to the main leads CRM table so it's visible in the dashboard
-  const existingLeads = await sbSelect('leads', `email=eq.${encodeURIComponent(lead.email || '')}&select=id&limit=1`);
+  const existingLeads = await sbSelect(
+    'leads',
+    `email=eq.${encodeURIComponent(lead.email || '')}&select=id&limit=1`,
+  );
   let crmLeadId: string;
 
   if (existingLeads?.[0]?.id) {
     crmLeadId = existingLeads[0].id;
   } else {
     // Create the CRM lead
-    const ownerEmail = process.env.PORTFOLIO_OWNER_EMAIL || 'president@buildmybot.app';
-    const owners = await sbSelect('users', `email=eq.${encodeURIComponent(ownerEmail)}&select=id&limit=1`);
+    const ownerEmail =
+      process.env.PORTFOLIO_OWNER_EMAIL || 'president@buildmybot.app';
+    const owners = await sbSelect(
+      'users',
+      `email=eq.${encodeURIComponent(ownerEmail)}&select=id&limit=1`,
+    );
     const ownerId = owners?.[0]?.id;
 
     const newLead = await sbInsert('leads', {
@@ -276,13 +293,19 @@ async function processLead(lead: ResearchedLead): Promise<OutreachResult> {
 
       // Log the outreach
       const now = new Date().toISOString();
-      await sbUpdate('leads', {
-        last_contacted_at: now,
-        contact_method: 'email',
-        last_ai_action_at: now,
-        next_followup_at: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
-        email_thread_id: `outreach-${lead.id}`,
-      }, `id=eq.${crmLeadId}`);
+      await sbUpdate(
+        'leads',
+        {
+          last_contacted_at: now,
+          contact_method: 'email',
+          last_ai_action_at: now,
+          next_followup_at: new Date(
+            Date.now() + 3 * 24 * 60 * 60 * 1000,
+          ).toISOString(),
+          email_thread_id: `outreach-${lead.id}`,
+        },
+        `id=eq.${crmLeadId}`,
+      );
 
       // Log to email_messages for audit trail
       await sbInsert('email_messages', {
@@ -347,7 +370,9 @@ async function processLead(lead: ResearchedLead): Promise<OutreachResult> {
               detail: `Call failed (${callResult.error}), fell back to email`,
             };
           }
-        } catch { /* both failed */ }
+        } catch {
+          /* both failed */
+        }
       }
 
       return {
@@ -419,16 +444,23 @@ export async function salesOutreachHandler(
     results.push(result);
 
     // Mark the researched lead as processed regardless of outcome
-    await sbUpdate('researched_leads', {
-      status: result.action === 'error' ? 'outreach_failed' : 'outreach_initiated',
-      outreach_initiated_at: new Date().toISOString(),
-    }, `id=eq.${lead.id}`);
+    await sbUpdate(
+      'researched_leads',
+      {
+        status:
+          result.action === 'error' ? 'outreach_failed' : 'outreach_initiated',
+        outreach_initiated_at: new Date().toISOString(),
+      },
+      `id=eq.${lead.id}`,
+    );
   }
 
-  const emailsSent = results.filter(r => r.action === 'email_sent').length;
-  const callsInitiated = results.filter(r => r.action === 'call_initiated').length;
-  const skipped = results.filter(r => r.action === 'skipped').length;
-  const errors = results.filter(r => r.action === 'error').length;
+  const emailsSent = results.filter((r) => r.action === 'email_sent').length;
+  const callsInitiated = results.filter(
+    (r) => r.action === 'call_initiated',
+  ).length;
+  const skipped = results.filter((r) => r.action === 'skipped').length;
+  const errors = results.filter((r) => r.action === 'error').length;
 
   const summary = `Outreach run: ${results.length} lead(s) processed — ${emailsSent} email(s), ${callsInitiated} call(s), ${skipped} skipped, ${errors} error(s).${paused ? ' Paused (time budget).' : ''}`;
 
@@ -442,7 +474,9 @@ export async function salesOutreachHandler(
 
   if (emailsSent + callsInitiated > 0 || errors > 0) {
     await notifyDiscord(`📞 **${ROLE_NAME} — Sales Outreach**\n${summary}`);
-    await notifySlack(`:telephone_receiver: *${ROLE_NAME} — Sales Outreach*\n${summary}`);
+    await notifySlack(
+      `:telephone_receiver: *${ROLE_NAME} — Sales Outreach*\n${summary}`,
+    );
   }
 
   return res.status(200).json({

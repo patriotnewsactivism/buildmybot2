@@ -276,7 +276,10 @@ export async function allShiftsHandler(
           .json({ 'lead-researcher': { error: e.message } });
       }
     }
-    if (roleParam === 'sales-outreach' || roleParam === 'sales-outreach-agent') {
+    if (
+      roleParam === 'sales-outreach' ||
+      roleParam === 'sales-outreach-agent'
+    ) {
       // Jordan Blake — Sales Outreach Agent (distinct from researcher)
       return salesOutreachHandler(req, res);
     }

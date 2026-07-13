@@ -575,11 +575,9 @@ async function handleAnalytics(
   } else if (sub === 'trends') {
     const orgId = pathParts[1];
     const f = orgId ? { organization_id: `eq.${orgId}` } : orgFilter;
-    const conversations = await sbSelect(
-      'conversations',
-      'timestamp',
-      f,
-    ).catch(() => []);
+    const conversations = await sbSelect('conversations', 'timestamp', f).catch(
+      () => [],
+    );
     const days: any[] = [];
     for (let i = 29; i >= 0; i--) {
       const day = new Date(Date.now() - i * 86400000)
@@ -587,8 +585,9 @@ async function handleAnalytics(
         .split('T')[0];
       days.push({
         date: day,
-        count: conversations.filter((c: any) => (c.timestamp || c.created_at)?.startsWith(day))
-          .length,
+        count: conversations.filter((c: any) =>
+          (c.timestamp || c.created_at)?.startsWith(day),
+        ).length,
       });
     }
     res.json(days);
@@ -2019,7 +2018,9 @@ async function handleClients(
     const orgFilter = ownerFilter(user);
     const [convs, leads] = await Promise.all([
       sbSelect('conversations', 'id,timestamp', orgFilter).catch(() => []),
-      sbSelect('leads', 'id,created_at,source_bot_id', orgFilter).catch(() => []),
+      sbSelect('leads', 'id,created_at,source_bot_id', orgFilter).catch(
+        () => [],
+      ),
     ]);
     const totalConversations = convs.length;
     const totalLeads = leads.length;
@@ -2040,8 +2041,9 @@ async function handleClients(
         .split('T')[0];
       days.push({
         date: day,
-        conversations: convs.filter((c: any) => (c.timestamp || c.created_at)?.startsWith(day))
-          .length,
+        conversations: convs.filter((c: any) =>
+          (c.timestamp || c.created_at)?.startsWith(day),
+        ).length,
         visitors: 0,
         leads: leads.filter((l: any) => l.created_at?.startsWith(day)).length,
       });
@@ -2534,7 +2536,12 @@ async function handleNotifications(
         created_by: body.userId || user.id,
         title: body.title || '',
         body: body.message || '',
-        priority: body.type === 'urgent' ? 'urgent' : body.type === 'warning' ? 'high' : 'normal',
+        priority:
+          body.type === 'urgent'
+            ? 'urgent'
+            : body.type === 'warning'
+              ? 'high'
+              : 'normal',
         is_popup: false,
       });
       res.status(201).json(r[0]);
@@ -4564,11 +4571,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (routeName === 'health') return await handleHealth(req, res);
     // Twilio webhooks — authenticated by Twilio signature, not session
     if (routeName === 'twilio') {
-      const { voiceHandler, voiceRespond, statusCallback, recordingCallback } = await import('./twilio/webhooks.js');
+      const { voiceHandler, voiceRespond, statusCallback, recordingCallback } =
+        await import('./twilio/webhooks.js');
       if (pathParts[0] === 'voice-handler') return await voiceHandler(req, res);
       if (pathParts[0] === 'voice-respond') return await voiceRespond(req, res);
-      if (pathParts[0] === 'status-callback') return await statusCallback(req, res);
-      if (pathParts[0] === 'recording-callback') return await recordingCallback(req, res);
+      if (pathParts[0] === 'status-callback')
+        return await statusCallback(req, res);
+      if (pathParts[0] === 'recording-callback')
+        return await recordingCallback(req, res);
       return res.status(404).json({ error: 'Unknown Twilio endpoint' });
     }
     if (routeName === 'leads' && pathParts[0] === 'capture')

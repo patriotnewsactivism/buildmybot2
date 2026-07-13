@@ -1,4 +1,12 @@
-import { Bot as BotIcon, Check, Copy, ExternalLink, Loader2, Plus, Save } from 'lucide-react';
+import {
+  Bot as BotIcon,
+  Check,
+  Copy,
+  ExternalLink,
+  Loader2,
+  Plus,
+  Save,
+} from 'lucide-react';
 import type React from 'react';
 import { useEffect, useState } from 'react';
 import type { Bot } from '../../types';
@@ -115,7 +123,7 @@ const BotBuilder: React.FC<BotBuilderProps> = ({
     ? `<script src="https://${embedHost}/embed.js" data-bot-id="${draft.id}" async></script>`
     : '';
   const chatUrl =
-    draft && draft.id && draft.id !== 'new'
+    draft?.id && draft.id !== 'new'
       ? `https://${embedHost}/chat/${draft.id}`
       : '';
 
@@ -214,8 +222,8 @@ const BotBuilder: React.FC<BotBuilderProps> = ({
                   </span>
                 </div>
                 <p className="mb-3 text-sm text-indigo-700 dark:text-indigo-300">
-                  Send this link to anyone by text, email, or DM — they'll
-                  chat with this bot instantly, no app or signup needed.
+                  Send this link to anyone by text, email, or DM — they'll chat
+                  with this bot instantly, no app or signup needed.
                 </p>
                 <div className="flex flex-col gap-2 sm:flex-row">
                   <Input
