@@ -21,7 +21,11 @@ function setCors(res: VercelResponse) {
 
 function parseBody(req: VercelRequest): any {
   if (typeof req.body === 'string') {
-    try { return JSON.parse(req.body); } catch { return req.body; }
+    try {
+      return JSON.parse(req.body);
+    } catch {
+      return req.body;
+    }
   }
   return req.body || {};
 }
@@ -55,11 +59,14 @@ export async function voiceHandler(req: VercelRequest, res: VercelResponse) {
 
   const url = new URL(req.url || '/', 'http://localhost');
   const leadId = url.searchParams.get('leadId') || '';
-  const objective = url.searchParams.get('objective') || 'Follow up on their interest in BuildMyBot';
+  const objective =
+    url.searchParams.get('objective') ||
+    'Follow up on their interest in BuildMyBot';
   const logId = url.searchParams.get('logId') || '';
 
   // Generate a natural greeting based on the objective
-  let greeting = 'Hi there! This is the BuildMyBot team. We wanted to follow up and see if you had any questions about how AI chatbots could help your business. Do you have a moment?';
+  let greeting =
+    'Hi there! This is the BuildMyBot team. We wanted to follow up and see if you had any questions about how AI chatbots could help your business. Do you have a moment?';
 
   try {
     const { callLLM } = await import('../ai-team/lib.js');
@@ -101,7 +108,7 @@ export async function voiceRespond(req: VercelRequest, res: VercelResponse) {
   const leadId = url.searchParams.get('leadId') || '';
   const objective = url.searchParams.get('objective') || '';
   const logId = url.searchParams.get('logId') || '';
-  const turn = parseInt(url.searchParams.get('turn') || '1');
+  const turn = Number.parseInt(url.searchParams.get('turn') || '1');
 
   // Cap conversation at 8 turns to keep costs reasonable
   if (turn > 8 || !speechResult) {
@@ -115,7 +122,8 @@ export async function voiceRespond(req: VercelRequest, res: VercelResponse) {
   }
 
   // Generate AI response based on the lead's speech
-  let aiResponse = "That's a great question. Let me look into that and follow up with you by email. Is there anything else I can help with?";
+  let aiResponse =
+    "That's a great question. Let me look into that and follow up with you by email. Is there anything else I can help with?";
 
   try {
     const { callLLM } = await import('../ai-team/lib.js');
@@ -161,12 +169,17 @@ export async function statusCallback(req: VercelRequest, res: VercelResponse) {
   const body = parseBody(req);
   const callStatus = body.CallStatus || '';
   const callSid = body.CallSid || '';
-  const duration = parseInt(body.CallDuration || '0');
+  const duration = Number.parseInt(body.CallDuration || '0');
   const url = new URL(req.url || '/', 'http://localhost');
   const logId = url.searchParams.get('logId') || '';
   const leadId = url.searchParams.get('leadId') || '';
 
-  if (callStatus === 'completed' || callStatus === 'busy' || callStatus === 'no-answer' || callStatus === 'failed') {
+  if (
+    callStatus === 'completed' ||
+    callStatus === 'busy' ||
+    callStatus === 'no-answer' ||
+    callStatus === 'failed'
+  ) {
     await logCallOutcome({
       leadId,
       callSid,
@@ -183,7 +196,10 @@ export async function statusCallback(req: VercelRequest, res: VercelResponse) {
  * POST /api/twilio/recording-callback
  * Twilio calls this when a recording/transcription is ready.
  */
-export async function recordingCallback(req: VercelRequest, res: VercelResponse) {
+export async function recordingCallback(
+  req: VercelRequest,
+  res: VercelResponse,
+) {
   setCors(res);
   if (req.method !== 'POST') return res.status(405).end();
 
@@ -191,7 +207,7 @@ export async function recordingCallback(req: VercelRequest, res: VercelResponse)
   const recordingUrl = body.RecordingUrl || '';
   const recordingSid = body.RecordingSid || '';
   const callSid = body.CallSid || '';
-  const duration = parseInt(body.RecordingDuration || '0');
+  const duration = Number.parseInt(body.RecordingDuration || '0');
   const url = new URL(req.url || '/', 'http://localhost');
   const logId = url.searchParams.get('logId') || '';
   const leadId = url.searchParams.get('leadId') || '';

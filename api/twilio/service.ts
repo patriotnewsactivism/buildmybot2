@@ -44,7 +44,11 @@ async function sbInsert(table: string, data: any) {
   return resp.json();
 }
 
-async function sbUpdate(table: string, data: any, filters: Record<string, string>) {
+async function sbUpdate(
+  table: string,
+  data: any,
+  filters: Record<string, string>,
+) {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(filters)) {
     params.set(key, value);
@@ -62,7 +66,11 @@ async function sbUpdate(table: string, data: any, filters: Record<string, string
   return resp.json();
 }
 
-async function sbSelect(table: string, select = '*', filters: Record<string, string> = {}) {
+async function sbSelect(
+  table: string,
+  select = '*',
+  filters: Record<string, string> = {},
+) {
   const params = new URLSearchParams({ select });
   for (const [key, value] of Object.entries(filters)) {
     params.set(key, value);
@@ -90,7 +98,11 @@ export async function initiateOutboundCall(opts: {
   error?: string;
 }> {
   if (!twilioConfigured()) {
-    return { success: false, error: 'Twilio not configured (set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER)' };
+    return {
+      success: false,
+      error:
+        'Twilio not configured (set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER)',
+    };
   }
 
   try {
@@ -132,19 +144,27 @@ export async function initiateOutboundCall(opts: {
 
     // Update the log with the call SID
     if (logId) {
-      await sbUpdate('call_logs', {
-        call_sid: call.sid,
-        status: 'initiated',
-      }, { id: `eq.${logId}` });
+      await sbUpdate(
+        'call_logs',
+        {
+          call_sid: call.sid,
+          status: 'initiated',
+        },
+        { id: `eq.${logId}` },
+      );
     }
 
     // Update the lead's outreach tracking
-    await sbUpdate('leads', {
-      last_contacted_at: new Date().toISOString(),
-      contact_method: 'call',
-      contact_count: null, // Will be incremented by a trigger or the status callback
-      last_ai_action_at: new Date().toISOString(),
-    }, { id: `eq.${opts.leadId}` });
+    await sbUpdate(
+      'leads',
+      {
+        last_contacted_at: new Date().toISOString(),
+        contact_method: 'call',
+        contact_count: null, // Will be incremented by a trigger or the status callback
+        last_ai_action_at: new Date().toISOString(),
+      },
+      { id: `eq.${opts.leadId}` },
+    );
 
     return { success: true, callSid: call.sid };
   } catch (err: any) {
@@ -188,18 +208,24 @@ export async function logCallOutcome(opts: {
 
   // Update call_logs
   if (opts.logId) {
-    await sbUpdate('call_logs', {
-      status: opts.status,
-      duration: opts.duration,
-      recording_url: opts.recordingUrl || null,
-      transcript: opts.transcript ? { text: opts.transcript } : null,
-      summary,
-      ended_at: now,
-    }, { id: `eq.${opts.logId}` });
+    await sbUpdate(
+      'call_logs',
+      {
+        status: opts.status,
+        duration: opts.duration,
+        recording_url: opts.recordingUrl || null,
+        transcript: opts.transcript ? { text: opts.transcript } : null,
+        summary,
+        ended_at: now,
+      },
+      { id: `eq.${opts.logId}` },
+    );
   }
 
   // Update lead with notes
-  const leadRows = await sbSelect('leads', 'notes,contact_count', { id: `eq.${opts.leadId}` });
+  const leadRows = await sbSelect('leads', 'notes,contact_count', {
+    id: `eq.${opts.leadId}`,
+  });
   const lead = leadRows?.[0];
   const existingNotes = lead?.notes || '';
   const currentCount = lead?.contact_count || 0;
@@ -209,12 +235,16 @@ export async function logCallOutcome(opts: {
     ? `${existingNotes}\n\n${newNote}`
     : newNote;
 
-  await sbUpdate('leads', {
-    notes: updatedNotes.slice(0, 10000),
-    contact_count: currentCount + 1,
-    call_transcript_url: opts.recordingUrl || null,
-    ai_notes: summary.slice(0, 1000),
-  }, { id: `eq.${opts.leadId}` });
+  await sbUpdate(
+    'leads',
+    {
+      notes: updatedNotes.slice(0, 10000),
+      contact_count: currentCount + 1,
+      call_transcript_url: opts.recordingUrl || null,
+      ai_notes: summary.slice(0, 1000),
+    },
+    { id: `eq.${opts.leadId}` },
+  );
 
   // Write to agent memory for future recall
   try {
