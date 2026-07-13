@@ -2020,7 +2020,7 @@ async function handleClients(
     const orgFilter = ownerFilter(user);
     const [convs, leads] = await Promise.all([
       sbSelect('conversations', 'id,created_at', orgFilter).catch(() => []),
-      sbSelect('leads', 'id,created_at,source_url', orgFilter).catch(() => []),
+      sbSelect('leads', 'id,created_at,source', orgFilter).catch(() => []),
     ]);
     const totalConversations = convs.length;
     const totalLeads = leads.length;
@@ -2050,9 +2050,7 @@ async function handleClients(
 
     const sourceCounts: Record<string, number> = {};
     for (const l of leads as any[]) {
-      const src = l.source_url
-        ? new URL(l.source_url, 'http://x').hostname || 'direct'
-        : 'direct';
+      const src = l.source || 'direct';
       sourceCounts[src] = (sourceCounts[src] || 0) + 1;
     }
 
