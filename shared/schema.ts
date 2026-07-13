@@ -284,8 +284,22 @@ export const leads = pgTable('leads', {
   score: integer('score'),
   status: varchar('status', { length: 50 }),
   sourceBotId: text('source_bot_id'),
+  source: varchar('source', { length: 255 }),
   userId: text('user_id'),
   organizationId: text('organization_id'),
+  // Outreach tracking (Phase 1)
+  lastContactedAt: timestamp('last_contacted_at'),
+  contactMethod: varchar('contact_method', { length: 50 }),
+  contactCount: integer('contact_count'),
+  notes: text('notes'),
+  nextFollowupAt: timestamp('next_followup_at'),
+  callTranscriptUrl: text('call_transcript_url'),
+  emailThreadId: text('email_thread_id'),
+  // AI agent tracking
+  repliedAt: timestamp('replied_at'),
+  followUpSentAt: timestamp('follow_up_sent_at'),
+  lastAiActionAt: timestamp('last_ai_action_at'),
+  aiNotes: text('ai_notes'),
   createdAt: timestamp('created_at'),
 });
 
@@ -499,6 +513,8 @@ export const users = pgTable('users', {
   whitelabelSubscriptionId: text('whitelabel_subscription_id'),
   referralCredits: doublePrecision('referral_credits'),
   referralCreditsExpiry: timestamp('referral_credits_expiry'),
+  trialStartedAt: timestamp('trial_started_at'),
+  trialEndsAt: timestamp('trial_ends_at'),
   organizationId: text('organization_id'),
   lastLoginAt: timestamp('last_login_at'),
   preferences: json('preferences'),
