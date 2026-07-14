@@ -1,4 +1,12 @@
-import { Bot as BotIcon, Loader2, Plus, Save } from 'lucide-react';
+import {
+  Bot as BotIcon,
+  Check,
+  Copy,
+  ExternalLink,
+  Loader2,
+  Plus,
+  Save,
+} from 'lucide-react';
 import type React from 'react';
 import { useEffect, useState } from 'react';
 import type { Bot } from '../../types';
@@ -47,6 +55,7 @@ const BotBuilder: React.FC<BotBuilderProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<number | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   // Load the selected bot into the edit form whenever selection changes or
   // the bot list refreshes underneath us.
@@ -113,6 +122,22 @@ const BotBuilder: React.FC<BotBuilderProps> = ({
   const embedSnippet = draft
     ? `<script src="https://${embedHost}/embed.js" data-bot-id="${draft.id}" async></script>`
     : '';
+  const chatUrl =
+    draft?.id && draft.id !== 'new'
+      ? `https://${embedHost}/chat/${draft.id}`
+      : '';
+
+  const handleCopyLink = async () => {
+    if (!chatUrl) return;
+    try {
+      await navigator.clipboard.writeText(chatUrl);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch {
+      // Clipboard API unavailable (e.g. insecure context) — no-op, the URL
+      // is still visible/selectable in the input for manual copy.
+    }
+  };
 
   if (showWizard) {
     return (
@@ -185,6 +210,55 @@ const BotBuilder: React.FC<BotBuilderProps> = ({
             {saveError && (
               <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
                 {saveError}
+              </p>
+            )}
+
+            {chatUrl ? (
+              <div className="rounded-xl border-2 border-indigo-200 bg-gradient-to-r from-indigo-50 to-blue-50 p-5 shadow-sm dark:border-indigo-900 dark:from-indigo-950 dark:to-blue-950">
+                <div className="mb-2 flex items-center gap-2">
+                  <ExternalLink className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                  <span className="text-base font-bold text-indigo-900 dark:text-indigo-200">
+                    Share this bot
+                  </span>
+                </div>
+                <p className="mb-3 text-sm text-indigo-700 dark:text-indigo-300">
+                  Send this link to anyone by text, email, or DM — they'll chat
+                  with this bot instantly, no app or signup needed.
+                </p>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Input
+                    readOnly
+                    value={chatUrl}
+                    onClick={(e) => (e.target as HTMLInputElement).select()}
+                    className="flex-1 bg-white font-mono text-sm dark:bg-gray-900"
+                  />
+                  <Button
+                    onClick={handleCopyLink}
+                    className="shrink-0 bg-indigo-600 hover:bg-indigo-700"
+                  >
+                    {linkCopied ? (
+                      <>
+                        <Check className="mr-1 h-4 w-4" /> Copied!
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="mr-1 h-4 w-4" /> Copy Link
+                      </>
+                    )}
+                  </Button>
+                  <a
+                    href={chatUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex shrink-0 items-center justify-center gap-1 rounded-md border border-indigo-300 px-4 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-100 dark:border-indigo-700 dark:text-indigo-300 dark:hover:bg-indigo-900"
+                  >
+                    <ExternalLink className="h-4 w-4" /> Open
+                  </a>
+                </div>
+              </div>
+            ) : (
+              <p className="rounded-md bg-gray-50 px-3 py-2 text-sm text-gray-500 dark:bg-gray-900">
+                Save this bot to generate its shareable chat link.
               </p>
             )}
 

@@ -138,7 +138,31 @@ export async function pulseHandler(req: VercelRequest, res: VercelResponse) {
     });
   }
 
-  // ── 3. Stale critical errors — one loud reminder each ────────────────────
+  // ── 3. Sales outreach — dispatch if researched leads are waiting ──────
+  try {
+    const waitingLeads =
+      (await supabaseFetch(
+        'researched_leads',
+        'select=id&status=in.(new,surfaced_to_sales)&limit=1',
+      )) || [];
+    if (waitingLeads.length > 0) {
+      const base = process.env.APP_BASE_URL || 'https://www.buildmybot.app';
+      const resp = await fetch(`${base}/api/cron/sales-outreach`, {
+        headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
+      });
+      const body = await resp.json().catch(() => ({}));
+      actions.push(
+        `dispatched sales-outreach (emails=${body.emails_sent ?? '?'}, calls=${body.calls_initiated ?? '?'})`,
+      );
+    }
+  } catch (err: any) {
+    await logAgentError({
+      source: 'cron/pulse/sales-outreach',
+      message: `Sales outreach dispatch failed: ${err.message}`,
+    });
+  }
+
+  // ── 4. Stale critical errors — one loud reminder each ────────────────────
   try {
     const staleCutoff = new Date(Date.now() - 2 * 3600_000).toISOString();
     const stale =

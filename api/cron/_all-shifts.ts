@@ -9,6 +9,7 @@ import {
   runRoleShift,
   runSocialMediaShift,
 } from '../ai-team/lib.js';
+import { salesOutreachHandler } from './_sales-outreach.js';
 
 // Every AI Team role, each runnable individually via ?role=<id> so an
 // external scheduler (GitHub Actions) can trigger each one at its own time
@@ -274,6 +275,13 @@ export async function allShiftsHandler(
           .status(500)
           .json({ 'lead-researcher': { error: e.message } });
       }
+    }
+    if (
+      roleParam === 'sales-outreach' ||
+      roleParam === 'sales-outreach-agent'
+    ) {
+      // Jordan Blake — Sales Outreach Agent (distinct from researcher)
+      return salesOutreachHandler(req, res);
     }
     if (roleParam === 'frankie-social' || roleParam === 'social-media') {
       try {

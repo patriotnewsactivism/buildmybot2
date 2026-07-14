@@ -569,6 +569,7 @@ export const LandingPage: React.FC<LandingProps> = ({
               );
               setEmbedInput('');
             }}
+            aria-label="Send message"
             className="bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700 transition"
           >
             <Send size={18} />
@@ -669,6 +670,7 @@ export const LandingPage: React.FC<LandingProps> = ({
           <button
             type="button"
             onClick={() => setIsHoverOpen(!isHoverOpen)}
+            aria-label={isHoverOpen ? 'Close chat' : 'Open chat'}
             className="w-14 h-14 bg-blue-900 text-white rounded-full shadow-xl flex items-center justify-center hover:scale-110 transition-transform"
           >
             {isHoverOpen ? <X size={24} /> : <MessageSquare size={24} />}

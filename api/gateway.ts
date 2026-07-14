@@ -250,7 +250,7 @@ export async function checkQuota(
       monthStart.setHours(0, 0, 0, 0);
       const convs = await sbSelect('conversations', 'id', {
         ...orgFilter,
-        created_at: `gte.${monthStart.toISOString()}`,
+        timestamp: `gte.${monthStart.toISOString()}`,
       }).catch(() => []);
       current = convs.length;
       limit = limits.conversations_per_month;
@@ -489,6 +489,31 @@ async function handleBotById(
   }
 }
 
+async function handlePublicBotById(
+  req: VercelRequest,
+  res: VercelResponse,
+  botId: string,
+) {
+  if (req.method !== 'GET')
+    return res.status(405).json({ error: 'Method not allowed' });
+  const bots = await sbSelect('bots', '*', {
+    id: `eq.${botId}`,
+    is_public: 'eq.true',
+  });
+  if (!bots.length || bots[0].active === false)
+    return res.status(404).json({ error: 'Bot not found' });
+  const b = bots[0];
+  res.json({
+    id: b.id,
+    name: b.name,
+    themeColor: b.theme_color,
+    avatar: b.avatar,
+    active: b.active,
+    leadCapture: b.lead_capture,
+    responseDelay: b.response_delay,
+  });
+}
+
 async function handleAnalytics(
   _req: VercelRequest,
   res: VercelResponse,
@@ -502,10 +527,10 @@ async function handleAnalytics(
     const [bots, leads, convs] = await Promise.all([
       sbSelect('bots', 'id,status', orgFilter).catch(() => []),
       sbSelect('leads', 'id,status', orgFilter).catch(() => []),
-      sbSelect('conversations', 'id,created_at', orgFilter).catch(() => []),
+      sbSelect('conversations', 'id,timestamp', orgFilter).catch(() => []),
     ]);
     res.json({
-      activeBots: bots.filter((b: any) => b.status === 'active').length,
+      activeBots: bots.filter((b: any) => b.active !== false).length,
       totalBots: bots.length,
       newLeads: leads.filter((l: any) => l.status === 'new').length,
       totalLeads: leads.length,
@@ -550,11 +575,9 @@ async function handleAnalytics(
   } else if (sub === 'trends') {
     const orgId = pathParts[1];
     const f = orgId ? { organization_id: `eq.${orgId}` } : orgFilter;
-    const conversations = await sbSelect(
-      'conversations',
-      'created_at',
-      f,
-    ).catch(() => []);
+    const conversations = await sbSelect('conversations', 'timestamp', f).catch(
+      () => [],
+    );
     const days: any[] = [];
     for (let i = 29; i >= 0; i--) {
       const day = new Date(Date.now() - i * 86400000)
@@ -562,8 +585,9 @@ async function handleAnalytics(
         .split('T')[0];
       days.push({
         date: day,
-        count: conversations.filter((c: any) => c.created_at?.startsWith(day))
-          .length,
+        count: conversations.filter((c: any) =>
+          (c.timestamp || c.created_at)?.startsWith(day),
+        ).length,
       });
     }
     res.json(days);
@@ -638,7 +662,7 @@ async function handleLeads(
         actor: 'lead',
         actor_name: lead.name || lead.email || 'Lead',
         type: 'created',
-        summary: `Lead captured${lead.source ? ` via ${lead.source}` : ''}.`,
+        summary: `Lead captured${lead.source_bot_id ? ` via bot ${lead.source_bot_id}` : ''}.`,
         timestamp: lead.created_at,
       });
       if (lead.replied_at) {
@@ -866,10 +890,10 @@ async function handleAdmin(
   if (sub === 'metrics') {
     const [users, orgs, bots, leads, subs] = await Promise.all([
       sbSelect('users', 'id,role,plan,created_at', {}).catch(() => []),
-      sbSelect('organizations', 'id,plan,is_active,created_at', {}).catch(
+      sbSelect('organizations', 'id,plan,deleted_at,created_at', {}).catch(
         () => [],
       ),
-      sbSelect('bots', 'id,status', {}).catch(() => []),
+      sbSelect('bots', 'id,active', {}).catch(() => []),
       sbSelect('leads', 'id,status', {}).catch(() => []),
       sbSelect('organization_subscriptions', 'id,plan,status', {}).catch(
         () => [],
@@ -885,9 +909,9 @@ async function handleAdmin(
     res.json({
       totalUsers: users.length,
       totalOrganizations: orgs.length,
-      activeOrganizations: orgs.filter((o: any) => o.is_active).length,
+      activeOrganizations: orgs.filter((o: any) => !o.deleted_at).length,
       totalBots: bots.length,
-      activeBots: bots.filter((b: any) => b.status === 'active').length,
+      activeBots: bots.filter((b: any) => b.active !== false).length,
       totalLeads: leads.length,
       newLeads: leads.filter((l: any) => l.status === 'new').length,
       payingCustomers: paying,
@@ -924,10 +948,10 @@ async function handleAdmin(
       // read undefined and crashed, blanking the whole admin overview tab.
       const orgs = await sbSelect(
         'organizations',
-        'id,plan,is_active',
+        'id,plan,deleted_at',
         {},
       ).catch(() => []);
-      const activeCustomers = orgs.filter((o: any) => o.is_active).length;
+      const activeCustomers = orgs.filter((o: any) => !o.deleted_at).length;
       const mrr = orgs.reduce(
         (sum: number, o: any) => sum + (PLAN_PRICES[o.plan] || 0),
         0,
@@ -1172,9 +1196,8 @@ async function handleVoice(
       bot_id: botId,
       organization_id: user.organizationId,
       voice_id: body.voiceId || 'default',
-      voice_provider: body.provider || 'cartesia',
-      status: 'active',
-      config: body.config || {},
+      provider: body.provider || 'cartesia',
+      is_active: true,
     }).catch(() => [{ id: 'ok', success: true }]);
     res.status(201).json(r[0]);
   } else if (req.method === 'PATCH' && botId) {
@@ -1677,7 +1700,7 @@ async function handleAgency(
         () => [],
       ),
       sbSelect('leads', 'id,score,status', orgFilter).catch(() => []),
-      sbSelect('conversations', 'id,created_at', orgFilter).catch(() => []),
+      sbSelect('conversations', 'id,timestamp', orgFilter).catch(() => []),
       sbSelect('usage_wallets', '*', {
         organization_id: `eq.${user.organizationId}`,
       }).catch(() => []),
@@ -1698,7 +1721,7 @@ async function handleAgency(
       monthly.push({
         month: monthStr,
         conversations: (conversations as any[]).filter((c) =>
-          c.created_at?.startsWith(monthStr),
+          (c.timestamp || c.created_at)?.startsWith(monthStr),
         ).length,
         leads: (leads as any[]).filter((l) =>
           l.created_at?.startsWith(monthStr),
@@ -1919,7 +1942,7 @@ async function handleClients(
     const [bots, leads, conversations] = await Promise.all([
       sbSelect('bots', '*', orgFilter).catch(() => []),
       sbSelect('leads', '*', orgFilter).catch(() => []),
-      sbSelect('conversations', 'id,created_at', orgFilter).catch(() => []),
+      sbSelect('conversations', 'id,timestamp', orgFilter).catch(() => []),
     ]);
 
     const botCount = bots.length;
@@ -1947,7 +1970,7 @@ async function handleClients(
       days.push({
         date: day,
         count: (conversations as any[]).filter((c) =>
-          c.created_at?.startsWith(day),
+          (c.timestamp || c.created_at)?.startsWith(day),
         ).length,
       });
     }
@@ -1994,8 +2017,10 @@ async function handleClients(
     // `data.metrics.totalConversations`.
     const orgFilter = ownerFilter(user);
     const [convs, leads] = await Promise.all([
-      sbSelect('conversations', 'id,created_at', orgFilter).catch(() => []),
-      sbSelect('leads', 'id,created_at,source_url', orgFilter).catch(() => []),
+      sbSelect('conversations', 'id,timestamp', orgFilter).catch(() => []),
+      sbSelect('leads', 'id,created_at,source_bot_id', orgFilter).catch(
+        () => [],
+      ),
     ]);
     const totalConversations = convs.length;
     const totalLeads = leads.length;
@@ -2016,8 +2041,9 @@ async function handleClients(
         .split('T')[0];
       days.push({
         date: day,
-        conversations: convs.filter((c: any) => c.created_at?.startsWith(day))
-          .length,
+        conversations: convs.filter((c: any) =>
+          (c.timestamp || c.created_at)?.startsWith(day),
+        ).length,
         visitors: 0,
         leads: leads.filter((l: any) => l.created_at?.startsWith(day)).length,
       });
@@ -2025,9 +2051,7 @@ async function handleClients(
 
     const sourceCounts: Record<string, number> = {};
     for (const l of leads as any[]) {
-      const src = l.source_url
-        ? new URL(l.source_url, 'http://x').hostname || 'direct'
-        : 'direct';
+      const src = l.source_bot_id || 'direct';
       sourceCounts[src] = (sourceCounts[src] || 0) + 1;
     }
 
@@ -2481,7 +2505,7 @@ async function handleNotifications(
   if (!nid) {
     if (req.method === 'GET') {
       const rows = await sbSelect('notifications', '*', {
-        user_id: `eq.${user.id}`,
+        created_by: `eq.${user.id}`,
       }).catch(() => []);
       // Shape this to match NotificationsResponse expected by
       // NotificationBell.tsx: { unread, recent, unreadCount }. The
@@ -2490,21 +2514,16 @@ async function handleNotifications(
       const mapped = (Array.isArray(rows) ? rows : []).map((n: any) => ({
         id: n.id,
         title: n.title || '',
-        body: n.message || '',
+        body: n.body || '',
         isPopup: false,
-        priority:
-          n.type === 'urgent'
-            ? 'urgent'
-            : n.type === 'warning'
-              ? 'high'
-              : 'normal',
+        priority: n.priority || 'normal',
         createdAt: n.created_at,
         receipt: {
           viewedAt: n.read ? n.updated_at || n.created_at : null,
           acknowledgedAt: n.read ? n.updated_at || n.created_at : null,
         },
       }));
-      const unread = mapped.filter((n) => !n.receipt.viewedAt);
+      const unread = mapped.filter((n: any) => !n.receipt.viewedAt);
       res.json({
         unread,
         recent: mapped.slice(0, 20),
@@ -2514,11 +2533,16 @@ async function handleNotifications(
       const body = parseBody(req);
       const r = await sbInsert('notifications', {
         id: crypto.randomUUID(),
-        user_id: body.userId || user.id,
+        created_by: body.userId || user.id,
         title: body.title || '',
-        message: body.message || '',
-        type: body.type || 'info',
-        read: false,
+        body: body.message || '',
+        priority:
+          body.type === 'urgent'
+            ? 'urgent'
+            : body.type === 'warning'
+              ? 'high'
+              : 'normal',
+        is_popup: false,
       });
       res.status(201).json(r[0]);
     }
@@ -2716,14 +2740,14 @@ async function handleSupport(
     if (req.method === 'GET') {
       res.json(
         await sbSelect('support_tickets', '*', {
-          created_by: `eq.${user.id}`,
+          user_id: `eq.${user.id}`,
         }).catch(() => []),
       );
     } else if (req.method === 'POST') {
       const body = parseBody(req);
       const r = await sbInsert('support_tickets', {
         id: crypto.randomUUID(),
-        created_by: user.id,
+        user_id: user.id,
         organization_id: user.organizationId,
         subject: body.subject || '',
         description: body.description || '',
@@ -2744,7 +2768,7 @@ async function handleSupport(
       const r = await sbInsert('support_ticket_messages', {
         id: crypto.randomUUID(),
         ticket_id: tid,
-        sender_id: user.id,
+        user_id: user.id,
         message: body.message || '',
       });
       res.status(201).json(r[0]);
@@ -2936,10 +2960,10 @@ async function handleAiEmployees(
           case 'Ops': {
             const [errors, bots] = await Promise.all([
               sbSelect('error_logs', 'id', {}).catch(() => []),
-              sbSelect('bots', 'id,status', {}).catch(() => []),
+              sbSelect('bots', 'id,active', {}).catch(() => []),
             ]);
             const activeBots = bots.filter(
-              (b: any) => b.status === 'active',
+              (b: any) => b.active !== false,
             ).length;
             status = 'completed';
             output = `Real check: ${errors.length} logged error(s), ${activeBots}/${bots.length} bots active.`;
@@ -4545,6 +4569,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     // Public routes
     if (routeName === 'health') return await handleHealth(req, res);
+    // Twilio webhooks — authenticated by Twilio signature, not session
+    if (routeName === 'twilio') {
+      const { voiceHandler, voiceRespond, statusCallback, recordingCallback } =
+        await import('./twilio/webhooks.js');
+      if (pathParts[0] === 'voice-handler') return await voiceHandler(req, res);
+      if (pathParts[0] === 'voice-respond') return await voiceRespond(req, res);
+      if (pathParts[0] === 'status-callback')
+        return await statusCallback(req, res);
+      if (pathParts[0] === 'recording-callback')
+        return await recordingCallback(req, res);
+      return res.status(404).json({ error: 'Unknown Twilio endpoint' });
+    }
     if (routeName === 'leads' && pathParts[0] === 'capture')
       return await handleLeadCapture(req, res);
     if (routeName === 'launch-gate') return await handleLaunchGate(req, res);
@@ -4562,6 +4598,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // require a session. Scoped safely: handleChat only ever reads/writes
     // the ONE bot id in the URL/body, never the caller's own tenant data.
     if (routeName === 'chat') return await handleChat(req, res, pathParts);
+
+    // Public bot lookup for the shareable /chat/:botId page -- anonymous
+    // visitors following a shared link are NOT logged in. Was previously
+    // missing entirely (fell through to the auth-required switch below
+    // and 401'd every anonymous visitor), which silently broke every
+    // shared bot link. Only ever returns a bot that its owner explicitly
+    // marked is_public, and only the fields the public chat UI needs --
+    // never system_prompt/model/knowledge_base/user_id/organization_id.
+    if (routeName === 'public' && pathParts[0] === 'bots' && pathParts[1])
+      return await handlePublicBotById(req, res, pathParts[1]);
 
     // Auth extras (don't conflict with /api/auth/* serverless functions)
     if (
