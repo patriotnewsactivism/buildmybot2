@@ -1179,33 +1179,220 @@ async function handleVoice(
   if (pathParts[0] !== 'agents')
     return res.status(404).json({ error: 'Not found' });
   const botId = pathParts[1];
+  
   if (req.method === 'GET') {
-    if (botId) {
-      const d = await sbSelect('voice_agents', '*', {
-        bot_id: `eq.${botId}`,
-      }).catch(() => []);
-      res.json(d[0] || null);
-    } else {
-      const f = ownerFilter(user);
-      res.json(await sbSelect('voice_agents', '*', f).catch(() => []));
+    try {
+      if (botId) {
+        // Check if user has access to this bot
+        const botCheck = await sbSelect('bots', 'id,organization_id', {
+          id: `eq.${botId}`,
+        }).catch(() => []);
+        
+        if (!botCheck.length) {
+          return res.status(404).json({ error: 'Bot not found' });
+        }
+        
+        const bot = botCheck[0];
+        // Check if user has access to this bot's organization
+        if (user.organizationId !== bot.organization_id && user.role !== 'admin') {
+          return res.status(403).json({ error: 'Access denied' });
+        }
+        
+        const d = await sbSelect('voice_agents', '*', {
+          bot_id: `eq.${botId}`,
+        }).catch(() => []);
+        res.json(d[0] || null);
+      } else {
+        const f = ownerFilter(user);
+        const agents = await sbSelect('voice_agents', '*', f).catch(() => []);
+        res.json(agents);
+      }
+    } catch (err: any) {
+      console.error('[voice] GET error:', err.message);
+      res.status(500).json({ error: 'Failed to retrieve voice agents' });
     }
   } else if (req.method === 'POST' && botId && pathParts[2] === 'provision') {
-    const body = parseBody(req);
-    const r = await sbInsert('voice_agents', {
-      id: crypto.randomUUID(),
-      bot_id: botId,
-      organization_id: user.organizationId,
-      voice_id: body.voiceId || 'default',
-      provider: body.provider || 'cartesia',
-      is_active: true,
-    }).catch(() => [{ id: 'ok', success: true }]);
-    res.status(201).json(r[0]);
+    try {
+      const body = parseBody(req);
+      
+      // Validate required fields
+      if (!body.voiceId) {
+        return res.status(400).json({ error: 'voiceId is required' });
+      }
+      
+      // Validate provider
+      const validProviders = ['openai', 'cartesia', 'elevenlabs', 'aws-polly', 'google-tts'];
+      const provider = body.provider || 'cartesia';
+      if (!validProviders.includes(provider)) {
+        return res.status(400).json({ 
+          error: `Invalid provider. Supported: ${validProviders.join(', ')}` 
+        });
+      }
+      
+      // Check if bot exists and user has access
+      const botCheck = await sbSelect('bots', 'id,organization_id', {
+        id: `eq.${botId}`,
+      }).catch(() => []);
+      
+      if (!botCheck.length) {
+        return res.status(404).json({ error: 'Bot not found' });
+      }
+      
+      const bot = botCheck[0];
+      if (user.organizationId !== bot.organization_id && user.role !== 'admin') {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      
+      // Check if voice agent already exists for this bot
+      const existing = await sbSelect('voice_agents', 'id', {
+        bot_id: `eq.${botId}`,
+      }).catch(() => []);
+      
+      if (existing.length > 0) {
+        return res.status(409).json({ 
+          error: 'Voice agent already provisioned for this bot',
+          existingAgentId: existing[0].id 
+        });
+      }
+      
+      // Create voice agent
+      const voiceAgentData = {
+        id: crypto.randomUUID(),
+        bot_id: botId,
+        organization_id: user.organizationId,
+        provider: provider,
+        voice_id: body.voiceId,
+        voice_name: body.voiceName || null,
+        voice_model: body.voiceModel || null,
+        language: body.language || 'en',
+        system_prompt: body.systemPrompt || null,
+        greeting: body.greeting || null,
+        business_hours: body.businessHours || null,
+        after_hours_message: body.afterHoursMessage || null,
+        end_call_phrase: body.endCallPhrase || 'Goodbye!',
+        end_call_phrases: body.endCallPhrases || ['goodbye', 'bye', 'end call', 'hang up'],
+        transfer_enabled: body.transferEnabled || false,
+        transfer_number: body.transferNumber || null,
+        transfer_triggers: body.transferTriggers || null,
+        lead_capture_enabled: body.leadCaptureEnabled || true,
+        calendar_booking_url: body.calendarBookingUrl || null,
+        max_call_duration: body.maxCallDuration || 30, // minutes
+        record_calls: body.recordCalls !== false, // default true
+        escalation_rules: body.escalationRules || null,
+        plan: body.plan || 'standard',
+        minutes_used: 0,
+        minutes_limit: body.minutesLimit || 1000, // default 1000 minutes
+        billing_cycle: new Date().toISOString(),
+        is_active: true,
+        enabled: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      
+      const r = await sbInsert('voice_agents', voiceAgentData).catch((err) => {
+        console.error('[voice] Insert error:', err);
+        throw new Error('Failed to create voice agent');
+      });
+      
+      res.status(201).json({
+        success: true,
+        voiceAgent: r[0],
+        message: 'Voice agent provisioned successfully'
+      });
+    } catch (err: any) {
+      console.error('[voice] Provision error:', err.message);
+      res.status(500).json({ 
+        error: 'Failed to provision voice agent',
+        details: err.message 
+      });
+    }
   } else if (req.method === 'PATCH' && botId) {
-    const u = await sbUpdate('voice_agents', parseBody(req), {
-      bot_id: `eq.${botId}`,
-    }).catch(() => []);
-    res.json(u[0] || { success: true });
-  } else res.status(405).json({ error: 'Method not allowed' });
+    try {
+      const body = parseBody(req);
+      
+      // Check if voice agent exists and user has access
+      const existing = await sbSelect('voice_agents', '*', {
+        bot_id: `eq.${botId}`,
+      }).catch(() => []);
+      
+      if (!existing.length) {
+        return res.status(404).json({ error: 'Voice agent not found' });
+      }
+      
+      const agent = existing[0];
+      // Check if user has access to this bot's organization
+      if (user.organizationId !== agent.organization_id && user.role !== 'admin') {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      
+      // Update voice agent
+      const updateData = {
+        ...body,
+        updated_at: new Date().toISOString(),
+      };
+      
+      const u = await sbUpdate('voice_agents', updateData, {
+        bot_id: `eq.${botId}`,
+      }).catch((err) => {
+        console.error('[voice] Update error:', err);
+        throw new Error('Failed to update voice agent');
+      });
+      
+      res.json({
+        success: true,
+        voiceAgent: u[0],
+        message: 'Voice agent updated successfully'
+      });
+    } catch (err: any) {
+      console.error('[voice] PATCH error:', err.message);
+      res.status(500).json({ 
+        error: 'Failed to update voice agent',
+        details: err.message 
+      });
+    }
+  } else if (req.method === 'DELETE' && botId) {
+    try {
+      // Check if voice agent exists and user has access
+      const existing = await sbSelect('voice_agents', '*', {
+        bot_id: `eq.${botId}`,
+      }).catch(() => []);
+      
+      if (!existing.length) {
+        return res.status(404).json({ error: 'Voice agent not found' });
+      }
+      
+      const agent = existing[0];
+      // Check if user has access to this bot's organization
+      if (user.organizationId !== agent.organization_id && user.role !== 'admin') {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      
+      // Soft delete - mark as inactive
+      const u = await sbUpdate('voice_agents', {
+        is_active: false,
+        enabled: false,
+        updated_at: new Date().toISOString(),
+      }, {
+        bot_id: `eq.${botId}`,
+      }).catch((err) => {
+        console.error('[voice] Delete error:', err);
+        throw new Error('Failed to deactivate voice agent');
+      });
+      
+      res.json({
+        success: true,
+        message: 'Voice agent deactivated successfully'
+      });
+    } catch (err: any) {
+      console.error('[voice] DELETE error:', err.message);
+      res.status(500).json({ 
+        error: 'Failed to deactivate voice agent',
+        details: err.message 
+      });
+    }
+  } else {
+    res.status(405).json({ error: 'Method not allowed' });
+  }
 }
 
 const FIRECRAWL_WEBHOOK_SECRET = process.env.FIRECRAWL_WEBHOOK_SECRET || '';

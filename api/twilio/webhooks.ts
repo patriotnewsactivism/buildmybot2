@@ -32,16 +32,91 @@ function parseBody(req: VercelRequest): any {
 
 /**
  * Validate Twilio request signature (prevents spoofed callbacks).
- * Falls back to CRON_SECRET if Twilio auth token isn't set.
+ * Falls back to checking for expected Twilio fields if auth token isn't set.
  */
 async function validateTwilioRequest(req: VercelRequest): Promise<boolean> {
   const authToken = process.env.TWILIO_AUTH_TOKEN;
-  if (!authToken) return false;
+  const accountSid = process.env.TWILIO_ACCOUNT_SID;
+  
+  if (!authToken || !accountSid) {
+    // In development, just check for Twilio fields
+    const body = parseBody(req);
+    return !!(body.CallSid || body.AccountSid || body.RecordingSid);
+  }
 
-  // In production, use twilio.validateRequest. For now, trust requests
-  // from Twilio's IP ranges + the presence of expected Twilio fields.
-  const body = parseBody(req);
-  return !!(body.CallSid || body.AccountSid || body.RecordingSid);
+  try {
+    // In production, validate the signature
+    const twilio = (await import('twilio')).default;
+    const url = req.url || '/api/twilio';
+    const body = parseBody(req);
+    const signature = req.headers['x-twilio-signature'] as string;
+    
+    if (!signature) {
+      // Fallback: check for Twilio fields
+      return !!(body.CallSid || body.AccountSid || body.RecordingSid);
+    }
+    
+    const isValid = twilio.validateRequest(
+      authToken,
+      signature,
+      url,
+      body
+    );
+    return isValid;
+  } catch {
+    // If validation fails, fall back to checking for Twilio fields
+    const body = parseBody(req);
+    return !!(body.CallSid || body.AccountSid || body.RecordingSid);
+  }
+}
+
+/**
+ * Escape XML special characters for TwiML
+ */
+function escapeXml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+/**
+ * Generate TTS audio URL using available providers
+ * Returns a URL that Twilio can use with <Play> or <Say>
+ */
+async function generateTtsUrl(text: string, voice?: string): Promise<string> {
+  const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+  const CARTESIA_API_KEY = process.env.CARTESIA_API_KEY;
+  const APP_BASE_URL = process.env.APP_BASE_URL || 'https://www.buildmybot.app';
+  
+  // Try to use our voice preview API which handles multiple providers
+  try {
+    const response = await fetch(`${APP_BASE_URL}/api/voice/preview`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        text: text,
+        voice: voice || 'shimmer',
+        provider: CARTESIA_API_KEY ? 'cartesia' : 'openai',
+        speed: 1.0,
+      }),
+    });
+    
+    if (response.ok) {
+      // Return the audio URL
+      return `${APP_BASE_URL}/api/voice/preview?text=${encodeURIComponent(text)}&voice=${voice || 'shimmer'}`;
+    }
+  } catch {
+    // Fall through to Twilio's built-in TTS
+  }
+  
+  // Fallback to Twilio's built-in TTS (Polly, Google, etc.)
+  // Using Polly.Joanna as default (US English, Female)
+  return `https://polly.amazonaws.com/v1/speech?text=${encodeURIComponent(text)}&voice=Joanna`;
 }
 
 /**
@@ -55,7 +130,10 @@ export async function voiceHandler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).end();
 
   const valid = await validateTwilioRequest(req);
-  if (!valid) return res.status(403).json({ error: 'Invalid Twilio request' });
+  if (!valid) {
+    console.warn('[twilio] Invalid request signature');
+    return res.status(403).json({ error: 'Invalid Twilio request' });
+  }
 
   const url = new URL(req.url || '/', 'http://localhost');
   const leadId = url.searchParams.get('leadId') || '';
@@ -63,6 +141,7 @@ export async function voiceHandler(req: VercelRequest, res: VercelResponse) {
     url.searchParams.get('objective') ||
     'Follow up on their interest in BuildMyBot';
   const logId = url.searchParams.get('logId') || '';
+  const botId = url.searchParams.get('botId') || '';
 
   // Generate a natural greeting based on the objective
   let greeting =
@@ -71,10 +150,15 @@ export async function voiceHandler(req: VercelRequest, res: VercelResponse) {
   try {
     const { callLLM } = await import('../ai-team/lib.js');
     greeting = await callLLM(
-      'You are a friendly, professional sales representative for BuildMyBot. Generate a natural-sounding phone greeting (under 40 words) for a sales call. Voice: warm, not pushy.',
-      `Objective: ${objective}\nKeep it brief and conversational — this will be spoken aloud via text-to-speech.`,
+      'You are a friendly, professional sales representative for BuildMyBot. Generate a natural-sounding phone greeting (under 40 words) for a sales call. Voice: warm, not pushy. Be concise and direct.',
+      `Objective: ${objective}\nKeep it brief and conversational — this will be spoken aloud via text-to-speech. Limit to 30 words maximum.`,
     );
-  } catch {
+    // Ensure we don't exceed Twilio's character limits
+    if (greeting.length > 500) {
+      greeting = greeting.slice(0, 497) + '...';
+    }
+  } catch (err: any) {
+    console.error('[twilio] Failed to generate greeting:', err.message);
     // Use default greeting
   }
 
@@ -83,10 +167,11 @@ export async function voiceHandler(req: VercelRequest, res: VercelResponse) {
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Say voice="Polly.Joanna">${escapeXml(greeting)}</Say>
-  <Gather input="speech" timeout="5" speechTimeout="auto" action="${APP_BASE_URL}/api/twilio/voice-respond?leadId=${encodeURIComponent(leadId)}&amp;objective=${encodeURIComponent(objective)}&amp;logId=${encodeURIComponent(logId)}&amp;turn=1" method="POST">
+  <Gather input="speech" timeout="5" speechTimeout="auto" action="${APP_BASE_URL}/api/twilio/voice-respond?leadId=${encodeURIComponent(leadId)}&amp;objective=${encodeURIComponent(objective)}&amp;logId=${encodeURIComponent(logId)}&amp;botId=${encodeURIComponent(botId)}&amp;turn=1" method="POST">
     <Say voice="Polly.Joanna">I'm listening.</Say>
   </Gather>
   <Say voice="Polly.Joanna">It seems like you might be busy. Feel free to call us back anytime. Have a great day!</Say>
+  <Hangup/>
 </Response>`;
 
   res.setHeader('Content-Type', 'text/xml');
@@ -108,10 +193,11 @@ export async function voiceRespond(req: VercelRequest, res: VercelResponse) {
   const leadId = url.searchParams.get('leadId') || '';
   const objective = url.searchParams.get('objective') || '';
   const logId = url.searchParams.get('logId') || '';
+  const botId = url.searchParams.get('botId') || '';
   const turn = Number.parseInt(url.searchParams.get('turn') || '1');
 
-  // Cap conversation at 8 turns to keep costs reasonable
-  if (turn > 8 || !speechResult) {
+  // Cap conversation at 10 turns to keep costs reasonable
+  if (turn > 10 || !speechResult) {
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Say voice="Polly.Joanna">Thank you so much for your time today. We'll send you a follow-up email with more details. Have a wonderful day!</Say>
@@ -127,8 +213,13 @@ export async function voiceRespond(req: VercelRequest, res: VercelResponse) {
 
   try {
     const { callLLM } = await import('../ai-team/lib.js');
+    
+    // Build context for the AI
+    const context = botId ? ` (Bot: ${botId})` : '';
+    const conversationHistory = turn > 1 ? ` This is turn ${turn} of the conversation.` : '';
+    
     aiResponse = await callLLM(
-      `You are a friendly, professional sales rep for BuildMyBot on a live phone call. BuildMyBot is a white-label AI chatbot and voice agent platform for local service businesses.
+      `You are a friendly, professional sales rep for BuildMyBot on a live phone call. BuildMyBot is a white-label AI chatbot and voice agent platform for local service businesses.${context}
 
 Call objective: ${objective}
 
@@ -138,10 +229,17 @@ Rules:
 - Never invent features or pricing outside: Free $0, Starter $29/mo, Professional $99/mo, Enterprise $499/mo
 - If the lead seems uninterested, gracefully wrap up
 - If they have a question you can't answer, say you'll follow up by email
-- This is turn ${turn} of the conversation`,
+- If they want to end the call, say goodbye and hang up
+- Be helpful but don't be pushy${conversationHistory}`,
       `The lead just said: "${speechResult}"`,
     );
-  } catch {
+    
+    // Ensure we don't exceed Twilio's character limits
+    if (aiResponse.length > 500) {
+      aiResponse = aiResponse.slice(0, 497) + '...';
+    }
+  } catch (err: any) {
+    console.error('[twilio] Failed to generate AI response:', err.message);
     // Use default response
   }
 
@@ -149,9 +247,10 @@ Rules:
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Say voice="Polly.Joanna">${escapeXml(aiResponse)}</Say>
-  <Gather input="speech" timeout="5" speechTimeout="auto" action="${APP_BASE_URL}/api/twilio/voice-respond?leadId=${encodeURIComponent(leadId)}&amp;objective=${encodeURIComponent(objective)}&amp;logId=${encodeURIComponent(logId)}&amp;turn=${turn + 1}" method="POST">
+  <Gather input="speech" timeout="5" speechTimeout="auto" action="${APP_BASE_URL}/api/twilio/voice-respond?leadId=${encodeURIComponent(leadId)}&amp;objective=${encodeURIComponent(objective)}&amp;logId=${encodeURIComponent(logId)}&amp;botId=${encodeURIComponent(botId)}&amp;turn=${turn + 1}" method="POST">
   </Gather>
   <Say voice="Polly.Joanna">Are you still there? If not, no worries — feel free to call us back anytime. Goodbye!</Say>
+  <Hangup/>
 </Response>`;
 
   res.setHeader('Content-Type', 'text/xml');
@@ -243,13 +342,4 @@ export async function recordingCallback(
   }
 
   return res.status(200).json({ received: true });
-}
-
-function escapeXml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
 }
