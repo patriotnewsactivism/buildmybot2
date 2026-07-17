@@ -3627,8 +3627,9 @@ async function sendEmail(opts: {
   return { sent: false, reason: 'no_transport' };
 }
 
-/** Ask OpenAI, as a specific employee, to handle an email. Returns a
- * structured decision; throws on API failure (callers log honestly). */
+/** Ask the multi-provider LLM layer, as a specific employee, to handle an
+ * email. Returns a structured decision; throws on API failure (callers log
+ * honestly). */
 async function draftEmployeeReply(
   employee: { name: string; title: string; systemPrompt: string },
   email: { from: string; subject: string; text: string },
@@ -3639,8 +3640,6 @@ async function draftEmployeeReply(
   priority: string;
   notify: string[];
 }> {
-  if (!OPENAI_KEY) throw new Error('OPENAI_API_KEY not configured');
-
   const system = `${employee.systemPrompt}
 
 You are handling an inbound email. When you mention pricing, plans, the free plan, or a free trial, or getting started, include the relevant link on its own line so the customer can click through:
@@ -3650,7 +3649,7 @@ You are handling an inbound email. When you mention pricing, plans, the free pla
 - Partner / reseller program: https://buildmybot.app/partner-program
 Only include a link when it's actually relevant to what you're telling them — don't append all of them by default.
 
-Respond ONLY with a JSON object:
+CRITICAL: Respond with ONLY a valid JSON object, no markdown, no extra text:
 {
   "reply": "the full email body you will send back (plain text, sign as ${employee.name}, ${employee.title}, BuildMyBot)",
   "escalate": true or false — true if this needs the president's attention,
@@ -3660,31 +3659,26 @@ Respond ONLY with a JSON object:
 }
 Escalate when company policy says so, when you are unsure, when money/legal/security is at stake, or when the sender explicitly asks for the president. Never invent order numbers, account details, or commitments.`;
 
-  const resp = await fetch(`${OPENAI_BASE}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${OPENAI_KEY}`,
-      'Content-Type': 'application/json',
+  const messages = [
+    { role: 'system' as const, content: system },
+    {
+      role: 'user' as const,
+      content: `From: ${email.from}\nSubject: ${email.subject}\n\n${email.text}`.slice(
+        0,
+        24000,
+      ),
     },
-    body: JSON.stringify({
-      model: AI_EMPLOYEE_MODEL,
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: system },
-        {
-          role: 'user',
-          content:
-            `From: ${email.from}\nSubject: ${email.subject}\n\n${email.text}`.slice(
-              0,
-              24000,
-            ),
-        },
-      ],
-    }),
-  });
-  if (!resp.ok) throw new Error(`OpenAI error ${resp.status}`);
-  const data = await resp.json();
-  const parsed = JSON.parse(data.choices?.[0]?.message?.content || '{}');
+  ];
+
+  let raw: string;
+  let parseAttempts = 0;
+  do {
+    raw = await callLLMMessages(messages, 0.4);
+    parseAttempts++;
+  } while (parseAttempts < 2 && !raw.trim().startsWith('{'));
+
+  const jsonMatch = raw.match(/\{[\s\S]*\}/);
+  const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
   return {
     reply: String(parsed.reply || ''),
     escalate: Boolean(parsed.escalate),
@@ -3809,8 +3803,6 @@ async function draftOutreachEmail(
   },
   touchNumber: 1 | 2 | 3 | 4,
 ): Promise<{ subject: string; body: string }> {
-  if (!OPENAI_KEY) throw new Error('OPENAI_API_KEY not configured');
-
   const touchLabel = {
     1: 'Day 0 cold intro',
     2: 'Day 3 follow-up (capability angle)',
@@ -3823,7 +3815,8 @@ async function draftOutreachEmail(
 ${SALES_PLAYBOOK}
 
 You are writing outreach touch ${touchNumber} of 4: ${touchLabel}.
-Respond ONLY with a JSON object: {"subject": "short email subject line", "body": "the full plain-text email body, signed with your name and title, BuildMyBot"}.`;
+CRITICAL: Respond with ONLY a valid JSON object, no markdown, no extra text:
+{"subject": "short email subject line", "body": "the full plain-text email body, signed with your name and title, BuildMyBot"}.`;
 
   const userContent = `Prospect:
 Company: ${prospect.company}
@@ -3831,28 +3824,20 @@ Contact: ${prospect.contact_name || '(name unknown — address generically, e.g.
 Industry: ${prospect.industry || '(unknown)'}
 Notes: ${prospect.notes || '(none)'}`;
 
-  const resp = await fetch(`${OPENAI_BASE}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${OPENAI_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: AI_EMPLOYEE_MODEL,
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: system },
-        { role: 'user', content: userContent },
-      ],
-      temperature: 0.6,
-    }),
-  });
-  if (!resp.ok) {
-    const detail = await resp.text().catch(() => '');
-    throw new Error(`OpenAI error ${resp.status}: ${detail.slice(0, 200)}`);
-  }
-  const data = await resp.json();
-  const parsed = JSON.parse(data.choices[0].message.content);
+  const messages = [
+    { role: 'system' as const, content: system },
+    { role: 'user' as const, content: userContent },
+  ];
+
+  let raw: string;
+  let parseAttempts = 0;
+  do {
+    raw = await callLLMMessages(messages, 0.6);
+    parseAttempts++;
+  } while (parseAttempts < 2 && !raw.trim().startsWith('{'));
+
+  const jsonMatch = raw.match(/\{[\s\S]*\}/);
+  const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
   return {
     subject: String(parsed.subject || 'Following up'),
     body: String(parsed.body || ''),

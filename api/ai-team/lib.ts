@@ -1,23 +1,61 @@
 // Shared library for the AI Team automation, running natively on Vercel + Supabase.
 // No Base44 dependency, no per-message credit ceiling — just usage-based LLM billing.
 //
-// LLM PROVIDER: tries a chain of FREE providers first (whichever have API keys
-// configured), only falling back to paid OpenAI as a last resort. Order:
-// AI_TEAM_LLM_PROVIDER (your preferred default) -> gemini -> groq -> cerebras
-// -> openrouter -> openai. Swap the preferred default anytime via the
-// AI_TEAM_LLM_PROVIDER env var — no code changes needed. Add a provider's key
-// (GEMINI_API_KEY / GROQ_API_KEY / CEREBRAS_API_KEY / OPENROUTER_API_KEY) and
-// it automatically joins the fallback chain.
+// LLM PROVIDER: tries a chain of providers (whichever have API keys
+// configured), with round-robin distribution and automatic fallback on
+// rate limits / errors. Order:
+// AI_TEAM_LLM_PROVIDER (your preferred default) -> mistral -> cohere ->
+// kilocode -> gemini -> groq -> cerebras -> openrouter -> openai.
+// Swap the preferred default anytime via the AI_TEAM_LLM_PROVIDER env var —
+// no code changes needed. Add a provider's key (MISTRAL_API_KEY /
+// COHERE_API_KEY / KILOCODE_API_KEY / GEMINI_API_KEY / GROQ_API_KEY /
+// CEREBRAS_API_KEY / OPENROUTER_API_KEY) and it automatically joins the
+// rotation + fallback chain. Each request is logged with the serving provider.
 
 const SUPABASE_URL = process.env.SUPABASE_URL!;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-type Provider = 'groq' | 'gemini' | 'cerebras' | 'openrouter' | 'openai';
+type Provider =
+  | 'groq'
+  | 'gemini'
+  | 'cerebras'
+  | 'openrouter'
+  | 'openai'
+  | 'mistral'
+  | 'cohere'
+  | 'kilocode';
 
-const PROVIDER_CONFIG: Record<
-  Provider,
-  { baseURL: string; model: string; keyEnv: string }
-> = {
+interface ProviderConfig {
+  baseURL: string;
+  model: string;
+  keyEnv: string;
+  format: 'openai' | 'cohere';
+}
+
+export const PROVIDER_CONFIG: Record<Provider, ProviderConfig> = {
+  // Mistral — OpenAI-compatible endpoint. Strong general-purpose models.
+  mistral: {
+    baseURL: 'https://api.mistral.ai/v1/chat/completions',
+    model: 'mistral-small-latest',
+    keyEnv: 'MISTRAL_API_KEY',
+    format: 'openai',
+  },
+  // Cohere — native chat API. Command R+ is their top-tier model.
+  cohere: {
+    baseURL: 'https://api.cohere.ai/v1/chat',
+    model: 'command-r-plus',
+    keyEnv: 'COHERE_API_KEY',
+    format: 'cohere',
+  },
+  // Kilo Code — OpenAI-compatible endpoint. Configure base URL + model
+  // via KILOCODE_BASE_URL / KILOCODE_MODEL if defaults don't fit.
+  kilocode: {
+    baseURL:
+      process.env.KILOCODE_BASE_URL || 'https://api.kilocode.ai/v1/chat/completions',
+    model: process.env.KILOCODE_MODEL || 'kilocode-llm',
+    keyEnv: 'KILOCODE_API_KEY',
+    format: 'openai',
+  },
   // Google's free tier (no card) via their OpenAI-compatible endpoint. Most
   // accessible free baseline as of mid-2026.
   gemini: {
@@ -25,6 +63,7 @@ const PROVIDER_CONFIG: Record<
       'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
     model: 'gemini-2.5-flash',
     keyEnv: 'GEMINI_API_KEY',
+    format: 'openai',
   },
   // Free tier, no card, LPU inference — among the fastest available. Great
   // for short internal-reasoning shifts like these.
@@ -32,6 +71,7 @@ const PROVIDER_CONFIG: Record<
     baseURL: 'https://api.groq.com/openai/v1/chat/completions',
     model: 'llama-3.3-70b-versatile',
     keyEnv: 'GROQ_API_KEY',
+    format: 'openai',
   },
   // Free tier, no card, 1M tokens/day — the most generous free daily volume
   // of any provider as of mid-2026. Good backstop when others rate-limit.
@@ -39,22 +79,28 @@ const PROVIDER_CONFIG: Record<
     baseURL: 'https://api.cerebras.ai/v1/chat/completions',
     model: 'llama-3.3-70b',
     keyEnv: 'CEREBRAS_API_KEY',
+    format: 'openai',
   },
   // Aggregator with several genuinely free models (Llama, DeepSeek, Qwen, etc).
   openrouter: {
     baseURL: 'https://openrouter.ai/api/v1/chat/completions',
     model: 'meta-llama/llama-3.1-8b-instruct:free',
     keyEnv: 'OPENROUTER_API_KEY',
+    format: 'openai',
   },
   // Paid last resort / use for anything customer-facing where quality matters most.
   openai: {
     baseURL: 'https://api.openai.com/v1/chat/completions',
     model: 'gpt-4o-mini',
     keyEnv: 'OPENAI_API_KEY',
+    format: 'openai',
   },
 };
 
 const FALLBACK_ORDER: Provider[] = [
+  'mistral',
+  'cohere',
+  'kilocode',
   'gemini',
   'groq',
   'cerebras',
@@ -62,75 +108,96 @@ const FALLBACK_ORDER: Provider[] = [
   'openai',
 ];
 
-export async function callLLM(
-  systemPrompt: string,
-  userPrompt: string,
-): Promise<string> {
-  const preferred = (process.env.AI_TEAM_LLM_PROVIDER as Provider) || 'groq';
-  const order = [preferred, ...FALLBACK_ORDER.filter((p) => p !== preferred)];
+// Round-robin counter — distributes requests across providers so no single
+// key hits rate limits first. In Vercel serverless each instance maintains
+// its own counter; cold starts reset to 0, which is fine for rate-limit
+// spreading (the fallback chain still catches any that do trip limits).
+let rrCounter = 0;
 
-  const errors: string[] = [];
-  for (const provider of order) {
-    const cfg = PROVIDER_CONFIG[provider];
-    const apiKey = process.env[cfg.keyEnv];
-    if (!apiKey) continue; // no key configured for this provider, skip silently
-    try {
-      return await callWithConfig(cfg, apiKey, systemPrompt, userPrompt);
-    } catch (err: any) {
-      errors.push(`${provider}: ${err.message}`);
-      // try the next provider in the chain (likely rate-limited or transient)
-    }
-  }
-
-  throw new Error(
-    errors.length
-      ? `All configured LLM providers failed: ${errors.join(' | ')}`
-      : `No LLM provider configured — set at least one of: ${FALLBACK_ORDER.map((p) => PROVIDER_CONFIG[p].keyEnv).join(', ')}`,
-  );
+function getConfiguredProviders(): Provider[] {
+  return FALLBACK_ORDER.filter((p) => process.env[PROVIDER_CONFIG[p].keyEnv]);
 }
 
-/** Multi-turn variant for real conversations (customer-facing chat widget).
- * Same free-provider-first fallback chain as callLLM. `preferredProvider`
- * lets a caller override AI_TEAM_LLM_PROVIDER (e.g. a bot's configured
- * model) without touching the env var used by the internal AI Team. */
-export async function callLLMMessages(
-  messages: { role: 'system' | 'user' | 'assistant'; content: string }[],
-  temperature = 0.7,
-  preferredProvider?: string,
-): Promise<string> {
-  // Guard against garbage input (e.g. a bot's free-text `model` field like
-  // "grok-4-1-fast-reasoning" that isn't one of our actual provider keys) --
-  // silently ignore anything that isn't a real configured provider instead
-  // of crashing the whole chat request.
-  const validPreferred =
-    preferredProvider && preferredProvider in PROVIDER_CONFIG
-      ? (preferredProvider as Provider)
-      : undefined;
-  const preferred =
-    validPreferred || (process.env.AI_TEAM_LLM_PROVIDER as Provider) || 'groq';
-  const order = [preferred, ...FALLBACK_ORDER.filter((p) => p !== preferred)];
+function pickRoundRobin(providers: Provider[]): Provider {
+  if (providers.length <= 1) return providers[0]!;
+  const pick = providers[rrCounter % providers.length];
+  rrCounter++;
+  return pick;
+}
 
-  const errors: string[] = [];
-  for (const provider of order) {
-    const cfg = PROVIDER_CONFIG[provider];
-    const apiKey = process.env[cfg.keyEnv];
-    if (!apiKey) continue;
-    try {
-      return await callWithConfigMessages(cfg, apiKey, messages, temperature);
-    } catch (err: any) {
-      errors.push(`${provider}: ${err.message}`);
-    }
+export function buildProviderOrder(
+  preferred?: Provider,
+): { order: Provider[]; source: string } {
+  const configured = getConfiguredProviders();
+  if (!configured.length) return { order: [], source: 'none' };
+
+  if (preferred && configured.includes(preferred)) {
+    return {
+      order: [preferred, ...configured.filter((p) => p !== preferred)],
+      source: 'preferred',
+    };
   }
 
-  throw new Error(
-    errors.length
-      ? `All configured LLM providers failed: ${errors.join(' | ')}`
-      : `No LLM provider configured — set at least one of: ${FALLBACK_ORDER.map((p) => PROVIDER_CONFIG[p].keyEnv).join(', ')}`,
-  );
+  const envPreferred = process.env.AI_TEAM_LLM_PROVIDER as Provider | undefined;
+  if (envPreferred && configured.includes(envPreferred)) {
+    return {
+      order: [envPreferred, ...configured.filter((p) => p !== envPreferred)],
+      source: 'env',
+    };
+  }
+
+  const rrPick = pickRoundRobin(configured);
+  return {
+    order: [rrPick, ...configured.filter((p) => p !== rrPick)],
+    source: 'round-robin',
+  };
+}
+
+// Adapt messages array to the wire format each provider expects.
+function adaptRequest(
+  cfg: ProviderConfig,
+  messages: { role: string; content: string }[],
+  temperature: number,
+): any {
+  if (cfg.format === 'cohere') {
+    const systemMessage = messages.find((m) => m.role === 'system');
+    const chatMessages = messages
+      .filter((m) => m.role !== 'system')
+      .map((m) => ({
+        role: m.role === 'assistant' ? 'CHATBOT' : 'USER',
+        message: m.content,
+      }));
+
+    const body: Record<string, any> = {
+      model: cfg.model,
+      messages: chatMessages,
+      temperature,
+    };
+
+    if (systemMessage) {
+      body.system_prompt = systemMessage.content;
+    }
+
+    return body;
+  }
+
+  return {
+    model: cfg.model,
+    messages,
+    temperature,
+  };
+}
+
+// Extract the generated text from each provider's response shape.
+function extractResponse(cfg: ProviderConfig, data: any): string {
+  if (cfg.format === 'cohere') {
+    return data.text ?? '';
+  }
+  return data.choices?.[0]?.message?.content ?? '';
 }
 
 async function callWithConfig(
-  cfg: { baseURL: string; model: string },
+  cfg: ProviderConfig,
   apiKey: string,
   systemPrompt: string,
   userPrompt: string,
@@ -151,7 +218,7 @@ async function callWithConfig(
  * OpenAI-style messages array (used by customer-facing chat, which needs
  * real conversation history, not just one system+user turn). */
 async function callWithConfigMessages(
-  cfg: { baseURL: string; model: string },
+  cfg: ProviderConfig,
   apiKey: string,
   messages: { role: 'system' | 'user' | 'assistant'; content: string }[],
   temperature = 0.4,
@@ -162,11 +229,7 @@ async function callWithConfigMessages(
       'Content-Type': 'application/json',
       Authorization: `Bearer ${apiKey}`,
     },
-    body: JSON.stringify({
-      model: cfg.model,
-      messages,
-      temperature,
-    }),
+    body: JSON.stringify(adaptRequest(cfg, messages, temperature)),
   });
 
   if (!res.ok) {
@@ -175,7 +238,131 @@ async function callWithConfigMessages(
   }
 
   const data = await res.json();
-  return data.choices?.[0]?.message?.content ?? '';
+  return extractResponse(cfg, data);
+}
+
+export async function callLLM(
+  systemPrompt: string,
+  userPrompt: string,
+): Promise<string> {
+  const { order } = buildProviderOrder();
+
+  const errors: string[] = [];
+  for (const provider of order) {
+    const cfg = PROVIDER_CONFIG[provider];
+    const apiKey = process.env[cfg.keyEnv];
+    if (!apiKey) continue;
+    try {
+      const start = Date.now();
+      const result = await callWithConfig(cfg, apiKey, systemPrompt, userPrompt);
+      const latency = Date.now() - start;
+      console.log(
+        JSON.stringify({
+          event: 'llm_request',
+          provider,
+          model: cfg.model,
+          status: 'success',
+          latency_ms: latency,
+        }),
+      );
+      return result;
+    } catch (err: any) {
+      console.log(
+        JSON.stringify({
+          event: 'llm_request',
+          provider,
+          model: cfg.model,
+          status: 'error',
+          error: err.message,
+        }),
+      );
+      errors.push(`${provider}: ${err.message}`);
+    }
+  }
+
+  console.error(
+    JSON.stringify({
+      event: 'llm_request',
+      status: 'all_failed',
+      errors: errors.join(' | '),
+    }),
+  );
+
+  throw new Error(
+    errors.length
+      ? `All configured LLM providers failed: ${errors.join(' | ')}`
+      : `No LLM provider configured — set at least one of: ${FALLBACK_ORDER.map((p) => PROVIDER_CONFIG[p].keyEnv).join(', ')}`,
+  );
+}
+
+/** Multi-turn variant for real conversations (customer-facing chat widget).
+ * Round-robin distributes requests across configured providers; on failure
+ * it falls back through the rest of the chain. `preferredProvider`
+ * lets a caller override the rotation (e.g. a bot's configured model)
+ * without touching the env var used by the internal AI Team. */
+export async function callLLMMessages(
+  messages: { role: 'system' | 'user' | 'assistant'; content: string }[],
+  temperature = 0.7,
+  preferredProvider?: string,
+): Promise<string> {
+  const validPreferred =
+    preferredProvider && preferredProvider in PROVIDER_CONFIG
+      ? (preferredProvider as Provider)
+      : undefined;
+
+  const { order } = buildProviderOrder(validPreferred);
+
+  const errors: string[] = [];
+  for (const provider of order) {
+    const cfg = PROVIDER_CONFIG[provider];
+    const apiKey = process.env[cfg.keyEnv];
+    if (!apiKey) continue;
+    try {
+      const start = Date.now();
+      const result = await callWithConfigMessages(
+        cfg,
+        apiKey,
+        messages,
+        temperature,
+      );
+      const latency = Date.now() - start;
+      console.log(
+        JSON.stringify({
+          event: 'llm_request',
+          provider,
+          model: cfg.model,
+          status: 'success',
+          latency_ms: latency,
+        }),
+      );
+      return result;
+    } catch (err: any) {
+      console.log(
+        JSON.stringify({
+          event: 'llm_request',
+          provider,
+          model: cfg.model,
+          status: 'error',
+          error: err.message,
+        }),
+      );
+      errors.push(`${provider}: ${err.message}`);
+    }
+  }
+
+  console.error(
+    JSON.stringify({
+      event: 'llm_request',
+      status: 'all_failed',
+      errors: errors.join(' | '),
+    }),
+  );
+
+  throw new Error(
+    errors.length
+      ? `All configured LLM providers failed: ${errors.join(' | ')}`
+      : `No LLM provider configured — set at least one of: ${FALLBACK_ORDER.map((p) => PROVIDER_CONFIG[p].keyEnv).join(', ')}`,
+  );
 }
 
 export async function supabaseFetch(
