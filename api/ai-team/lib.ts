@@ -14,7 +14,7 @@
 const SUPABASE_URL = process.env.SUPABASE_URL!;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-type Provider = 'groq' | 'gemini' | 'cerebras' | 'openrouter' | 'github' | 'openai';
+type Provider = 'groq' | 'gemini' | 'cerebras' | 'openrouter' | 'github' | 'qwen' | 'openai';
 
 const PROVIDER_CONFIG: Record<
   Provider,
@@ -55,6 +55,15 @@ const PROVIDER_CONFIG: Record<
     model: 'openai/gpt-4.1',
     keyEnv: 'GITHUB_TOKEN_4',
   },
+  // Qwen Cloud (Alibaba Cloud Model Studio, international dashscope-intl
+  // endpoint -- NOT the mainland Bailian console, separate account/URL).
+  // PAID pay-as-you-go, NOT free -- placed after every free provider above,
+  // only ahead of the paid OpenAI last resort. Live-verified 2026-07-20.
+  qwen: {
+    baseURL: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions',
+    model: 'qwen3-coder-plus',
+    keyEnv: 'QWENCLOUD_API_KEY',
+  },
   // Paid last resort / use for anything customer-facing where quality matters most.
   openai: {
     baseURL: 'https://api.openai.com/v1/chat/completions',
@@ -69,6 +78,7 @@ const FALLBACK_ORDER: Provider[] = [
   'cerebras',
   'openrouter',
   'github',
+  'qwen',
   'openai',
 ];
 
