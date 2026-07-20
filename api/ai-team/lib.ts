@@ -4,15 +4,17 @@
 // LLM PROVIDER: tries a chain of FREE providers first (whichever have API keys
 // configured), only falling back to paid OpenAI as a last resort. Order:
 // AI_TEAM_LLM_PROVIDER (your preferred default) -> gemini -> groq -> cerebras
-// -> openrouter -> openai. Swap the preferred default anytime via the
-// AI_TEAM_LLM_PROVIDER env var — no code changes needed. Add a provider's key
-// (GEMINI_API_KEY / GROQ_API_KEY / CEREBRAS_API_KEY / OPENROUTER_API_KEY) and
-// it automatically joins the fallback chain.
+// -> openrouter -> github -> openai. Swap the preferred default anytime via
+// the AI_TEAM_LLM_PROVIDER env var — no code changes needed. Add a provider's
+// key (GEMINI_API_KEY / GROQ_API_KEY / CEREBRAS_API_KEY / OPENROUTER_API_KEY /
+// GITHUB_TOKEN_4) and it automatically joins the fallback chain. github ==
+// GitHub Models (models.github.ai), free via the GITHUB_TOKEN_4 PAT already
+// provisioned across the rest of this ecosystem for repo writes.
 
 const SUPABASE_URL = process.env.SUPABASE_URL!;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-type Provider = 'groq' | 'gemini' | 'cerebras' | 'openrouter' | 'openai';
+type Provider = 'groq' | 'gemini' | 'cerebras' | 'openrouter' | 'github' | 'openai';
 
 const PROVIDER_CONFIG: Record<
   Provider,
@@ -46,6 +48,13 @@ const PROVIDER_CONFIG: Record<
     model: 'meta-llama/llama-3.1-8b-instruct:free',
     keyEnv: 'OPENROUTER_API_KEY',
   },
+  // Free via GitHub Models (models.github.ai) using the existing
+  // GITHUB_TOKEN_4 PAT -- no new key needed. Live-verified 2026-07-20.
+  github: {
+    baseURL: 'https://models.github.ai/inference/chat/completions',
+    model: 'openai/gpt-4.1',
+    keyEnv: 'GITHUB_TOKEN_4',
+  },
   // Paid last resort / use for anything customer-facing where quality matters most.
   openai: {
     baseURL: 'https://api.openai.com/v1/chat/completions',
@@ -59,6 +68,7 @@ const FALLBACK_ORDER: Provider[] = [
   'groq',
   'cerebras',
   'openrouter',
+  'github',
   'openai',
 ];
 
