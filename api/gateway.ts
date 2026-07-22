@@ -750,6 +750,41 @@ async function handleLeads(
   } else res.status(405).json({ error: 'Method not allowed' });
 }
 
+// Deterministic, zero-cost intent scoring for "Hot Lead Detection" —
+// keyword/signal based so it runs with no extra LLM call/cost. Returns 0-100.
+// Baseline 50 (matches prior hardcoded default), scaled up for buying-intent
+// signals and down for low-intent/browsing language.
+function scoreLeadIntent(conversationContext: string | undefined): number {
+  if (!conversationContext || typeof conversationContext !== 'string') {
+    return 50;
+  }
+  const text = conversationContext.toLowerCase();
+  let score = 50;
+
+  const highIntentSignals = [
+    /\bpric(e|ing)\b/, /\bcost\b/, /\bbudget\b/, /\bquote\b/,
+    /\bbuy\b/, /\bpurchase\b/, /\bsign\s*up\b/, /\bdemo\b/,
+    /\bcontract\b/, /\bstart(ed)?\s*(today|now|asap)\b/,
+    /\burgent(ly)?\b/, /\bimmediately\b/, /\bschedule\s*a?\s*call\b/,
+    /\bwhen\s*can\s*(we|i)\s*start\b/, /\bready\s*to\s*(buy|move\s*forward|sign)\b/,
+    /\bhow\s*much\b/, /\btake\s*my\s*(payment|money)\b/,
+  ];
+  const midIntentSignals = [
+    /\binterested\b/, /\blearn\s*more\b/, /\bmore\s*info(rmation)?\b/,
+    /\bcompare\b/, /\btrial\b/, /\bfeatures\b/,
+  ];
+  const lowIntentSignals = [
+    /\bjust\s*(looking|browsing|curious)\b/, /\bnot\s*ready\b/,
+    /\bmaybe\s*later\b/, /\bno\s*thanks\b/, /\bunsubscribe\b/,
+  ];
+
+  for (const re of highIntentSignals) if (re.test(text)) score += 8;
+  for (const re of midIntentSignals) if (re.test(text)) score += 4;
+  for (const re of lowIntentSignals) if (re.test(text)) score -= 15;
+
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
+
 async function handleLeadCapture(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST')
     return res.status(405).json({ error: 'Method not allowed' });
@@ -828,6 +863,8 @@ async function handleLeadCapture(req: VercelRequest, res: VercelResponse) {
       .status(404)
       .json({ error: 'Bot not found — cannot attribute lead' });
   }
+  const score = scoreLeadIntent(body.conversationContext);
+
   try {
     const r = await sbInsert('leads', {
       id: crypto.randomUUID(),
@@ -837,9 +874,32 @@ async function handleLeadCapture(req: VercelRequest, res: VercelResponse) {
       email: body.email || '',
       phone: body.phone || null,
       status: 'New',
-      score: 50,
+      score,
     });
-    res.status(201).json({ success: true, leadId: r[0]?.id });
+
+    // Instant Alerts: notify the bot owner immediately for hot leads (score
+    // > 75, matching the CRM's own "hot" threshold/styling) instead of them
+    // having to notice it in the dashboard. Best-effort -- never blocks lead
+    // creation on an email-transport failure.
+    if (score > 75) {
+      sbSelect('users', 'email', { id: `eq.${ownerUserId}` })
+        .then((owners: any[]) => {
+          const ownerEmail = owners?.[0]?.email;
+          if (!ownerEmail) return;
+          return sendEmail({
+            from: `alerts@${EMAIL_DOMAIN}`,
+            fromName: 'BuildMyBot Hot Lead Alert',
+            to: ownerEmail,
+            subject: `🔥 Hot lead (score ${score}): ${body.name || body.email}`,
+            text: `A high-intent lead just came in from your chatbot.\n\nName: ${body.name || 'Visitor'}\nEmail: ${body.email || 'n/a'}\nPhone: ${body.phone || 'n/a'}\nScore: ${score}/100\n\nRecent conversation:\n${body.conversationContext || '(none captured)'}\n\nView in your CRM: https://${EMAIL_DOMAIN}/leads`,
+          });
+        })
+        .catch((err) =>
+          console.error('[handleLeadCapture] hot-lead alert failed:', err),
+        );
+    }
+
+    res.status(201).json({ success: true, leadId: r[0]?.id, score });
   } catch (err) {
     console.error('[handleLeadCapture] insert failed:', err);
     res.status(500).json({ error: 'Failed to save lead' });
