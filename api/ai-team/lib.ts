@@ -39,7 +39,7 @@ const PROVIDER_CONFIG: Record<
   // of any provider as of mid-2026. Good backstop when others rate-limit.
   cerebras: {
     baseURL: 'https://api.cerebras.ai/v1/chat/completions',
-    model: 'llama-3.3-70b',
+    model: 'gpt-oss-120b',
     keyEnv: 'CEREBRAS_API_KEY',
   },
   // Aggregator with several genuinely free models (Llama, DeepSeek, Qwen, etc).
