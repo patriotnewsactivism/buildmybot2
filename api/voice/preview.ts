@@ -2,17 +2,31 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 /**
  * POST /api/voice/preview
- * Generates high-quality TTS audio via OpenAI for the landing page demo.
+ * Generates high-quality TTS audio for the landing page demo.
  * Returns raw MP3 audio bytes — no auth required (public demo).
  *
- * Body: { text: string, voice?: string }
- * Supported voices: alloy, echo, fable, onyx, nova, shimmer
+ * Body: { text: string, voice?: string, provider?: string }
+ * Supported providers: openai, cartesia
+ * Supported voices: alloy, echo, fable, onyx, nova, shimmer (OpenAI)
  */
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const CARTESIA_API_KEY = process.env.CARTESIA_API_KEY;
 const OPENAI_BASE = 'https://api.openai.com/v1';
+const CARTESIA_BASE = 'https://api.cartesia.ai/v1';
 
-// Rate limit: 30 requests per minute per IP
+// Valid voices for OpenAI TTS
+const OPENAI_VOICES = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
+
+// Valid voices for Cartesia TTS
+const CARTESIA_VOICES = [
+  'a0e99841-438c-4a64-b679-ae501e7d6091', // Sonia (English)
+  '3f29c264-8501-4768-8996-6611cd608270', // Dorothy (English)
+  '51152c88-9364-4049-9357-794174915703', // Liam (English)
+  'a9391111-4723-4723-8b76-3d292c385d53', // Clara (English)
+];
+
+// Rate limit: 30 requests per minute per IP (in-memory, will reset on cold start)
 const rateLimits = new Map<string, { count: number; resetAt: number }>();
 
 function isRateLimited(ip: string): boolean {
@@ -26,8 +40,81 @@ function isRateLimited(ip: string): boolean {
   return entry.count > 30;
 }
 
-// Valid voices for OpenAI TTS
-const VALID_VOICES = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
+interface TTSProvider {
+  name: string;
+  generateAudio: (text: string, voice: string, speed: number) => Promise<{ audioBuffer: ArrayBuffer; contentType: string }>;
+  isConfigured: () => boolean;
+  getDefaultVoice: () => string;
+}
+
+const openaiProvider: TTSProvider = {
+  name: 'openai',
+  isConfigured: () => !!OPENAI_API_KEY,
+  getDefaultVoice: () => 'shimmer',
+  generateAudio: async (text: string, voice: string, speed: number) => {
+    const selectedVoice = OPENAI_VOICES.includes(voice) ? voice : 'shimmer';
+    
+    const response = await fetch(`${OPENAI_BASE}/audio/speech`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'tts-1-hd',
+        input: text,
+        voice: selectedVoice,
+        response_format: 'mp3',
+        speed: speed,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`OpenAI TTS error: ${response.status} - ${errorText.slice(0, 200)}`);
+    }
+
+    const audioBuffer = await response.arrayBuffer();
+    return { audioBuffer, contentType: 'audio/mpeg' };
+  },
+};
+
+const cartesiaProvider: TTSProvider = {
+  name: 'cartesia',
+  isConfigured: () => !!CARTESIA_API_KEY,
+  getDefaultVoice: () => 'a0e99841-438c-4a64-b679-ae501e7d6091', // Sonia
+  generateAudio: async (text: string, voice: string, speed: number) => {
+    const selectedVoice = CARTESIA_VOICES.includes(voice) ? voice : 'a0e99841-438c-4a64-b679-ae501e7d6091';
+    
+    const response = await fetch(`${CARTESIA_BASE}/tts`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${CARTESIA_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model_id: 'sonic-2.0',
+        voice_id: selectedVoice,
+        text: text,
+        speed: speed,
+        output_format: 'mp3',
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Cartesia TTS error: ${response.status} - ${errorText.slice(0, 200)}`);
+    }
+
+    const audioBuffer = await response.arrayBuffer();
+    return { audioBuffer, contentType: 'audio/mpeg' };
+  },
+};
+
+const providers: Record<string, TTSProvider> = {
+  openai: openaiProvider,
+  cartesia: cartesiaProvider,
+};
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // CORS
@@ -39,61 +126,114 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST')
     return res.status(405).json({ error: 'Method not allowed' });
 
-  if (!OPENAI_API_KEY) {
-    return res.status(500).json({ error: 'TTS not configured' });
+  const { text, voice, provider: providerName, speed = 1.0 } = req.body || {};
+
+  // Validate input
+  if (!text || typeof text !== 'string' || text.length === 0) {
+    return res
+      .status(400)
+      .json({ error: 'Text required (max 5000 characters)' });
+  }
+
+  if (text.length > 5000) {
+    return res
+      .status(400)
+      .json({ error: 'Text too long (max 5000 characters)' });
+  }
+
+  if (typeof speed !== 'number' || speed < 0.5 || speed > 2.0) {
+    return res
+      .status(400)
+      .json({ error: 'Speed must be between 0.5 and 2.0' });
   }
 
   // Rate limit
   const ip =
     (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+    req.headers['x-real-ip'] as string ||
     'unknown';
   if (isRateLimited(ip)) {
     return res.status(429).json({ error: 'Too many requests' });
   }
 
-  const { text, voice } = req.body || {};
-
-  if (!text || typeof text !== 'string' || text.length > 1000) {
-    return res
-      .status(400)
-      .json({ error: 'Text required (max 1000 characters)' });
+  // Select provider
+  const selectedProviderName = providerName && providers[providerName as string]
+    ? (providerName as string)
+    : 'openai';
+  
+  const selectedProvider = providers[selectedProviderName];
+  
+  if (!selectedProvider) {
+    return res.status(400).json({ 
+      error: `Unsupported provider: ${providerName}. Supported: ${Object.keys(providers).join(', ')}` 
+    });
   }
 
-  const selectedVoice = VALID_VOICES.includes(voice) ? voice : 'shimmer';
+  if (!selectedProvider.isConfigured()) {
+    // Try fallback providers
+    const availableProviders = Object.values(providers).filter(p => p.isConfigured());
+    if (availableProviders.length === 0) {
+      return res.status(500).json({ 
+        error: 'No TTS provider configured. Please set OPENAI_API_KEY or CARTESIA_API_KEY' 
+      });
+    }
+    // Use first available provider as fallback
+    const fallbackProvider = availableProviders[0];
+    console.warn(`[voice-preview] ${selectedProviderName} not configured, falling back to ${fallbackProvider.name}`);
+    
+    try {
+      const { audioBuffer, contentType } = await fallbackProvider.generateAudio(text, voice || fallbackProvider.getDefaultVoice(), speed);
+      
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Content-Length', audioBuffer.byteLength.toString());
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+      res.setHeader('X-TTS-Provider', fallbackProvider.name);
+      
+      return res.send(Buffer.from(audioBuffer));
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      console.error(`[voice-preview] Fallback provider ${fallbackProvider.name} failed:`, message);
+      return res.status(500).json({ error: `TTS generation failed: ${message}` });
+    }
+  }
 
   try {
-    const ttsResponse = await fetch(`${OPENAI_BASE}/audio/speech`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'tts-1-hd',
-        input: text,
-        voice: selectedVoice,
-        response_format: 'mp3',
-        speed: 1.0,
-      }),
-    });
+    const { audioBuffer, contentType } = await selectedProvider.generateAudio(
+      text, 
+      voice || selectedProvider.getDefaultVoice(), 
+      speed
+    );
 
-    if (!ttsResponse.ok) {
-      const errorText = await ttsResponse.text();
-      console.error('[voice-preview] OpenAI TTS error:', errorText);
-      return res.status(500).json({ error: 'Voice generation failed' });
-    }
-
-    // Stream the MP3 audio back
-    const audioBuffer = await ttsResponse.arrayBuffer();
-
-    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Content-Type', contentType);
     res.setHeader('Content-Length', audioBuffer.byteLength.toString());
     res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.setHeader('X-TTS-Provider', selectedProvider.name);
 
     return res.send(Buffer.from(audioBuffer));
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
-    console.error('[voice-preview] Fatal error:', message);
-    return res.status(500).json({ error: 'Voice generation failed' });
+    console.error(`[voice-preview] ${selectedProvider.name} failed:`, message);
+    
+    // Try fallback providers if primary fails
+    const fallbackProviders = Object.values(providers).filter(p => p !== selectedProvider && p.isConfigured());
+    for (const fallbackProvider of fallbackProviders) {
+      try {
+        console.warn(`[voice-preview] Trying fallback provider: ${fallbackProvider.name}`);
+        const { audioBuffer, contentType } = await fallbackProvider.generateAudio(text, voice || fallbackProvider.getDefaultVoice(), speed);
+        
+        res.setHeader('Content-Type', contentType);
+        res.setHeader('Content-Length', audioBuffer.byteLength.toString());
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+        res.setHeader('X-TTS-Provider', fallbackProvider.name);
+        res.setHeader('X-TTS-Fallback', 'true');
+        
+        return res.send(Buffer.from(audioBuffer));
+      } catch (fallbackErr) {
+        console.error(`[voice-preview] Fallback ${fallbackProvider.name} also failed:`, fallbackErr);
+        continue;
+      }
+    }
+    
+    return res.status(500).json({ error: `All TTS providers failed: ${message}` });
   }
 }
