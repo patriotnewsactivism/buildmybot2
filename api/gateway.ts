@@ -1772,6 +1772,7 @@ async function handleTemplates(
   req: VercelRequest,
   res: VercelResponse,
   user: AuthUser,
+  pathParts: string[] = [],
 ) {
   if (req.method === 'GET') {
     const featured = new URL(req.url, 'http://localhost').searchParams.get(
@@ -1786,25 +1787,57 @@ async function handleTemplates(
     );
   } else if (req.method === 'POST') {
     const body = parseBody(req);
+    // The marketplace UIs call POST /templates/:id/install; older callers
+    // POST /templates with { templateId } in the body. Accept both — the
+    // path form previously fell through to the body lookup and 404'd every
+    // marketplace install.
+    const templateId =
+      pathParts[1] === 'install' && pathParts[0]
+        ? pathParts[0]
+        : body.templateId;
+    if (!templateId)
+      return res.status(400).json({ error: 'templateId is required' });
     const tpls = await sbSelect('bot_templates', '*', {
-      id: `eq.${body.templateId}`,
+      id: `eq.${templateId}`,
     }).catch(() => []);
     if (!tpls.length)
       return res.status(404).json({ error: 'Template not found' });
     const tpl = tpls[0];
+    // The user's own customization ALWAYS wins over the template default.
+    // Previously the install wrote only tpl.persona (and never
+    // system_prompt at all), so a custom persona system-prompt configured
+    // at install time was discarded and chat fell back to the generic
+    // "You are a helpful assistant." — the core paid feature (custom bots)
+    // silently broken.
+    const customPrompt =
+      (typeof body.systemPrompt === 'string' && body.systemPrompt.trim()) ||
+      (typeof body.customPrompt === 'string' && body.customPrompt.trim()) ||
+      (typeof body.persona === 'string' && body.persona.trim()) ||
+      '';
+    const systemPrompt =
+      customPrompt ||
+      tpl.system_prompt ||
+      tpl.persona ||
+      'You are a helpful assistant.';
     const r = await sbInsert('bots', {
       id: crypto.randomUUID(),
+      user_id: user.id,
       organization_id: user.organizationId,
       creator_id: user.id,
-      name: `${tpl.name} (Copy)`,
-      description: tpl.description || '',
-      persona: tpl.persona || '',
-      model: 'gpt-4o-mini',
-      temperature: 70,
+      name: body.name || `${tpl.name} (Copy)`,
+      description: body.description || tpl.description || '',
+      persona: customPrompt || tpl.persona || '',
+      // system_prompt is what handleChat actually reads at conversation
+      // time — persist it explicitly so installed bots answer in character.
+      system_prompt: systemPrompt,
+      model: body.model || tpl.model || 'gpt-4o-mini',
+      // handleChat passes bot.temperature straight to the LLM API — the old
+      // hardcoded 70 (UI 0–100 scale) was out of the valid 0–2 range.
+      temperature: typeof body.temperature === 'number' ? body.temperature : 0.7,
       max_tokens: 500,
       status: 'draft',
       config: tpl.config || {},
-    }).catch(() => [{ id: 'ok', success: true }]);
+    });
     res.status(201).json(r[0]);
   } else res.status(405).json({ error: 'Method not allowed' });
 }
@@ -2888,6 +2921,48 @@ async function handleLandingPages(
 ) {
   const pid = pathParts[0];
   const orgF = ownerFilter(user);
+  // POST /landing-pages/generate — real AI copy generation for the
+  // landing-page builder. The UI marketed this as AI-powered but no AI call
+  // existed anywhere in the flow (manual fields only). Uses the same
+  // free-provider-first fallback chain as everything else (callLLMMessages),
+  // so a single provider outage can't take the feature down.
+  if (pid === 'generate' && req.method === 'POST') {
+    const body = parseBody(req);
+    const businessName = (body.businessName || body.name || '').toString().slice(0, 200);
+    const description = (body.description || body.prompt || '').toString().slice(0, 2000);
+    if (!businessName && !description) {
+      return res.status(400).json({
+        error: 'Provide businessName and/or description to generate from',
+      });
+    }
+    const tone = (body.tone || 'professional, high-converting').toString().slice(0, 100);
+    const raw = await callLLMMessages(
+      [
+        {
+          role: 'system',
+          content:
+            'You are an expert direct-response copywriter. Return ONLY valid JSON (no markdown fences, no commentary) with exactly these string keys: headline, subheadline, ctaText, seoTitle, seoDescription, thankYouMessage. Keep headline under 12 words, subheadline under 30 words, ctaText under 5 words, seoTitle under 60 characters, seoDescription under 155 characters.',
+        },
+        {
+          role: 'user',
+          content: `Write landing-page copy for "${businessName}". Business description / campaign goal: ${description}. Tone: ${tone}.`,
+        },
+      ],
+      0.8,
+    );
+    let content: Record<string, string>;
+    try {
+      content = JSON.parse(
+        raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, ''),
+      );
+    } catch {
+      return res.status(502).json({
+        error: 'AI returned unparseable copy — please try again',
+        raw: raw.slice(0, 500),
+      });
+    }
+    return res.json({ generated: true, content });
+  }
   if (!pid) {
     if (req.method === 'GET') {
       res.json(await sbSelect('landing_pages', '*', orgF).catch(() => []));
@@ -4912,7 +4987,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       case 'knowledge':
         return await handleKnowledge(req, res, user, pathParts);
       case 'templates':
-        return await handleTemplates(req, res, user);
+        return await handleTemplates(req, res, user, pathParts);
       case 'tools':
         return await handleTools(req, res, user, pathParts);
       case 'webhooks':
