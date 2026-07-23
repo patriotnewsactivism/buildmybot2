@@ -14,7 +14,7 @@
 const SUPABASE_URL = process.env.SUPABASE_URL!;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-type Provider = 'groq' | 'gemini' | 'cerebras' | 'openrouter' | 'github' | 'qwen' | 'openai';
+type Provider = 'groq' | 'gemini' | 'cerebras' | 'openrouter' | 'openrouter2' | 'github' | 'qwen' | 'openai';
 
 const PROVIDER_CONFIG: Record<
   Provider,
@@ -42,10 +42,22 @@ const PROVIDER_CONFIG: Record<
     model: 'gpt-oss-120b',
     keyEnv: 'CEREBRAS_API_KEY',
   },
-  // Aggregator with several genuinely free models (Llama, DeepSeek, Qwen, etc).
+  // Aggregator with a rotating catalog of genuinely free models. WARNING:
+  // the :free catalog churns — llama-3.1-8b-instruct:free died in the
+  // 2026-07-22 purge and this provider silently failed on every call until
+  // the 2026-07-23 audit caught it. Both ids below were live-verified
+  // against GET /api/v1/models on 2026-07-23. If OpenRouter starts erroring
+  // in the shift logs, re-check the catalog before assuming rate limits.
   openrouter: {
     baseURL: 'https://openrouter.ai/api/v1/chat/completions',
-    model: 'meta-llama/llama-3.1-8b-instruct:free',
+    model: 'openai/gpt-oss-20b:free',
+    keyEnv: 'OPENROUTER_API_KEY',
+  },
+  // Second OpenRouter rung (same key, different free model) so one delisted
+  // model doesn't take out the whole OpenRouter link in the chain.
+  openrouter2: {
+    baseURL: 'https://openrouter.ai/api/v1/chat/completions',
+    model: 'nvidia/nemotron-3-super-120b-a12b:free',
     keyEnv: 'OPENROUTER_API_KEY',
   },
   // Free via GitHub Models (models.github.ai) using the existing
@@ -77,6 +89,7 @@ const FALLBACK_ORDER: Provider[] = [
   'groq',
   'cerebras',
   'openrouter',
+  'openrouter2',
   'github',
   'qwen',
   'openai',
@@ -102,11 +115,30 @@ export async function callLLM(
     }
   }
 
-  throw new Error(
-    errors.length
-      ? `All configured LLM providers failed: ${errors.join(' | ')}`
-      : `No LLM provider configured — set at least one of: ${FALLBACK_ORDER.map((p) => PROVIDER_CONFIG[p].keyEnv).join(', ')}`,
-  );
+  throw await providerChainExhausted(errors);
+}
+
+/** Full provider-chain exhaustion is a portfolio-level event: log it as a
+ * CRITICAL error_logs row (which also pings Discord + Slack via
+ * logAgentError, and surfaces in Apex's buildmybot_open_errors telemetry)
+ * instead of only throwing into whichever caller happened to hit it.
+ * Alerting must never mask the real failure, so this returns the Error for
+ * the caller to throw rather than throwing from inside the alert path. */
+async function providerChainExhausted(errors: string[]): Promise<Error> {
+  const message = errors.length
+    ? `All configured LLM providers failed: ${errors.join(' | ')}`
+    : `No LLM provider configured — set at least one of: ${FALLBACK_ORDER.map((p) => PROVIDER_CONFIG[p].keyEnv).join(', ')}`;
+  try {
+    await logAgentError({
+      source: 'llm-provider-chain',
+      message,
+      level: 'critical',
+      context: { providers_tried: errors.length, chain: FALLBACK_ORDER },
+    });
+  } catch {
+    console.error('[llm-provider-chain] exhaustion alert itself failed:', message);
+  }
+  return new Error(message);
 }
 
 /** Multi-turn variant for real conversations (customer-facing chat widget).
@@ -142,11 +174,7 @@ export async function callLLMMessages(
     }
   }
 
-  throw new Error(
-    errors.length
-      ? `All configured LLM providers failed: ${errors.join(' | ')}`
-      : `No LLM provider configured — set at least one of: ${FALLBACK_ORDER.map((p) => PROVIDER_CONFIG[p].keyEnv).join(', ')}`,
-  );
+  throw await providerChainExhausted(errors);
 }
 
 async function callWithConfig(
