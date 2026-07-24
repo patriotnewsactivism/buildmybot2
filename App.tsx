@@ -768,6 +768,17 @@ function App() {
                   }
                 />
                 <Route
+                  path="/admin/voice"
+                  element={
+                    activeUser ? (
+                      <PhoneAgent
+                        user={activeUser}
+                        onUpdate={handleUpdateActiveUser}
+                      />
+                    ) : null
+                  }
+                />
+                <Route
                   path="/admin/conversations"
                   element={<ChatLogs conversations={chatLogs} />}
                 />

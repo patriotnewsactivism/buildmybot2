@@ -729,20 +729,38 @@ function scoreLeadIntent(conversationContext: string | undefined): number {
   let score = 50;
 
   const highIntentSignals = [
-    /\bpric(e|ing)\b/, /\bcost\b/, /\bbudget\b/, /\bquote\b/,
-    /\bbuy\b/, /\bpurchase\b/, /\bsign\s*up\b/, /\bdemo\b/,
-    /\bcontract\b/, /\bstart(ed)?\s*(today|now|asap)\b/,
-    /\burgent(ly)?\b/, /\bimmediately\b/, /\bschedule\s*a?\s*call\b/,
-    /\bwhen\s*can\s*(we|i)\s*start\b/, /\bready\s*to\s*(buy|move\s*forward|sign)\b/,
-    /\bhow\s*much\b/, /\btake\s*my\s*(payment|money)\b/,
+    /\bpric(e|ing)\b/,
+    /\bcost\b/,
+    /\bbudget\b/,
+    /\bquote\b/,
+    /\bbuy\b/,
+    /\bpurchase\b/,
+    /\bsign\s*up\b/,
+    /\bdemo\b/,
+    /\bcontract\b/,
+    /\bstart(ed)?\s*(today|now|asap)\b/,
+    /\burgent(ly)?\b/,
+    /\bimmediately\b/,
+    /\bschedule\s*a?\s*call\b/,
+    /\bwhen\s*can\s*(we|i)\s*start\b/,
+    /\bready\s*to\s*(buy|move\s*forward|sign)\b/,
+    /\bhow\s*much\b/,
+    /\btake\s*my\s*(payment|money)\b/,
   ];
   const midIntentSignals = [
-    /\binterested\b/, /\blearn\s*more\b/, /\bmore\s*info(rmation)?\b/,
-    /\bcompare\b/, /\btrial\b/, /\bfeatures\b/,
+    /\binterested\b/,
+    /\blearn\s*more\b/,
+    /\bmore\s*info(rmation)?\b/,
+    /\bcompare\b/,
+    /\btrial\b/,
+    /\bfeatures\b/,
   ];
   const lowIntentSignals = [
-    /\bjust\s*(looking|browsing|curious)\b/, /\bnot\s*ready\b/,
-    /\bmaybe\s*later\b/, /\bno\s*thanks\b/, /\bunsubscribe\b/,
+    /\bjust\s*(looking|browsing|curious)\b/,
+    /\bnot\s*ready\b/,
+    /\bmaybe\s*later\b/,
+    /\bno\s*thanks\b/,
+    /\bunsubscribe\b/,
   ];
 
   for (const re of highIntentSignals) if (re.test(text)) score += 8;
@@ -891,6 +909,142 @@ async function handleAdmin(
   if (!['admin', 'ADMIN', 'owner', 'OWNER'].includes(user.role))
     return res.status(403).json({ error: 'Admin access required' });
   const sub = pathParts[0] || '';
+
+  if (sub === 'users') {
+    // Backs the admin Users / Sales Agents / Clients / Affiliates pages
+    // (UserManagement widget via dbService). These routes were missing
+    // entirely -- the dashboard overhaul wired the widget to them and every
+    // one of those pages 404'd.
+
+    // POST /admin/users/bulk  { userIds, action: activate|suspend|delete }
+    if (pathParts[1] === 'bulk' && _req.method === 'POST') {
+      const body = parseBody(_req);
+      const userIds: string[] = Array.isArray(body.userIds) ? body.userIds : [];
+      const action = String(body.action || '');
+      if (!userIds.length)
+        return res.status(400).json({ error: 'userIds required' });
+      const patch =
+        action === 'activate'
+          ? { status: 'Active' }
+          : action === 'suspend'
+            ? { status: 'Suspended' }
+            : action === 'delete'
+              ? { deleted_at: new Date().toISOString() }
+              : null;
+      if (!patch)
+        return res.status(400).json({ error: `Unknown action: ${action}` });
+      await sbUpdate('users', patch, {
+        id: `in.(${userIds.join(',')})`,
+      }).catch(() => null);
+      return res.json({ success: true, updated: userIds.length });
+    }
+
+    // POST /admin/users/merge  { sourceUserId, targetUserId }
+    if (pathParts[1] === 'merge' && _req.method === 'POST') {
+      const body = parseBody(_req);
+      const { sourceUserId, targetUserId } = body;
+      if (!sourceUserId || !targetUserId)
+        return res
+          .status(400)
+          .json({ error: 'sourceUserId and targetUserId required' });
+      // Reassign user-owned rows, then soft-delete the source account.
+      await Promise.all([
+        sbUpdate(
+          'bots',
+          { user_id: targetUserId },
+          { user_id: `eq.${sourceUserId}` },
+        ).catch(() => null),
+        sbUpdate(
+          'leads',
+          { user_id: targetUserId },
+          { user_id: `eq.${sourceUserId}` },
+        ).catch(() => null),
+      ]);
+      await sbUpdate(
+        'users',
+        { deleted_at: new Date().toISOString() },
+        { id: `eq.${sourceUserId}` },
+      ).catch(() => null);
+      return res.json({ success: true });
+    }
+
+    // GET /admin/users/:id/usage  and  GET /admin/users/:id/export
+    if (
+      pathParts[1] &&
+      (pathParts[2] === 'usage' || pathParts[2] === 'export')
+    ) {
+      const targetId = pathParts[1];
+      const targetRows = await sbSelect('users', '*', {
+        id: `eq.${targetId}`,
+      }).catch(() => []);
+      const target = targetRows[0];
+      if (!target) return res.status(404).json({ error: 'User not found' });
+      const f = target.organization_id
+        ? { organization_id: `eq.${target.organization_id}` }
+        : { user_id: `eq.${targetId}` };
+      const [bots, leads, conversations] = await Promise.all([
+        sbSelect('bots', 'id', f).catch(() => []),
+        sbSelect('leads', 'id', f).catch(() => []),
+        sbSelect('conversations', 'id', f).catch(() => []),
+      ]);
+      if (pathParts[2] === 'usage') {
+        return res.json({
+          botCount: bots.length,
+          leadCount: leads.length,
+          conversationCount: conversations.length,
+          lastLoginAt: target.last_login_at || null,
+        });
+      }
+      const { password_hash: _ph, ...safeUser } = target;
+      return res.json({
+        user: safeUser,
+        counts: {
+          bots: bots.length,
+          leads: leads.length,
+          conversations: conversations.length,
+        },
+        exportedAt: new Date().toISOString(),
+      });
+    }
+
+    // GET /admin/users?role=&status=&search=  (list)
+    const url = new URL(_req.url || '/', 'http://localhost');
+    const roleFilter = url.searchParams.get('role') || '';
+    const statusFilter = url.searchParams.get('status') || '';
+    const search = url.searchParams.get('search') || '';
+
+    const filters: Record<string, string> = {
+      deleted_at: 'is.null',
+      order: 'created_at.desc',
+      limit: '500',
+    };
+    // ilike without wildcards = case-insensitive equality; DB role casing is
+    // inconsistent ('reseller' vs 'SALES_AGENT' vs 'MasterAdmin').
+    if (roleFilter) filters.role = `ilike.${roleFilter}`;
+    if (statusFilter) filters.status = `ilike.${statusFilter}`;
+    if (search)
+      filters.or = `(name.ilike.*${search}*,email.ilike.*${search}*,company_name.ilike.*${search}*)`;
+
+    const rows = await sbSelect(
+      'users',
+      'id,name,email,company_name,role,plan,status,created_at,last_login_at',
+      filters,
+    ).catch(() => []);
+    res.json(
+      (rows as any[]).map((u) => ({
+        id: u.id,
+        name: u.name || u.email,
+        email: u.email,
+        companyName: u.company_name || null,
+        role: u.role || 'user',
+        plan: u.plan || 'FREE',
+        status: u.status || 'Active',
+        createdAt: u.created_at,
+        lastLoginAt: u.last_login_at || null,
+      })),
+    );
+    return;
+  }
 
   if (sub === 'live-leads') {
     // Live feed of today's AI-team-researched leads for the master admin
@@ -1206,7 +1360,7 @@ async function handleVoice(
   if (pathParts[0] !== 'agents')
     return res.status(404).json({ error: 'Not found' });
   const botId = pathParts[1];
-  
+
   if (req.method === 'GET') {
     try {
       if (botId) {
@@ -1214,17 +1368,20 @@ async function handleVoice(
         const botCheck = await sbSelect('bots', 'id,organization_id', {
           id: `eq.${botId}`,
         }).catch(() => []);
-        
+
         if (!botCheck.length) {
           return res.status(404).json({ error: 'Bot not found' });
         }
-        
+
         const bot = botCheck[0];
         // Check if user has access to this bot's organization
-        if (user.organizationId !== bot.organization_id && user.role !== 'admin') {
+        if (
+          user.organizationId !== bot.organization_id &&
+          user.role !== 'admin'
+        ) {
           return res.status(403).json({ error: 'Access denied' });
         }
-        
+
         const d = await sbSelect('voice_agents', '*', {
           bot_id: `eq.${botId}`,
         }).catch(() => []);
@@ -1241,47 +1398,57 @@ async function handleVoice(
   } else if (req.method === 'POST' && botId && pathParts[2] === 'provision') {
     try {
       const body = parseBody(req);
-      
+
       // Validate required fields
       if (!body.voiceId) {
         return res.status(400).json({ error: 'voiceId is required' });
       }
-      
+
       // Validate provider
-      const validProviders = ['openai', 'cartesia', 'grok', 'elevenlabs', 'aws-polly', 'google-tts'];
+      const validProviders = [
+        'openai',
+        'cartesia',
+        'grok',
+        'elevenlabs',
+        'aws-polly',
+        'google-tts',
+      ];
       const provider = body.provider || 'cartesia';
       if (!validProviders.includes(provider)) {
-        return res.status(400).json({ 
-          error: `Invalid provider. Supported: ${validProviders.join(', ')}` 
+        return res.status(400).json({
+          error: `Invalid provider. Supported: ${validProviders.join(', ')}`,
         });
       }
-      
+
       // Check if bot exists and user has access
       const botCheck = await sbSelect('bots', 'id,organization_id', {
         id: `eq.${botId}`,
       }).catch(() => []);
-      
+
       if (!botCheck.length) {
         return res.status(404).json({ error: 'Bot not found' });
       }
-      
+
       const bot = botCheck[0];
-      if (user.organizationId !== bot.organization_id && user.role !== 'admin') {
+      if (
+        user.organizationId !== bot.organization_id &&
+        user.role !== 'admin'
+      ) {
         return res.status(403).json({ error: 'Access denied' });
       }
-      
+
       // Check if voice agent already exists for this bot
       const existing = await sbSelect('voice_agents', 'id', {
         bot_id: `eq.${botId}`,
       }).catch(() => []);
-      
+
       if (existing.length > 0) {
-        return res.status(409).json({ 
+        return res.status(409).json({
           error: 'Voice agent already provisioned for this bot',
-          existingAgentId: existing[0].id 
+          existingAgentId: existing[0].id,
         });
       }
-      
+
       // Create voice agent
       const voiceAgentData = {
         id: crypto.randomUUID(),
@@ -1297,7 +1464,12 @@ async function handleVoice(
         business_hours: body.businessHours || null,
         after_hours_message: body.afterHoursMessage || null,
         end_call_phrase: body.endCallPhrase || 'Goodbye!',
-        end_call_phrases: body.endCallPhrases || ['goodbye', 'bye', 'end call', 'hang up'],
+        end_call_phrases: body.endCallPhrases || [
+          'goodbye',
+          'bye',
+          'end call',
+          'hang up',
+        ],
         transfer_enabled: body.transferEnabled || false,
         transfer_number: body.transferNumber || null,
         transfer_triggers: body.transferTriggers || null,
@@ -1315,66 +1487,69 @@ async function handleVoice(
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
-      
+
       const r = await sbInsert('voice_agents', voiceAgentData).catch((err) => {
         console.error('[voice] Insert error:', err);
         throw new Error('Failed to create voice agent');
       });
-      
+
       res.status(201).json({
         success: true,
         voiceAgent: r[0],
-        message: 'Voice agent provisioned successfully'
+        message: 'Voice agent provisioned successfully',
       });
     } catch (err: any) {
       console.error('[voice] Provision error:', err.message);
-      res.status(500).json({ 
+      res.status(500).json({
         error: 'Failed to provision voice agent',
-        details: err.message 
+        details: err.message,
       });
     }
   } else if (req.method === 'PATCH' && botId) {
     try {
       const body = parseBody(req);
-      
+
       // Check if voice agent exists and user has access
       const existing = await sbSelect('voice_agents', '*', {
         bot_id: `eq.${botId}`,
       }).catch(() => []);
-      
+
       if (!existing.length) {
         return res.status(404).json({ error: 'Voice agent not found' });
       }
-      
+
       const agent = existing[0];
       // Check if user has access to this bot's organization
-      if (user.organizationId !== agent.organization_id && user.role !== 'admin') {
+      if (
+        user.organizationId !== agent.organization_id &&
+        user.role !== 'admin'
+      ) {
         return res.status(403).json({ error: 'Access denied' });
       }
-      
+
       // Update voice agent
       const updateData = {
         ...body,
         updated_at: new Date().toISOString(),
       };
-      
+
       const u = await sbUpdate('voice_agents', updateData, {
         bot_id: `eq.${botId}`,
       }).catch((err) => {
         console.error('[voice] Update error:', err);
         throw new Error('Failed to update voice agent');
       });
-      
+
       res.json({
         success: true,
         voiceAgent: u[0],
-        message: 'Voice agent updated successfully'
+        message: 'Voice agent updated successfully',
       });
     } catch (err: any) {
       console.error('[voice] PATCH error:', err.message);
-      res.status(500).json({ 
+      res.status(500).json({
         error: 'Failed to update voice agent',
-        details: err.message 
+        details: err.message,
       });
     }
   } else if (req.method === 'DELETE' && botId) {
@@ -1383,38 +1558,45 @@ async function handleVoice(
       const existing = await sbSelect('voice_agents', '*', {
         bot_id: `eq.${botId}`,
       }).catch(() => []);
-      
+
       if (!existing.length) {
         return res.status(404).json({ error: 'Voice agent not found' });
       }
-      
+
       const agent = existing[0];
       // Check if user has access to this bot's organization
-      if (user.organizationId !== agent.organization_id && user.role !== 'admin') {
+      if (
+        user.organizationId !== agent.organization_id &&
+        user.role !== 'admin'
+      ) {
         return res.status(403).json({ error: 'Access denied' });
       }
-      
+
       // Soft delete - mark as inactive
-      const u = await sbUpdate('voice_agents', {
-        is_active: false,
-        enabled: false,
-        updated_at: new Date().toISOString(),
-      }, {
-        bot_id: `eq.${botId}`,
-      }).catch((err) => {
+      const u = await sbUpdate(
+        'voice_agents',
+        {
+          is_active: false,
+          enabled: false,
+          updated_at: new Date().toISOString(),
+        },
+        {
+          bot_id: `eq.${botId}`,
+        },
+      ).catch((err) => {
         console.error('[voice] Delete error:', err);
         throw new Error('Failed to deactivate voice agent');
       });
-      
+
       res.json({
         success: true,
-        message: 'Voice agent deactivated successfully'
+        message: 'Voice agent deactivated successfully',
       });
     } catch (err: any) {
       console.error('[voice] DELETE error:', err.message);
-      res.status(500).json({ 
+      res.status(500).json({
         error: 'Failed to deactivate voice agent',
-        details: err.message 
+        details: err.message,
       });
     }
   } else {
@@ -1800,7 +1982,8 @@ async function handleTemplates(
       model: body.model || tpl.model || 'gpt-4o-mini',
       // handleChat passes bot.temperature straight to the LLM API — the old
       // hardcoded 70 (UI 0–100 scale) was out of the valid 0–2 range.
-      temperature: typeof body.temperature === 'number' ? body.temperature : 0.7,
+      temperature:
+        typeof body.temperature === 'number' ? body.temperature : 0.7,
       max_tokens: 500,
       status: 'draft',
       config: tpl.config || {},
@@ -2888,14 +3071,20 @@ async function handleLandingPages(
   // so a single provider outage can't take the feature down.
   if (pid === 'generate' && req.method === 'POST') {
     const body = parseBody(req);
-    const businessName = (body.businessName || body.name || '').toString().slice(0, 200);
-    const description = (body.description || body.prompt || '').toString().slice(0, 2000);
+    const businessName = (body.businessName || body.name || '')
+      .toString()
+      .slice(0, 200);
+    const description = (body.description || body.prompt || '')
+      .toString()
+      .slice(0, 2000);
     if (!businessName && !description) {
       return res.status(400).json({
         error: 'Provide businessName and/or description to generate from',
       });
     }
-    const tone = (body.tone || 'professional, high-converting').toString().slice(0, 100);
+    const tone = (body.tone || 'professional, high-converting')
+      .toString()
+      .slice(0, 100);
     const raw = await callLLMMessages(
       [
         {

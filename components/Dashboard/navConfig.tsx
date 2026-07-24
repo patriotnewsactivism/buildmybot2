@@ -99,6 +99,7 @@ export const NAV: Record<NavRole, NavGroup[]> = {
       heading: 'Operations',
       items: [
         { label: 'All Bots', to: '/admin/bots', icon: Bot },
+        { label: 'Voice Receptionist', to: '/admin/voice', icon: Phone },
         {
           label: 'Conversations',
           to: '/admin/conversations',
@@ -175,6 +176,7 @@ export const NAV: Record<NavRole, NavGroup[]> = {
       items: [
         { label: 'Dashboard', to: '/app', icon: LayoutDashboard, end: true },
         { label: 'My Bots', to: '/app/bots', icon: Bot },
+        { label: 'Voice Receptionist', to: '/app/phone', icon: Phone },
         {
           label: 'Conversations',
           to: '/app/conversations',
@@ -186,7 +188,6 @@ export const NAV: Record<NavRole, NavGroup[]> = {
     {
       heading: 'Growth',
       items: [
-        { label: 'Phone Agent', to: '/app/phone', icon: Phone },
         { label: 'Analytics', to: '/app/analytics', icon: BarChart3 },
         { label: 'Landing Pages', to: '/app/landing-pages', icon: FileText },
         { label: 'AI Marketing', to: '/app/marketing', icon: Megaphone },
