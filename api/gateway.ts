@@ -1,5 +1,6 @@
 import * as Sentry from '@sentry/node';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { PLAN_LIMITS, formatPricingForPrompt } from '../constants.js';
 import { callLLMMessages } from './ai-team/lib.js';
 import {
   ingestKnowledgeSource,
@@ -175,45 +176,11 @@ export function ownerFilter(user: AuthUser): Record<string, string> {
 }
 
 // ─── Plan Limits & Usage Enforcement ──────────────────────────────────
-const PLAN_LIMITS_CONFIG: Record<
-  string,
-  {
-    bots: number;
-    conversations_per_month: number;
-    knowledge_sources: number;
-    leads: number;
-    trial_days: number;
-  }
-> = {
-  FREE: {
-    bots: 1,
-    conversations_per_month: 250,
-    knowledge_sources: 3,
-    leads: 50,
-    trial_days: 0,
-  },
-  STARTER: {
-    bots: 3,
-    conversations_per_month: 1000,
-    knowledge_sources: 10,
-    leads: 500,
-    trial_days: 0,
-  },
-  PROFESSIONAL: {
-    bots: 10,
-    conversations_per_month: 10000,
-    knowledge_sources: 50,
-    leads: 5000,
-    trial_days: 0,
-  },
-  ENTERPRISE: {
-    bots: 9999,
-    conversations_per_month: 999999,
-    knowledge_sources: 999,
-    leads: 999999,
-    trial_days: 0,
-  },
-};
+// Limits are imported from constants.ts PLAN_LIMITS — derived from the same
+// PLANS object the pricing page renders, so advertised === enforced. This
+// replaced a hand-written table here that had drifted from marketing on every
+// tier and was missing EXECUTIVE entirely (which silently threw $199/mo
+// customers onto FREE limits via the || FREE fallback).
 const TRIAL_DURATION_DAYS = 14;
 const TRIAL_PLAN = 'PROFESSIONAL'; // trial users get Professional-level access
 
@@ -222,7 +189,7 @@ export function getUserPlanKey(user: AuthUser): string {
 }
 
 export function getPlanLimits(planKey: string) {
-  return PLAN_LIMITS_CONFIG[planKey] || PLAN_LIMITS_CONFIG.FREE;
+  return PLAN_LIMITS[planKey] || PLAN_LIMITS.FREE;
 }
 
 export async function checkQuota(
@@ -2211,13 +2178,6 @@ async function handleClients(
     // handler at all, so it fell through to the client-by-id branch,
     // returning `{}` and crashing ClientOverview.tsx's `recentBots[0]?.id`
     // (recentBots was `undefined`, not `[]`) for EVERY user, new or existing.
-    const PLAN_LIMITS: Record<string, { bots: number; conversations: number }> =
-      {
-        FREE: { bots: 1, conversations: 60 },
-        STARTER: { bots: 1, conversations: 750 },
-        PROFESSIONAL: { bots: 5, conversations: 5000 },
-        ENTERPRISE: { bots: 9999, conversations: 999999 },
-      };
     const orgFilter = ownerFilter(user);
     const [bots, leads, conversations] = await Promise.all([
       sbSelect('bots', '*', orgFilter).catch(() => []),
@@ -2240,7 +2200,7 @@ async function handleClients(
         : 0;
 
     const planKey = (user.plan || 'FREE').toUpperCase();
-    const limits = PLAN_LIMITS[planKey] || PLAN_LIMITS.FREE;
+    const limits = getPlanLimits(planKey);
 
     const days: { date: string; count: number }[] = [];
     for (let i = 13; i >= 0; i--) {
@@ -2260,7 +2220,7 @@ async function handleClients(
       usage: {
         plan: planKey,
         conversationsUsed: conversations.length,
-        conversationsLimit: limits.conversations,
+        conversationsLimit: limits.conversations_per_month,
         botsUsed: botCount,
         botsLimit: limits.bots,
       },
@@ -3578,8 +3538,7 @@ const EMPLOYEE_ROSTER: Array<{
     title: 'Customer Support Lead',
     email: `support@${EMAIL_DOMAIN}`,
     reportsTo: `admin@${EMAIL_DOMAIN}`,
-    systemPrompt:
-      'You are Sam Rivera, Customer Support Lead at BuildMyBot (buildmybot.app). You monitor support@buildmybot.app. Help customers with account, bot-building, billing, and technical questions about the platform. Plans: Free $0, Starter $29/mo, Professional $99/mo, Enterprise $499/mo. All paid plans offer 17% off (about 2 months free) when billed annually instead of monthly. Never promise refunds, credits, or legal outcomes — escalate those. Escalate anything involving refunds, cancellation of Enterprise/Partner accounts, legal threats, security reports, or an angry high-value customer. Be warm, clear, and solution-first.',
+    systemPrompt: `You are Sam Rivera, Customer Support Lead at BuildMyBot (buildmybot.app). You monitor support@buildmybot.app. Help customers with account, bot-building, billing, and technical questions about the platform. Plans: ${formatPricingForPrompt()}. All paid plans offer 17% off (about 2 months free) when billed annually instead of monthly. Never promise refunds, credits, or legal outcomes — escalate those. Escalate anything involving refunds, cancellation of Enterprise/Partner accounts, legal threats, security reports, or an angry high-value customer. Be warm, clear, and solution-first.`,
   },
   {
     id: 'vera-sales',
@@ -3588,8 +3547,7 @@ const EMPLOYEE_ROSTER: Array<{
     title: 'Vice President of Sales',
     email: `sales@${EMAIL_DOMAIN}`,
     reportsTo: PRESIDENT_EMAIL,
-    systemPrompt:
-      'You are Vera Cross, Vice President of Sales at BuildMyBot (buildmybot.app). You monitor sales@buildmybot.app and own the revenue pipeline. Plans: Free $0, Starter $29/mo, Professional $99/mo, Enterprise $499/mo. All paid plans offer 17% off (about 2 months free) when billed annually instead of monthly — lead with this for price-sensitive prospects. Partner Access: $499/mo for a 50% revenue split on new accounts. Reseller ladder: Bronze 0-49 accounts at 20%, Silver 50-149 at 30%, Gold 150-250 at 40%, Platinum 251+ at 50%. Qualify leads, answer pricing questions, and drive to a close or a demo. Escalate custom/enterprise contract terms, discount requests beyond list pricing, and any prospect asking for the president.',
+    systemPrompt: `You are Vera Cross, Vice President of Sales at BuildMyBot (buildmybot.app). You monitor sales@buildmybot.app and own the revenue pipeline. Plans: ${formatPricingForPrompt()}. All paid plans offer 17% off (about 2 months free) when billed annually instead of monthly — lead with this for price-sensitive prospects. Partner Access: $499/mo for a 50% revenue split on new accounts. Reseller ladder: Bronze 0-49 accounts at 20%, Silver 50-149 at 30%, Gold 150-250 at 40%, Platinum 251+ at 50%. Qualify leads, answer pricing questions, and drive to a close or a demo. Escalate custom/enterprise contract terms, discount requests beyond list pricing, and any prospect asking for the president.`,
   },
   {
     id: 'devon-agent-dev',
@@ -3628,8 +3586,7 @@ const EMPLOYEE_ROSTER: Array<{
     title: 'Billing Lead',
     email: `billing@${EMAIL_DOMAIN}`,
     reportsTo: PRESIDENT_EMAIL,
-    systemPrompt:
-      'You are Brianna Cole, Billing Lead at BuildMyBot (buildmybot.app). You monitor billing@buildmybot.app. Handle invoice questions, payment failures, refund requests, plan changes, and subscription/cancellation questions. Plans: Free $0, Starter $29/mo, Professional $99/mo, Enterprise $499/mo, Partner Access $499/mo (50% revenue split). All paid plans offer 17% off (about 2 months free) when billed annually instead of monthly — mention this whenever a customer asks about annual billing or discounts. Never promise a refund, credit, or chargeback reversal yourself — collect the details and escalate. Escalate refund requests, disputed charges, cancellation of Enterprise/Partner accounts, and anything that smells like fraud. Be precise with numbers and calm with frustrated customers.',
+    systemPrompt: `You are Brianna Cole, Billing Lead at BuildMyBot (buildmybot.app). You monitor billing@buildmybot.app. Handle invoice questions, payment failures, refund requests, plan changes, and subscription/cancellation questions. Plans: ${formatPricingForPrompt()}, Partner Access $499/mo (50% revenue split). All paid plans offer 17% off (about 2 months free) when billed annually instead of monthly — mention this whenever a customer asks about annual billing or discounts. Never promise a refund, credit, or chargeback reversal yourself — collect the details and escalate. Escalate refund requests, disputed charges, cancellation of Enterprise/Partner accounts, and anything that smells like fraud. Be precise with numbers and calm with frustrated customers.`,
   },
   {
     id: 'marcus-manager',

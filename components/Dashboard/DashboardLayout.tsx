@@ -19,10 +19,81 @@ import {
 import type React from 'react';
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { PLANS } from '../../constants';
 import { useDashboardContext } from '../../hooks/useDashboardContext';
+import { dbService } from '../../services/dbService';
+import type { PlanType } from '../../types';
 import { UnifiedSearch } from '../UI/UnifiedSearch';
 import { NotificationBell } from './NotificationBell';
 import { NAV, ROLE_HOME, getNavRole } from './navConfig';
+
+/**
+ * Compact plan + conversation-usage indicator for the sidebar footer
+ * (client/owner roles). Reads the same /clients/overview payload
+ * ClientOverview uses, so the number always matches the enforced limit.
+ */
+const PlanUsageCard: React.FC<{ plan?: PlanType }> = ({ plan }) => {
+  const [usage, setUsage] = useState<{
+    conversationsUsed: number;
+    conversationsLimit: number;
+  } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    dbService
+      .getClientOverview()
+      .then((data) => {
+        if (!cancelled && data?.usage) {
+          setUsage({
+            conversationsUsed: data.usage.conversationsUsed ?? 0,
+            conversationsLimit: data.usage.conversationsLimit ?? 0,
+          });
+        }
+      })
+      .catch(() => {
+        // Non-critical UI — fail silently, card just shows the plan name.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const planInfo = plan ? PLANS[plan] : undefined;
+  const planName = planInfo?.name || 'Free';
+  const limit = usage?.conversationsLimit || planInfo?.conversations || 0;
+  const used = usage?.conversationsUsed ?? 0;
+  const pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
+
+  return (
+    <div className="mb-3 rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+      <div className="mb-1.5 flex items-center justify-between">
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+          Plan
+        </span>
+        <span className="text-xs font-bold text-slate-200">{planName}</span>
+      </div>
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
+        <div
+          className={`h-full transition-all duration-500 ${pct > 90 ? 'bg-red-500' : 'bg-blue-600'}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <div className="mt-1.5 flex items-center justify-between text-[10px] text-slate-500">
+        <span>
+          {used.toLocaleString()} / {limit.toLocaleString()} convos
+        </span>
+        {pct > 90 && (
+          <NavLink
+            to="/app/billing"
+            className="font-bold text-red-400 hover:underline"
+          >
+            Upgrade
+          </NavLink>
+        )}
+      </div>
+    </div>
+  );
+};
 
 interface DashboardLayoutProps {
   onLogout?: () => void;
@@ -150,6 +221,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
           </nav>
 
           <div className="border-t border-slate-800 p-3">
+            {navRole === 'client' && <PlanUsageCard plan={user.plan} />}
             <div className="mb-2 flex items-center gap-2 px-2">
               {user.avatarUrl ? (
                 <img

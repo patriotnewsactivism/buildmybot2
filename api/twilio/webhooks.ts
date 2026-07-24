@@ -12,6 +12,7 @@
 
 import { createHmac } from 'node:crypto';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { formatPricingForPrompt } from '../../constants.js';
 import { logCallOutcome } from './service.js';
 
 function setCors(res: VercelResponse) {
@@ -210,7 +211,7 @@ Call objective: ${objective}
 Rules:
 - Keep responses under 50 words — this is spoken aloud
 - Be natural and conversational, not scripty
-- Never invent features or pricing outside: Free $0, Starter $29/mo, Professional $99/mo, Enterprise $499/mo
+- Never invent features or pricing outside: ${formatPricingForPrompt()}
 - If the lead seems uninterested, gracefully wrap up
 - If they have a question you can't answer, say you'll follow up by email
 - If they want to end the call, say goodbye and hang up
