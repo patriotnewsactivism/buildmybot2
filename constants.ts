@@ -1,4 +1,8 @@
-import { PlanType } from './types';
+// NOTE: explicit .js extension is REQUIRED — api/gateway.ts imports this file,
+// and Vercel's serverless ESM runtime does real Node module resolution (no
+// bundler). An extensionless './types' crashes every /api/* route at cold
+// start (ERR_MODULE_NOT_FOUND). Vite resolves .js → .ts fine for the frontend.
+import { PlanType } from './types.js';
 
 /**
  * Canonical plan definitions — the single source of truth for BOTH the
