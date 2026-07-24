@@ -118,6 +118,21 @@ export async function initiateOutboundCall(opts: {
     return { success: false, error: 'dry_run' };
   }
 
+  const dailyCap = Number(process.env.SALES_CALL_DAILY_CAP || 25);
+  const todayStart = new Date();
+  todayStart.setUTCHours(0, 0, 0, 0);
+  const callsToday = await sbSelect('call_logs', 'id', {
+    provider: 'eq.twilio',
+    direction: 'eq.outbound',
+    started_at: `gte.${todayStart.toISOString()}`,
+  });
+  if (Array.isArray(callsToday) && callsToday.length >= dailyCap) {
+    console.warn(
+      `[twilio] Daily outbound call cap reached (${callsToday.length}/${dailyCap}) — deferring ${opts.phoneNumber} to a later run.`,
+    );
+    return { success: false, error: 'daily_cap_reached' };
+  }
+
   try {
     const Twilio = (await import('twilio')).default;
     const client = new Twilio(TWILIO_ACCOUNT_SID!, TWILIO_AUTH_TOKEN!);

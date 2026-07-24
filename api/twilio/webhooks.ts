@@ -34,36 +34,44 @@ function parseBody(req: VercelRequest): any {
 
 /**
  * Validate Twilio request signature (prevents spoofed callbacks).
- * Falls back to checking for expected Twilio fields if auth token isn't set.
+ *
+ * Fails CLOSED whenever Twilio credentials are configured: a missing or
+ * invalid signature is rejected outright, never falls back to trusting
+ * field presence (any caller can POST a body containing "CallSid" — that
+ * was a real spoofable gap, not just a theoretical one, see SECURITY.md).
+ * The permissive field-presence fallback only applies when TWILIO_AUTH_TOKEN
+ * / TWILIO_ACCOUNT_SID aren't set at all (local dev with no Twilio account).
  */
 async function validateTwilioRequest(req: VercelRequest): Promise<boolean> {
   const authToken = process.env.TWILIO_AUTH_TOKEN;
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
 
   if (!authToken || !accountSid) {
-    // In development, just check for Twilio fields
+    // No Twilio account configured at all — local dev, nothing to validate
+    // against. Just check for Twilio-shaped fields.
     const body = parseBody(req);
     return !!(body.CallSid || body.AccountSid || body.RecordingSid);
   }
 
+  const signature = req.headers['x-twilio-signature'] as string | undefined;
+  if (!signature) {
+    // Twilio always sends this header on real requests. No header + real
+    // credentials configured means this isn't Twilio — reject.
+    return false;
+  }
+
   try {
-    // In production, validate the signature
     const twilio = (await import('twilio')).default;
-    const url = req.url || '/api/twilio';
+    // Twilio signs the full absolute URL it POSTed to, not the relative
+    // path Vercel hands us — reconstructing it wrong made validateRequest
+    // always fail on genuine Twilio requests, not just spoofed ones.
+    const appBaseUrl = process.env.APP_BASE_URL || 'https://www.buildmybot.app';
+    const fullUrl = `${appBaseUrl}${req.url || ''}`;
     const body = parseBody(req);
-    const signature = req.headers['x-twilio-signature'] as string;
-
-    if (!signature) {
-      // Fallback: check for Twilio fields
-      return !!(body.CallSid || body.AccountSid || body.RecordingSid);
-    }
-
-    const isValid = twilio.validateRequest(authToken, signature, url, body);
-    return isValid;
-  } catch {
-    // If validation fails, fall back to checking for Twilio fields
-    const body = parseBody(req);
-    return !!(body.CallSid || body.AccountSid || body.RecordingSid);
+    return twilio.validateRequest(authToken, signature, fullUrl, body);
+  } catch (err) {
+    console.error('[twilio] Signature validation threw:', err);
+    return false;
   }
 }
 
