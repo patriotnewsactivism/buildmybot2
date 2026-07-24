@@ -12,6 +12,8 @@
  * Every call is logged to the `leads` outreach fields and `call_logs` table.
  */
 
+import { salesAutomationDryRun } from '../ai-team/lib.js';
+
 const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
 const TWILIO_PHONE_NUMBER = process.env.TWILIO_PHONE_NUMBER;
@@ -105,6 +107,15 @@ export async function initiateOutboundCall(opts: {
       error:
         'Twilio not configured (set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER)',
     };
+  }
+
+  // Belt-and-suspenders: even if a caller forgets to check this upstream,
+  // initiateOutboundCall never dials out while dry-run is active.
+  if (salesAutomationDryRun()) {
+    console.warn(
+      `[twilio][DRY RUN] Would call ${opts.phoneNumber} for lead ${opts.leadId} (objective: ${opts.objective})`,
+    );
+    return { success: false, error: 'dry_run' };
   }
 
   try {

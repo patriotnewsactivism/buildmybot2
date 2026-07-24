@@ -17,8 +17,13 @@ name: AI Team — Pulse (around-the-clock persistence)
 
 on:
   workflow_dispatch: {} # manual "Run workflow" from the Actions tab
-  schedule:
-    - cron: '*/10 * * * *'
+  # schedule DISABLED 2026-07-24: this worker (and its indirect dispatch of
+  # lead-followups/sales-outreach) places real Twilio calls and sends real
+  # emails to real leads. Paused pending the safety-gate work in
+  # api/ai-team/lib.ts (SALES_AUTOMATION_DRY_RUN + AI_TEAM_KILL_SWITCH) and a
+  # verified dry-run pass. Re-enable deliberately once that's confirmed:
+  # schedule:
+  #   - cron: '*/10 * * * *'
 
 jobs:
   pulse:

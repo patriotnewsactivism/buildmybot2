@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import {
+  aiTeamKilled,
   callLLM,
   logShift,
   notifyDiscord,
@@ -254,6 +255,10 @@ export async function allShiftsHandler(
 ) {
   if (req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`)
     return res.status(401).end();
+
+  if (aiTeamKilled()) {
+    return res.status(200).json({ success: true, killed: true });
+  }
 
   const url = new URL(req.url || '/', 'http://localhost');
   const roleParam = url.searchParams.get('role');

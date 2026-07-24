@@ -8,8 +8,11 @@ name: Dispatch Scheduled Emails
 
 on:
   workflow_dispatch: {}
-  schedule:
-    - cron: '*/5 * * * *' # every 5 minutes
+  # schedule DISABLED 2026-07-24: sends real drafted email replies. Paused
+  # pending the SALES_AUTOMATION_DRY_RUN safety gate and a verified dry-run
+  # pass. Re-enable deliberately once that's confirmed:
+  # schedule:
+  #   - cron: '*/5 * * * *' # every 5 minutes
 
 jobs:
   dispatch:

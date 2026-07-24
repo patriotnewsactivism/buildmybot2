@@ -17,6 +17,7 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import {
+  aiTeamKilled,
   callLLM,
   logAgentError,
   logShift,
@@ -24,6 +25,7 @@ import {
   notifySlack,
   recallMemories,
   rememberMemory,
+  salesAutomationDryRun,
 } from '../ai-team/lib.js';
 import { initiateOutboundCall, twilioConfigured } from '../twilio/service.js';
 
@@ -95,6 +97,7 @@ interface OutreachResult {
     | 'promoted_to_crm'
     | 'skipped'
     | 'escalated'
+    | 'dry_run'
     | 'error';
   detail?: string;
 }
@@ -174,6 +177,16 @@ async function sendOutreachEmail(opts: {
   body: string;
   fromName: string;
 }): Promise<{ sent: boolean; reason?: string }> {
+  if (salesAutomationDryRun()) {
+    await logAgentError({
+      source: ROLE_ID,
+      level: 'warning',
+      message: `[DRY RUN] Would send cold outreach email to ${opts.to}: "${opts.subject}"`,
+      context: { dry_run: true, to: opts.to, subject: opts.subject },
+    }).catch(() => null);
+    return { sent: false, reason: 'dry_run' };
+  }
+
   if (process.env.RESEND_API_KEY) {
     const resp = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -283,6 +296,14 @@ async function processLead(lead: ResearchedLead): Promise<OutreachResult> {
       });
 
       if (!result.sent) {
+        if (result.reason === 'dry_run') {
+          return {
+            id: lead.id,
+            company: lead.company_name,
+            action: 'dry_run',
+            detail: `[DRY RUN] Would email ${lead.email}: "${draft.subject}"`,
+          };
+        }
         return {
           id: lead.id,
           company: lead.company_name,
@@ -352,6 +373,15 @@ async function processLead(lead: ResearchedLead): Promise<OutreachResult> {
     });
 
     if (!callResult.success) {
+      if (callResult.error === 'dry_run') {
+        return {
+          id: lead.id,
+          company: lead.company_name,
+          action: 'dry_run',
+          detail: `[DRY RUN] Would call ${lead.phone}`,
+        };
+      }
+
       // Fall back to email if call fails and we have an email
       if (lead.email) {
         try {
@@ -411,6 +441,10 @@ export async function salesOutreachHandler(
     return res.status(401).json({ error: 'unauthorized' });
   }
 
+  if (aiTeamKilled()) {
+    return res.status(200).json({ success: true, killed: true });
+  }
+
   const startedAt = Date.now();
   const globalDeadline = startedAt + GLOBAL_BUDGET_MS;
 
@@ -443,16 +477,19 @@ export async function salesOutreachHandler(
     const result = await processLead(lead);
     results.push(result);
 
-    // Mark the researched lead as processed regardless of outcome
-    await sbUpdate(
-      'researched_leads',
-      {
-        status:
-          result.action === 'error' ? 'outreach_failed' : 'outreach_initiated',
-        outreach_initiated_at: new Date().toISOString(),
-      },
-      `id=eq.${lead.id}`,
-    );
+    // Dry-run leads get zero persisted side effects — leave the researched
+    // lead exactly as found so a real run (once dry-run is off) processes it.
+    if (result.action !== 'dry_run') {
+      await sbUpdate(
+        'researched_leads',
+        {
+          status:
+            result.action === 'error' ? 'outreach_failed' : 'outreach_initiated',
+          outreach_initiated_at: new Date().toISOString(),
+        },
+        `id=eq.${lead.id}`,
+      );
+    }
   }
 
   const emailsSent = results.filter((r) => r.action === 'email_sent').length;
@@ -460,9 +497,10 @@ export async function salesOutreachHandler(
     (r) => r.action === 'call_initiated',
   ).length;
   const skipped = results.filter((r) => r.action === 'skipped').length;
+  const dryRun = results.filter((r) => r.action === 'dry_run').length;
   const errors = results.filter((r) => r.action === 'error').length;
 
-  const summary = `Outreach run: ${results.length} lead(s) processed — ${emailsSent} email(s), ${callsInitiated} call(s), ${skipped} skipped, ${errors} error(s).${paused ? ' Paused (time budget).' : ''}`;
+  const summary = `Outreach run: ${results.length} lead(s) processed — ${emailsSent} email(s), ${callsInitiated} call(s), ${skipped} skipped, ${dryRun} dry-run, ${errors} error(s).${paused ? ' Paused (time budget).' : ''}`;
 
   await logShift({
     role_id: ROLE_ID,
@@ -485,6 +523,7 @@ export async function salesOutreachHandler(
     emails_sent: emailsSent,
     calls_initiated: callsInitiated,
     skipped,
+    dry_run: dryRun,
     errors,
     paused,
     duration_ms: Date.now() - startedAt,
