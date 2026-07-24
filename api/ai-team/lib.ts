@@ -510,6 +510,35 @@ export async function logAgentError(entry: {
   }
 }
 
+/**
+ * Records one row in analytics_events for a key sales-funnel moment (lead
+ * captured, outreach sent, follow-up sent, call completed). Best-effort —
+ * the funnel dashboard reading this table is nice-to-have, so a failure
+ * here must never interrupt the caller's actual work (sending the email,
+ * placing the call, etc).
+ */
+export async function trackAnalyticsEvent(entry: {
+  eventType: string;
+  organizationId?: string | null;
+  botId?: string | null;
+  userId?: string | null;
+  eventData?: Record<string, unknown>;
+}): Promise<void> {
+  await supabaseFetch('analytics_events', '', {
+    method: 'POST',
+    body: JSON.stringify({
+      id: crypto.randomUUID(),
+      organization_id: entry.organizationId ?? null,
+      bot_id: entry.botId ?? null,
+      user_id: entry.userId ?? null,
+      event_type: entry.eventType,
+      event_data: entry.eventData ?? {},
+    }),
+  }).catch((err: any) => {
+    console.error('[analytics] track event failed:', entry.eventType, err.message);
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Thought → Action → Observation loop (ReAct). The core reasoning engine
 // every agent runs through. Enforces:
