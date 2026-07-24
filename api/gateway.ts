@@ -1281,7 +1281,7 @@ async function handleVoice(
       }
       
       // Validate provider
-      const validProviders = ['openai', 'cartesia', 'elevenlabs', 'aws-polly', 'google-tts'];
+      const validProviders = ['openai', 'cartesia', 'grok', 'elevenlabs', 'aws-polly', 'google-tts'];
       const provider = body.provider || 'cartesia';
       if (!validProviders.includes(provider)) {
         return res.status(400).json({ 

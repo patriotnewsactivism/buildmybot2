@@ -6,17 +6,22 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
  * Returns raw MP3 audio bytes — no auth required (public demo).
  *
  * Body: { text: string, voice?: string, provider?: string }
- * Supported providers: openai, cartesia
- * Supported voices: alloy, echo, fable, onyx, nova, shimmer (OpenAI)
+ * Supported providers: openai, cartesia, grok
+ * Supported voices: alloy, echo, fable, onyx, nova, shimmer (OpenAI) | eve, ara, leo (Grok)
  */
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const CARTESIA_API_KEY = process.env.CARTESIA_API_KEY;
+const XAI_API_KEY = process.env.XAI_API_KEY;
 const OPENAI_BASE = 'https://api.openai.com/v1';
 const CARTESIA_BASE = 'https://api.cartesia.ai/v1';
+const XAI_BASE = 'https://api.x.ai/v1';
 
 // Valid voices for OpenAI TTS
 const OPENAI_VOICES = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
+
+// Valid voices for Grok TTS (full list via GET https://api.x.ai/v1/tts/voices)
+const GROK_VOICES = ['eve', 'ara', 'leo'];
 
 // Valid voices for Cartesia TTS
 const CARTESIA_VOICES = [
@@ -111,9 +116,41 @@ const cartesiaProvider: TTSProvider = {
   },
 };
 
+const grokProvider: TTSProvider = {
+  name: 'grok',
+  isConfigured: () => !!XAI_API_KEY,
+  getDefaultVoice: () => 'eve',
+  generateAudio: async (text: string, voice: string, _speed: number) => {
+    const selectedVoice = GROK_VOICES.includes(voice) ? voice : 'eve';
+
+    const response = await fetch(`${XAI_BASE}/tts`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${XAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        text,
+        voice_id: selectedVoice,
+        language: 'en',
+        output_format: { codec: 'mp3', sample_rate: 24000, bit_rate: 128000 },
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Grok TTS error: ${response.status} - ${errorText.slice(0, 200)}`);
+    }
+
+    const audioBuffer = await response.arrayBuffer();
+    return { audioBuffer, contentType: 'audio/mpeg' };
+  },
+};
+
 const providers: Record<string, TTSProvider> = {
   openai: openaiProvider,
   cartesia: cartesiaProvider,
+  grok: grokProvider,
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

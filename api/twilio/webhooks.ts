@@ -10,6 +10,7 @@
  * cookies) — validated via Twilio request signature instead.
  */
 
+import { createHmac } from 'node:crypto';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { logCallOutcome } from './service.js';
 
@@ -37,7 +38,7 @@ function parseBody(req: VercelRequest): any {
 async function validateTwilioRequest(req: VercelRequest): Promise<boolean> {
   const authToken = process.env.TWILIO_AUTH_TOKEN;
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
-  
+
   if (!authToken || !accountSid) {
     // In development, just check for Twilio fields
     const body = parseBody(req);
@@ -50,18 +51,13 @@ async function validateTwilioRequest(req: VercelRequest): Promise<boolean> {
     const url = req.url || '/api/twilio';
     const body = parseBody(req);
     const signature = req.headers['x-twilio-signature'] as string;
-    
+
     if (!signature) {
       // Fallback: check for Twilio fields
       return !!(body.CallSid || body.AccountSid || body.RecordingSid);
     }
-    
-    const isValid = twilio.validateRequest(
-      authToken,
-      signature,
-      url,
-      body
-    );
+
+    const isValid = twilio.validateRequest(authToken, signature, url, body);
     return isValid;
   } catch {
     // If validation fails, fall back to checking for Twilio fields
@@ -83,40 +79,25 @@ function escapeXml(str: string): string {
 }
 
 /**
- * Generate TTS audio URL using available providers
- * Returns a URL that Twilio can use with <Play> or <Say>
+ * Returns a TwiML fragment that speaks text via Grok TTS (<Play>) when
+ * XAI_API_KEY is configured, or falls back to Twilio's Polly.Joanna (<Say>).
+ * The HMAC token ties the URL to the exact (text, voice) pair so it can't be
+ * reused with different content by an external caller.
  */
-async function generateTtsUrl(text: string, voice?: string): Promise<string> {
-  const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-  const CARTESIA_API_KEY = process.env.CARTESIA_API_KEY;
-  const APP_BASE_URL = process.env.APP_BASE_URL || 'https://www.buildmybot.app';
-  
-  // Try to use our voice preview API which handles multiple providers
-  try {
-    const response = await fetch(`${APP_BASE_URL}/api/voice/preview`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        text: text,
-        voice: voice || 'shimmer',
-        provider: CARTESIA_API_KEY ? 'cartesia' : 'openai',
-        speed: 1.0,
-      }),
-    });
-    
-    if (response.ok) {
-      // Return the audio URL
-      return `${APP_BASE_URL}/api/voice/preview?text=${encodeURIComponent(text)}&voice=${voice || 'shimmer'}`;
-    }
-  } catch {
-    // Fall through to Twilio's built-in TTS
+function speakLine(text: string, voice = 'eve'): string {
+  const XAI_API_KEY = process.env.XAI_API_KEY;
+  if (XAI_API_KEY) {
+    const APP_BASE_URL =
+      process.env.APP_BASE_URL || 'https://www.buildmybot.app';
+    const token = createHmac('sha256', XAI_API_KEY)
+      .update(`${text}|${voice}`)
+      .digest('hex')
+      .slice(0, 16);
+    const params = new URLSearchParams({ text, voice, token });
+    const url = `${APP_BASE_URL}/api/voice/tts-clip?${params.toString()}`;
+    return `<Play>${escapeXml(url)}</Play>`;
   }
-  
-  // Fallback to Twilio's built-in TTS (Polly, Google, etc.)
-  // Using Polly.Joanna as default (US English, Female)
-  return `https://polly.amazonaws.com/v1/speech?text=${encodeURIComponent(text)}&voice=Joanna`;
+  return `<Say voice="Polly.Joanna">${escapeXml(text)}</Say>`;
 }
 
 /**
@@ -166,11 +147,11 @@ export async function voiceHandler(req: VercelRequest, res: VercelResponse) {
   const APP_BASE_URL = process.env.APP_BASE_URL || 'https://www.buildmybot.app';
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="Polly.Joanna">${escapeXml(greeting)}</Say>
+  ${speakLine(greeting)}
   <Gather input="speech" timeout="5" speechTimeout="auto" action="${APP_BASE_URL}/api/twilio/voice-respond?leadId=${encodeURIComponent(leadId)}&amp;objective=${encodeURIComponent(objective)}&amp;logId=${encodeURIComponent(logId)}&amp;botId=${encodeURIComponent(botId)}&amp;turn=1" method="POST">
-    <Say voice="Polly.Joanna">I'm listening.</Say>
+    ${speakLine("I'm listening.")}
   </Gather>
-  <Say voice="Polly.Joanna">It seems like you might be busy. Feel free to call us back anytime. Have a great day!</Say>
+  ${speakLine('It seems like you might be busy. Feel free to call us back anytime. Have a great day!')}
   <Hangup/>
 </Response>`;
 
@@ -200,7 +181,7 @@ export async function voiceRespond(req: VercelRequest, res: VercelResponse) {
   if (turn > 10 || !speechResult) {
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="Polly.Joanna">Thank you so much for your time today. We'll send you a follow-up email with more details. Have a wonderful day!</Say>
+  ${speakLine("Thank you so much for your time today. We'll send you a follow-up email with more details. Have a wonderful day!")}
   <Hangup/>
 </Response>`;
     res.setHeader('Content-Type', 'text/xml');
@@ -213,11 +194,12 @@ export async function voiceRespond(req: VercelRequest, res: VercelResponse) {
 
   try {
     const { callLLM } = await import('../ai-team/lib.js');
-    
+
     // Build context for the AI
     const context = botId ? ` (Bot: ${botId})` : '';
-    const conversationHistory = turn > 1 ? ` This is turn ${turn} of the conversation.` : '';
-    
+    const conversationHistory =
+      turn > 1 ? ` This is turn ${turn} of the conversation.` : '';
+
     aiResponse = await callLLM(
       `You are a friendly, professional sales rep for BuildMyBot on a live phone call. BuildMyBot is a white-label AI chatbot and voice agent platform for local service businesses.${context}
 
@@ -233,7 +215,7 @@ Rules:
 - Be helpful but don't be pushy${conversationHistory}`,
       `The lead just said: "${speechResult}"`,
     );
-    
+
     // Ensure we don't exceed Twilio's character limits
     if (aiResponse.length > 500) {
       aiResponse = aiResponse.slice(0, 497) + '...';
@@ -246,10 +228,10 @@ Rules:
   const APP_BASE_URL = process.env.APP_BASE_URL || 'https://www.buildmybot.app';
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="Polly.Joanna">${escapeXml(aiResponse)}</Say>
+  ${speakLine(aiResponse)}
   <Gather input="speech" timeout="5" speechTimeout="auto" action="${APP_BASE_URL}/api/twilio/voice-respond?leadId=${encodeURIComponent(leadId)}&amp;objective=${encodeURIComponent(objective)}&amp;logId=${encodeURIComponent(logId)}&amp;botId=${encodeURIComponent(botId)}&amp;turn=${turn + 1}" method="POST">
   </Gather>
-  <Say voice="Polly.Joanna">Are you still there? If not, no worries — feel free to call us back anytime. Goodbye!</Say>
+  ${speakLine('Are you still there? If not, no worries — feel free to call us back anytime. Goodbye!')}
   <Hangup/>
 </Response>`;
 
