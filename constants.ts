@@ -24,6 +24,7 @@ export const PLANS = {
     conversations: 250,
     knowledgeSources: 3,
     leads: 50,
+    phoneMinutes: 0,
     trialDays: 0,
     name: 'Free',
     features: [
@@ -42,6 +43,7 @@ export const PLANS = {
     conversations: 750,
     knowledgeSources: 10,
     leads: 500,
+    phoneMinutes: 0,
     trialDays: 0,
     name: 'Starter',
     features: [
@@ -62,6 +64,7 @@ export const PLANS = {
     conversations: 5000,
     knowledgeSources: 50,
     leads: 5000,
+    phoneMinutes: 0,
     trialDays: 0,
     name: 'Professional',
     features: [
@@ -83,6 +86,10 @@ export const PLANS = {
     conversations: 30000,
     knowledgeSources: 200,
     leads: 50000,
+    // No phone-minutes figure was ever published anywhere (marketing copy
+    // just says "Voice & phone agent included" with no number) — this is a
+    // placeholder pending a real decision, not a previously-advertised value.
+    phoneMinutes: 500,
     trialDays: 0,
     name: 'Executive',
     features: [
@@ -104,6 +111,9 @@ export const PLANS = {
     conversationsLimit: 999999, // enforcement cap (overage billed, not blocked)
     knowledgeSources: 999,
     leads: 999999,
+    // Same caveat as Executive — placeholder pending a real published figure.
+    phoneMinutes: 2000,
+    phoneMinutesOverage: 0.1, // $ per overage minute, billed not blocked
     trialDays: 0,
     name: 'Enterprise', // Updated from Ultimate Power
     overage: 0.01,
@@ -124,6 +134,37 @@ export const PLANS = {
 };
 
 /**
+ * Standalone voice/phone-agent plans — purchasable on their own regardless
+ * of chatbot plan tier (Free through Professional don't include phone
+ * minutes at all), and also bundled for free into Executive/Enterprise
+ * (see PLANS[EXECUTIVE/ENTERPRISE].phoneMinutes above). A user's effective
+ * phone-minutes limit is whichever is higher: their standalone voice plan
+ * (if any) or their chatbot plan's bundled amount — see
+ * getPhoneMinutesLimit() in api/gateway.ts.
+ *
+ * ⚠️ Same caveat as the bundled figures above: these numbers are not
+ * previously-published prices, they're a starting point pending a real
+ * pricing decision.
+ */
+export const VOICE_PLANS = {
+  VOICE_BASIC: {
+    price: 49,
+    minutes: 150,
+    name: 'Voice Basic',
+  },
+  VOICE_STANDARD: {
+    price: 129,
+    minutes: 450,
+    name: 'Voice Standard',
+  },
+  VOICE_PROFESSIONAL: {
+    price: 199,
+    minutes: 1000,
+    name: 'Voice Professional',
+  },
+};
+
+/**
  * Backend enforcement limits, derived from PLANS so advertised === enforced.
  * Shape matches what api/gateway.ts getPlanLimits() / checkQuota() expect.
  * Keyed by upper-case plan key (PlanType values are already upper-case).
@@ -135,6 +176,7 @@ export const PLAN_LIMITS: Record<
     conversations_per_month: number;
     knowledge_sources: number;
     leads: number;
+    phone_minutes: number;
     trial_days: number;
   }
 > = Object.fromEntries(
@@ -148,6 +190,7 @@ export const PLAN_LIMITS: Record<
           : plan.conversations,
       knowledge_sources: plan.knowledgeSources,
       leads: plan.leads,
+      phone_minutes: 'phoneMinutes' in plan ? plan.phoneMinutes : 0,
       trial_days: plan.trialDays,
     },
   ]),

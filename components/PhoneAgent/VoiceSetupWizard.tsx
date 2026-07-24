@@ -90,6 +90,33 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
   const [isPurchasing, setIsPurchasing] = useState(false);
   const [purchaseError, setPurchaseError] = useState<string | null>(null);
 
+  // Standalone voice-plan gating — phone can be purchased on its own
+  // regardless of chatbot plan tier, but needs SOME plan (bundled or
+  // standalone) with minutes on it first.
+  const [voicePlanRequired, setVoicePlanRequired] = useState(false);
+  const [voicePlanOptions, setVoicePlanOptions] = useState<
+    Record<string, { price: number; minutes: number; name: string }>
+  >({});
+  const [selectingPlan, setSelectingPlan] = useState<string | null>(null);
+
+  const handleSelectVoicePlan = async (planKey: string) => {
+    setSelectingPlan(planKey);
+    try {
+      const response = await fetch(buildApiUrl('/phone/voice-plan'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ voicePlan: planKey }),
+      });
+      if (!response.ok) throw new Error('Failed to select voice plan');
+      setVoicePlanRequired(false);
+      setPurchaseError(null);
+    } catch (err: any) {
+      setPurchaseError(err.message || 'Error selecting voice plan');
+    } finally {
+      setSelectingPlan(null);
+    }
+  };
+
   const selectedVoice =
     VOICE_OPTIONS.find((v) => v.id === config.voiceId) || VOICE_OPTIONS[0];
 
@@ -176,6 +203,13 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
           friendlyName: `Voice Agent - ${user.companyName || 'Bot'}`,
         }),
       });
+
+      if (response.status === 402) {
+        const err = await response.json();
+        setVoicePlanOptions(err.voicePlans || {});
+        setVoicePlanRequired(true);
+        return;
+      }
 
       if (!response.ok) {
         const err = await response.json();
@@ -527,6 +561,47 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
               {purchaseError && (
                 <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm border border-red-200">
                   {purchaseError}
+                </div>
+              )}
+
+              {voicePlanRequired && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-5 space-y-4">
+                  <div>
+                    <h4 className="font-semibold text-slate-900">
+                      Add a voice plan to get a phone number
+                    </h4>
+                    <p className="text-sm text-slate-600 mt-1">
+                      Voice is its own add-on — pick a plan to unlock phone
+                      number purchase. No chatbot plan upgrade required.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {Object.entries(voicePlanOptions).map(([key, plan]) => (
+                      <button
+                        type="button"
+                        key={key}
+                        onClick={() => handleSelectVoicePlan(key)}
+                        disabled={selectingPlan === key}
+                        className="text-left p-4 rounded-lg border-2 border-blue-200 bg-white hover:border-blue-600 transition disabled:opacity-50"
+                      >
+                        <p className="font-semibold text-slate-900">
+                          {plan.name}
+                        </p>
+                        <p className="text-lg font-bold text-blue-600 mt-1">
+                          ${plan.price}/mo
+                        </p>
+                        <p className="text-xs text-slate-500 mt-1">
+                          {plan.minutes} minutes
+                        </p>
+                        {selectingPlan === key && (
+                          <span className="text-xs text-blue-600 mt-2 inline-flex items-center gap-1">
+                            <Loader size={12} className="animate-spin" />
+                            Selecting...
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
 

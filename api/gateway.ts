@@ -1,6 +1,10 @@
 import * as Sentry from '@sentry/node';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { PLAN_LIMITS, formatPricingForPrompt } from '../constants.js';
+import {
+  PLAN_LIMITS,
+  VOICE_PLANS,
+  formatPricingForPrompt,
+} from '../constants.js';
 import { callLLMMessages } from './ai-team/lib.js';
 import {
   ingestKnowledgeSource,
@@ -192,9 +196,33 @@ export function getPlanLimits(planKey: string) {
   return PLAN_LIMITS[planKey] || PLAN_LIMITS.FREE;
 }
 
+/** A user's effective phone-minutes limit is whichever is higher: their
+ * standalone voice plan (purchasable independent of chatbot plan tier —
+ * see constants.ts VOICE_PLANS) or their chatbot plan's bundled amount
+ * (Executive/Enterprise only). The two combine rather than override —
+ * e.g. an Executive customer who also buys Voice Standard gets both
+ * pools' minutes, not just one. */
+async function getPhoneMinutesLimit(user: AuthUser): Promise<number> {
+  const bundled = getPlanLimits(getUserPlanKey(user)).phone_minutes;
+  const rows = await sbSelect('users', 'voice_plan', {
+    id: `eq.${user.id}`,
+  }).catch(() => []);
+  const voicePlanKey = rows?.[0]?.voice_plan;
+  const standalone =
+    voicePlanKey && voicePlanKey in VOICE_PLANS
+      ? VOICE_PLANS[voicePlanKey as keyof typeof VOICE_PLANS].minutes
+      : 0;
+  return bundled + standalone;
+}
+
 export async function checkQuota(
   user: AuthUser,
-  resource: 'bots' | 'conversations' | 'knowledge_sources' | 'leads',
+  resource:
+    | 'bots'
+    | 'conversations'
+    | 'knowledge_sources'
+    | 'leads'
+    | 'phone_minutes',
 ): Promise<{ allowed: boolean; current: number; limit: number; plan: string }> {
   const planKey = getUserPlanKey(user);
   const limits = getPlanLimits(planKey);
@@ -235,6 +263,26 @@ export async function checkQuota(
       const leads = await sbSelect('leads', 'id', orgFilter).catch(() => []);
       current = leads.length;
       limit = limits.leads;
+      break;
+    }
+    case 'phone_minutes': {
+      const monthStart = new Date();
+      monthStart.setDate(1);
+      monthStart.setHours(0, 0, 0, 0);
+      const bots = await sbSelect('bots', 'id', orgFilter).catch(() => []);
+      const botIds = (bots || []).map((b: any) => b.id);
+      if (botIds.length) {
+        const calls = await sbSelect('call_logs', 'duration', {
+          bot_id: `in.(${botIds.join(',')})`,
+          started_at: `gte.${monthStart.toISOString()}`,
+        }).catch(() => []);
+        const totalSeconds = (calls || []).reduce(
+          (sum: number, c: any) => sum + (c.duration || 0),
+          0,
+        );
+        current = Math.ceil(totalSeconds / 60);
+      }
+      limit = await getPhoneMinutesLimit(user);
       break;
     }
   }
@@ -2316,7 +2364,36 @@ async function handlePhone(
 ) {
   const { twilioConfigured } = await import('./twilio/service.js');
 
-  if (pathParts[0] === 'voice-bot' && req.method === 'GET') {
+  if (pathParts[0] === 'voice-plans' && req.method === 'GET') {
+    // Lets the UI show standalone voice-plan options regardless of the
+    // customer's main chatbot plan tier, plus what they've already got.
+    const rows = await sbSelect('users', 'voice_plan', {
+      id: `eq.${user.id}`,
+    }).catch(() => []);
+    res.json({
+      plans: VOICE_PLANS,
+      currentVoicePlan: rows?.[0]?.voice_plan || null,
+      bundledMinutes: getPlanLimits(getUserPlanKey(user)).phone_minutes,
+    });
+  } else if (pathParts[0] === 'voice-plan' && req.method === 'POST') {
+    // Selects a standalone voice-plan add-on. NOTE: does not collect payment
+    // yet — Stripe billing isn't live for this SKU (see CLAUDE.md's billing
+    // status note); this records the selection so phone provisioning can
+    // unblock immediately, same "honest, not faked" pattern as the rest of
+    // this codebase's not-yet-live billing surfaces.
+    const body = parseBody(req);
+    if (!body.voicePlan || !(body.voicePlan in VOICE_PLANS)) {
+      return res.status(400).json({
+        error: `voicePlan must be one of: ${Object.keys(VOICE_PLANS).join(', ')}`,
+      });
+    }
+    await sbUpdate(
+      'users',
+      { voice_plan: body.voicePlan },
+      { id: `eq.${user.id}` },
+    ).catch(() => null);
+    res.json({ success: true, voicePlan: body.voicePlan });
+  } else if (pathParts[0] === 'voice-bot' && req.method === 'GET') {
     // Lets the UI get (or lazily create) the answering bot's id up front —
     // e.g. to upload knowledge/PDFs before a phone number is purchased —
     // instead of only creating one at purchase time.
@@ -2374,6 +2451,18 @@ async function handlePhone(
       return res.status(503).json({
         error:
           'Phone number provisioning is not configured on this deployment yet. Contact support.',
+      });
+    }
+    // Voice is purchasable on its own (a standalone VOICE_PLANS add-on)
+    // regardless of chatbot plan tier — Executive/Enterprise just get
+    // minutes bundled for free on top. Only block if the user has neither.
+    const phoneMinutesLimit = await getPhoneMinutesLimit(user);
+    if (phoneMinutesLimit <= 0) {
+      return res.status(402).json({
+        error:
+          'No phone minutes available yet. Add a voice plan to purchase a number.',
+        voicePlanRequired: true,
+        voicePlans: VOICE_PLANS,
       });
     }
     const body = parseBody(req);
@@ -3989,6 +4078,31 @@ const EMPLOYEE_ROSTER: Array<{
   },
 ];
 
+/** Maps System B's email-inbox roster onto System A's real 17-role
+ * pipeline (api/ai-team/lib.ts + api/cron/_all-shifts.ts), so email-handling
+ * work lands in the same ai_team_log Marcus's daily executive summary
+ * already reads, instead of a second, disconnected EmployeeLog table.
+ * "agents@" (Devon Reyes' reseller-program role) has no direct System A
+ * equivalent — routed to sales leadership as the closest fit; a real
+ * agent-development role would need to be added to System A to close this
+ * properly. */
+const EMPLOYEE_ID_TO_SYSTEM_A_ROLE: Record<
+  string,
+  { roleId: string; roleName: string }
+> = {
+  'vera-sales': { roleId: 'derek-sales-director', roleName: 'Robert Vance' },
+  'sam-support': { roleId: 'sam-support', roleName: 'Jack Miller' },
+  'brianna-billing': { roleId: 'brianna-billing', roleName: 'John Garrison' },
+  'maya-marketing': { roleId: 'maya-marketing', roleName: 'Amanda Hayes' },
+  'harper-hr': { roleId: 'hannah-hr', roleName: 'William Cross' },
+  'alex-admin': { roleId: 'oscar-operations', roleName: 'Michael Easton' },
+  'devon-agent-dev': {
+    roleId: 'derek-sales-director',
+    roleName: 'Robert Vance',
+  },
+  'marcus-manager': { roleId: 'marcus-manager', roleName: 'Marcus Stone' },
+};
+
 async function getEmployeeByAddress(address: string) {
   const normalized = String(address || '')
     .toLowerCase()
@@ -4456,6 +4570,26 @@ async function logEmployeeWork(entry: {
   summary: string;
   metadata?: any;
 }) {
+  // Roster consolidation: mirror into ai_team_log (System A's shared log,
+  // which Marcus's daily executive summary reads) under the mapped role,
+  // in addition to the legacy EmployeeLog write below (kept for historical
+  // audit trail, not read by anything new going forward).
+  const mapped = EMPLOYEE_ID_TO_SYSTEM_A_ROLE[entry.employeeId];
+  if (mapped) {
+    try {
+      const { logShift } = await import('./ai-team/lib.js');
+      await logShift({
+        role_id: mapped.roleId,
+        role_name: mapped.roleName,
+        summary: `[email] ${entry.summary}`,
+        tasks_completed: entry.status === 'completed' ? 1 : 0,
+        flags: entry.status === 'failed' ? entry.summary : '',
+      });
+    } catch (err) {
+      console.error('[email] ai_team_log mirror failed:', err);
+    }
+  }
+
   try {
     await sbInsert('EmployeeLog', {
       employeeId: entry.employeeId,
@@ -5189,9 +5323,10 @@ async function handleQuota(
   const effectivePlan = trial.active ? TRIAL_PLAN : planKey;
   const effectiveLimits = trial.active ? getPlanLimits(TRIAL_PLAN) : limits;
 
-  const [bots, leads] = await Promise.all([
+  const [bots, leads, phoneMinutes] = await Promise.all([
     checkQuota(user, 'bots'),
     checkQuota(user, 'leads'),
+    checkQuota(user, 'phone_minutes'),
   ]);
 
   return res.json({
@@ -5206,6 +5341,12 @@ async function handleQuota(
       leads: {
         current: leads.current,
         limit: trial.active ? getPlanLimits(TRIAL_PLAN).leads : leads.limit,
+      },
+      phoneMinutes: {
+        current: phoneMinutes.current,
+        limit: trial.active
+          ? getPlanLimits(TRIAL_PLAN).phone_minutes
+          : phoneMinutes.limit,
       },
     },
   });
