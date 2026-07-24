@@ -6,8 +6,11 @@ name: Lead Follow-Up
 
 on:
   workflow_dispatch: {}
-  schedule:
-    - cron: '0 */3 * * *' # every 3 hours
+  # schedule DISABLED 2026-07-24: sends real follow-up emails to real leads.
+  # Paused pending the SALES_AUTOMATION_DRY_RUN safety gate and a verified
+  # dry-run pass. Re-enable deliberately once that's confirmed:
+  # schedule:
+  #   - cron: '0 */3 * * *' # every 3 hours
 
 jobs:
   follow-up:

@@ -95,10 +95,63 @@ const FALLBACK_ORDER: Provider[] = [
   'openai',
 ];
 
+// Safety gate for anything that sends a real email or places a real phone
+// call to a real lead. Defaults to TRUE (dry-run) whenever the env var is
+// unset or anything other than the literal string 'false' — a missing var
+// must never accidentally go live. Added 2026-07-24 after discovering the
+// GitHub Actions schedules kept firing real sends/calls despite an intended
+// pause the night before (the pause only touched vercel.json, not the
+// workflows actually triggering these paths).
+export function salesAutomationDryRun(): boolean {
+  return (process.env.SALES_AUTOMATION_DRY_RUN || 'true').toLowerCase() !== 'false';
+}
+
+// Global emergency stop for every AI Team cron handler. Unset/anything but
+// 'true' means normal operation.
+export function aiTeamKilled(): boolean {
+  return (process.env.AI_TEAM_KILL_SWITCH || '').toLowerCase() === 'true';
+}
+
+/** Internal AI Team calls only (shift reasoning, lead research, outreach
+ * drafting) — deliberately NOT shared with callLLMMessages (customer chat),
+ * so a runaway internal loop can never throttle a paying customer's bot. */
+async function overDailyBudget(): Promise<boolean> {
+  const budget = Number(process.env.LLM_DAILY_BUDGET_CALLS || 1500);
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/rpc/increment_llm_usage`,
+      {
+        method: 'POST',
+        headers: {
+          apikey: SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ usage_day: today }),
+      },
+    );
+    if (!res.ok) return false; // fail open — don't let budget bookkeeping break the AI team
+    const count = await res.json();
+    return typeof count === 'number' && count > budget;
+  } catch {
+    return false; // fail open
+  }
+}
+
 export async function callLLM(
   systemPrompt: string,
   userPrompt: string,
 ): Promise<string> {
+  if (await overDailyBudget()) {
+    await logAgentError({
+      source: 'llm-daily-budget',
+      level: 'warning',
+      message: `Daily internal LLM call budget exceeded (LLM_DAILY_BUDGET_CALLS=${process.env.LLM_DAILY_BUDGET_CALLS || 1500}) — skipping this call, will resume tomorrow.`,
+    }).catch(() => null);
+    throw new Error('daily_llm_budget_exceeded');
+  }
+
   const preferred = (process.env.AI_TEAM_LLM_PROVIDER as Provider) || 'groq';
   const order = [preferred, ...FALLBACK_ORDER.filter((p) => p !== preferred)];
 

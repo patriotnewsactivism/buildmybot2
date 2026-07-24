@@ -49,27 +49,32 @@ name: AI Team — Recurring Shifts
 
 on:
   workflow_dispatch: {} # manual "Run workflow" from the Actions tab -> runs Marcus Stone's rollup
-  schedule:
-    # --- Sales leadership: every 10 minutes, all day (reasoning only, no Tavily cost) ---
-    - cron: '*/10 * * * *'
-
-    # --- Sarah Collins (Lead Researcher): every 20 minutes (burn-through-1000-in-2-3-days mode) ---
-    - cron: '*/20 * * * *'
-
-    # --- Sales Agent Researchers (5, pre-launch): 3x/hour, offset from Sarah ---
-    - cron: '10,30,50 * * * *'
-
-    # --- Tier A: every 1 hour ---
-    - cron: '0 * * * *'
-
-    # --- Tier B: every 2 hours ---
-    - cron: '0 */2 * * *'
-
-    # --- Marcus Stone: every 4 hours ---
-    - cron: '30 */4 * * *'
-
-    # --- Frankie Mercer (Social Media Manager): every 2 hours ---
-    - cron: '10 */2 * * *'
+  # schedule DISABLED 2026-07-24: the sales-research roles here feed
+  # researched_leads, which sales-outreach/pulse then act on with real
+  # emails and real Twilio calls. Paused pending the SALES_AUTOMATION_DRY_RUN
+  # safety gate and a verified dry-run pass. Re-enable deliberately once
+  # that's confirmed:
+  # schedule:
+  #   # --- Sales leadership: every 10 minutes, all day (reasoning only, no Tavily cost) ---
+  #   - cron: '*/10 * * * *'
+  #
+  #   # --- Sarah Collins (Lead Researcher): every 20 minutes (burn-through-1000-in-2-3-days mode) ---
+  #   - cron: '*/20 * * * *'
+  #
+  #   # --- Sales Agent Researchers (5, pre-launch): 3x/hour, offset from Sarah ---
+  #   - cron: '10,30,50 * * * *'
+  #
+  #   # --- Tier A: every 1 hour ---
+  #   - cron: '0 * * * *'
+  #
+  #   # --- Tier B: every 2 hours ---
+  #   - cron: '0 */2 * * *'
+  #
+  #   # --- Marcus Stone: every 4 hours ---
+  #   - cron: '30 */4 * * *'
+  #
+  #   # --- Frankie Mercer (Social Media Manager): every 2 hours ---
+  #   - cron: '10 */2 * * *'
 
 jobs:
   run-shift:

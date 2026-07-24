@@ -1,11 +1,13 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import {
+  aiTeamKilled,
   logAgentError,
   logShift,
   notifyDiscord,
   notifySlack,
   rememberMemory,
   runAgentTask,
+  salesAutomationDryRun,
 } from '../ai-team/lib.js';
 
 // Autonomous Lead Follow-Up worker for BuildMyBot.App.
@@ -60,7 +62,13 @@ interface LeadRow {
 interface LeadResult {
   id: string;
   email: string;
-  action: 'sent' | 'skipped' | 'escalated' | 'already_replied' | 'error';
+  action:
+    | 'sent'
+    | 'skipped'
+    | 'escalated'
+    | 'already_replied'
+    | 'dry_run'
+    | 'error';
   detail?: string;
 }
 
@@ -108,6 +116,16 @@ async function sendFollowupEmail(
   html: string,
   text: string,
 ): Promise<{ sent: boolean; reason?: string }> {
+  if (salesAutomationDryRun()) {
+    await logAgentError({
+      source: ROLE_ID,
+      level: 'warning',
+      message: `[DRY RUN] Would send follow-up email to ${to}: "${subject}"`,
+      context: { dry_run: true, to, subject },
+    }).catch(() => null);
+    return { sent: false, reason: 'dry_run' };
+  }
+
   if (process.env.RESEND_API_KEY) {
     const resp = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -184,7 +202,7 @@ async function staticFollowup(lead: LeadRow): Promise<LeadResult> {
     return {
       id: lead.id,
       email: lead.email,
-      action: 'error',
+      action: send.reason === 'dry_run' ? 'dry_run' : 'error',
       detail: send.reason,
     };
   }
@@ -251,6 +269,15 @@ async function reasonAndFollowUp(
             buildEmailText(lead.name, opening || undefined),
           );
           if (!send.sent) {
+            if (send.reason === 'dry_run') {
+              outcome = {
+                id: lead.id,
+                email: lead.email,
+                action: 'dry_run',
+                detail: `[DRY RUN] Would send: "${subject}"`,
+              };
+              return 'Dry-run mode is active — logged the intended email but did not send it. Finish now.';
+            }
             outcome = {
               id: lead.id,
               email: lead.email,
@@ -316,6 +343,9 @@ export async function leadFollowupsHandler(
 ) {
   if (req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) {
     return res.status(401).json({ error: 'unauthorized' });
+  }
+  if (aiTeamKilled()) {
+    return res.status(200).json({ success: true, killed: true });
   }
   if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
     return res.status(500).json({
@@ -457,8 +487,9 @@ export async function leadFollowupsHandler(
   const sent = results.filter((r) => r.action === 'sent').length;
   const escalated = results.filter((r) => r.action === 'escalated').length;
   const skipped = results.filter((r) => r.action === 'skipped').length;
+  const dryRun = results.filter((r) => r.action === 'dry_run').length;
 
-  const runSummary = `48h follow-up run: ${leads.length} overdue lead(s) reviewed — ${sent} personalized email(s) sent, ${repliedDetected} reply/replies detected, ${skipped} skipped, ${escalated} escalated to human review.${paused ? ` Paused with ${remaining.length} lead(s) remaining (time budget).` : ''}`;
+  const runSummary = `48h follow-up run: ${leads.length} overdue lead(s) reviewed — ${sent} personalized email(s) sent, ${repliedDetected} reply/replies detected, ${skipped} skipped, ${dryRun} dry-run, ${escalated} escalated to human review.${paused ? ` Paused with ${remaining.length} lead(s) remaining (time budget).` : ''}`;
 
   await logShift({
     role_id: ROLE_ID,
@@ -482,6 +513,7 @@ export async function leadFollowupsHandler(
     checked: results.length,
     replied_detected: repliedDetected,
     sent,
+    dry_run: dryRun,
     escalated,
     paused,
     remaining: remaining.length,

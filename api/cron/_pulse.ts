@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import {
+  aiTeamKilled,
   callLLM,
   logAgentError,
   messageAgent,
@@ -49,6 +50,10 @@ const ROLE_NAMES: Record<string, string> = {
 export async function pulseHandler(req: VercelRequest, res: VercelResponse) {
   if (req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`)
     return res.status(401).end();
+
+  if (aiTeamKilled()) {
+    return res.status(200).json({ success: true, killed: true });
+  }
 
   const startedAt = Date.now();
   const deadlineAt = startedAt + 240_000; // leave headroom under maxDuration
