@@ -3989,6 +3989,31 @@ const EMPLOYEE_ROSTER: Array<{
   },
 ];
 
+/** Maps System B's email-inbox roster onto System A's real 17-role
+ * pipeline (api/ai-team/lib.ts + api/cron/_all-shifts.ts), so email-handling
+ * work lands in the same ai_team_log Marcus's daily executive summary
+ * already reads, instead of a second, disconnected EmployeeLog table.
+ * "agents@" (Devon Reyes' reseller-program role) has no direct System A
+ * equivalent — routed to sales leadership as the closest fit; a real
+ * agent-development role would need to be added to System A to close this
+ * properly. */
+const EMPLOYEE_ID_TO_SYSTEM_A_ROLE: Record<
+  string,
+  { roleId: string; roleName: string }
+> = {
+  'vera-sales': { roleId: 'derek-sales-director', roleName: 'Robert Vance' },
+  'sam-support': { roleId: 'sam-support', roleName: 'Jack Miller' },
+  'brianna-billing': { roleId: 'brianna-billing', roleName: 'John Garrison' },
+  'maya-marketing': { roleId: 'maya-marketing', roleName: 'Amanda Hayes' },
+  'harper-hr': { roleId: 'hannah-hr', roleName: 'William Cross' },
+  'alex-admin': { roleId: 'oscar-operations', roleName: 'Michael Easton' },
+  'devon-agent-dev': {
+    roleId: 'derek-sales-director',
+    roleName: 'Robert Vance',
+  },
+  'marcus-manager': { roleId: 'marcus-manager', roleName: 'Marcus Stone' },
+};
+
 async function getEmployeeByAddress(address: string) {
   const normalized = String(address || '')
     .toLowerCase()
@@ -4456,6 +4481,26 @@ async function logEmployeeWork(entry: {
   summary: string;
   metadata?: any;
 }) {
+  // Roster consolidation: mirror into ai_team_log (System A's shared log,
+  // which Marcus's daily executive summary reads) under the mapped role,
+  // in addition to the legacy EmployeeLog write below (kept for historical
+  // audit trail, not read by anything new going forward).
+  const mapped = EMPLOYEE_ID_TO_SYSTEM_A_ROLE[entry.employeeId];
+  if (mapped) {
+    try {
+      const { logShift } = await import('./ai-team/lib.js');
+      await logShift({
+        role_id: mapped.roleId,
+        role_name: mapped.roleName,
+        summary: `[email] ${entry.summary}`,
+        tasks_completed: entry.status === 'completed' ? 1 : 0,
+        flags: entry.status === 'failed' ? entry.summary : '',
+      });
+    } catch (err) {
+      console.error('[email] ai_team_log mirror failed:', err);
+    }
+  }
+
   try {
     await sbInsert('EmployeeLog', {
       employeeId: entry.employeeId,
