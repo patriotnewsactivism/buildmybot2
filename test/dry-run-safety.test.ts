@@ -26,13 +26,14 @@ describe('salesAutomationDryRun / aiTeamKilled', () => {
   const ORIGINAL_ENV = { ...process.env };
 
   afterEach(() => {
-    process.env.SALES_AUTOMATION_DRY_RUN = ORIGINAL_ENV.SALES_AUTOMATION_DRY_RUN;
+    process.env.SALES_AUTOMATION_DRY_RUN =
+      ORIGINAL_ENV.SALES_AUTOMATION_DRY_RUN;
     process.env.AI_TEAM_KILL_SWITCH = ORIGINAL_ENV.AI_TEAM_KILL_SWITCH;
     vi.resetModules();
   });
 
   it('defaults to dry-run TRUE when the env var is unset', async () => {
-    delete process.env.SALES_AUTOMATION_DRY_RUN;
+    process.env.SALES_AUTOMATION_DRY_RUN = undefined;
     vi.resetModules();
     const { salesAutomationDryRun } = await import('../api/ai-team/lib.js');
     expect(salesAutomationDryRun()).toBe(true);
@@ -53,7 +54,7 @@ describe('salesAutomationDryRun / aiTeamKilled', () => {
   });
 
   it('aiTeamKilled defaults to false and only trips on the literal string "true"', async () => {
-    delete process.env.AI_TEAM_KILL_SWITCH;
+    process.env.AI_TEAM_KILL_SWITCH = undefined;
     vi.resetModules();
     let { aiTeamKilled } = await import('../api/ai-team/lib.js');
     expect(aiTeamKilled()).toBe(false);
@@ -92,7 +93,9 @@ describe('initiateOutboundCall dry-run gate', () => {
   it('never calls the Twilio SDK while dry-run is active, even with Twilio fully configured', async () => {
     process.env.SALES_AUTOMATION_DRY_RUN = 'true';
     const { initiateOutboundCall } = await import('../api/twilio/service.js');
-    const Twilio = (await import('twilio')).default as unknown as ReturnType<typeof vi.fn>;
+    const Twilio = (await import('twilio')).default as unknown as ReturnType<
+      typeof vi.fn
+    >;
 
     const result = await initiateOutboundCall({
       leadId: 'lead-1',
@@ -110,7 +113,10 @@ describe('initiateOutboundCall dry-run gate', () => {
   it('places the real call once dry-run is explicitly disabled', async () => {
     process.env.SALES_AUTOMATION_DRY_RUN = 'false';
     const { initiateOutboundCall } = await import('../api/twilio/service.js');
-    const twilioModule = (await import('twilio')) as any;
+    const twilioModule = (await import('twilio')) as unknown as {
+      default: ReturnType<typeof vi.fn>;
+      __mockCalls: { create: ReturnType<typeof vi.fn> };
+    };
 
     const result = await initiateOutboundCall({
       leadId: 'lead-1',
