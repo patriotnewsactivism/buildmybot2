@@ -380,9 +380,15 @@ export async function recallMemories(
     subjectId?: string;
     roleId?: string;
     limit?: number;
+    /** Tenant scope. Every current caller acts on BuildMyBot's own behalf,
+     * never a client organization's, so this defaults to 'house'. Pass a
+     * real organization id once agents act for client orgs — recall must
+     * never cross tenant boundaries. */
+    organizationId?: string;
   } = {},
 ): Promise<AgentMemoryRow[]> {
   const limit = opts.limit ?? 8;
+  const organizationId = opts.organizationId ?? 'house';
 
   const queryEmbedding = await embedText(query);
   if (queryEmbedding) {
@@ -403,6 +409,7 @@ export async function recallMemories(
             match_role_id: opts.roleId ?? null,
             match_threshold: 0.3,
             match_count: limit,
+            match_organization_id: organizationId,
           }),
         },
       );
@@ -414,7 +421,11 @@ export async function recallMemories(
   }
 
   // Fallback: most recent memories for the same subject/role (no vector math).
-  const filters: string[] = ['order=created_at.desc', `limit=${limit}`];
+  const filters: string[] = [
+    'order=created_at.desc',
+    `limit=${limit}`,
+    `organization_id=eq.${organizationId}`,
+  ];
   if (opts.subjectType) filters.push(`subject_type=eq.${opts.subjectType}`);
   if (opts.subjectId) filters.push(`subject_id=eq.${opts.subjectId}`);
   if (opts.roleId) filters.push(`role_id=eq.${opts.roleId}`);
@@ -431,6 +442,8 @@ export async function rememberMemory(entry: {
   subjectId?: string;
   content: string;
   metadata?: Record<string, unknown>;
+  /** Tenant scope — see recallMemories()'s organizationId doc. */
+  organizationId?: string;
 }): Promise<void> {
   const embedding = await embedText(entry.content);
   const row = await supabaseFetch('ai_agent_memories', '', {
@@ -441,6 +454,7 @@ export async function rememberMemory(entry: {
       subject_id: entry.subjectId ?? null,
       content: entry.content,
       metadata: entry.metadata ?? {},
+      organization_id: entry.organizationId ?? 'house',
       ...(embedding ? { embedding: JSON.stringify(embedding) } : {}),
     }),
   });
