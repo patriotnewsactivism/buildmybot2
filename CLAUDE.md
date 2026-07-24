@@ -113,6 +113,10 @@ Frontend (baked in at build time, must redeploy after changing):
 
 Production Vercel project: **buildmybot20** (team `don-matthews-projects`). Only set env vars there — `buildmybot2` under `patriotnewsactivisms-projects` auto-builds PRs but serves no production domain.
 
+## Pricing & plan limits — single source of truth
+
+`constants.ts` `PLANS` is canonical for **both** marketing display and backend enforcement. The gateway imports the derived `PLAN_LIMITS` from it (`api/gateway.ts` has no limits table of its own), and AI agent prompts (gateway AI-team + Twilio calls) quote prices via `formatPricingForPrompt()`. Never hardcode plan prices/limits anywhere else — that's how Executive customers ended up throttled to Free-tier limits before this was consolidated.
+
 ## Frontend structure
 
 `App.tsx` uses **real URL routing** via `react-router-dom` (v7) — `index.tsx` wraps `<App/>` in `<BrowserRouter>`. `App.tsx` holds auth/session/impersonation state and renders a `<Routes>` tree: public marketing routes (`/`, `/pricing`, `/chat/:botId`, …) and an authenticated dashboard tree gated on login.
