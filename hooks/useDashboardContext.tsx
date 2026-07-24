@@ -50,6 +50,14 @@ export const DashboardProvider: React.FC<DashboardProviderProps> = ({
   const [isImpersonating, setIsImpersonating] = useState(false);
   const [impersonatedUser, setImpersonatedUser] = useState<User | null>(null);
 
+  // Keep context user in sync with the prop. useState() only captures
+  // initialUser on first mount, so without this the context stays null when
+  // the parent resolves the session asynchronously after the provider mounts
+  // (which left the dashboard stuck on "Loading…").
+  useEffect(() => {
+    setUser(initialUser);
+  }, [initialUser]);
+
   useEffect(() => {
     if (user) {
       // Load organization ID from user

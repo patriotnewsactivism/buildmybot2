@@ -1,35 +1,25 @@
+import { Bell, Bot as BotIcon } from 'lucide-react';
+import type React from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
-  ArrowRight,
-  Bell,
-  Bot as BotIcon,
-  CheckCircle,
-  DollarSign,
-  Flame,
-  Loader,
-  Menu,
-  MessageSquare,
-  TrendingUp,
-  Users,
-} from 'lucide-react';
-import React, { useState, useEffect, useCallback } from 'react';
-import {
-  Area,
-  AreaChart,
-  Bar,
-  BarChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
-import { AdminDashboard } from './components/Admin/AdminDashboard';
+  Navigate,
+  Route,
+  Routes,
+  useNavigate,
+  useParams,
+} from 'react-router-dom';
 import {
   AdminDashboardV2,
   type AdminTab,
 } from './components/Admin/AdminDashboardV2';
+import { ErrorRecoveryDashboard } from './components/Admin/ErrorRecoveryDashboard';
+import { FinancialDashboard } from './components/Admin/widgets/FinancialDashboard';
+import { PartnerOversight } from './components/Admin/widgets/PartnerOversight';
+import { UserManagement } from './components/Admin/widgets/UserManagement';
 import { AffiliateDashboard } from './components/Affiliate/AffiliateDashboard';
 import { AgentDashboard } from './components/Agent/AgentDashboard';
 import { AdvancedAnalytics } from './components/Analytics/AdvancedAnalytics';
+import { ComprehensiveAnalytics } from './components/Analytics/ComprehensiveAnalytics';
 import { AuthModal } from './components/Auth/AuthModal';
 import { PartnerSignup } from './components/Auth/PartnerSignup';
 import { Billing } from './components/Billing/Billing';
@@ -38,8 +28,8 @@ import { LeadsCRM } from './components/CRM/LeadsCRM';
 import { ChatLogs } from './components/Chat/ChatLogs';
 import { FullPageChat } from './components/Chat/FullPageChat';
 import { ClientOverview } from './components/Client/ClientOverview';
-import { DashboardShell } from './components/Dashboard/DashboardShell';
-import { RouteGuard } from './components/Dashboard/RouteGuard';
+import { DashboardLayout } from './components/Dashboard/DashboardLayout';
+import { ROLE_HOME, getNavRole } from './components/Dashboard/navConfig';
 import { LandingPage } from './components/Landing/LandingPage';
 import { PartnerProgramPage } from './components/Landing/PartnerProgramPage';
 import { AboutPage } from './components/Landing/pages/AboutPage';
@@ -53,16 +43,13 @@ import { FeaturesPage } from './components/Landing/pages/FeaturesPage';
 import { PricingPage } from './components/Landing/pages/PricingPage';
 import { PrivacyPage } from './components/Landing/pages/PrivacyPage';
 import { LandingPageBuilder } from './components/LandingPages/LandingPageBuilder';
-import { Sidebar } from './components/Layout/Sidebar';
 import { MarketingTools } from './components/Marketing/MarketingTools';
-import { EnhancedMarketplace } from './components/Marketplace/EnhancedMarketplace';
 import { TemplateMarketplace } from './components/Marketplace/TemplateMarketplace';
 import {
   PartnerDashboardV2,
-  PartnerTab,
+  type PartnerTab,
 } from './components/Partner/PartnerDashboardV2';
 import { PhoneAgent } from './components/PhoneAgent/PhoneAgent';
-import { ResellerDashboard } from './components/Reseller/ResellerDashboard';
 import { ServiceCatalog } from './components/Services/ServiceCatalog';
 import { Settings } from './components/Settings/Settings';
 import { StatusPage } from './components/Status/StatusPage';
@@ -71,9 +58,7 @@ import { SupportTicketSystem } from './components/Support/SupportTicketSystem';
 import { AITeamDashboard } from './components/Team/AITeamDashboard';
 import { ErrorBoundary } from './components/UI/ErrorBoundary';
 import { WebsiteBuilder } from './components/WebsiteBuilder/WebsiteBuilder';
-import { MOCK_ANALYTICS_DATA, PLANS } from './constants';
 import { useAuth } from './hooks/useAuth';
-// Phase 2: Dashboard Infrastructure
 import { DashboardProvider } from './hooks/useDashboardContext';
 import { dbService } from './services/dbService';
 import {
@@ -81,18 +66,11 @@ import {
   type Conversation,
   type Lead,
   PlanType,
-  type ResellerStats,
   type User,
   UserRole,
 } from './types';
 
 const INITIAL_CHAT_LOGS: Conversation[] = [];
-const INITIAL_RESELLER_STATS: ResellerStats = {
-  totalClients: 0,
-  totalRevenue: 0,
-  commissionRate: 0.2,
-  pendingPayout: 0,
-};
 
 // MASTER ADMIN CONFIGURATION - Only MasterAdmin role users should be in this list
 const MASTER_ADMINS = [
@@ -100,8 +78,6 @@ const MASTER_ADMINS = [
   'jadj19@gmail.com',
   'patriotnewsactivism@gmail.com',
 ];
-const PLATFORM_HOST = 'buildmybot.app';
-const PLATFORM_URL = `https://${PLATFORM_HOST}`;
 
 type PartnerSignupData = {
   name: string;
@@ -116,24 +92,46 @@ type MarketplaceTemplate = {
   description?: string | null;
 };
 
+const PARTNER_TABS: PartnerTab[] = [
+  'clients',
+  'agents',
+  'conversations',
+  'commissions',
+  'marketing',
+  'analytics',
+  'collaboration',
+];
+
+/** Renders the partner dashboard with its active tab driven by the URL. */
+const PartnerDashboardRoute: React.FC<{
+  user: User;
+  onImpersonate: (userId: string, reason: string) => void;
+}> = ({ user, onImpersonate }) => {
+  const navigate = useNavigate();
+  const { tab } = useParams();
+  const activeTab: PartnerTab = PARTNER_TABS.includes(tab as PartnerTab)
+    ? (tab as PartnerTab)
+    : 'clients';
+  return (
+    <div className="p-3 sm:p-6">
+      <PartnerDashboardV2
+        user={user}
+        onImpersonate={onImpersonate}
+        activeTab={activeTab}
+        onTabChange={(t) => navigate(`/partner/${t}`)}
+      />
+    </div>
+  );
+};
+
 function App() {
-  const {
-    user: authUser,
-    isLoading: authLoading,
-    isAuthenticated,
-    logout,
-  } = useAuth();
+  const { user: authUser, isLoading: authLoading, isAuthenticated } = useAuth();
+
+  const navigate = useNavigate();
 
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  // Security/UX fix: a persisted session cookie should NOT silently skip the
-  // public homepage. Only flip into the dashboard when the user explicitly
-  // asks to (clicking through from the homepage, or just completing a fresh
-  // login/signup) -- not just because a valid session exists on page load.
   const [justAuthenticated, setJustAuthenticated] = useState(false);
   const [isBooting, setIsBooting] = useState(true);
-  const [currentView, setCurrentView] = useState('dashboard');
-  const [showPartnerPage, setShowPartnerPage] = useState(false);
-  const [showPartnerSignup, setShowPartnerSignup] = useState(false);
 
   const [user, setUser] = useState<User | null>(null);
   const [bots, setBots] = useState<BotType[]>([]);
@@ -143,53 +141,31 @@ function App() {
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [notification, setNotification] = useState<string | null>(null);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [impersonation, setImpersonation] = useState<{
-    token: string;
-    targetUserId: string;
-    expiresAt: string;
-  } | null>(null);
   const [impersonatedUser, setImpersonatedUser] = useState<User | null>(null);
+
   const hostname =
     typeof window !== 'undefined' ? window.location.hostname.toLowerCase() : '';
   const isBuildMyBotHost =
     hostname === 'buildmybot.app' || hostname.endsWith('.buildmybot.app');
-
-  const handleHomepageLoginClick = () => {
-    if (isLoggedIn && user) {
-      // Already has a valid session (e.g. returning visitor) -- go straight
-      // into their dashboard instead of making them log in again.
-      setJustAuthenticated(true);
-    } else {
-      openAuth('login');
-    }
-  };
 
   const openAuth = (mode: 'login' | 'signup') => {
     setAuthMode(mode);
     setAuthModalOpen(true);
   };
 
-  // Dashboard tab state for controlled navigation
-  const [adminActiveTab, setAdminActiveTab] = useState<AdminTab>('metrics');
-  const [partnerActiveTab, setPartnerActiveTab] = useState<
-    | 'clients'
-    | 'agents'
-    | 'conversations'
-    | 'commissions'
-    | 'marketing'
-    | 'analytics'
-    | 'collaboration'
-  >('clients');
+  const handleHomepageLoginClick = () => {
+    if (isLoggedIn && user) {
+      navigate(ROLE_HOME[getNavRole(user.role)]);
+    } else {
+      openAuth('login');
+    }
+  };
 
+  // ── Map the authenticated session onto our User model ──
   useEffect(() => {
     if (!authLoading && isAuthenticated && authUser) {
-      // SECURITY OVERRIDE: Check if email is in master admin list
       const userEmail = authUser.email?.toLowerCase() || '';
       const isMasterAdmin = MASTER_ADMINS.includes(userEmail);
-
-      // Force MasterAdmin Role if in master admin list, otherwise use stored role
-      // Roles: MASTER_ADMIN (highest), ADMIN, RESELLER, CLIENT, OWNER
       const effectiveRole = isMasterAdmin
         ? UserRole.MASTER_ADMIN
         : (authUser.role as UserRole) || UserRole.OWNER;
@@ -213,83 +189,68 @@ function App() {
       setUser(mappedUser);
       setIsLoggedIn(true);
       dbService.setAuthContext({ userId: mappedUser.id });
-
-      // Automatically route based on role
-      if (
-        mappedUser.role === UserRole.MASTER_ADMIN ||
-        mappedUser.role === UserRole.ADMIN
-      ) {
-        setCurrentView('admin');
-      } else if (
-        mappedUser.role === UserRole.PARTNER ||
-        mappedUser.role === UserRole.RESELLER
-      ) {
-        setCurrentView('reseller');
-      } else if (mappedUser.role === UserRole.SALES_AGENT) {
-        setCurrentView('agent');
-      } else if (mappedUser.role === UserRole.AFFILIATE) {
-        setCurrentView('affiliate');
-      } else if (mappedUser.role === UserRole.CLIENT) {
-        setCurrentView('client');
-      }
     }
   }, [authLoading, isAuthenticated, authUser]);
 
+  // ── After an explicit login/signup, land on the role's home ──
   useEffect(() => {
-    if (!isBuildMyBotHost) {
-      return;
+    if (justAuthenticated && user) {
+      navigate(ROLE_HOME[getNavRole(user.role)]);
+      setJustAuthenticated(false);
     }
+  }, [justAuthenticated, user, navigate]);
+
+  // ── Deep-link auth modal (?auth=login|signup) on the marketing host ──
+  useEffect(() => {
+    if (!isBuildMyBotHost) return;
     const params = new URLSearchParams(window.location.search);
     const authParam = params.get('auth');
-
     if (authParam === 'login' || authParam === 'signup') {
       setAuthMode(authParam);
       setAuthModalOpen(true);
     }
   }, [isBuildMyBotHost]);
 
+  // ── Restore any active impersonation session ──
   useEffect(() => {
-    if (!user) {
-      return;
-    }
-
+    if (!user) return;
     dbService
       .getActiveImpersonations()
       .then((sessions) => {
         if (sessions?.length) {
           const session = sessions[0];
-          setImpersonation({
-            token: session.id,
-            targetUserId: session.targetUserId,
-            expiresAt: session.expiresAt,
-          });
           dbService.setAuthContext({ impersonationToken: session.id });
           return dbService.getUserProfile(session.targetUserId);
         }
         return null;
       })
       .then((target) => {
-        if (target) {
-          setImpersonatedUser(target);
-        }
+        if (target) setImpersonatedUser(target);
       })
       .catch((error) => {
         console.error('Failed to load impersonation session:', error);
       });
   }, [user]);
 
+  // ── Capture referral code + finish boot ──
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const refCode = params.get('ref');
+    if (refCode) localStorage.setItem('bmb_ref_code', refCode);
+    const t = setTimeout(() => setIsBooting(false), 500);
+    return () => clearTimeout(t);
+  }, []);
+
   const handleManualAuth = (
     email: string,
     name?: string,
     companyName?: string,
   ) => {
-    // Check master admin list for manual auth as well
     const isMasterAdmin = MASTER_ADMINS.includes(email.toLowerCase());
-
     const newUser: User = {
       id: `demo-user-${Date.now()}`,
       name: name || email.split('@')[0],
-      email: email,
+      email,
       role: isMasterAdmin ? UserRole.MASTER_ADMIN : UserRole.OWNER,
       plan: PlanType.FREE,
       companyName: companyName || 'Demo Company',
@@ -301,16 +262,9 @@ function App() {
     setJustAuthenticated(true);
     dbService.setAuthContext({ userId: newUser.id });
     setAuthModalOpen(false);
-
     setNotification(
       isMasterAdmin ? 'Welcome Master Admin' : 'Logged in successfully',
     );
-
-    // Auto-switch view for admin (MasterAdmin or ADMIN roles)
-    if (isMasterAdmin) {
-      setCurrentView('admin');
-    }
-
     setTimeout(() => setNotification(null), 3000);
   };
 
@@ -324,20 +278,17 @@ function App() {
       role: UserRole.OWNER,
       plan: PlanType.FREE,
       companyName: data.companyName,
-      resellerCode: resellerCode,
+      resellerCode,
       status: 'Pending' as const,
       createdAt: new Date().toISOString(),
     };
 
     const savedPartner = await dbService.createUser(newPartner);
-
     if (savedPartner) {
       setUser(savedPartner);
       setIsLoggedIn(true);
       dbService.setAuthContext({ userId: savedPartner.id });
-      setShowPartnerSignup(false);
-      setShowPartnerPage(false);
-      setCurrentView('dashboard');
+      navigate('/app');
       setNotification(
         "Partner application submitted! Your account is pending approval. You'll receive full partner access once approved.",
       );
@@ -350,132 +301,10 @@ function App() {
     }
   };
 
-  const currentPath = window.location.pathname;
-  if (currentPath === '/status') {
-    return <StatusPage />;
-  }
-  if (currentPath.startsWith('/chat/')) {
-    const botId = currentPath.split('/')[2];
-    return <FullPageChat botId={botId} />;
-  }
-  if (currentPath === '/about') {
-    return <AboutPage />;
-  }
-  if (currentPath === '/blog') {
-    return <BlogPage />;
-  }
-  if (currentPath.startsWith('/blog/')) {
-    const articleId = Number.parseInt(currentPath.split('/')[2] || '1', 10);
-    return <ArticlePage articleId={articleId} />;
-  }
-  if (currentPath === '/careers') {
-    return <CareersPage />;
-  }
-  if (currentPath === '/contact') {
-    return <ContactPage />;
-  }
-  if (currentPath === '/privacy') {
-    return <PrivacyPage />;
-  }
-  if (currentPath === '/features') {
-    return <FeaturesPage />;
-  }
-  if (currentPath === '/pricing') {
-    return (
-      <>
-        <PricingPage onLogin={() => openAuth('login')} />
-        <AuthModal
-          isOpen={authModalOpen}
-          onClose={() => setAuthModalOpen(false)}
-          defaultMode={authMode}
-          onLoginSuccess={handleManualAuth}
-        />
-      </>
-    );
-  }
-  if (currentPath === '/faq') {
-    return (
-      <>
-        <FaqPage onLogin={() => openAuth('login')} />
-        <AuthModal
-          isOpen={authModalOpen}
-          onClose={() => setAuthModalOpen(false)}
-          defaultMode={authMode}
-          onLoginSuccess={handleManualAuth}
-        />
-      </>
-    );
-  }
-  if (currentPath === '/help') {
-    return (
-      <>
-        <HelpCenter />
-        <AuthModal
-          isOpen={authModalOpen}
-          onClose={() => setAuthModalOpen(false)}
-          defaultMode={authMode}
-          onLoginSuccess={handleManualAuth}
-        />
-      </>
-    );
-  }
-  if (currentPath === '/demo') {
-    return (
-      <>
-        <DemoPage onLogin={() => openAuth('login')} />
-        <AuthModal
-          isOpen={authModalOpen}
-          onClose={() => setAuthModalOpen(false)}
-          defaultMode={authMode}
-          onLoginSuccess={handleManualAuth}
-        />
-      </>
-    );
-  }
-  if (currentPath === '/partner-program') {
-    if (showPartnerSignup) {
-      return (
-        <PartnerSignup
-          onBack={() => setShowPartnerSignup(false)}
-          onComplete={handlePartnerSignup}
-        />
-      );
-    }
-    return (
-      <>
-        <PartnerProgramPage
-          onBack={() => {
-            window.location.href = '/';
-          }}
-          onLogin={() => openAuth('login')}
-          onSignup={() => setShowPartnerSignup(true)}
-        />
-        <AuthModal
-          isOpen={authModalOpen}
-          onClose={() => setAuthModalOpen(false)}
-          defaultMode={authMode}
-          onLoginSuccess={handleManualAuth}
-        />
-      </>
-    );
-  }
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const refCode = params.get('ref');
-    if (refCode) {
-      localStorage.setItem('bmb_ref_code', refCode);
-    }
-
-    setTimeout(() => setIsBooting(false), 500);
-  }, []);
-
-  // Manual refresh functions - no polling to avoid race conditions
   const refreshBots = useCallback(async () => {
     if (!user?.id) return;
     try {
-      const updatedBots = await dbService.getBots();
-      setBots(updatedBots);
+      setBots(await dbService.getBots());
     } catch (error) {
       console.error('Failed to refresh bots:', error);
     }
@@ -484,8 +313,7 @@ function App() {
   const refreshLeads = useCallback(async () => {
     if (!user?.id) return;
     try {
-      const updatedLeads = await dbService.getLeads();
-      setLeads(updatedLeads);
+      setLeads(await dbService.getLeads());
     } catch (error) {
       console.error('Failed to refresh leads:', error);
     }
@@ -494,14 +322,12 @@ function App() {
   const refreshConversations = useCallback(async () => {
     if (!user?.id) return;
     try {
-      const updatedConversations = await dbService.getConversations(user.id);
-      setChatLogs(updatedConversations);
+      setChatLogs(await dbService.getConversations(user.id));
     } catch (error) {
       console.error('Failed to refresh conversations:', error);
     }
   }, [user?.id]);
 
-  // Initial load only - no continuous polling
   useEffect(() => {
     if (user?.id) {
       refreshBots();
@@ -510,27 +336,14 @@ function App() {
     }
   }, [user?.id, refreshBots, refreshLeads, refreshConversations]);
 
-  const totalConversations = bots.reduce(
-    (acc, bot) => acc + bot.conversationsCount,
-    0,
-  );
-  const totalLeads = leads.length;
-  const estSavings = totalConversations * 5;
-  const avgResponseTime = '0.8s';
   const activeUser = impersonatedUser || user;
-
-  const handleAdminLogin = () => {
-    openAuth('login');
-  };
 
   const handleLogout = () => {
     setIsLoggedIn(false);
     setUser(null);
-    setCurrentView('dashboard');
     setBots([]);
     setLeads([]);
     setChatLogs([]);
-    setImpersonation(null);
     setImpersonatedUser(null);
     dbService.setAuthContext({
       userId: undefined,
@@ -538,6 +351,7 @@ function App() {
     });
     setNotification('Logged out successfully');
     setTimeout(() => setNotification(null), 3000);
+    navigate('/');
   };
 
   const handleInstallTemplate = (template: MarketplaceTemplate) => {
@@ -559,12 +373,10 @@ function App() {
       maxMessages: 20,
       randomizeIdentity: true,
     };
-
     dbService.saveBot(newBot);
-
     setNotification(`Installed "${template.name}" successfully!`);
     setTimeout(() => setNotification(null), 3000);
-    setCurrentView('bots');
+    navigate('/app/bots');
   };
 
   const handleUpdateLead = (updatedLead: Lead) => {
@@ -575,7 +387,7 @@ function App() {
     const newLead: Lead = {
       id: Date.now().toString(),
       name: 'Website Visitor',
-      email: email,
+      email,
       score: 85,
       status: 'New',
       sourceBotId: 'test-bot',
@@ -589,7 +401,6 @@ function App() {
   const handleSaveBot = async (bot: BotType) => {
     try {
       const savedBot = await dbService.saveBot(bot);
-      // Optimistic update - immediately update local state
       setBots((prevBots) => {
         const existingIndex = prevBots.findIndex(
           (b) => b.id === bot.id || b.id === savedBot.id,
@@ -603,13 +414,11 @@ function App() {
       });
       setNotification('Bot saved successfully!');
       setTimeout(() => setNotification(null), 2000);
-
-      // Return saved bot for BotBuilder to update its state
       return savedBot;
     } catch (error) {
       setNotification('Failed to save bot. Please try again.');
       setTimeout(() => setNotification(null), 2000);
-      throw error; // Propagate error for BotBuilder to handle
+      throw error;
     }
   };
 
@@ -619,14 +428,10 @@ function App() {
   ) => {
     try {
       const session = await dbService.startImpersonation(targetUserId, reason);
-      setImpersonation({
-        token: session.token,
-        targetUserId,
-        expiresAt: session.expiresAt,
-      });
+      dbService.setAuthContext({ impersonationToken: session.token });
       const target = await dbService.getUserProfile(targetUserId);
       setImpersonatedUser(target);
-      setCurrentView('dashboard');
+      navigate('/app');
     } catch (error) {
       console.error('Failed to start impersonation:', error);
       setNotification('Impersonation failed. Please try again.');
@@ -634,21 +439,16 @@ function App() {
     }
   };
 
-  const handleEndImpersonation = async () => {
-    if (!impersonation?.token) {
-      return;
+  const handleUpdateActiveUser = (updated: User) => {
+    if (impersonatedUser) {
+      setImpersonatedUser(updated);
+    } else {
+      setUser(updated);
     }
-    try {
-      await dbService.endImpersonation(impersonation.token);
-      setImpersonation(null);
-      setImpersonatedUser(null);
-    } catch (error) {
-      console.error('Failed to end impersonation:', error);
-      setNotification('Failed to end impersonation.');
-      setTimeout(() => setNotification(null), 3000);
-    }
+    dbService.saveUserProfile(updated);
   };
 
+  // ── Boot splash ──
   if (isBooting) {
     return (
       <div className="h-screen w-full bg-slate-900 flex items-center justify-center">
@@ -678,361 +478,468 @@ function App() {
     );
   }
 
-  const isFreshHomepageVisit =
-    window.location.pathname === '/' && !justAuthenticated;
+  const loggedIn = isLoggedIn && !!user;
+  const navRole = user ? getNavRole(user.role) : 'client';
 
-  if (!isLoggedIn || !user || isFreshHomepageVisit) {
-    if (showPartnerSignup) {
-      return (
-        <PartnerSignup
-          onBack={() => setShowPartnerSignup(false)}
-          onComplete={handlePartnerSignup}
-        />
-      );
-    }
-    if (showPartnerPage) {
-      return (
-        <PartnerProgramPage
-          onBack={() => setShowPartnerPage(false)}
-          onLogin={() => openAuth('login')}
-          onSignup={() => setShowPartnerSignup(true)}
-        />
-      );
-    }
-    return (
-      <>
-        <LandingPage
-          onLogin={handleHomepageLoginClick}
-          onNavigateToPartner={() => setShowPartnerPage(true)}
-          onAdminLogin={handleAdminLogin}
-          isAuthenticated={isLoggedIn && !!user}
-        />
-        <AuthModal
-          isOpen={authModalOpen}
-          onClose={() => setAuthModalOpen(false)}
-          defaultMode={authMode}
-          onLoginSuccess={handleManualAuth}
-        />
-      </>
-    );
-  }
-
-  // Phase 2: Wrap with DashboardProvider for context
-  // Determine if we're using DashboardShell (new layout) or legacy layout
-  const usesNewDashboard =
-    currentView === 'admin' ||
-    currentView === 'reseller' ||
-    currentView === 'dashboard' ||
-    currentView === 'client';
+  const authModal = (
+    <AuthModal
+      isOpen={authModalOpen}
+      onClose={() => setAuthModalOpen(false)}
+      defaultMode={authMode}
+      onLoginSuccess={handleManualAuth}
+    />
+  );
 
   return (
     <DashboardProvider initialUser={user}>
-      <div className="flex h-screen bg-slate-50 font-sans text-slate-900 overflow-x-hidden">
-        {/* Legacy Sidebar - only show for legacy views (bots, leads, etc.) */}
-        {!usesNewDashboard && (
-          <Sidebar
-            currentView={currentView}
-            setView={setCurrentView}
-            role={user.role}
-            isOpen={isSidebarOpen}
-            onClose={() => setIsSidebarOpen(false)}
-            onLogout={handleLogout}
-            user={user}
-            usage={totalConversations}
+      {notification && (
+        <div className="fixed top-6 right-6 z-[100] bg-slate-900 text-white px-6 py-3 rounded-lg shadow-xl flex items-center gap-3">
+          <Bell size={18} className="text-blue-400" /> {notification}
+        </div>
+      )}
+      {authModal}
+
+      <Routes>
+        {/* ── Public marketing / utility ── */}
+        <Route
+          path="/"
+          element={
+            <LandingPage
+              onLogin={handleHomepageLoginClick}
+              onNavigateToPartner={() => navigate('/partner-program')}
+              onAdminLogin={() => openAuth('login')}
+              isAuthenticated={loggedIn}
+            />
+          }
+        />
+        <Route path="/status" element={<StatusPage />} />
+        <Route path="/chat/:botId" element={<ChatRoute />} />
+        <Route path="/about" element={<AboutPage />} />
+        <Route path="/blog" element={<BlogPage />} />
+        <Route path="/blog/:articleId" element={<ArticleRoute />} />
+        <Route path="/careers" element={<CareersPage />} />
+        <Route path="/contact" element={<ContactPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/features" element={<FeaturesPage />} />
+        <Route
+          path="/pricing"
+          element={<PricingPage onLogin={() => openAuth('login')} />}
+        />
+        <Route
+          path="/faq"
+          element={<FaqPage onLogin={() => openAuth('login')} />}
+        />
+        <Route path="/help" element={<HelpCenter />} />
+        <Route
+          path="/demo"
+          element={<DemoPage onLogin={() => openAuth('login')} />}
+        />
+        <Route
+          path="/partner-program"
+          element={
+            <PartnerProgramPage
+              onBack={() => navigate('/')}
+              onLogin={() => openAuth('login')}
+              onSignup={() => navigate('/partner-program/apply')}
+            />
+          }
+        />
+        <Route
+          path="/partner-program/apply"
+          element={
+            <PartnerSignup
+              onBack={() => navigate('/partner-program')}
+              onComplete={handlePartnerSignup}
+            />
+          }
+        />
+
+        {/* ── Authenticated dashboard ── */}
+        {loggedIn ? (
+          <Route element={<DashboardLayout onLogout={handleLogout} />}>
+            {navRole === 'client' && (
+              <>
+                <Route
+                  path="/app"
+                  element={
+                    <ClientOverview
+                      user={activeUser}
+                      onCreateBot={() => navigate('/app/bots')}
+                      onOpenLeads={() => navigate('/app/leads')}
+                    />
+                  }
+                />
+                <Route
+                  path="/app/bots"
+                  element={
+                    <ErrorBoundary>
+                      <BotBuilder
+                        bots={bots}
+                        onSave={handleSaveBot}
+                        customDomain={activeUser?.customDomain}
+                        onLeadDetected={handleLeadDetected}
+                        onRefresh={refreshBots}
+                      />
+                    </ErrorBoundary>
+                  }
+                />
+                <Route
+                  path="/app/conversations"
+                  element={<ChatLogs conversations={chatLogs} />}
+                />
+                <Route
+                  path="/app/leads"
+                  element={
+                    <LeadsCRM leads={leads} onUpdateLead={handleUpdateLead} />
+                  }
+                />
+                <Route
+                  path="/app/phone"
+                  element={
+                    activeUser ? (
+                      <PhoneAgent
+                        user={activeUser}
+                        onUpdate={handleUpdateActiveUser}
+                      />
+                    ) : null
+                  }
+                />
+                <Route
+                  path="/app/analytics"
+                  element={
+                    <ErrorBoundary>
+                      <AdvancedAnalytics
+                        organizationId={activeUser?.organizationId || ''}
+                        endpoint="/clients/analytics/dashboard"
+                      />
+                    </ErrorBoundary>
+                  }
+                />
+                <Route
+                  path="/app/landing-pages"
+                  element={
+                    <LandingPageBuilder
+                      bots={bots}
+                      organizationId={activeUser?.organizationId}
+                    />
+                  }
+                />
+                <Route path="/app/marketing" element={<MarketingTools />} />
+                <Route path="/app/website" element={<WebsiteBuilder />} />
+                <Route
+                  path="/app/marketplace"
+                  element={
+                    <ErrorBoundary>
+                      <TemplateMarketplace
+                        onInstall={handleInstallTemplate}
+                        userId={activeUser?.id}
+                        organizationId={activeUser?.organizationId || ''}
+                      />
+                    </ErrorBoundary>
+                  }
+                />
+                <Route
+                  path="/app/services"
+                  element={
+                    <ServiceCatalog
+                      organizationId={activeUser?.organizationId || ''}
+                      userId={activeUser?.id}
+                    />
+                  }
+                />
+                <Route
+                  path="/app/ai-team"
+                  element={<AITeamDashboard user={user} />}
+                />
+                <Route path="/app/billing" element={<Billing user={user} />} />
+                <Route
+                  path="/app/support"
+                  element={
+                    <SupportTicketSystem user={activeUser || undefined} />
+                  }
+                />
+                <Route
+                  path="/app/settings"
+                  element={
+                    activeUser ? (
+                      <Settings
+                        user={activeUser}
+                        onUpdateUser={handleUpdateActiveUser}
+                      />
+                    ) : null
+                  }
+                />
+                <Route path="/app/*" element={<Navigate to="/app" replace />} />
+              </>
+            )}
+
+            {navRole === 'admin' && (
+              <>
+                <Route
+                  path="/admin"
+                  element={
+                    <AdminDashboardV2
+                      activeTab={'overview' as AdminTab}
+                      onImpersonate={handleStartImpersonation}
+                    />
+                  }
+                />
+                <Route
+                  path="/admin/analytics"
+                  element={
+                    <div className="p-3 sm:p-6">
+                      <ComprehensiveAnalytics
+                        organizationId={user?.organizationId}
+                      />
+                    </div>
+                  }
+                />
+                <Route
+                  path="/admin/financial"
+                  element={
+                    <div className="p-3 sm:p-6">
+                      <FinancialDashboard />
+                    </div>
+                  }
+                />
+                <Route
+                  path="/admin/users"
+                  element={
+                    <div className="p-3 sm:p-6">
+                      <UserManagement
+                        onImpersonate={handleStartImpersonation}
+                      />
+                    </div>
+                  }
+                />
+                <Route
+                  path="/admin/partners"
+                  element={
+                    <div className="p-3 sm:p-6">
+                      <PartnerOversight />
+                    </div>
+                  }
+                />
+                <Route
+                  path="/admin/agents"
+                  element={
+                    <div className="p-3 sm:p-6">
+                      <UserManagement
+                        onImpersonate={handleStartImpersonation}
+                        initialRole={UserRole.SALES_AGENT}
+                      />
+                    </div>
+                  }
+                />
+                <Route
+                  path="/admin/clients"
+                  element={
+                    <div className="p-3 sm:p-6">
+                      <UserManagement
+                        onImpersonate={handleStartImpersonation}
+                        initialRole={UserRole.CLIENT}
+                      />
+                    </div>
+                  }
+                />
+                <Route
+                  path="/admin/affiliates"
+                  element={
+                    <div className="p-3 sm:p-6">
+                      <UserManagement
+                        onImpersonate={handleStartImpersonation}
+                        initialRole={UserRole.AFFILIATE}
+                      />
+                    </div>
+                  }
+                />
+                <Route
+                  path="/admin/bots"
+                  element={
+                    <ErrorBoundary>
+                      <BotBuilder
+                        bots={bots}
+                        onSave={handleSaveBot}
+                        customDomain={activeUser?.customDomain}
+                        onLeadDetected={handleLeadDetected}
+                        onRefresh={refreshBots}
+                      />
+                    </ErrorBoundary>
+                  }
+                />
+                <Route
+                  path="/admin/conversations"
+                  element={<ChatLogs conversations={chatLogs} />}
+                />
+                <Route
+                  path="/admin/ai-team"
+                  element={<AITeamDashboard user={user} />}
+                />
+                <Route
+                  path="/admin/support"
+                  element={
+                    <SupportTicketSystem user={activeUser || undefined} />
+                  }
+                />
+                <Route
+                  path="/admin/system"
+                  element={
+                    <div className="p-3 sm:p-6">
+                      <ErrorRecoveryDashboard />
+                    </div>
+                  }
+                />
+                <Route
+                  path="/admin/settings"
+                  element={
+                    activeUser ? (
+                      <Settings
+                        user={activeUser}
+                        onUpdateUser={handleUpdateActiveUser}
+                      />
+                    ) : null
+                  }
+                />
+                <Route
+                  path="/admin/*"
+                  element={<Navigate to="/admin" replace />}
+                />
+              </>
+            )}
+
+            {navRole === 'partner' && user && (
+              <>
+                <Route
+                  path="/partner"
+                  element={
+                    <PartnerDashboardRoute
+                      user={user}
+                      onImpersonate={handleStartImpersonation}
+                    />
+                  }
+                />
+                <Route
+                  path="/partner/settings"
+                  element={
+                    activeUser ? (
+                      <Settings
+                        user={activeUser}
+                        onUpdateUser={handleUpdateActiveUser}
+                      />
+                    ) : null
+                  }
+                />
+                <Route
+                  path="/partner/:tab"
+                  element={
+                    <PartnerDashboardRoute
+                      user={user}
+                      onImpersonate={handleStartImpersonation}
+                    />
+                  }
+                />
+                <Route
+                  path="/partner/*"
+                  element={<Navigate to="/partner" replace />}
+                />
+              </>
+            )}
+
+            {navRole === 'agent' && (
+              <>
+                <Route
+                  path="/agent"
+                  element={
+                    <div className="p-3 sm:p-6">
+                      <AgentDashboard />
+                    </div>
+                  }
+                />
+                <Route
+                  path="/agent/settings"
+                  element={
+                    activeUser ? (
+                      <Settings
+                        user={activeUser}
+                        onUpdateUser={handleUpdateActiveUser}
+                      />
+                    ) : null
+                  }
+                />
+                <Route
+                  path="/agent/*"
+                  element={<Navigate to="/agent" replace />}
+                />
+              </>
+            )}
+
+            {navRole === 'affiliate' && (
+              <>
+                <Route
+                  path="/affiliate"
+                  element={
+                    <div className="p-3 sm:p-6">
+                      <AffiliateDashboard />
+                    </div>
+                  }
+                />
+                <Route
+                  path="/affiliate/settings"
+                  element={
+                    activeUser ? (
+                      <Settings
+                        user={activeUser}
+                        onUpdateUser={handleUpdateActiveUser}
+                      />
+                    ) : null
+                  }
+                />
+                <Route
+                  path="/affiliate/*"
+                  element={<Navigate to="/affiliate" replace />}
+                />
+              </>
+            )}
+
+            {/* Any other authenticated path → the user's home */}
+            <Route
+              path="*"
+              element={<Navigate to={ROLE_HOME[navRole]} replace />}
+            />
+          </Route>
+        ) : (
+          // Not (yet) logged in. Public routes above still match first; only
+          // unmatched paths (e.g. a hard-refreshed /admin deep link) land here.
+          // While the session is still resolving, show a loader instead of
+          // bouncing a logged-in user to the homepage prematurely.
+          <Route
+            path="*"
+            element={
+              authLoading ? (
+                <div className="flex min-h-screen items-center justify-center text-slate-400">
+                  Loading…
+                </div>
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
           />
         )}
-
-        <main
-          className={`flex-1 overflow-hidden relative flex flex-col h-full ${!usesNewDashboard ? 'md:ml-64' : ''}`}
-        >
-          {/* Mobile header - only show for legacy views */}
-          {!usesNewDashboard && (
-            <div className="md:hidden h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 shrink-0">
-              <div className="flex items-center gap-2 font-bold text-slate-800">
-                <div className="w-8 h-8 bg-blue-900 rounded-lg flex items-center justify-center border border-blue-800 shadow-lg shadow-blue-900/50 text-white">
-                  <BotIcon size={20} />
-                </div>
-                BuildMyBot
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsSidebarOpen(true)}
-                className="p-2 text-slate-600"
-              >
-                <Menu size={24} />
-              </button>
-            </div>
-          )}
-
-          <div
-            className={`flex-1 overflow-y-auto ${!usesNewDashboard ? 'p-4 md:p-8' : ''}`}
-          >
-            {notification && (
-              <div className="fixed top-6 right-6 z-50 bg-slate-900 text-white px-6 py-3 rounded-lg shadow-xl animate-bounce-slow flex items-center gap-3">
-                <Bell size={18} className="text-blue-400" /> {notification}
-              </div>
-            )}
-
-            {/* Phase 2: Admin Dashboard with DashboardShell */}
-            {currentView === 'admin' && (
-              <RouteGuard requiredRole="admin">
-                <DashboardShell
-                  currentPath={`/admin${adminActiveTab === 'metrics' ? '' : `/${adminActiveTab}`}`}
-                  onNavigate={(path) => {
-                    // Map URL paths to tab state
-                    if (path === '/admin') setAdminActiveTab('metrics');
-                    else if (path === '/admin/users')
-                      setAdminActiveTab('users');
-                    else if (path === '/admin/partners')
-                      setAdminActiveTab('partners');
-                    else if (path === '/admin/financial')
-                      setAdminActiveTab('financial');
-                    else if (path === '/admin/bots') setCurrentView('bots');
-                    else if (path === '/admin/analytics')
-                      setAdminActiveTab('analytics');
-                    else if (path === '/admin/support')
-                      setAdminActiveTab('support');
-                    else if (path === '/admin/system')
-                      setAdminActiveTab('system');
-                    else if (path === '/admin/affiliates')
-                      setAdminActiveTab('affiliates');
-                    else if (path === '/admin/agents')
-                      setAdminActiveTab('agents');
-                    else if (path === '/admin/ai-team')
-                      setCurrentView('ai-team');
-                    else if (path === '/admin/clients')
-                      setAdminActiveTab('clients');
-                    else if (path === '/admin/conversations')
-                      setAdminActiveTab('conversations');
-                    else if (path.startsWith('/app/bots'))
-                      setCurrentView('bots');
-                    else if (path.startsWith('/app/leads'))
-                      setCurrentView('leads');
-                  }}
-                  onLogout={handleLogout}
-                  onSettingsClick={() => setCurrentView('settings')}
-                >
-                  <AdminDashboardV2
-                    onImpersonate={handleStartImpersonation}
-                    activeTab={adminActiveTab}
-                    onTabChange={setAdminActiveTab}
-                  />
-                </DashboardShell>
-              </RouteGuard>
-            )}
-
-            {/* Phase 2: Partner Dashboard with DashboardShell */}
-            {currentView === 'reseller' && (
-              <RouteGuard requiredRole="reseller">
-                <DashboardShell
-                  currentPath={`/partner/${partnerActiveTab}`}
-                  onNavigate={(path) => {
-                    // Map URL paths to tab state
-                    if (path === '/partner/clients')
-                      setPartnerActiveTab('clients');
-                    else if (path === '/partner/agents')
-                      setPartnerActiveTab('agents');
-                    else if (path === '/partner/conversations')
-                      setPartnerActiveTab('conversations');
-                    else if (path === '/partner/commissions')
-                      setPartnerActiveTab('commissions');
-                    else if (path === '/partner/marketing')
-                      setPartnerActiveTab('marketing');
-                    else if (path === '/partner/analytics')
-                      setPartnerActiveTab('analytics');
-                    else if (path === '/partner/collaboration')
-                      setPartnerActiveTab('collaboration');
-                    else if (path.startsWith('/app/bots'))
-                      setCurrentView('bots');
-                    else if (path.startsWith('/app/leads'))
-                      setCurrentView('leads');
-                  }}
-                  onLogout={handleLogout}
-                  onSettingsClick={() => setCurrentView('settings')}
-                >
-                  <PartnerDashboardV2
-                    user={user}
-                    onImpersonate={handleStartImpersonation}
-                    activeTab={partnerActiveTab}
-                    onTabChange={setPartnerActiveTab}
-                  />
-                </DashboardShell>
-              </RouteGuard>
-            )}
-
-            {/* Phase 2: Owner Dashboard with DashboardShell (regular business owners) */}
-            {currentView === 'dashboard' && (
-              <RouteGuard requiredRole="owner">
-                <DashboardShell
-                  currentPath="/app"
-                  onNavigate={(path) => {
-                    // Map paths to currentView
-                    if (path === '/app/bots') setCurrentView('bots');
-                    else if (path === '/app/leads') setCurrentView('leads');
-                    else if (path === '/app/ai-team') setCurrentView('ai-team');
-                    else if (path === '/app') setCurrentView('dashboard');
-                  }}
-                  onLogout={handleLogout}
-                  onSettingsClick={() => setCurrentView('settings')}
-                >
-                  <ClientOverview
-                    user={activeUser}
-                    onCreateBot={() => setCurrentView('bots')}
-                    onOpenLeads={() => setCurrentView('leads')}
-                  />
-                </DashboardShell>
-              </RouteGuard>
-            )}
-
-            {/* Phase 2: Client Dashboard with DashboardShell (CLIENT role - managed by resellers) */}
-            {currentView === 'client' && (
-              <RouteGuard requiredRole="client">
-                <DashboardShell
-                  currentPath="/app"
-                  onNavigate={(path) => {
-                    // Map paths to currentView
-                    if (path === '/app/bots') setCurrentView('bots');
-                    else if (path === '/app/leads') setCurrentView('leads');
-                    else if (path === '/app/ai-team') setCurrentView('ai-team');
-                    else if (path === '/app') setCurrentView('client');
-                  }}
-                  onLogout={handleLogout}
-                  onSettingsClick={() => setCurrentView('settings')}
-                >
-                  <ClientOverview
-                    user={activeUser}
-                    onCreateBot={() => setCurrentView('bots')}
-                    onOpenLeads={() => setCurrentView('leads')}
-                  />
-                </DashboardShell>
-              </RouteGuard>
-            )}
-
-            {/* Sales Agent Dashboard */}
-            {currentView === 'agent' && (
-              <DashboardShell
-                currentPath="/agent"
-                onNavigate={(path) => {
-                  // Agent views are handled internally by the dashboard
-                }}
-                onLogout={handleLogout}
-                onSettingsClick={() => setCurrentView('settings')}
-              >
-                <AgentDashboard />
-              </DashboardShell>
-            )}
-
-            {/* Affiliate Dashboard */}
-            {currentView === 'affiliate' && (
-              <DashboardShell
-                currentPath="/affiliate"
-                onNavigate={(path) => {
-                  // Affiliate views are handled internally by the dashboard
-                }}
-                onLogout={handleLogout}
-                onSettingsClick={() => setCurrentView('settings')}
-              >
-                <AffiliateDashboard />
-              </DashboardShell>
-            )}
-
-            {/* Legacy views - not using DashboardShell yet */}
-            {currentView === 'bots' && (
-              <ErrorBoundary>
-                <BotBuilder
-                  bots={bots}
-                  onSave={handleSaveBot}
-                  customDomain={activeUser?.customDomain}
-                  onLeadDetected={handleLeadDetected}
-                  onRefresh={refreshBots}
-                />
-              </ErrorBoundary>
-            )}
-
-            {currentView === 'marketing' && <MarketingTools />}
-
-            {currentView === 'leads' && (
-              <LeadsCRM leads={leads} onUpdateLead={handleUpdateLead} />
-            )}
-
-            {currentView === 'website' && <WebsiteBuilder />}
-
-            {currentView === 'marketplace' && (
-              <ErrorBoundary>
-                <TemplateMarketplace
-                  onInstall={handleInstallTemplate}
-                  userId={activeUser?.id}
-                  organizationId={activeUser?.organizationId || ''}
-                />
-              </ErrorBoundary>
-            )}
-
-            {currentView === 'phone' && activeUser && (
-              <PhoneAgent
-                user={activeUser}
-                onUpdate={(updated) => {
-                  if (impersonatedUser) {
-                    setImpersonatedUser(updated);
-                  } else {
-                    setUser(updated);
-                  }
-                  dbService.saveUserProfile(updated);
-                }}
-              />
-            )}
-
-            {currentView === 'chat-logs' && (
-              <ChatLogs conversations={chatLogs} />
-            )}
-
-            {currentView === 'billing' && <Billing user={user} />}
-
-            {currentView === 'settings' && activeUser && (
-              <Settings
-                user={activeUser}
-                onUpdateUser={(updated) => {
-                  if (impersonatedUser) {
-                    setImpersonatedUser(updated);
-                  } else {
-                    setUser(updated);
-                  }
-                  dbService.saveUserProfile(updated);
-                }}
-              />
-            )}
-
-            {currentView === 'analytics' && (
-              <ErrorBoundary>
-                <AdvancedAnalytics
-                  organizationId={activeUser?.organizationId || ''}
-                  endpoint="/clients/analytics/dashboard"
-                />
-              </ErrorBoundary>
-            )}
-
-            {currentView === 'landing-pages' && (
-              <LandingPageBuilder
-                bots={bots}
-                organizationId={activeUser?.organizationId}
-              />
-            )}
-
-            {currentView === 'services' && (
-              <ServiceCatalog
-                organizationId={activeUser?.organizationId || ''}
-                userId={activeUser?.id}
-              />
-            )}
-
-            {currentView === 'ai-team' && <AITeamDashboard user={user} />}
-            {currentView === 'support' && (
-              <SupportTicketSystem user={activeUser || undefined} />
-            )}
-          </div>
-        </main>
-      </div>
+      </Routes>
     </DashboardProvider>
   );
 }
+
+/** Full-page public chat widget (anonymous visitors). */
+const ChatRoute: React.FC = () => {
+  const { botId } = useParams();
+  return <FullPageChat botId={botId || ''} />;
+};
+
+/** Blog article by numeric id. */
+const ArticleRoute: React.FC = () => {
+  const { articleId } = useParams();
+  return <ArticlePage articleId={Number.parseInt(articleId || '1', 10)} />;
+};
 
 export default App;

@@ -33,16 +33,20 @@ interface UserUsage {
 
 interface UserManagementProps {
   onImpersonate: (userId: string, reason: string) => void;
+  /** Preset role filter so the same component powers the Users / Sales Agents /
+   * Clients / Affiliates admin pages, each scoped to one role. */
+  initialRole?: string;
 }
 
 export const UserManagement: React.FC<UserManagementProps> = ({
   onImpersonate,
+  initialRole = '',
 }) => {
   const [users, setUsers] = useState<UserData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
-  const [filterRole, setFilterRole] = useState<string>('');
+  const [filterRole, setFilterRole] = useState<string>(initialRole);
   const [filterStatus, setFilterStatus] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [impersonateUserId, setImpersonateUserId] = useState<string | null>(
