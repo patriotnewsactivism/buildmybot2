@@ -155,6 +155,28 @@ select {
   }
 }
 
+/*
+ * Readable default text for form controls.
+ *
+ * body sets color:#fff (legacy dark landing theme) and Tailwind v4 Preflight
+ * resets form controls to `color: inherit`, so any input/textarea without an
+ * explicit text color inherited white and rendered typed text invisible on
+ * light input backgrounds. Kept in @layer base so explicit Tailwind text/bg
+ * color utilities (e.g. the dark admin console's text-console-text) still win.
+ */
+@layer base {
+  input,
+  textarea,
+  select {
+    color: #0f172a; /* slate-900 */
+  }
+  input::placeholder,
+  textarea::placeholder {
+    color: #94a3b8; /* slate-400 */
+    opacity: 1;
+  }
+}
+
 /* Safe area padding for notched devices */
 @supports (padding-bottom: env(safe-area-inset-bottom)) {
   .safe-bottom {
