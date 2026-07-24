@@ -311,7 +311,12 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
             </div>
           </header>
 
-          <main className="flex-1 overflow-x-hidden">
+          {/* text-slate-900: body sets color:#fff globally for the dark
+              marketing landing page (see src/index.css) — every dashboard
+              route renders on a light background, so without an explicit
+              override here any element that doesn't set its own text color
+              (headings, labels, plain text) inherits white-on-white. */}
+          <main className="flex-1 overflow-x-hidden text-slate-900">
             <Outlet />
           </main>
         </div>
