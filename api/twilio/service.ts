@@ -92,6 +92,8 @@ export async function initiateOutboundCall(opts: {
   objective: string;
   agentRoleId: string;
   agentName: string;
+  /** Grok voice id for the call (defaults to 'eve'). */
+  voiceId?: string;
 }): Promise<{
   success: boolean;
   callSid?: string;
@@ -132,7 +134,7 @@ export async function initiateOutboundCall(opts: {
     const call = await client.calls.create({
       to: opts.phoneNumber,
       from: TWILIO_PHONE_NUMBER!,
-      url: `${APP_BASE_URL}/api/twilio/voice-handler?leadId=${encodeURIComponent(opts.leadId)}&objective=${encodeURIComponent(opts.objective)}&logId=${logId || ''}`,
+      url: `${APP_BASE_URL}/api/twilio/voice-handler?leadId=${encodeURIComponent(opts.leadId)}&objective=${encodeURIComponent(opts.objective)}&logId=${logId || ''}&voice=${encodeURIComponent(opts.voiceId || 'eve')}`,
       statusCallback: `${APP_BASE_URL}/api/twilio/status-callback?logId=${logId || ''}&leadId=${encodeURIComponent(opts.leadId)}`,
       statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
       statusCallbackMethod: 'POST',
