@@ -2273,33 +2273,172 @@ async function handleChannels(
   );
 }
 
+/** Every phone number needs an answering bot. Reuse the user's existing
+ * voice bot if they have one (so re-purchasing after a release keeps the
+ * same knowledge base), otherwise create a starter one. */
+async function findOrCreateVoiceBot(user: AuthUser): Promise<string | null> {
+  const existing = await sbSelect('bots', 'id', {
+    ...ownerFilter(user),
+    type: 'eq.voice',
+    limit: '1',
+  }).catch(() => []);
+  if (existing?.[0]?.id) return existing[0].id;
+
+  const created = await sbInsert('bots', {
+    id: crypto.randomUUID(),
+    user_id: user.id,
+    organization_id: user.organizationId || null,
+    name: 'Phone Agent',
+    type: 'voice',
+    system_prompt:
+      'You are a helpful AI receptionist for this business. Answer caller questions warmly and concisely based on the business information and knowledge base provided. Never invent details you were not given.',
+    model: 'gpt-4o-mini',
+    temperature: 0.7,
+    knowledge_base: [],
+    active: true,
+  }).catch(() => null);
+  return created?.[0]?.id || null;
+}
+
+/** Assumes twilioConfigured() has already been checked by the caller. */
+async function getTwilioClient() {
+  const Twilio = (await import('twilio')).default;
+  const accountSid = process.env.TWILIO_ACCOUNT_SID as string;
+  const authToken = process.env.TWILIO_AUTH_TOKEN as string;
+  return new Twilio(accountSid, authToken);
+}
+
 async function handlePhone(
   req: VercelRequest,
   res: VercelResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
-  if (pathParts[0] === 'purchase' && req.method === 'POST') {
+  const { twilioConfigured } = await import('./twilio/service.js');
+
+  if (pathParts[0] === 'available' && req.method === 'GET') {
+    if (!twilioConfigured()) {
+      return res.status(503).json({
+        error:
+          'Phone number provisioning is not configured on this deployment yet. Contact support.',
+      });
+    }
+    const url = new URL(req.url || '/', 'http://localhost');
+    const areaCode = url.searchParams.get('areaCode') || '';
+    const countryCode = url.searchParams.get('countryCode') || 'US';
+    try {
+      const client = await getTwilioClient();
+      const numbers = await client
+        .availablePhoneNumbers(countryCode)
+        .local.list({
+          ...(areaCode ? { areaCode: Number(areaCode) } : {}),
+          limit: 10,
+        });
+      res.json(
+        numbers.map((n: any) => ({
+          phoneNumber: n.phoneNumber,
+          friendlyName: n.friendlyName || n.phoneNumber,
+          locality: n.locality || '',
+          region: n.region || '',
+        })),
+      );
+    } catch (err: any) {
+      console.error('[phone] Twilio search failed:', err.message);
+      res.status(500).json({ error: 'Failed to search available numbers' });
+    }
+  } else if (pathParts[0] === 'purchase' && req.method === 'POST') {
+    if (!twilioConfigured()) {
+      return res.status(503).json({
+        error:
+          'Phone number provisioning is not configured on this deployment yet. Contact support.',
+      });
+    }
     const body = parseBody(req);
-    const r = await sbInsert('phone_numbers', {
-      id: crypto.randomUUID(),
-      organization_id: user.organizationId,
-      number: body.number || '+10000000000',
-      provider: 'twilio',
-      status: 'active',
-    }).catch(() => [{ id: 'ok', success: true }]);
-    res.status(201).json(r[0]);
-  } else if (pathParts[0] === 'release') {
+    if (!body.phoneNumber) {
+      return res.status(400).json({ error: 'phoneNumber is required' });
+    }
+    try {
+      const botId = await findOrCreateVoiceBot(user);
+      const appBaseUrl =
+        process.env.APP_BASE_URL || 'https://www.buildmybot.app';
+      const client = await getTwilioClient();
+      const purchased = await client.incomingPhoneNumbers.create({
+        phoneNumber: body.phoneNumber,
+        friendlyName: body.friendlyName || undefined,
+        voiceUrl: `${appBaseUrl}/api/twilio/inbound-voice-handler`,
+        voiceMethod: 'POST',
+        statusCallback: `${appBaseUrl}/api/twilio/inbound-status-callback`,
+        statusCallbackMethod: 'POST',
+      });
+      const inserted = await sbInsert('phone_numbers', {
+        id: crypto.randomUUID(),
+        organization_id: user.organizationId || null,
+        user_id: user.id,
+        number: purchased.phoneNumber,
+        friendly_name: purchased.friendlyName || null,
+        provider: 'twilio',
+        provider_number_sid: purchased.sid,
+        bot_id: botId,
+        status: 'active',
+      }).catch(() => null);
+      res.status(201).json({
+        phoneNumber: purchased.phoneNumber,
+        sid: purchased.sid,
+        botId,
+        id: inserted?.[0]?.id,
+      });
+    } catch (err: any) {
+      console.error('[phone] Twilio purchase failed:', err.message);
+      res
+        .status(500)
+        .json({ error: err.message || 'Failed to purchase number' });
+    }
+  } else if (pathParts[0] === 'release' && req.method === 'POST') {
     const body = parseBody(req);
-    await sbUpdate(
-      'phone_numbers',
-      { status: 'released' },
-      { id: `eq.${body.numberId}` },
-    ).catch(() => {});
-    res.json({ success: true });
+    try {
+      const filter: Record<string, string> = { ...ownerFilter(user) };
+      if (body.numberId) filter.id = `eq.${body.numberId}`;
+      else if (body.number) filter.number = `eq.${body.number}`;
+      else
+        return res
+          .status(400)
+          .json({ error: 'numberId or number is required' });
+
+      const rows = await sbSelect(
+        'phone_numbers',
+        'id,provider_number_sid',
+        filter,
+      ).catch(() => []);
+      const row = rows?.[0];
+      if (!row) return res.status(404).json({ error: 'Number not found' });
+
+      if (row.provider_number_sid && twilioConfigured()) {
+        try {
+          const client = await getTwilioClient();
+          await client.incomingPhoneNumbers(row.provider_number_sid).remove();
+        } catch (err: any) {
+          console.error('[phone] Twilio release failed:', err.message);
+          // Continue — mark it released locally even if the Twilio side
+          // errors (e.g. already released), so it doesn't get stuck.
+        }
+      }
+
+      await sbUpdate(
+        'phone_numbers',
+        { status: 'released', released_at: new Date().toISOString() },
+        { id: `eq.${row.id}` },
+      ).catch(() => {});
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error('[phone] Release error:', err.message);
+      res.status(500).json({ error: 'Failed to release number' });
+    }
   } else {
     res.json(
-      await sbSelect('phone_numbers', '*', ownerFilter(user)).catch(() => []),
+      await sbSelect('phone_numbers', '*', {
+        ...ownerFilter(user),
+        status: 'eq.active',
+      }).catch(() => []),
     );
   }
 }
@@ -3152,8 +3291,18 @@ async function handleLandingPages(
   }
 }
 
+// Only these camelCase profile fields are writable via PUT/PATCH
+// /api/users/:id — never role/organizationId/plan/etc. through this
+// generic path, those go through dedicated admin-gated endpoints.
+const USER_SELF_UPDATE_FIELDS: Record<string, string> = {
+  phoneConfig: 'phone_config',
+  companyName: 'company_name',
+  name: 'name',
+  avatarUrl: 'avatar_url',
+};
+
 async function handleUsers(
-  _req: VercelRequest,
+  req: VercelRequest,
   res: VercelResponse,
   user: AuthUser,
   pathParts: string[],
@@ -3164,6 +3313,34 @@ async function handleUsers(
         organization_id: `eq.${user.organizationId}`,
       }).catch(() => []),
     });
+  } else if (
+    pathParts[0] &&
+    !pathParts[1] &&
+    (req.method === 'PUT' || req.method === 'PATCH')
+  ) {
+    // dbService.saveUserProfile() PUTs the full (camelCase) user object here.
+    // This previously fell straight through to the 404 branch below —
+    // every "Save Configuration" click (phone/voice setup among others)
+    // silently did nothing against production.
+    const targetId = pathParts[0];
+    if (targetId !== user.id && user.role !== 'admin') {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    const body = parseBody(req);
+    const patch: Record<string, unknown> = {};
+    for (const [camel, column] of Object.entries(USER_SELF_UPDATE_FIELDS)) {
+      if (camel in body) patch[column] = body[camel];
+    }
+    if (Object.keys(patch).length === 0) {
+      return res.status(400).json({ error: 'No updatable fields provided' });
+    }
+    const updated = await sbUpdate('users', patch, {
+      id: `eq.${targetId}`,
+    }).catch(() => null);
+    if (!updated) {
+      return res.status(500).json({ error: 'Failed to update user profile' });
+    }
+    res.json(updated[0] || { id: targetId, ...patch });
   } else res.status(404).json({ error: 'Not found' });
 }
 
@@ -5047,6 +5224,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return await statusCallback(req, res);
       if (pathParts[0] === 'recording-callback')
         return await recordingCallback(req, res);
+      // Inbound calls to a customer-purchased number — separate from the
+      // outbound sales-pipeline handlers above, grounded in the answering
+      // business's own bot (persona + knowledge base) instead of
+      // BuildMyBot's own pitch.
+      const {
+        inboundVoiceHandler,
+        inboundVoiceRespond,
+        inboundStatusCallback,
+      } = await import('./twilio/inbound.js');
+      if (pathParts[0] === 'inbound-voice-handler')
+        return await inboundVoiceHandler(req, res);
+      if (pathParts[0] === 'inbound-voice-respond')
+        return await inboundVoiceRespond(req, res);
+      if (pathParts[0] === 'inbound-status-callback')
+        return await inboundStatusCallback(req, res);
       return res.status(404).json({ error: 'Unknown Twilio endpoint' });
     }
     if (routeName === 'leads' && pathParts[0] === 'capture')
