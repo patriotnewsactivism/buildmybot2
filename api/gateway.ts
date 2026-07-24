@@ -1,5 +1,7 @@
+import { Readable } from 'node:stream';
 import * as Sentry from '@sentry/node';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import multer from 'multer';
 import {
   PLAN_LIMITS,
   VOICE_PLANS,
@@ -410,6 +412,70 @@ function setCors(res: VercelResponse) {
 function parseBody(req: VercelRequest): any {
   if (typeof req.body === 'string') return JSON.parse(req.body);
   return req.body;
+}
+
+const multipartUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024 },
+});
+
+/**
+ * Parses a multipart/form-data upload into a single file. Vercel's default
+ * body parser doesn't recognize multipart, so it buffers the whole request
+ * into `req.body` as a raw Buffer and leaves the request stream itself
+ * already drained -- multer/busboy need to read an actual unconsumed
+ * stream, so we re-wrap that buffer as a fresh Readable and hand multer
+ * that instead of `req` directly.
+ */
+async function parseMultipartFile(
+  req: VercelRequest,
+): Promise<Express.Multer.File | undefined> {
+  let raw: Buffer;
+  if (Buffer.isBuffer(req.body) && req.body.length > 0) {
+    raw = req.body;
+  } else if (typeof req.body === 'string' && req.body.length > 0) {
+    raw = Buffer.from(req.body, 'binary');
+  } else {
+    const chunks: Buffer[] = [];
+    for await (const chunk of req) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    raw = Buffer.concat(chunks);
+  }
+
+  const fakeReq = Readable.from(raw) as any;
+  fakeReq.headers = req.headers;
+  fakeReq.method = req.method;
+
+  return new Promise((resolve, reject) => {
+    multipartUpload.single('file')(fakeReq, {} as any, (err: any) => {
+      if (err) reject(err);
+      else resolve(fakeReq.file);
+    });
+  });
+}
+
+/** Extracts plain text from an uploaded document for knowledge-base ingestion. */
+async function extractTextFromFile(
+  buffer: Buffer,
+  filename: string,
+  mimetype: string,
+): Promise<string> {
+  const ext = (filename.split('.').pop() || '').toLowerCase();
+  if (mimetype === 'application/pdf' || ext === 'pdf') {
+    const pdfParse = (await import('pdf-parse')).default;
+    const data = await pdfParse(buffer);
+    return data.text;
+  }
+  if (ext === 'docx' || mimetype.includes('officedocument.wordprocessingml')) {
+    const mammoth = await import('mammoth');
+    const result = await mammoth.extractRawText({ buffer });
+    return result.value;
+  }
+  if (ext === 'txt' || ext === 'md' || mimetype.startsWith('text/')) {
+    return buffer.toString('utf-8');
+  }
+  throw new Error(`Unsupported file type: ${filename}`);
 }
 
 // =====================================================================
@@ -1758,6 +1824,17 @@ async function handleFirecrawlWebhook(req: VercelRequest, res: VercelResponse) {
   }
 }
 
+// The DB's own status vocabulary ('ready' from ingestKnowledgeSource, 'active'
+// from manual source creation, 'refreshing' from the refresh endpoint) never
+// matches the frontend's narrower 'pending' | 'processing' | 'completed' |
+// 'failed' type, so completed sources got stuck showing a "Pending" badge
+// forever and the UI looked broken even when ingestion had actually succeeded.
+const KNOWLEDGE_STATUS_TO_DTO: Record<string, string> = {
+  ready: 'completed',
+  active: 'completed',
+  refreshing: 'processing',
+};
+
 /** Maps a real knowledge_sources DB row (snake_case) to the camelCase
  * shape the dashboard's KnowledgeBaseManager component expects. */
 function toKnowledgeSourceDTO(row: any, chunkCount = 0) {
@@ -1766,7 +1843,7 @@ function toKnowledgeSourceDTO(row: any, chunkCount = 0) {
     sourceType: row.source_type,
     sourceName: row.source_name,
     sourceUrl: row.source_url,
-    status: row.status,
+    status: KNOWLEDGE_STATUS_TO_DTO[row.status] || row.status,
     errorMessage: row.error_message || row.last_error || undefined,
     pagesCrawled: row.pages_crawled ?? undefined,
     chunkCount,
@@ -1919,35 +1996,52 @@ async function handleKnowledge(
     }
   } else if (sub === 'upload') {
     const botId = pathParts[1];
-    const body = parseBody(req);
     const sourceId = crypto.randomUUID();
-    const content = body.content || '';
+
+    let file: Express.Multer.File | undefined;
+    try {
+      file = await parseMultipartFile(req);
+    } catch (err: any) {
+      return res
+        .status(400)
+        .json({ error: `Failed to parse upload: ${err.message}` });
+    }
+    if (!file) {
+      return res.status(400).json({ error: 'No file provided' });
+    }
+
     // Create source record
     const r = await sbInsert('knowledge_sources', {
       id: sourceId,
       bot_id: botId,
       organization_id: user.organizationId || null,
       source_type: 'document',
-      source_name: body.filename || 'Uploaded document',
+      source_name: file.originalname || 'Uploaded document',
       status: 'processing',
     }).catch(() => [{ id: sourceId }]);
-    // Chunk + embed the uploaded content
-    if (content) {
-      const result = await ingestKnowledgeSource(
-        sourceId,
-        botId,
-        content,
-      ).catch((err: any) => {
-        console.error('[knowledge] ingest failed for upload:', err.message);
-        return null;
-      });
-      if (!result) {
+
+    // Extract text, then chunk + embed the uploaded content
+    try {
+      const content = await extractTextFromFile(
+        file.buffer,
+        file.originalname,
+        file.mimetype,
+      );
+      const result = await ingestKnowledgeSource(sourceId, botId, content);
+      if (result.chunksCreated === 0) {
         await sbUpdate(
           'knowledge_sources',
-          { status: 'failed', last_error: 'Ingestion failed' },
+          { status: 'failed', last_error: 'No extractable text in document' },
           { id: `eq.${sourceId}` },
         ).catch(() => {});
       }
+    } catch (err: any) {
+      console.error('[knowledge] ingest failed for upload:', err.message);
+      await sbUpdate(
+        'knowledge_sources',
+        { status: 'failed', last_error: err.message },
+        { id: `eq.${sourceId}` },
+      ).catch(() => {});
     }
     res.status(201).json({ ...(r[0] || {}), id: sourceId });
   } else if (sub === 'refresh') {

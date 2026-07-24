@@ -105,6 +105,9 @@ Backend (serverless functions — set in Vercel dashboard, never `VITE_` prefixe
 - `DISCORD_WEBHOOK_URL`, `SLACK_WEBHOOK_URL` — agent notifications (recommended)
 - `GEMINI_API_KEY`, `GROQ_API_KEY`, `CEREBRAS_API_KEY`, `OPENROUTER_API_KEY`, `GITHUB_TOKEN_4` — AI team free-tier providers
 - `XAI_API_KEY` — xAI/Grok TTS for `api/voice/preview.ts` (preview endpoint) and `api/twilio/webhooks.ts` (Twilio calls via `<Play>`). Falls back to Polly.Joanna when absent.
+- `FIRECRAWL_API_KEY` — powers real URL/domain knowledge-base scraping (`api/rag.ts` `scrapeUrlFirecrawl`/`startFirecrawlCrawl`). **Not currently set in production** — without it, `/knowledge/scrape` silently falls back to a basic regex-based HTML fetch (`scrapeUrl()`) that can't render JS and often returns empty content on modern sites. Get a key at firecrawl.dev.
+- `FIRECRAWL_WEBHOOK_SECRET` — validates the `x-webhook-secret` header on `POST /api/knowledge/firecrawl-webhook`, which Firecrawl calls per-page during a multi-page domain crawl. Optional but recommended once `FIRECRAWL_API_KEY` is set.
+- `APP_BASE_URL` — base URL Firecrawl webhooks are pointed at (defaults to `https://www.buildmybot.app`); only needs overriding for a non-production deploy target.
 - `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` — billing (not yet live)
 
 Frontend (baked in at build time, must redeploy after changing):
