@@ -908,7 +908,22 @@ function App() {
             />
           </Route>
         ) : (
-          <Route path="*" element={<Navigate to="/" replace />} />
+          // Not (yet) logged in. Public routes above still match first; only
+          // unmatched paths (e.g. a hard-refreshed /admin deep link) land here.
+          // While the session is still resolving, show a loader instead of
+          // bouncing a logged-in user to the homepage prematurely.
+          <Route
+            path="*"
+            element={
+              authLoading ? (
+                <div className="flex min-h-screen items-center justify-center text-slate-400">
+                  Loading…
+                </div>
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
         )}
       </Routes>
     </DashboardProvider>
