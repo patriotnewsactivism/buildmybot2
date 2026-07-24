@@ -123,6 +123,7 @@ export async function voiceHandler(req: VercelRequest, res: VercelResponse) {
     'Follow up on their interest in BuildMyBot';
   const logId = url.searchParams.get('logId') || '';
   const botId = url.searchParams.get('botId') || '';
+  const voice = url.searchParams.get('voice') || 'eve';
 
   // Generate a natural greeting based on the objective
   let greeting =
@@ -147,11 +148,11 @@ export async function voiceHandler(req: VercelRequest, res: VercelResponse) {
   const APP_BASE_URL = process.env.APP_BASE_URL || 'https://www.buildmybot.app';
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  ${speakLine(greeting)}
-  <Gather input="speech" timeout="5" speechTimeout="auto" action="${APP_BASE_URL}/api/twilio/voice-respond?leadId=${encodeURIComponent(leadId)}&amp;objective=${encodeURIComponent(objective)}&amp;logId=${encodeURIComponent(logId)}&amp;botId=${encodeURIComponent(botId)}&amp;turn=1" method="POST">
-    ${speakLine("I'm listening.")}
+  ${speakLine(greeting, voice)}
+  <Gather input="speech" timeout="5" speechTimeout="auto" action="${APP_BASE_URL}/api/twilio/voice-respond?leadId=${encodeURIComponent(leadId)}&amp;objective=${encodeURIComponent(objective)}&amp;logId=${encodeURIComponent(logId)}&amp;botId=${encodeURIComponent(botId)}&amp;voice=${encodeURIComponent(voice)}&amp;turn=1" method="POST">
+    ${speakLine("I'm listening.", voice)}
   </Gather>
-  ${speakLine('It seems like you might be busy. Feel free to call us back anytime. Have a great day!')}
+  ${speakLine('It seems like you might be busy. Feel free to call us back anytime. Have a great day!', voice)}
   <Hangup/>
 </Response>`;
 
@@ -175,13 +176,14 @@ export async function voiceRespond(req: VercelRequest, res: VercelResponse) {
   const objective = url.searchParams.get('objective') || '';
   const logId = url.searchParams.get('logId') || '';
   const botId = url.searchParams.get('botId') || '';
+  const voice = url.searchParams.get('voice') || 'eve';
   const turn = Number.parseInt(url.searchParams.get('turn') || '1');
 
   // Cap conversation at 10 turns to keep costs reasonable
   if (turn > 10 || !speechResult) {
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  ${speakLine("Thank you so much for your time today. We'll send you a follow-up email with more details. Have a wonderful day!")}
+  ${speakLine("Thank you so much for your time today. We'll send you a follow-up email with more details. Have a wonderful day!", voice)}
   <Hangup/>
 </Response>`;
     res.setHeader('Content-Type', 'text/xml');
@@ -228,10 +230,10 @@ Rules:
   const APP_BASE_URL = process.env.APP_BASE_URL || 'https://www.buildmybot.app';
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  ${speakLine(aiResponse)}
-  <Gather input="speech" timeout="5" speechTimeout="auto" action="${APP_BASE_URL}/api/twilio/voice-respond?leadId=${encodeURIComponent(leadId)}&amp;objective=${encodeURIComponent(objective)}&amp;logId=${encodeURIComponent(logId)}&amp;botId=${encodeURIComponent(botId)}&amp;turn=${turn + 1}" method="POST">
+  ${speakLine(aiResponse, voice)}
+  <Gather input="speech" timeout="5" speechTimeout="auto" action="${APP_BASE_URL}/api/twilio/voice-respond?leadId=${encodeURIComponent(leadId)}&amp;objective=${encodeURIComponent(objective)}&amp;logId=${encodeURIComponent(logId)}&amp;botId=${encodeURIComponent(botId)}&amp;voice=${encodeURIComponent(voice)}&amp;turn=${turn + 1}" method="POST">
   </Gather>
-  ${speakLine('Are you still there? If not, no worries — feel free to call us back anytime. Goodbye!')}
+  ${speakLine('Are you still there? If not, no worries — feel free to call us back anytime. Goodbye!', voice)}
   <Hangup/>
 </Response>`;
 

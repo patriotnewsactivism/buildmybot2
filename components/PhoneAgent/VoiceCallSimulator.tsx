@@ -8,7 +8,6 @@ interface VoiceCallSimulatorProps {
   onClose: () => void;
   introMessage: string;
   voiceId: string;
-  cartesiaApiKey: string;
   botId?: string;
 }
 
@@ -21,7 +20,6 @@ export const VoiceCallSimulator: React.FC<VoiceCallSimulatorProps> = ({
   onClose,
   introMessage,
   voiceId,
-  cartesiaApiKey,
   botId,
 }) => {
   const [isConnected, setIsConnected] = useState(false);
