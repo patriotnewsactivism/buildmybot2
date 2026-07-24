@@ -130,7 +130,7 @@ const ConfigValidator: React.FC<ConfigValidatorProps> = ({
             isValid: false,
             message: 'Voice provider is not selected.',
             suggestion:
-              'Choose a voice provider (e.g., Cartesia) for voice synthesis.',
+              'Choose a voice provider (e.g., Grok or OpenAI) for voice synthesis.',
             severity: 'error',
             field: 'voiceConfig.provider',
           });

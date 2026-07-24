@@ -115,13 +115,15 @@ Production Vercel project: **buildmybot20** (team `don-matthews-projects`). Only
 
 ## Frontend structure
 
-`App.tsx` controls top-level routing via `currentView` state (no URL router for the dashboard). Role-based dashboard selection:
-- `MasterAdmin` → `AdminDashboardV2`
-- `Partner`/`Reseller` → `PartnerDashboardV2`
-- `Client` → `ClientOverview`
-- Default → main dashboard (BotBuilder, CRM, Analytics)
+`App.tsx` uses **real URL routing** via `react-router-dom` (v7) — `index.tsx` wraps `<App/>` in `<BrowserRouter>`. `App.tsx` holds auth/session/impersonation state and renders a `<Routes>` tree: public marketing routes (`/`, `/pricing`, `/chat/:botId`, …) and an authenticated dashboard tree gated on login.
 
-`DashboardShell` wraps the authenticated app; `RouteGuard` enforces authentication.
+Every authenticated section is a real path under a single shared `components/Dashboard/DashboardLayout.tsx` shell (grouped sidebar + top bar, `NavLink` + `Outlet`). Route prefixes by role:
+- `admin` (MasterAdmin/Admin) → `/admin/*` (Overview, Users, Partners, Agents, Clients, Affiliates, Bots, Conversations, AI Team, Support, System, Analytics, Financial)
+- `partner`/`reseller` → `/partner/*` (`PartnerDashboardV2`, tab driven by URL)
+- `client`/`owner` → `/app/*` (BotBuilder, CRM, Analytics, Phone, Billing, …)
+- `agent` → `/agent`, `affiliate` → `/affiliate`
+
+Navigation is defined once in `components/Dashboard/navConfig.tsx` (`NAV`, `getNavRole`, `ROLE_HOME`) — the single source of truth for every role's menu. The old `currentView`-state system, `DashboardShell`, `Layout/Sidebar`, and `dashboardNav.ts` were removed in the routing overhaul.
 
 Path aliases: `@/` → repo root, `@shared/` → `./shared`.
 
