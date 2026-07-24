@@ -253,6 +253,95 @@ describe('GET /api/phone/voice-bot and /api/phone/calls', () => {
   });
 });
 
+describe('Standalone voice plans — purchasable independent of chatbot plan', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('blocks purchase with 402 + available plans when the user has no bundled or standalone minutes', async () => {
+    const token = await signToken({ sub: 'user-1' });
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        const u = String(url);
+        if (u.includes('/rest/v1/users')) {
+          // FREE plan (0 bundled minutes), no voice_plan set.
+          return Promise.resolve({
+            ok: true,
+            json: async () => [AUTH_USER_ROW],
+          });
+        }
+        return Promise.resolve({ ok: true, json: async () => [] });
+      }),
+    );
+
+    const req = {
+      method: 'POST',
+      url: '/api/phone/purchase',
+      headers: { cookie: `bmb_session=${token}` },
+      body: { phoneNumber: '+15557654321' },
+    } as unknown as VercelRequest;
+    const res = mockRes();
+
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(402);
+    expect(res.body.voicePlanRequired).toBe(true);
+    expect(res.body.voicePlans.VOICE_BASIC.minutes).toBe(150);
+  });
+
+  it('lets a FREE-chatbot-plan user unlock purchase by selecting a standalone voice plan', async () => {
+    const token = await signToken({ sub: 'user-1' });
+    let savedVoicePlan: string | null = null;
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+        const u = String(url);
+        if (u.includes('/rest/v1/users') && init?.method === 'PATCH') {
+          savedVoicePlan = JSON.parse(String(init.body)).voice_plan;
+          return Promise.resolve({ ok: true, json: async () => [{}] });
+        }
+        if (u.includes('/rest/v1/users')) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => [
+              { ...AUTH_USER_ROW, voice_plan: savedVoicePlan },
+            ],
+          });
+        }
+        return Promise.resolve({ ok: true, json: async () => [] });
+      }),
+    );
+
+    // Select the standalone plan.
+    const selectReq = {
+      method: 'POST',
+      url: '/api/phone/voice-plan',
+      headers: { cookie: `bmb_session=${token}` },
+      body: { voicePlan: 'VOICE_BASIC' },
+    } as unknown as VercelRequest;
+    const selectRes = mockRes();
+    await handler(selectReq, selectRes);
+
+    expect(selectRes.statusCode).toBe(200);
+    expect(savedVoicePlan).toBe('VOICE_BASIC');
+
+    // A FREE-plan user with a standalone voice plan should now pass the gate.
+    const req = {
+      method: 'GET',
+      url: '/api/phone/voice-plans',
+      headers: { cookie: `bmb_session=${token}` },
+      body: {},
+    } as unknown as VercelRequest;
+    const res = mockRes();
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.currentVoicePlan).toBe('VOICE_BASIC');
+    expect(res.body.bundledMinutes).toBe(0);
+  });
+});
+
 describe('POST /api/phone/purchase — real Twilio provisioning', () => {
   beforeEach(() => {
     vi.doMock('twilio', () => {
@@ -289,9 +378,12 @@ describe('POST /api/phone/purchase — real Twilio provisioning', () => {
       vi.fn().mockImplementation((url: string, init?: RequestInit) => {
         const u = String(url);
         if (u.includes('/rest/v1/users')) {
+          // Executive plan bundles phone minutes, so this test exercises
+          // the purchase path unblocked (voice-plan gating has its own
+          // describe block below).
           return Promise.resolve({
             ok: true,
-            json: async () => [AUTH_USER_ROW],
+            json: async () => [{ ...AUTH_USER_ROW, plan: 'EXECUTIVE' }],
           });
         }
         if (u.includes('/rest/v1/bots') && init?.method === 'POST') {
