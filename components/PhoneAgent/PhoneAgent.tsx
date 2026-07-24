@@ -1,4 +1,5 @@
 import {
+  Database,
   Loader,
   Mic,
   Phone,
@@ -10,7 +11,9 @@ import {
 } from 'lucide-react';
 import type React from 'react';
 import { useEffect, useState } from 'react';
+import { buildApiUrl } from '../../services/apiConfig';
 import type { User } from '../../types';
+import { KnowledgeBaseManager } from '../BotBuilder/KnowledgeBaseManager';
 import { VoiceCallSimulator } from './VoiceCallSimulator';
 import { VoiceSetupWizard } from './VoiceSetupWizard';
 import {
@@ -22,6 +25,15 @@ import {
 interface PhoneAgentProps {
   user?: User;
   onUpdate?: (user: User) => void;
+}
+
+interface CallLogRow {
+  id: string;
+  caller_number?: string;
+  called_number?: string;
+  status?: string;
+  duration?: number;
+  started_at?: string;
 }
 
 export const PhoneAgent: React.FC<PhoneAgentProps> = ({ user, onUpdate }) => {
@@ -37,6 +49,8 @@ export const PhoneAgent: React.FC<PhoneAgentProps> = ({ user, onUpdate }) => {
   const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isPlayingPreview, setIsPlayingPreview] = useState<string | null>(null);
+  const [voiceBotId, setVoiceBotId] = useState<string | null>(null);
+  const [recentCalls, setRecentCalls] = useState<CallLogRow[]>([]);
 
   useEffect(() => {
     if (user?.phoneConfig) {
@@ -46,6 +60,39 @@ export const PhoneAgent: React.FC<PhoneAgentProps> = ({ user, onUpdate }) => {
         setIntroMessage(user.phoneConfig.introMessage);
     }
   }, [user?.phoneConfig]);
+
+  // Get (or lazily create) the answering bot so knowledge/PDFs can be
+  // uploaded here even before a phone number is purchased.
+  useEffect(() => {
+    let cancelled = false;
+    fetch(buildApiUrl('/phone/voice-bot'), { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!cancelled && data?.botId) setVoiceBotId(data.botId);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchCalls = () => {
+      fetch(buildApiUrl('/phone/calls'), { credentials: 'include' })
+        .then((r) => (r.ok ? r.json() : []))
+        .then((data) => {
+          if (!cancelled && Array.isArray(data)) setRecentCalls(data);
+        })
+        .catch(() => {});
+    };
+    fetchCalls();
+    const interval = setInterval(fetchCalls, 15000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
 
   const playVoicePreview = async (voiceId: string) => {
     setIsPlayingPreview(voiceId);
@@ -210,6 +257,35 @@ export const PhoneAgent: React.FC<PhoneAgentProps> = ({ user, onUpdate }) => {
               ))}
             </div>
           </div>
+
+          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="p-2 bg-blue-50 text-blue-900 rounded-lg">
+                <Database size={18} />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-800">
+                  Business Info &amp; Knowledge Base
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Upload PDFs or paste a website URL — your AI will use this to
+                  answer caller questions accurately.
+                </p>
+              </div>
+            </div>
+            {voiceBotId ? (
+              <KnowledgeBaseManager
+                botId={voiceBotId}
+                documents={[]}
+                onDocumentsChange={() => {}}
+              />
+            ) : (
+              <div className="flex items-center gap-2 text-sm text-slate-500 py-4">
+                <Loader size={16} className="animate-spin" />
+                Setting up your knowledge base...
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Sidebar */}
@@ -235,46 +311,48 @@ export const PhoneAgent: React.FC<PhoneAgentProps> = ({ user, onUpdate }) => {
             <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
               <Voicemail size={18} className="text-blue-900" /> Recent Calls
             </h3>
-            <div className="space-y-3">
-              {[
-                {
-                  from: '(415) 555-0123',
-                  time: '10m ago',
-                  duration: '2m 14s',
-                  status: 'missed',
-                },
-                {
-                  from: '(212) 555-0988',
-                  time: '1h ago',
-                  duration: '5m 32s',
-                  status: 'completed',
-                },
-                {
-                  from: '(310) 555-4422',
-                  time: '3h ago',
-                  duration: '1m 05s',
-                  status: 'completed',
-                },
-              ].map((call) => (
-                <div
-                  key={`${call.from}-${call.time}`}
-                  className="flex justify-between items-center text-sm border-b border-slate-50 last:border-0 pb-2 last:pb-0"
-                >
-                  <div>
-                    <p className="font-medium text-slate-700">{call.from}</p>
-                    <p className="text-xs text-slate-400">{call.time}</p>
-                  </div>
-                  <div className="text-right">
-                    <p
-                      className={`text-xs capitalize ${call.status === 'missed' ? 'text-red-500' : 'text-emerald-500'}`}
+            {recentCalls.length === 0 ? (
+              <p className="text-sm text-slate-400 py-2">
+                No calls yet. Once your number is live, calls will show up here.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {recentCalls.map((call) => {
+                  const missed = ['no-answer', 'busy', 'failed'].includes(
+                    call.status || '',
+                  );
+                  const minutes = Math.floor((call.duration || 0) / 60);
+                  const seconds = (call.duration || 0) % 60;
+                  return (
+                    <div
+                      key={call.id}
+                      className="flex justify-between items-center text-sm border-b border-slate-50 last:border-0 pb-2 last:pb-0"
                     >
-                      {call.status}
-                    </p>
-                    <p className="text-xs text-slate-400">{call.duration}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
+                      <div>
+                        <p className="font-medium text-slate-700">
+                          {call.caller_number || 'Unknown'}
+                        </p>
+                        <p className="text-xs text-slate-400">
+                          {call.started_at
+                            ? new Date(call.started_at).toLocaleString()
+                            : ''}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p
+                          className={`text-xs capitalize ${missed ? 'text-red-500' : 'text-emerald-500'}`}
+                        >
+                          {call.status || 'unknown'}
+                        </p>
+                        <p className="text-xs text-slate-400">
+                          {minutes}m {seconds.toString().padStart(2, '0')}s
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       </div>

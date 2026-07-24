@@ -152,6 +152,107 @@ describe('PUT /api/users/:id — profile save', () => {
   });
 });
 
+describe('GET /api/phone/voice-bot and /api/phone/calls', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('voice-bot returns the existing voice bot without creating a duplicate', async () => {
+    const token = await signToken({ sub: 'user-1' });
+    const botInserts: any[] = [];
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+        const u = String(url);
+        if (u.includes('/rest/v1/users')) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => [AUTH_USER_ROW],
+          });
+        }
+        if (u.includes('/rest/v1/bots') && init?.method === 'POST') {
+          botInserts.push(JSON.parse(String(init.body)));
+          return Promise.resolve({ ok: true, json: async () => [] });
+        }
+        if (u.includes('/rest/v1/bots')) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => [{ id: 'existing-voice-bot' }],
+          });
+        }
+        return Promise.resolve({ ok: true, json: async () => [] });
+      }),
+    );
+
+    const req = {
+      method: 'GET',
+      url: '/api/phone/voice-bot',
+      headers: { cookie: `bmb_session=${token}` },
+      body: {},
+    } as unknown as VercelRequest;
+    const res = mockRes();
+
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.botId).toBe('existing-voice-bot');
+    expect(botInserts.length).toBe(0);
+  });
+
+  it('calls returns call_logs scoped to the user’s own voice bots', async () => {
+    const token = await signToken({ sub: 'user-1' });
+    let callLogsUrl: string | null = null;
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        const u = String(url);
+        if (u.includes('/rest/v1/users')) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => [AUTH_USER_ROW],
+          });
+        }
+        if (u.includes('/rest/v1/bots')) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => [{ id: 'voice-bot-1' }],
+          });
+        }
+        if (u.includes('/rest/v1/call_logs')) {
+          callLogsUrl = u;
+          return Promise.resolve({
+            ok: true,
+            json: async () => [
+              {
+                id: 'call-1',
+                caller_number: '+15550001111',
+                status: 'completed',
+              },
+            ],
+          });
+        }
+        return Promise.resolve({ ok: true, json: async () => [] });
+      }),
+    );
+
+    const req = {
+      method: 'GET',
+      url: '/api/phone/calls',
+      headers: { cookie: `bmb_session=${token}` },
+      body: {},
+    } as unknown as VercelRequest;
+    const res = mockRes();
+
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual([
+      { id: 'call-1', caller_number: '+15550001111', status: 'completed' },
+    ]);
+    expect(callLogsUrl).toContain('bot_id=in.%28voice-bot-1%29');
+  });
+});
+
 describe('POST /api/phone/purchase — real Twilio provisioning', () => {
   beforeEach(() => {
     vi.doMock('twilio', () => {

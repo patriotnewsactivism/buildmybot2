@@ -2316,7 +2316,30 @@ async function handlePhone(
 ) {
   const { twilioConfigured } = await import('./twilio/service.js');
 
-  if (pathParts[0] === 'available' && req.method === 'GET') {
+  if (pathParts[0] === 'voice-bot' && req.method === 'GET') {
+    // Lets the UI get (or lazily create) the answering bot's id up front —
+    // e.g. to upload knowledge/PDFs before a phone number is purchased —
+    // instead of only creating one at purchase time.
+    const botId = await findOrCreateVoiceBot(user);
+    if (!botId) {
+      return res.status(500).json({ error: 'Failed to prepare voice agent' });
+    }
+    res.json({ botId });
+  } else if (pathParts[0] === 'calls' && req.method === 'GET') {
+    const bots = await sbSelect('bots', 'id', {
+      ...ownerFilter(user),
+      type: 'eq.voice',
+    }).catch(() => []);
+    const botIds = (bots || []).map((b: any) => b.id);
+    if (!botIds.length) return res.json([]);
+    res.json(
+      await sbSelect('call_logs', '*', {
+        bot_id: `in.(${botIds.join(',')})`,
+        order: 'started_at.desc',
+        limit: '20',
+      }).catch(() => []),
+    );
+  } else if (pathParts[0] === 'available' && req.method === 'GET') {
     if (!twilioConfigured()) {
       return res.status(503).json({
         error:
