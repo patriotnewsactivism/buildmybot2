@@ -26,6 +26,7 @@ import {
   recallMemories,
   rememberMemory,
   salesAutomationDryRun,
+  trackAnalyticsEvent,
 } from '../ai-team/lib.js';
 import { initiateOutboundCall, twilioConfigured } from '../twilio/service.js';
 
@@ -347,6 +348,11 @@ async function processLead(lead: ResearchedLead): Promise<OutreachResult> {
         metadata: { method: 'email', industry: lead.industry, city: lead.city },
       });
 
+      await trackAnalyticsEvent({
+        eventType: 'outreach_sent',
+        eventData: { method: 'email', leadId: crmLeadId, industry: lead.industry },
+      });
+
       return {
         id: lead.id,
         company: lead.company_name,
@@ -412,6 +418,11 @@ async function processLead(lead: ResearchedLead): Promise<OutreachResult> {
         detail: `Call failed: ${callResult.error}`,
       };
     }
+
+    await trackAnalyticsEvent({
+      eventType: 'outreach_sent',
+      eventData: { method: 'call', leadId: crmLeadId, industry: lead.industry },
+    });
 
     return {
       id: lead.id,

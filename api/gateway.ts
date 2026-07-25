@@ -7,7 +7,7 @@ import {
   VOICE_PLANS,
   formatPricingForPrompt,
 } from '../constants.js';
-import { callLLMMessages } from './ai-team/lib.js';
+import { callLLMMessages, trackAnalyticsEvent } from './ai-team/lib.js';
 import {
   ingestKnowledgeSource,
   ingestPageChunks,
@@ -940,6 +940,11 @@ async function handleLeadCapture(req: VercelRequest, res: VercelResponse) {
         status: 'New',
         score: 50,
       });
+      await trackAnalyticsEvent({
+        eventType: 'lead_captured',
+        userId: owners[0].id,
+        eventData: { source: body.source || 'donmatthews.live' },
+      });
       return res.status(201).json({ success: true, leadId: r[0]?.id });
     } catch (err) {
       console.error('[handleLeadCapture] portfolio insert failed:', err);
@@ -974,6 +979,13 @@ async function handleLeadCapture(req: VercelRequest, res: VercelResponse) {
       phone: body.phone || null,
       status: 'New',
       score,
+    });
+
+    await trackAnalyticsEvent({
+      eventType: 'lead_captured',
+      botId: body.botId,
+      userId: ownerUserId,
+      eventData: { score },
     });
 
     // Instant Alerts: notify the bot owner immediately for hot leads (score

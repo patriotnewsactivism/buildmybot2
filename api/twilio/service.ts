@@ -12,7 +12,7 @@
  * Every call is logged to the `leads` outreach fields and `call_logs` table.
  */
 
-import { salesAutomationDryRun } from '../ai-team/lib.js';
+import { salesAutomationDryRun, trackAnalyticsEvent } from '../ai-team/lib.js';
 
 const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
@@ -271,5 +271,12 @@ export async function logCallOutcome(opts: {
     });
   } catch {
     // Memory write is non-blocking
+  }
+
+  if (opts.status === 'completed') {
+    await trackAnalyticsEvent({
+      eventType: 'call_completed',
+      eventData: { leadId: opts.leadId, duration: opts.duration },
+    });
   }
 }

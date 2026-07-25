@@ -8,6 +8,7 @@ import {
   rememberMemory,
   runAgentTask,
   salesAutomationDryRun,
+  trackAnalyticsEvent,
 } from '../ai-team/lib.js';
 
 // Autonomous Lead Follow-Up worker for BuildMyBot.App.
@@ -185,6 +186,10 @@ async function markFollowupSent(leadId: string, note: string) {
       last_ai_action_at: new Date().toISOString(),
       ai_notes: note.slice(0, 1000),
     }),
+  });
+  await trackAnalyticsEvent({
+    eventType: 'followup_sent',
+    eventData: { leadId },
   });
 }
 
