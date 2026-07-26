@@ -14,7 +14,7 @@
 const SUPABASE_URL = process.env.SUPABASE_URL!;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-type Provider = 'groq' | 'gemini' | 'cerebras' | 'openrouter' | 'openrouter2' | 'github' | 'qwen' | 'openai';
+type Provider = 'groq' | 'gemini' | 'cerebras' | 'cohere' | 'openrouter' | 'openrouter2' | 'github' | 'openai';
 
 const PROVIDER_CONFIG: Record<
   Provider,
@@ -42,6 +42,14 @@ const PROVIDER_CONFIG: Record<
     model: 'gpt-oss-120b',
     keyEnv: 'CEREBRAS_API_KEY',
   },
+  // Production-tier Cohere key (confirmed live via direct completion test,
+  // 2026-07-26 portfolio-wide LLM audit). Placed ahead of gemini/openrouter
+  // since those two showed simultaneous rate-limit exhaustion same day.
+  cohere: {
+    baseURL: 'https://api.cohere.ai/compatibility/v1/chat/completions',
+    model: 'command-r-plus-08-2024',
+    keyEnv: 'COHERE_API_KEY',
+  },
   // Aggregator with a rotating catalog of genuinely free models. WARNING:
   // the :free catalog churns — llama-3.1-8b-instruct:free died in the
   // 2026-07-22 purge and this provider silently failed on every call until
@@ -67,15 +75,7 @@ const PROVIDER_CONFIG: Record<
     model: 'openai/gpt-4.1',
     keyEnv: 'GITHUB_TOKEN_4',
   },
-  // Qwen Cloud (Alibaba Cloud Model Studio, international dashscope-intl
-  // endpoint -- NOT the mainland Bailian console, separate account/URL).
-  // PAID pay-as-you-go, NOT free -- placed after every free provider above,
-  // only ahead of the paid OpenAI last resort. Live-verified 2026-07-20.
-  qwen: {
-    baseURL: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions',
-    model: 'qwen3-coder-plus',
-    keyEnv: 'QWENCLOUD_API_KEY',
-  },
+  // Qwen Cloud removed 2026-07-26 -- confirmed dead/blocked across the entire portfolio (401 on every cached key variant).
   // Paid last resort / use for anything customer-facing where quality matters most.
   openai: {
     baseURL: 'https://api.openai.com/v1/chat/completions',
@@ -85,13 +85,13 @@ const PROVIDER_CONFIG: Record<
 };
 
 const FALLBACK_ORDER: Provider[] = [
-  'gemini',
-  'groq',
   'cerebras',
+  'groq',
+  'cohere',
+  'gemini',
   'openrouter',
   'openrouter2',
   'github',
-  'qwen',
   'openai',
 ];
 
