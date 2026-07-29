@@ -11,3 +11,4 @@ dist-server/
 supabase/.temp/
 .vercel
 .env*
+.env*.local
