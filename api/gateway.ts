@@ -1241,50 +1241,189 @@ async function handleAdmin(
     res.json([]);
   } else if (sub === 'financial') {
     const fsub = pathParts[1] || '';
-    // NOTE: there is no real Stripe (or other) billing integration wired
-    // into this gateway yet -- handleStripe only returns static plan
-    // metadata and placeholder checkout URLs. These endpoints return
-    // honest zeroed/empty shapes so the Financial dashboard renders
-    // instead of crashing, rather than fabricating numbers. Wiring real
-    // invoices/refunds/payouts requires a real Stripe integration first.
+    // Real Stripe wiring added 2026-08-06. handleStripe (checkout/portal) and
+    // api/stripe-webhook.ts (subscription lifecycle + commissions) were
+    // ALREADY real -- only this admin dashboard section was still returning
+    // the honest zeroed/empty shapes below, from before those were wired up.
+    // Same gate-on-STRIPE_SECRET_KEY / dynamic `import('stripe')` pattern
+    // already used by the 'Billing' AI-employee task type further down this
+    // file -- kept consistent rather than introducing a second Stripe client
+    // pattern. Falls back to the original honest-empty behavior if the key
+    // isn't configured, so this never fabricates numbers.
+    const stripeConfigured = !!process.env.STRIPE_SECRET_KEY;
     if (fsub === 'overview') {
       // FinancialDashboard.tsx's `FinancialOverview` interface expects
       // { mrrCents, arrCents, churnRate, activeCustomers, churnedCustomers }
       // -- this used to return { mrr, arr, totalRevenue, ... } (different
       // field names entirely), so `displayOverview.churnRate.toFixed(2)`
       // read undefined and crashed, blanking the whole admin overview tab.
-      const orgs = await sbSelect(
-        'organizations',
-        'id,plan,deleted_at',
-        {},
-      ).catch(() => []);
-      const activeCustomers = orgs.filter((o: any) => !o.deleted_at).length;
-      const mrr = orgs.reduce(
-        (sum: number, o: any) => sum + (PLAN_PRICES[o.plan] || 0),
-        0,
-      );
-      res.json({
-        mrrCents: Math.round(mrr * 100),
-        arrCents: Math.round(mrr * 12 * 100),
-        churnRate: 0,
-        activeCustomers,
-        churnedCustomers: 0,
-        wired: false,
-        message:
-          'No billing provider connected yet -- churn/churned figures are not tracked until Stripe is wired up.',
-      });
+      if (!stripeConfigured) {
+        const orgs = await sbSelect(
+          'organizations',
+          'id,plan,deleted_at',
+          {},
+        ).catch(() => []);
+        const activeCustomers = orgs.filter((o: any) => !o.deleted_at).length;
+        const mrr = orgs.reduce(
+          (sum: number, o: any) => sum + (PLAN_PRICES[o.plan] || 0),
+          0,
+        );
+        res.json({
+          mrrCents: Math.round(mrr * 100),
+          arrCents: Math.round(mrr * 12 * 100),
+          churnRate: 0,
+          activeCustomers,
+          churnedCustomers: 0,
+          wired: false,
+          message:
+            'No billing provider connected yet -- churn/churned figures are not tracked until Stripe is wired up.',
+        });
+      } else {
+        try {
+          const Stripe = (await import('stripe')).default;
+          const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+            apiVersion: '2025-08-27.basil' as any,
+          });
+          // Single-page (100) cap, consistent with the Billing employee-task
+          // pattern elsewhere in this file -- not a full-pagination crawl.
+          const [activeSubs, trialingSubs, canceledSubs] = await Promise.all([
+            stripe.subscriptions.list({ status: 'active', limit: 100 }),
+            stripe.subscriptions.list({ status: 'trialing', limit: 100 }),
+            stripe.subscriptions.list({ status: 'canceled', limit: 100 }),
+          ]);
+          const liveSubs = [...activeSubs.data, ...trialingSubs.data];
+          // Normalize every subscription item to a monthly amount so annual
+          // plans don't inflate MRR by 12x.
+          const monthlyAmount = (sub: any): number =>
+            (sub.items?.data || []).reduce((s: number, item: any) => {
+              const unit = item.price?.unit_amount || 0;
+              const qty = item.quantity || 1;
+              const interval = item.price?.recurring?.interval;
+              const perMonth =
+                interval === 'year'
+                  ? (unit * qty) / 12
+                  : interval === 'week'
+                    ? unit * qty * (52 / 12)
+                    : unit * qty; // month or unrecognized -- treat as monthly
+              return s + perMonth;
+            }, 0);
+          const mrrCents = Math.round(
+            liveSubs.reduce((s, sub) => s + monthlyAmount(sub), 0),
+          );
+          const thirtyDaysAgo = Math.floor(Date.now() / 1000) - 30 * 86400;
+          const churnedRecent = canceledSubs.data.filter(
+            (s: any) => (s.canceled_at || 0) >= thirtyDaysAgo,
+          );
+          const activeCustomers = new Set(
+            liveSubs.map((s: any) => s.customer),
+          ).size;
+          const churnedCustomers = new Set(
+            churnedRecent.map((s: any) => s.customer),
+          ).size;
+          const churnRate =
+            activeCustomers + churnedCustomers > 0
+              ? (churnedCustomers / (activeCustomers + churnedCustomers)) * 100
+              : 0;
+          res.json({
+            mrrCents,
+            arrCents: mrrCents * 12,
+            churnRate: Math.round(churnRate * 100) / 100,
+            activeCustomers,
+            churnedCustomers,
+            wired: true,
+          });
+        } catch (err: any) {
+          console.error('[financial/overview] Stripe fetch failed:', err.message);
+          // Never let a live Stripe error blank the whole admin tab --
+          // degrade to the same honest-zero shape used when unconfigured.
+          res.json({
+            mrrCents: 0,
+            arrCents: 0,
+            churnRate: 0,
+            activeCustomers: 0,
+            churnedCustomers: 0,
+            wired: false,
+            message: `Stripe fetch failed: ${err.message}`,
+          });
+        }
+      }
     } else if (fsub === 'invoices') {
-      res.json([]);
+      if (!stripeConfigured) {
+        res.json([]);
+      } else {
+        try {
+          const Stripe = (await import('stripe')).default;
+          const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+            apiVersion: '2025-08-27.basil' as any,
+          });
+          const invoices = await stripe.invoices.list({ limit: 100 });
+          res.json(
+            invoices.data.map((inv: any) => ({
+              id: inv.id,
+              customer_email: inv.customer_email || '',
+              amount_due: inv.amount_due,
+              amount_paid: inv.amount_paid,
+              status: inv.status,
+              created: inv.created,
+              due_date: inv.due_date,
+            })),
+          );
+        } catch (err: any) {
+          console.error('[financial/invoices] Stripe fetch failed:', err.message);
+          res.json([]);
+        }
+      }
     } else if (fsub === 'refunds') {
-      res.json([]);
+      if (!stripeConfigured) {
+        res.json([]);
+      } else {
+        try {
+          const Stripe = (await import('stripe')).default;
+          const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+            apiVersion: '2025-08-27.basil' as any,
+          });
+          const refunds = await stripe.refunds.list({ limit: 100 });
+          res.json(
+            refunds.data.map((r: any) => ({
+              id: r.id,
+              amount: r.amount,
+              status: r.status,
+              reason: r.reason,
+              created: r.created,
+            })),
+          );
+        } catch (err: any) {
+          console.error('[financial/refunds] Stripe fetch failed:', err.message);
+          res.json([]);
+        }
+      }
     } else if (fsub === 'stripe-health') {
       // FinancialDashboard.tsx reads `stripeHealth?.ok` -- include both keys
       // for compatibility.
-      res.json({
-        ok: false,
-        connected: false,
-        message: 'Stripe is not connected',
-      });
+      if (!stripeConfigured) {
+        res.json({
+          ok: false,
+          connected: false,
+          message: 'Stripe is not connected',
+        });
+      } else {
+        try {
+          const Stripe = (await import('stripe')).default;
+          const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+            apiVersion: '2025-08-27.basil' as any,
+          });
+          // Cheapest real call that proves the key actually works end-to-end
+          // against Stripe's API, not just "the env var is set."
+          await stripe.balance.retrieve();
+          res.json({ ok: true, connected: true, message: 'Stripe connected' });
+        } catch (err: any) {
+          res.json({
+            ok: false,
+            connected: false,
+            message: err.message || 'Stripe health check failed',
+          });
+        }
+      }
     } else if (fsub === 'features-usage') {
       // AdminFeaturesOverview.tsx expects { plans, addons, usage } -- this
       // used to return a bare `[]`, so `stats.usage.totalConversations`
