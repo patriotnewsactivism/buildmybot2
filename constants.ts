@@ -1,15 +1,36 @@
-import { PlanType } from './types';
+// NOTE: explicit .js extension is REQUIRED — api/gateway.ts imports this file,
+// and Vercel's serverless ESM runtime does real Node module resolution (no
+// bundler). An extensionless './types' crashes every /api/* route at cold
+// start (ERR_MODULE_NOT_FOUND). Vite resolves .js → .ts fine for the frontend.
+import { PlanType } from './types.js';
 
+/**
+ * Canonical plan definitions — the single source of truth for BOTH the
+ * marketing surface (pricing page, dashboard display) and backend enforcement.
+ *
+ * `conversations` is the number shown to customers ("included"). Enforcement
+ * limits are derived by `PLAN_LIMITS` below; a plan may set `conversationsLimit`
+ * when the enforced cap differs from the advertised "included" number (e.g.
+ * Enterprise bills overage rather than hard-blocking). `knowledgeSources`,
+ * `leads`, and `trialDays` are enforcement-only fields consumed by the gateway.
+ *
+ * ⚠️ Keep advertised === enforced. api/gateway.ts imports PLAN_LIMITS from here
+ * so the two can't drift. Do not reintroduce a second limits table.
+ */
 export const PLANS = {
   [PlanType.FREE]: {
     price: 0,
     bots: 1,
-    conversations: 60,
+    conversations: 250,
+    knowledgeSources: 3,
+    leads: 50,
+    phoneMinutes: 0,
+    trialDays: 0,
     name: 'Free',
     features: [
       'Drag-and-drop website widget',
       '1 bot with branded colors',
-      '60 conversations/month',
+      '250 conversations/month',
       '50MB knowledge base storage',
       'Basic FAQs & lead capture',
       'Email transcript export',
@@ -20,6 +41,10 @@ export const PLANS = {
     price: 29,
     bots: 1,
     conversations: 750,
+    knowledgeSources: 10,
+    leads: 500,
+    phoneMinutes: 0,
+    trialDays: 0,
     name: 'Starter',
     features: [
       'Website + landing page embeds',
@@ -37,6 +62,10 @@ export const PLANS = {
     price: 99,
     bots: 5,
     conversations: 5000,
+    knowledgeSources: 50,
+    leads: 5000,
+    phoneMinutes: 0,
+    trialDays: 0,
     name: 'Professional',
     features: [
       '5 bots for multiple brands',
@@ -55,6 +84,13 @@ export const PLANS = {
     price: 199,
     bots: 10,
     conversations: 30000,
+    knowledgeSources: 200,
+    leads: 50000,
+    // No phone-minutes figure was ever published anywhere (marketing copy
+    // just says "Voice & phone agent included" with no number) — this is a
+    // placeholder pending a real decision, not a previously-advertised value.
+    phoneMinutes: 500,
+    trialDays: 0,
     name: 'Executive',
     features: [
       '10 bots with shared knowledge bases',
@@ -71,7 +107,14 @@ export const PLANS = {
   [PlanType.ENTERPRISE]: {
     price: 499,
     bots: 9999, // Unlimited
-    conversations: 50000,
+    conversations: 50000, // included; billed overage beyond this
+    conversationsLimit: 999999, // enforcement cap (overage billed, not blocked)
+    knowledgeSources: 999,
+    leads: 999999,
+    // Same caveat as Executive — placeholder pending a real published figure.
+    phoneMinutes: 2000,
+    phoneMinutesOverage: 0.1, // $ per overage minute, billed not blocked
+    trialDays: 0,
     name: 'Enterprise', // Updated from Ultimate Power
     overage: 0.01,
     features: [
@@ -89,6 +132,79 @@ export const PLANS = {
     ],
   },
 };
+
+/**
+ * Standalone voice/phone-agent plans — purchasable on their own regardless
+ * of chatbot plan tier (Free through Professional don't include phone
+ * minutes at all), and also bundled for free into Executive/Enterprise
+ * (see PLANS[EXECUTIVE/ENTERPRISE].phoneMinutes above). A user's effective
+ * phone-minutes limit is whichever is higher: their standalone voice plan
+ * (if any) or their chatbot plan's bundled amount — see
+ * getPhoneMinutesLimit() in api/gateway.ts.
+ *
+ * ⚠️ Same caveat as the bundled figures above: these numbers are not
+ * previously-published prices, they're a starting point pending a real
+ * pricing decision.
+ */
+export const VOICE_PLANS = {
+  VOICE_BASIC: {
+    price: 49,
+    minutes: 150,
+    name: 'Voice Basic',
+  },
+  VOICE_STANDARD: {
+    price: 129,
+    minutes: 450,
+    name: 'Voice Standard',
+  },
+  VOICE_PROFESSIONAL: {
+    price: 199,
+    minutes: 1000,
+    name: 'Voice Professional',
+  },
+};
+
+/**
+ * Backend enforcement limits, derived from PLANS so advertised === enforced.
+ * Shape matches what api/gateway.ts getPlanLimits() / checkQuota() expect.
+ * Keyed by upper-case plan key (PlanType values are already upper-case).
+ */
+export const PLAN_LIMITS: Record<
+  string,
+  {
+    bots: number;
+    conversations_per_month: number;
+    knowledge_sources: number;
+    leads: number;
+    phone_minutes: number;
+    trial_days: number;
+  }
+> = Object.fromEntries(
+  Object.entries(PLANS).map(([key, plan]) => [
+    key.toUpperCase(),
+    {
+      bots: plan.bots,
+      conversations_per_month:
+        'conversationsLimit' in plan
+          ? (plan as { conversationsLimit: number }).conversationsLimit
+          : plan.conversations,
+      knowledge_sources: plan.knowledgeSources,
+      leads: plan.leads,
+      phone_minutes: 'phoneMinutes' in plan ? plan.phoneMinutes : 0,
+      trial_days: plan.trialDays,
+    },
+  ]),
+);
+
+/**
+ * Human-readable pricing line for LLM prompts (AI voice/chat agents), generated
+ * from PLANS so the AI never quotes stale prices. Free is labelled $0.
+ */
+export function formatPricingForPrompt(): string {
+  return Object.values(PLANS)
+    .map((p) => `${p.name} $${p.price}/mo`)
+    .join(', ');
+}
 
 export const RESELLER_TIERS = [
   { min: 0, max: 49, commission: 0.2, label: 'Bronze' },

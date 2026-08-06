@@ -13,10 +13,13 @@ docs are historical._
 | **Email (outbound)** | Resend HTTP API, or the SMTP_* block (already configured on production) | — |
 | **Email (inbound)** | Your mail provider forwards to `POST /api/email/inbound` | — |
 
-**Not the official backend:** the Express server in `server/` is a local-dev
-codebase that cannot currently boot (see README "Deployment topology"). Do not
-deploy it; the Dockerfile/railway.json that target it are parked. The Railway
-account has no projects — nothing runs there.
+**No other backend exists in this repo.** An earlier local-dev Express
+path (`server/`) was planned but never committed (see README "Deployment
+topology") — there's no Dockerfile or railway.json here either. The Railway
+account has no projects — nothing runs there. `package.json` still has a
+handful of dead scripts referencing the never-committed `server/` dir
+(`dev`, `server`, `start`, `check:server`, various `seed:*`); they'll fail
+if invoked, and cleaning them up is a separate task.
 
 > ⚠️ Several Vercel projects build this repo. **Production is `buildmybot20`**
 > (team `don-matthews-projects`) — verified by domain attachment: it holds

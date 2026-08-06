@@ -2,7 +2,6 @@ import {
   ArrowLeft,
   ArrowRight,
   CheckCircle,
-  Key,
   Loader,
   MessageSquare,
   Mic,
@@ -19,6 +18,11 @@ import type React from 'react';
 import { useState } from 'react';
 import { buildApiUrl } from '../../services/apiConfig';
 import type { User } from '../../types';
+import {
+  DEFAULT_VOICE_ID,
+  VOICE_OPTIONS,
+  fetchVoicePreview,
+} from './voiceOptions';
 
 interface VoiceSetupWizardProps {
   user: User;
@@ -30,56 +34,10 @@ interface VoiceConfig {
   enabled: boolean;
   voiceId: string;
   introMessage: string;
-  cartesiaApiKey: string;
   delegationLink?: string;
   phoneNumber?: string;
   twilioSid?: string;
 }
-
-const VOICE_OPTIONS = [
-  {
-    id: 'a0e99841-438c-4a64-b679-ae501e7d6091',
-    name: 'Katie',
-    description: 'Professional female voice',
-    personality: 'Clear, professional, trustworthy',
-    bestFor: 'Customer support, professional services',
-  },
-  {
-    id: 'f786b574-daa5-4673-aa0c-cbe3e8534c02',
-    name: 'Sarah',
-    description: 'Warm, conversational',
-    personality: 'Friendly, approachable, helpful',
-    bestFor: 'Sales, hospitality, general inquiries',
-  },
-  {
-    id: '79a125e8-cd45-4c13-8a67-188112f4dd22',
-    name: 'British Lady',
-    description: 'British accent',
-    personality: 'Sophisticated, polished, refined',
-    bestFor: 'Luxury brands, travel, consulting',
-  },
-  {
-    id: '421b3369-f63f-4b03-8980-37a44df1d4e8',
-    name: 'Confident Man',
-    description: 'Professional male',
-    personality: 'Authoritative, confident, clear',
-    bestFor: 'Finance, legal, technical support',
-  },
-  {
-    id: '87748186-23bb-4158-a1eb-332911b0b708',
-    name: 'Friendly Man',
-    description: 'Approachable male',
-    personality: 'Casual, friendly, energetic',
-    bestFor: 'Fitness, retail, casual services',
-  },
-  {
-    id: 'c2ac25f9-efd4-4f5d-8545-4e4212d7a5e5',
-    name: 'Storyteller',
-    description: 'Engaging narrator',
-    personality: 'Expressive, engaging, dynamic',
-    bestFor: 'Education, entertainment, marketing',
-  },
-];
 
 const GREETING_TEMPLATES = [
   {
@@ -114,10 +72,8 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
   const [step, setStep] = useState<WizardStep>(1);
   const [config, setConfig] = useState<VoiceConfig>({
     enabled: true,
-    voiceId:
-      user.phoneConfig?.voiceId || 'a0e99841-438c-4a64-b679-ae501e7d6091',
+    voiceId: user.phoneConfig?.voiceId || DEFAULT_VOICE_ID,
     introMessage: user.phoneConfig?.introMessage || GREETING_TEMPLATES[0].text,
-    cartesiaApiKey: user.phoneConfig?.cartesiaApiKey || '',
     delegationLink: user.phoneConfig?.delegationLink || '',
     phoneNumber: user.phoneConfig?.phoneNumber || '',
     twilioSid: user.phoneConfig?.twilioSid || '',
@@ -134,91 +90,66 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
   const [isPurchasing, setIsPurchasing] = useState(false);
   const [purchaseError, setPurchaseError] = useState<string | null>(null);
 
+  // Standalone voice-plan gating — phone can be purchased on its own
+  // regardless of chatbot plan tier, but needs SOME plan (bundled or
+  // standalone) with minutes on it first.
+  const [voicePlanRequired, setVoicePlanRequired] = useState(false);
+  const [voicePlanOptions, setVoicePlanOptions] = useState<
+    Record<string, { price: number; minutes: number; name: string }>
+  >({});
+  const [selectingPlan, setSelectingPlan] = useState<string | null>(null);
+
+  const handleSelectVoicePlan = async (planKey: string) => {
+    setSelectingPlan(planKey);
+    try {
+      const response = await fetch(buildApiUrl('/phone/voice-plan'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ voicePlan: planKey }),
+      });
+      if (!response.ok) throw new Error('Failed to select voice plan');
+      setVoicePlanRequired(false);
+      setPurchaseError(null);
+    } catch (err: any) {
+      setPurchaseError(err.message || 'Error selecting voice plan');
+    } finally {
+      setSelectingPlan(null);
+    }
+  };
+
   const selectedVoice =
     VOICE_OPTIONS.find((v) => v.id === config.voiceId) || VOICE_OPTIONS[0];
 
   const handlePlayPreview = async (voiceId: string) => {
-    if (!config.cartesiaApiKey) {
-      alert('Please enter your Cartesia API key first on Step 1');
-      return;
-    }
-
     setIsPlayingPreview(voiceId);
     try {
-      const response = await fetch('https://api.cartesia.ai/tts/bytes', {
-        method: 'POST',
-        headers: {
-          'Cartesia-Version': '2024-06-10',
-          'X-API-Key': config.cartesiaApiKey,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model_id: 'sonic-2',
-          transcript:
-            'Hello! This is a preview of how I sound. How can I help you today?',
-          voice: { mode: 'id', id: voiceId },
-          output_format: {
-            container: 'mp3',
-            encoding: 'mp3',
-            sample_rate: 44100,
-          },
-        }),
+      const audio = await fetchVoicePreview(voiceId);
+      audio.addEventListener('ended', () => setIsPlayingPreview(null), {
+        once: true,
       });
-
-      if (!response.ok) throw new Error('Voice preview failed');
-
-      const audioBlob = await response.blob();
-      const audioUrl = URL.createObjectURL(audioBlob);
-      const audio = new Audio(audioUrl);
-      audio.onended = () => {
-        setIsPlayingPreview(null);
-        URL.revokeObjectURL(audioUrl);
-      };
       await audio.play();
     } catch (err) {
       console.error(err);
-      alert('Voice preview failed. Please check your Cartesia API key.');
+      alert('Voice preview is temporarily unavailable. Please try again.');
       setIsPlayingPreview(null);
     }
   };
 
   const handleTestCall = async () => {
-    if (!config.cartesiaApiKey) {
-      alert('Please enter your Cartesia API key first');
-      return;
-    }
-
     setTestCallStatus('calling');
     try {
-      const response = await fetch('https://api.cartesia.ai/tts/bytes', {
-        method: 'POST',
-        headers: {
-          'Cartesia-Version': '2024-06-10',
-          'X-API-Key': config.cartesiaApiKey,
-          'Content-Type': 'application/json',
+      const audio = await fetchVoicePreview(
+        config.voiceId,
+        config.introMessage,
+      );
+      audio.addEventListener(
+        'ended',
+        () => {
+          setTestCallStatus('success');
+          setTimeout(() => setTestCallStatus('idle'), 2000);
         },
-        body: JSON.stringify({
-          model_id: 'sonic-2',
-          transcript: config.introMessage,
-          voice: { mode: 'id', id: config.voiceId },
-          output_format: {
-            container: 'mp3',
-            encoding: 'mp3',
-            sample_rate: 44100,
-          },
-        }),
-      });
-
-      if (!response.ok) throw new Error('Test call failed');
-
-      const audioBlob = await response.blob();
-      const audioUrl = URL.createObjectURL(audioBlob);
-      const audio = new Audio(audioUrl);
-      audio.onended = () => {
-        setTestCallStatus('success');
-        URL.revokeObjectURL(audioUrl);
-        setTimeout(() => setTestCallStatus('idle'), 2000);
-      };
+        { once: true },
+      );
       await audio.play();
     } catch (err) {
       console.error(err);
@@ -273,6 +204,13 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
         }),
       });
 
+      if (response.status === 402) {
+        const err = await response.json();
+        setVoicePlanOptions(err.voicePlans || {});
+        setVoicePlanRequired(true);
+        return;
+      }
+
       if (!response.ok) {
         const err = await response.json();
         throw new Error(err.error || 'Failed to purchase number');
@@ -314,10 +252,6 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
   };
 
   const handleNext = () => {
-    if (step === 1 && !config.cartesiaApiKey) {
-      alert('Please enter your Cartesia API key to continue');
-      return;
-    }
     if (step < 5) {
       const nextStep = Math.min(step + 1, 5) as WizardStep;
       setStep(nextStep);
@@ -369,7 +303,7 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
             ))}
           </div>
           <div className="flex justify-between mt-2 text-xs text-slate-500">
-            <span>API Key</span>
+            <span>Welcome</span>
             <span>Voice</span>
             <span>Greeting</span>
             <span>Phone</span>
@@ -379,17 +313,19 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
 
         {/* Content */}
         <div className="p-6">
-          {/* Step 1: API Key */}
+          {/* Step 1: Welcome */}
           {step === 1 && (
             <div className="space-y-6 animate-fade-in">
               <div>
                 <h3 className="text-lg font-semibold text-slate-900 mb-2 flex items-center gap-2">
-                  <Key size={20} className="text-blue-600" />
-                  Connect Cartesia AI
+                  <Sparkles size={20} className="text-blue-600" />
+                  Set up your AI voice agent
                 </h3>
                 <p className="text-sm text-slate-600">
-                  Cartesia provides ultra-realistic voice synthesis. You'll need
-                  an API key to enable phone calls.
+                  Realistic Grok voices are built into the platform — there's no
+                  third-party API key to configure. In the next steps you'll
+                  pick a voice, write your greeting, choose a phone number, and
+                  hear a live test.
                 </p>
               </div>
 
@@ -398,44 +334,14 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
                   <Shield className="text-blue-600 shrink-0 mt-0.5" size={20} />
                   <div>
                     <p className="text-sm font-medium text-blue-900">
-                      Secure Setup
+                      Nothing to install
                     </p>
                     <p className="text-xs text-blue-700 mt-1">
-                      Your API key is encrypted and never shared. We use it only
-                      to generate voice responses.
+                      Voice synthesis runs securely on our servers. Your callers
+                      hear a natural AI voice with no setup on your end.
                     </p>
                   </div>
                 </div>
-              </div>
-
-              <div>
-                <label
-                  htmlFor="voice-setup-api-key"
-                  className="block text-sm font-medium text-slate-700 mb-2"
-                >
-                  Cartesia API Key
-                </label>
-                <input
-                  id="voice-setup-api-key"
-                  type="password"
-                  value={config.cartesiaApiKey}
-                  onChange={(e) =>
-                    setConfig({ ...config, cartesiaApiKey: e.target.value })
-                  }
-                  placeholder="sk-..."
-                  className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-600 focus:border-transparent font-mono text-sm"
-                />
-                <p className="text-xs text-slate-500 mt-2">
-                  Don't have an API key?{' '}
-                  <a
-                    href="https://cartesia.ai"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 hover:underline"
-                  >
-                    Sign up at Cartesia.ai
-                  </a>
-                </p>
               </div>
 
               <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
@@ -658,6 +564,47 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
                 </div>
               )}
 
+              {voicePlanRequired && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-5 space-y-4">
+                  <div>
+                    <h4 className="font-semibold text-slate-900">
+                      Add a voice plan to get a phone number
+                    </h4>
+                    <p className="text-sm text-slate-600 mt-1">
+                      Voice is its own add-on — pick a plan to unlock phone
+                      number purchase. No chatbot plan upgrade required.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {Object.entries(voicePlanOptions).map(([key, plan]) => (
+                      <button
+                        type="button"
+                        key={key}
+                        onClick={() => handleSelectVoicePlan(key)}
+                        disabled={selectingPlan === key}
+                        className="text-left p-4 rounded-lg border-2 border-blue-200 bg-white hover:border-blue-600 transition disabled:opacity-50"
+                      >
+                        <p className="font-semibold text-slate-900">
+                          {plan.name}
+                        </p>
+                        <p className="text-lg font-bold text-blue-600 mt-1">
+                          ${plan.price}/mo
+                        </p>
+                        <p className="text-xs text-slate-500 mt-1">
+                          {plan.minutes} minutes
+                        </p>
+                        {selectingPlan === key && (
+                          <span className="text-xs text-blue-600 mt-2 inline-flex items-center gap-1">
+                            <Loader size={12} className="animate-spin" />
+                            Selecting...
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {config.phoneNumber ? (
                 <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-center">
                   <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
@@ -863,7 +810,6 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
               <button
                 type="button"
                 onClick={handleNext}
-                disabled={step === 1 && !config.cartesiaApiKey}
                 className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium flex items-center gap-2 transition"
               >
                 Next

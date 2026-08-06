@@ -1,6 +1,13 @@
+import { Readable } from 'node:stream';
 import * as Sentry from '@sentry/node';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { callLLMMessages } from './ai-team/lib.js';
+import multer from 'multer';
+import {
+  PLAN_LIMITS,
+  VOICE_PLANS,
+  formatPricingForPrompt,
+} from '../constants.js';
+import { callLLMMessages, trackAnalyticsEvent } from './ai-team/lib.js';
 import {
   ingestKnowledgeSource,
   ingestPageChunks,
@@ -175,45 +182,11 @@ export function ownerFilter(user: AuthUser): Record<string, string> {
 }
 
 // ─── Plan Limits & Usage Enforcement ──────────────────────────────────
-const PLAN_LIMITS_CONFIG: Record<
-  string,
-  {
-    bots: number;
-    conversations_per_month: number;
-    knowledge_sources: number;
-    leads: number;
-    trial_days: number;
-  }
-> = {
-  FREE: {
-    bots: 1,
-    conversations_per_month: 250,
-    knowledge_sources: 3,
-    leads: 50,
-    trial_days: 0,
-  },
-  STARTER: {
-    bots: 3,
-    conversations_per_month: 1000,
-    knowledge_sources: 10,
-    leads: 500,
-    trial_days: 0,
-  },
-  PROFESSIONAL: {
-    bots: 10,
-    conversations_per_month: 10000,
-    knowledge_sources: 50,
-    leads: 5000,
-    trial_days: 0,
-  },
-  ENTERPRISE: {
-    bots: 9999,
-    conversations_per_month: 999999,
-    knowledge_sources: 999,
-    leads: 999999,
-    trial_days: 0,
-  },
-};
+// Limits are imported from constants.ts PLAN_LIMITS — derived from the same
+// PLANS object the pricing page renders, so advertised === enforced. This
+// replaced a hand-written table here that had drifted from marketing on every
+// tier and was missing EXECUTIVE entirely (which silently threw $199/mo
+// customers onto FREE limits via the || FREE fallback).
 const TRIAL_DURATION_DAYS = 14;
 const TRIAL_PLAN = 'PROFESSIONAL'; // trial users get Professional-level access
 
@@ -222,12 +195,36 @@ export function getUserPlanKey(user: AuthUser): string {
 }
 
 export function getPlanLimits(planKey: string) {
-  return PLAN_LIMITS_CONFIG[planKey] || PLAN_LIMITS_CONFIG.FREE;
+  return PLAN_LIMITS[planKey] || PLAN_LIMITS.FREE;
+}
+
+/** A user's effective phone-minutes limit is whichever is higher: their
+ * standalone voice plan (purchasable independent of chatbot plan tier —
+ * see constants.ts VOICE_PLANS) or their chatbot plan's bundled amount
+ * (Executive/Enterprise only). The two combine rather than override —
+ * e.g. an Executive customer who also buys Voice Standard gets both
+ * pools' minutes, not just one. */
+async function getPhoneMinutesLimit(user: AuthUser): Promise<number> {
+  const bundled = getPlanLimits(getUserPlanKey(user)).phone_minutes;
+  const rows = await sbSelect('users', 'voice_plan', {
+    id: `eq.${user.id}`,
+  }).catch(() => []);
+  const voicePlanKey = rows?.[0]?.voice_plan;
+  const standalone =
+    voicePlanKey && voicePlanKey in VOICE_PLANS
+      ? VOICE_PLANS[voicePlanKey as keyof typeof VOICE_PLANS].minutes
+      : 0;
+  return bundled + standalone;
 }
 
 export async function checkQuota(
   user: AuthUser,
-  resource: 'bots' | 'conversations' | 'knowledge_sources' | 'leads',
+  resource:
+    | 'bots'
+    | 'conversations'
+    | 'knowledge_sources'
+    | 'leads'
+    | 'phone_minutes',
 ): Promise<{ allowed: boolean; current: number; limit: number; plan: string }> {
   const planKey = getUserPlanKey(user);
   const limits = getPlanLimits(planKey);
@@ -268,6 +265,26 @@ export async function checkQuota(
       const leads = await sbSelect('leads', 'id', orgFilter).catch(() => []);
       current = leads.length;
       limit = limits.leads;
+      break;
+    }
+    case 'phone_minutes': {
+      const monthStart = new Date();
+      monthStart.setDate(1);
+      monthStart.setHours(0, 0, 0, 0);
+      const bots = await sbSelect('bots', 'id', orgFilter).catch(() => []);
+      const botIds = (bots || []).map((b: any) => b.id);
+      if (botIds.length) {
+        const calls = await sbSelect('call_logs', 'duration', {
+          bot_id: `in.(${botIds.join(',')})`,
+          started_at: `gte.${monthStart.toISOString()}`,
+        }).catch(() => []);
+        const totalSeconds = (calls || []).reduce(
+          (sum: number, c: any) => sum + (c.duration || 0),
+          0,
+        );
+        current = Math.ceil(totalSeconds / 60);
+      }
+      limit = await getPhoneMinutesLimit(user);
       break;
     }
   }
@@ -395,6 +412,70 @@ function setCors(res: VercelResponse) {
 function parseBody(req: VercelRequest): any {
   if (typeof req.body === 'string') return JSON.parse(req.body);
   return req.body;
+}
+
+const multipartUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024 },
+});
+
+/**
+ * Parses a multipart/form-data upload into a single file. Vercel's default
+ * body parser doesn't recognize multipart, so it buffers the whole request
+ * into `req.body` as a raw Buffer and leaves the request stream itself
+ * already drained -- multer/busboy need to read an actual unconsumed
+ * stream, so we re-wrap that buffer as a fresh Readable and hand multer
+ * that instead of `req` directly.
+ */
+async function parseMultipartFile(
+  req: VercelRequest,
+): Promise<Express.Multer.File | undefined> {
+  let raw: Buffer;
+  if (Buffer.isBuffer(req.body) && req.body.length > 0) {
+    raw = req.body;
+  } else if (typeof req.body === 'string' && req.body.length > 0) {
+    raw = Buffer.from(req.body, 'binary');
+  } else {
+    const chunks: Buffer[] = [];
+    for await (const chunk of req) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    raw = Buffer.concat(chunks);
+  }
+
+  const fakeReq = Readable.from(raw) as any;
+  fakeReq.headers = req.headers;
+  fakeReq.method = req.method;
+
+  return new Promise((resolve, reject) => {
+    multipartUpload.single('file')(fakeReq, {} as any, (err: any) => {
+      if (err) reject(err);
+      else resolve(fakeReq.file);
+    });
+  });
+}
+
+/** Extracts plain text from an uploaded document for knowledge-base ingestion. */
+async function extractTextFromFile(
+  buffer: Buffer,
+  filename: string,
+  mimetype: string,
+): Promise<string> {
+  const ext = (filename.split('.').pop() || '').toLowerCase();
+  if (mimetype === 'application/pdf' || ext === 'pdf') {
+    const pdfParse = (await import('pdf-parse')).default;
+    const data = await pdfParse(buffer);
+    return data.text;
+  }
+  if (ext === 'docx' || mimetype.includes('officedocument.wordprocessingml')) {
+    const mammoth = await import('mammoth');
+    const result = await mammoth.extractRawText({ buffer });
+    return result.value;
+  }
+  if (ext === 'txt' || ext === 'md' || mimetype.startsWith('text/')) {
+    return buffer.toString('utf-8');
+  }
+  throw new Error(`Unsupported file type: ${filename}`);
 }
 
 // =====================================================================
@@ -750,6 +831,59 @@ async function handleLeads(
   } else res.status(405).json({ error: 'Method not allowed' });
 }
 
+// Deterministic, zero-cost intent scoring for "Hot Lead Detection" —
+// keyword/signal based so it runs with no extra LLM call/cost. Returns 0-100.
+// Baseline 50 (matches prior hardcoded default), scaled up for buying-intent
+// signals and down for low-intent/browsing language.
+function scoreLeadIntent(conversationContext: string | undefined): number {
+  if (!conversationContext || typeof conversationContext !== 'string') {
+    return 50;
+  }
+  const text = conversationContext.toLowerCase();
+  let score = 50;
+
+  const highIntentSignals = [
+    /\bpric(e|ing)\b/,
+    /\bcost\b/,
+    /\bbudget\b/,
+    /\bquote\b/,
+    /\bbuy\b/,
+    /\bpurchase\b/,
+    /\bsign\s*up\b/,
+    /\bdemo\b/,
+    /\bcontract\b/,
+    /\bstart(ed)?\s*(today|now|asap)\b/,
+    /\burgent(ly)?\b/,
+    /\bimmediately\b/,
+    /\bschedule\s*a?\s*call\b/,
+    /\bwhen\s*can\s*(we|i)\s*start\b/,
+    /\bready\s*to\s*(buy|move\s*forward|sign)\b/,
+    /\bhow\s*much\b/,
+    /\btake\s*my\s*(payment|money)\b/,
+  ];
+  const midIntentSignals = [
+    /\binterested\b/,
+    /\blearn\s*more\b/,
+    /\bmore\s*info(rmation)?\b/,
+    /\bcompare\b/,
+    /\btrial\b/,
+    /\bfeatures\b/,
+  ];
+  const lowIntentSignals = [
+    /\bjust\s*(looking|browsing|curious)\b/,
+    /\bnot\s*ready\b/,
+    /\bmaybe\s*later\b/,
+    /\bno\s*thanks\b/,
+    /\bunsubscribe\b/,
+  ];
+
+  for (const re of highIntentSignals) if (re.test(text)) score += 8;
+  for (const re of midIntentSignals) if (re.test(text)) score += 4;
+  for (const re of lowIntentSignals) if (re.test(text)) score -= 15;
+
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
+
 async function handleLeadCapture(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST')
     return res.status(405).json({ error: 'Method not allowed' });
@@ -806,6 +940,11 @@ async function handleLeadCapture(req: VercelRequest, res: VercelResponse) {
         status: 'New',
         score: 50,
       });
+      await trackAnalyticsEvent({
+        eventType: 'lead_captured',
+        userId: owners[0].id,
+        eventData: { source: body.source || 'donmatthews.live' },
+      });
       return res.status(201).json({ success: true, leadId: r[0]?.id });
     } catch (err) {
       console.error('[handleLeadCapture] portfolio insert failed:', err);
@@ -828,6 +967,8 @@ async function handleLeadCapture(req: VercelRequest, res: VercelResponse) {
       .status(404)
       .json({ error: 'Bot not found — cannot attribute lead' });
   }
+  const score = scoreLeadIntent(body.conversationContext);
+
   try {
     const r = await sbInsert('leads', {
       id: crypto.randomUUID(),
@@ -837,9 +978,39 @@ async function handleLeadCapture(req: VercelRequest, res: VercelResponse) {
       email: body.email || '',
       phone: body.phone || null,
       status: 'New',
-      score: 50,
+      score,
     });
-    res.status(201).json({ success: true, leadId: r[0]?.id });
+
+    await trackAnalyticsEvent({
+      eventType: 'lead_captured',
+      botId: body.botId,
+      userId: ownerUserId,
+      eventData: { score },
+    });
+
+    // Instant Alerts: notify the bot owner immediately for hot leads (score
+    // > 75, matching the CRM's own "hot" threshold/styling) instead of them
+    // having to notice it in the dashboard. Best-effort -- never blocks lead
+    // creation on an email-transport failure.
+    if (score > 75) {
+      sbSelect('users', 'email', { id: `eq.${ownerUserId}` })
+        .then((owners: any[]) => {
+          const ownerEmail = owners?.[0]?.email;
+          if (!ownerEmail) return;
+          return sendEmail({
+            from: `alerts@${EMAIL_DOMAIN}`,
+            fromName: 'BuildMyBot Hot Lead Alert',
+            to: ownerEmail,
+            subject: `🔥 Hot lead (score ${score}): ${body.name || body.email}`,
+            text: `A high-intent lead just came in from your chatbot.\n\nName: ${body.name || 'Visitor'}\nEmail: ${body.email || 'n/a'}\nPhone: ${body.phone || 'n/a'}\nScore: ${score}/100\n\nRecent conversation:\n${body.conversationContext || '(none captured)'}\n\nView in your CRM: https://${EMAIL_DOMAIN}/leads`,
+          });
+        })
+        .catch((err) =>
+          console.error('[handleLeadCapture] hot-lead alert failed:', err),
+        );
+    }
+
+    res.status(201).json({ success: true, leadId: r[0]?.id, score });
   } catch (err) {
     console.error('[handleLeadCapture] insert failed:', err);
     res.status(500).json({ error: 'Failed to save lead' });
@@ -864,6 +1035,142 @@ async function handleAdmin(
   if (!['admin', 'ADMIN', 'owner', 'OWNER'].includes(user.role))
     return res.status(403).json({ error: 'Admin access required' });
   const sub = pathParts[0] || '';
+
+  if (sub === 'users') {
+    // Backs the admin Users / Sales Agents / Clients / Affiliates pages
+    // (UserManagement widget via dbService). These routes were missing
+    // entirely -- the dashboard overhaul wired the widget to them and every
+    // one of those pages 404'd.
+
+    // POST /admin/users/bulk  { userIds, action: activate|suspend|delete }
+    if (pathParts[1] === 'bulk' && _req.method === 'POST') {
+      const body = parseBody(_req);
+      const userIds: string[] = Array.isArray(body.userIds) ? body.userIds : [];
+      const action = String(body.action || '');
+      if (!userIds.length)
+        return res.status(400).json({ error: 'userIds required' });
+      const patch =
+        action === 'activate'
+          ? { status: 'Active' }
+          : action === 'suspend'
+            ? { status: 'Suspended' }
+            : action === 'delete'
+              ? { deleted_at: new Date().toISOString() }
+              : null;
+      if (!patch)
+        return res.status(400).json({ error: `Unknown action: ${action}` });
+      await sbUpdate('users', patch, {
+        id: `in.(${userIds.join(',')})`,
+      }).catch(() => null);
+      return res.json({ success: true, updated: userIds.length });
+    }
+
+    // POST /admin/users/merge  { sourceUserId, targetUserId }
+    if (pathParts[1] === 'merge' && _req.method === 'POST') {
+      const body = parseBody(_req);
+      const { sourceUserId, targetUserId } = body;
+      if (!sourceUserId || !targetUserId)
+        return res
+          .status(400)
+          .json({ error: 'sourceUserId and targetUserId required' });
+      // Reassign user-owned rows, then soft-delete the source account.
+      await Promise.all([
+        sbUpdate(
+          'bots',
+          { user_id: targetUserId },
+          { user_id: `eq.${sourceUserId}` },
+        ).catch(() => null),
+        sbUpdate(
+          'leads',
+          { user_id: targetUserId },
+          { user_id: `eq.${sourceUserId}` },
+        ).catch(() => null),
+      ]);
+      await sbUpdate(
+        'users',
+        { deleted_at: new Date().toISOString() },
+        { id: `eq.${sourceUserId}` },
+      ).catch(() => null);
+      return res.json({ success: true });
+    }
+
+    // GET /admin/users/:id/usage  and  GET /admin/users/:id/export
+    if (
+      pathParts[1] &&
+      (pathParts[2] === 'usage' || pathParts[2] === 'export')
+    ) {
+      const targetId = pathParts[1];
+      const targetRows = await sbSelect('users', '*', {
+        id: `eq.${targetId}`,
+      }).catch(() => []);
+      const target = targetRows[0];
+      if (!target) return res.status(404).json({ error: 'User not found' });
+      const f = target.organization_id
+        ? { organization_id: `eq.${target.organization_id}` }
+        : { user_id: `eq.${targetId}` };
+      const [bots, leads, conversations] = await Promise.all([
+        sbSelect('bots', 'id', f).catch(() => []),
+        sbSelect('leads', 'id', f).catch(() => []),
+        sbSelect('conversations', 'id', f).catch(() => []),
+      ]);
+      if (pathParts[2] === 'usage') {
+        return res.json({
+          botCount: bots.length,
+          leadCount: leads.length,
+          conversationCount: conversations.length,
+          lastLoginAt: target.last_login_at || null,
+        });
+      }
+      const { password_hash: _ph, ...safeUser } = target;
+      return res.json({
+        user: safeUser,
+        counts: {
+          bots: bots.length,
+          leads: leads.length,
+          conversations: conversations.length,
+        },
+        exportedAt: new Date().toISOString(),
+      });
+    }
+
+    // GET /admin/users?role=&status=&search=  (list)
+    const url = new URL(_req.url || '/', 'http://localhost');
+    const roleFilter = url.searchParams.get('role') || '';
+    const statusFilter = url.searchParams.get('status') || '';
+    const search = url.searchParams.get('search') || '';
+
+    const filters: Record<string, string> = {
+      deleted_at: 'is.null',
+      order: 'created_at.desc',
+      limit: '500',
+    };
+    // ilike without wildcards = case-insensitive equality; DB role casing is
+    // inconsistent ('reseller' vs 'SALES_AGENT' vs 'MasterAdmin').
+    if (roleFilter) filters.role = `ilike.${roleFilter}`;
+    if (statusFilter) filters.status = `ilike.${statusFilter}`;
+    if (search)
+      filters.or = `(name.ilike.*${search}*,email.ilike.*${search}*,company_name.ilike.*${search}*)`;
+
+    const rows = await sbSelect(
+      'users',
+      'id,name,email,company_name,role,plan,status,created_at,last_login_at',
+      filters,
+    ).catch(() => []);
+    res.json(
+      (rows as any[]).map((u) => ({
+        id: u.id,
+        name: u.name || u.email,
+        email: u.email,
+        companyName: u.company_name || null,
+        role: u.role || 'user',
+        plan: u.plan || 'FREE',
+        status: u.status || 'Active',
+        createdAt: u.created_at,
+        lastLoginAt: u.last_login_at || null,
+      })),
+    );
+    return;
+  }
 
   if (sub === 'live-leads') {
     // Live feed of today's AI-team-researched leads for the master admin
@@ -934,50 +1241,189 @@ async function handleAdmin(
     res.json([]);
   } else if (sub === 'financial') {
     const fsub = pathParts[1] || '';
-    // NOTE: there is no real Stripe (or other) billing integration wired
-    // into this gateway yet -- handleStripe only returns static plan
-    // metadata and placeholder checkout URLs. These endpoints return
-    // honest zeroed/empty shapes so the Financial dashboard renders
-    // instead of crashing, rather than fabricating numbers. Wiring real
-    // invoices/refunds/payouts requires a real Stripe integration first.
+    // Real Stripe wiring added 2026-08-06. handleStripe (checkout/portal) and
+    // api/stripe-webhook.ts (subscription lifecycle + commissions) were
+    // ALREADY real -- only this admin dashboard section was still returning
+    // the honest zeroed/empty shapes below, from before those were wired up.
+    // Same gate-on-STRIPE_SECRET_KEY / dynamic `import('stripe')` pattern
+    // already used by the 'Billing' AI-employee task type further down this
+    // file -- kept consistent rather than introducing a second Stripe client
+    // pattern. Falls back to the original honest-empty behavior if the key
+    // isn't configured, so this never fabricates numbers.
+    const stripeConfigured = !!process.env.STRIPE_SECRET_KEY;
     if (fsub === 'overview') {
       // FinancialDashboard.tsx's `FinancialOverview` interface expects
       // { mrrCents, arrCents, churnRate, activeCustomers, churnedCustomers }
       // -- this used to return { mrr, arr, totalRevenue, ... } (different
       // field names entirely), so `displayOverview.churnRate.toFixed(2)`
       // read undefined and crashed, blanking the whole admin overview tab.
-      const orgs = await sbSelect(
-        'organizations',
-        'id,plan,deleted_at',
-        {},
-      ).catch(() => []);
-      const activeCustomers = orgs.filter((o: any) => !o.deleted_at).length;
-      const mrr = orgs.reduce(
-        (sum: number, o: any) => sum + (PLAN_PRICES[o.plan] || 0),
-        0,
-      );
-      res.json({
-        mrrCents: Math.round(mrr * 100),
-        arrCents: Math.round(mrr * 12 * 100),
-        churnRate: 0,
-        activeCustomers,
-        churnedCustomers: 0,
-        wired: false,
-        message:
-          'No billing provider connected yet -- churn/churned figures are not tracked until Stripe is wired up.',
-      });
+      if (!stripeConfigured) {
+        const orgs = await sbSelect(
+          'organizations',
+          'id,plan,deleted_at',
+          {},
+        ).catch(() => []);
+        const activeCustomers = orgs.filter((o: any) => !o.deleted_at).length;
+        const mrr = orgs.reduce(
+          (sum: number, o: any) => sum + (PLAN_PRICES[o.plan] || 0),
+          0,
+        );
+        res.json({
+          mrrCents: Math.round(mrr * 100),
+          arrCents: Math.round(mrr * 12 * 100),
+          churnRate: 0,
+          activeCustomers,
+          churnedCustomers: 0,
+          wired: false,
+          message:
+            'No billing provider connected yet -- churn/churned figures are not tracked until Stripe is wired up.',
+        });
+      } else {
+        try {
+          const Stripe = (await import('stripe')).default;
+          const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+            apiVersion: '2025-08-27.basil' as any,
+          });
+          // Single-page (100) cap, consistent with the Billing employee-task
+          // pattern elsewhere in this file -- not a full-pagination crawl.
+          const [activeSubs, trialingSubs, canceledSubs] = await Promise.all([
+            stripe.subscriptions.list({ status: 'active', limit: 100 }),
+            stripe.subscriptions.list({ status: 'trialing', limit: 100 }),
+            stripe.subscriptions.list({ status: 'canceled', limit: 100 }),
+          ]);
+          const liveSubs = [...activeSubs.data, ...trialingSubs.data];
+          // Normalize every subscription item to a monthly amount so annual
+          // plans don't inflate MRR by 12x.
+          const monthlyAmount = (sub: any): number =>
+            (sub.items?.data || []).reduce((s: number, item: any) => {
+              const unit = item.price?.unit_amount || 0;
+              const qty = item.quantity || 1;
+              const interval = item.price?.recurring?.interval;
+              const perMonth =
+                interval === 'year'
+                  ? (unit * qty) / 12
+                  : interval === 'week'
+                    ? unit * qty * (52 / 12)
+                    : unit * qty; // month or unrecognized -- treat as monthly
+              return s + perMonth;
+            }, 0);
+          const mrrCents = Math.round(
+            liveSubs.reduce((s, sub) => s + monthlyAmount(sub), 0),
+          );
+          const thirtyDaysAgo = Math.floor(Date.now() / 1000) - 30 * 86400;
+          const churnedRecent = canceledSubs.data.filter(
+            (s: any) => (s.canceled_at || 0) >= thirtyDaysAgo,
+          );
+          const activeCustomers = new Set(
+            liveSubs.map((s: any) => s.customer),
+          ).size;
+          const churnedCustomers = new Set(
+            churnedRecent.map((s: any) => s.customer),
+          ).size;
+          const churnRate =
+            activeCustomers + churnedCustomers > 0
+              ? (churnedCustomers / (activeCustomers + churnedCustomers)) * 100
+              : 0;
+          res.json({
+            mrrCents,
+            arrCents: mrrCents * 12,
+            churnRate: Math.round(churnRate * 100) / 100,
+            activeCustomers,
+            churnedCustomers,
+            wired: true,
+          });
+        } catch (err: any) {
+          console.error('[financial/overview] Stripe fetch failed:', err.message);
+          // Never let a live Stripe error blank the whole admin tab --
+          // degrade to the same honest-zero shape used when unconfigured.
+          res.json({
+            mrrCents: 0,
+            arrCents: 0,
+            churnRate: 0,
+            activeCustomers: 0,
+            churnedCustomers: 0,
+            wired: false,
+            message: `Stripe fetch failed: ${err.message}`,
+          });
+        }
+      }
     } else if (fsub === 'invoices') {
-      res.json([]);
+      if (!stripeConfigured) {
+        res.json([]);
+      } else {
+        try {
+          const Stripe = (await import('stripe')).default;
+          const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+            apiVersion: '2025-08-27.basil' as any,
+          });
+          const invoices = await stripe.invoices.list({ limit: 100 });
+          res.json(
+            invoices.data.map((inv: any) => ({
+              id: inv.id,
+              customer_email: inv.customer_email || '',
+              amount_due: inv.amount_due,
+              amount_paid: inv.amount_paid,
+              status: inv.status,
+              created: inv.created,
+              due_date: inv.due_date,
+            })),
+          );
+        } catch (err: any) {
+          console.error('[financial/invoices] Stripe fetch failed:', err.message);
+          res.json([]);
+        }
+      }
     } else if (fsub === 'refunds') {
-      res.json([]);
+      if (!stripeConfigured) {
+        res.json([]);
+      } else {
+        try {
+          const Stripe = (await import('stripe')).default;
+          const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+            apiVersion: '2025-08-27.basil' as any,
+          });
+          const refunds = await stripe.refunds.list({ limit: 100 });
+          res.json(
+            refunds.data.map((r: any) => ({
+              id: r.id,
+              amount: r.amount,
+              status: r.status,
+              reason: r.reason,
+              created: r.created,
+            })),
+          );
+        } catch (err: any) {
+          console.error('[financial/refunds] Stripe fetch failed:', err.message);
+          res.json([]);
+        }
+      }
     } else if (fsub === 'stripe-health') {
       // FinancialDashboard.tsx reads `stripeHealth?.ok` -- include both keys
       // for compatibility.
-      res.json({
-        ok: false,
-        connected: false,
-        message: 'Stripe is not connected',
-      });
+      if (!stripeConfigured) {
+        res.json({
+          ok: false,
+          connected: false,
+          message: 'Stripe is not connected',
+        });
+      } else {
+        try {
+          const Stripe = (await import('stripe')).default;
+          const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+            apiVersion: '2025-08-27.basil' as any,
+          });
+          // Cheapest real call that proves the key actually works end-to-end
+          // against Stripe's API, not just "the env var is set."
+          await stripe.balance.retrieve();
+          res.json({ ok: true, connected: true, message: 'Stripe connected' });
+        } catch (err: any) {
+          res.json({
+            ok: false,
+            connected: false,
+            message: err.message || 'Stripe health check failed',
+          });
+        }
+      }
     } else if (fsub === 'features-usage') {
       // AdminFeaturesOverview.tsx expects { plans, addons, usage } -- this
       // used to return a bare `[]`, so `stats.usage.totalConversations`
@@ -1179,7 +1625,7 @@ async function handleVoice(
   if (pathParts[0] !== 'agents')
     return res.status(404).json({ error: 'Not found' });
   const botId = pathParts[1];
-  
+
   if (req.method === 'GET') {
     try {
       if (botId) {
@@ -1187,17 +1633,20 @@ async function handleVoice(
         const botCheck = await sbSelect('bots', 'id,organization_id', {
           id: `eq.${botId}`,
         }).catch(() => []);
-        
+
         if (!botCheck.length) {
           return res.status(404).json({ error: 'Bot not found' });
         }
-        
+
         const bot = botCheck[0];
         // Check if user has access to this bot's organization
-        if (user.organizationId !== bot.organization_id && user.role !== 'admin') {
+        if (
+          user.organizationId !== bot.organization_id &&
+          user.role !== 'admin'
+        ) {
           return res.status(403).json({ error: 'Access denied' });
         }
-        
+
         const d = await sbSelect('voice_agents', '*', {
           bot_id: `eq.${botId}`,
         }).catch(() => []);
@@ -1214,47 +1663,57 @@ async function handleVoice(
   } else if (req.method === 'POST' && botId && pathParts[2] === 'provision') {
     try {
       const body = parseBody(req);
-      
+
       // Validate required fields
       if (!body.voiceId) {
         return res.status(400).json({ error: 'voiceId is required' });
       }
-      
+
       // Validate provider
-      const validProviders = ['openai', 'cartesia', 'elevenlabs', 'aws-polly', 'google-tts'];
+      const validProviders = [
+        'openai',
+        'cartesia',
+        'grok',
+        'elevenlabs',
+        'aws-polly',
+        'google-tts',
+      ];
       const provider = body.provider || 'cartesia';
       if (!validProviders.includes(provider)) {
-        return res.status(400).json({ 
-          error: `Invalid provider. Supported: ${validProviders.join(', ')}` 
+        return res.status(400).json({
+          error: `Invalid provider. Supported: ${validProviders.join(', ')}`,
         });
       }
-      
+
       // Check if bot exists and user has access
       const botCheck = await sbSelect('bots', 'id,organization_id', {
         id: `eq.${botId}`,
       }).catch(() => []);
-      
+
       if (!botCheck.length) {
         return res.status(404).json({ error: 'Bot not found' });
       }
-      
+
       const bot = botCheck[0];
-      if (user.organizationId !== bot.organization_id && user.role !== 'admin') {
+      if (
+        user.organizationId !== bot.organization_id &&
+        user.role !== 'admin'
+      ) {
         return res.status(403).json({ error: 'Access denied' });
       }
-      
+
       // Check if voice agent already exists for this bot
       const existing = await sbSelect('voice_agents', 'id', {
         bot_id: `eq.${botId}`,
       }).catch(() => []);
-      
+
       if (existing.length > 0) {
-        return res.status(409).json({ 
+        return res.status(409).json({
           error: 'Voice agent already provisioned for this bot',
-          existingAgentId: existing[0].id 
+          existingAgentId: existing[0].id,
         });
       }
-      
+
       // Create voice agent
       const voiceAgentData = {
         id: crypto.randomUUID(),
@@ -1270,7 +1729,12 @@ async function handleVoice(
         business_hours: body.businessHours || null,
         after_hours_message: body.afterHoursMessage || null,
         end_call_phrase: body.endCallPhrase || 'Goodbye!',
-        end_call_phrases: body.endCallPhrases || ['goodbye', 'bye', 'end call', 'hang up'],
+        end_call_phrases: body.endCallPhrases || [
+          'goodbye',
+          'bye',
+          'end call',
+          'hang up',
+        ],
         transfer_enabled: body.transferEnabled || false,
         transfer_number: body.transferNumber || null,
         transfer_triggers: body.transferTriggers || null,
@@ -1288,66 +1752,69 @@ async function handleVoice(
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
-      
+
       const r = await sbInsert('voice_agents', voiceAgentData).catch((err) => {
         console.error('[voice] Insert error:', err);
         throw new Error('Failed to create voice agent');
       });
-      
+
       res.status(201).json({
         success: true,
         voiceAgent: r[0],
-        message: 'Voice agent provisioned successfully'
+        message: 'Voice agent provisioned successfully',
       });
     } catch (err: any) {
       console.error('[voice] Provision error:', err.message);
-      res.status(500).json({ 
+      res.status(500).json({
         error: 'Failed to provision voice agent',
-        details: err.message 
+        details: err.message,
       });
     }
   } else if (req.method === 'PATCH' && botId) {
     try {
       const body = parseBody(req);
-      
+
       // Check if voice agent exists and user has access
       const existing = await sbSelect('voice_agents', '*', {
         bot_id: `eq.${botId}`,
       }).catch(() => []);
-      
+
       if (!existing.length) {
         return res.status(404).json({ error: 'Voice agent not found' });
       }
-      
+
       const agent = existing[0];
       // Check if user has access to this bot's organization
-      if (user.organizationId !== agent.organization_id && user.role !== 'admin') {
+      if (
+        user.organizationId !== agent.organization_id &&
+        user.role !== 'admin'
+      ) {
         return res.status(403).json({ error: 'Access denied' });
       }
-      
+
       // Update voice agent
       const updateData = {
         ...body,
         updated_at: new Date().toISOString(),
       };
-      
+
       const u = await sbUpdate('voice_agents', updateData, {
         bot_id: `eq.${botId}`,
       }).catch((err) => {
         console.error('[voice] Update error:', err);
         throw new Error('Failed to update voice agent');
       });
-      
+
       res.json({
         success: true,
         voiceAgent: u[0],
-        message: 'Voice agent updated successfully'
+        message: 'Voice agent updated successfully',
       });
     } catch (err: any) {
       console.error('[voice] PATCH error:', err.message);
-      res.status(500).json({ 
+      res.status(500).json({
         error: 'Failed to update voice agent',
-        details: err.message 
+        details: err.message,
       });
     }
   } else if (req.method === 'DELETE' && botId) {
@@ -1356,38 +1823,45 @@ async function handleVoice(
       const existing = await sbSelect('voice_agents', '*', {
         bot_id: `eq.${botId}`,
       }).catch(() => []);
-      
+
       if (!existing.length) {
         return res.status(404).json({ error: 'Voice agent not found' });
       }
-      
+
       const agent = existing[0];
       // Check if user has access to this bot's organization
-      if (user.organizationId !== agent.organization_id && user.role !== 'admin') {
+      if (
+        user.organizationId !== agent.organization_id &&
+        user.role !== 'admin'
+      ) {
         return res.status(403).json({ error: 'Access denied' });
       }
-      
+
       // Soft delete - mark as inactive
-      const u = await sbUpdate('voice_agents', {
-        is_active: false,
-        enabled: false,
-        updated_at: new Date().toISOString(),
-      }, {
-        bot_id: `eq.${botId}`,
-      }).catch((err) => {
+      const u = await sbUpdate(
+        'voice_agents',
+        {
+          is_active: false,
+          enabled: false,
+          updated_at: new Date().toISOString(),
+        },
+        {
+          bot_id: `eq.${botId}`,
+        },
+      ).catch((err) => {
         console.error('[voice] Delete error:', err);
         throw new Error('Failed to deactivate voice agent');
       });
-      
+
       res.json({
         success: true,
-        message: 'Voice agent deactivated successfully'
+        message: 'Voice agent deactivated successfully',
       });
     } catch (err: any) {
       console.error('[voice] DELETE error:', err.message);
-      res.status(500).json({ 
+      res.status(500).json({
         error: 'Failed to deactivate voice agent',
-        details: err.message 
+        details: err.message,
       });
     }
   } else {
@@ -1501,6 +1975,17 @@ async function handleFirecrawlWebhook(req: VercelRequest, res: VercelResponse) {
   }
 }
 
+// The DB's own status vocabulary ('ready' from ingestKnowledgeSource, 'active'
+// from manual source creation, 'refreshing' from the refresh endpoint) never
+// matches the frontend's narrower 'pending' | 'processing' | 'completed' |
+// 'failed' type, so completed sources got stuck showing a "Pending" badge
+// forever and the UI looked broken even when ingestion had actually succeeded.
+const KNOWLEDGE_STATUS_TO_DTO: Record<string, string> = {
+  ready: 'completed',
+  active: 'completed',
+  refreshing: 'processing',
+};
+
 /** Maps a real knowledge_sources DB row (snake_case) to the camelCase
  * shape the dashboard's KnowledgeBaseManager component expects. */
 function toKnowledgeSourceDTO(row: any, chunkCount = 0) {
@@ -1509,7 +1994,7 @@ function toKnowledgeSourceDTO(row: any, chunkCount = 0) {
     sourceType: row.source_type,
     sourceName: row.source_name,
     sourceUrl: row.source_url,
-    status: row.status,
+    status: KNOWLEDGE_STATUS_TO_DTO[row.status] || row.status,
     errorMessage: row.error_message || row.last_error || undefined,
     pagesCrawled: row.pages_crawled ?? undefined,
     chunkCount,
@@ -1662,35 +2147,52 @@ async function handleKnowledge(
     }
   } else if (sub === 'upload') {
     const botId = pathParts[1];
-    const body = parseBody(req);
     const sourceId = crypto.randomUUID();
-    const content = body.content || '';
+
+    let file: Express.Multer.File | undefined;
+    try {
+      file = await parseMultipartFile(req);
+    } catch (err: any) {
+      return res
+        .status(400)
+        .json({ error: `Failed to parse upload: ${err.message}` });
+    }
+    if (!file) {
+      return res.status(400).json({ error: 'No file provided' });
+    }
+
     // Create source record
     const r = await sbInsert('knowledge_sources', {
       id: sourceId,
       bot_id: botId,
       organization_id: user.organizationId || null,
       source_type: 'document',
-      source_name: body.filename || 'Uploaded document',
+      source_name: file.originalname || 'Uploaded document',
       status: 'processing',
     }).catch(() => [{ id: sourceId }]);
-    // Chunk + embed the uploaded content
-    if (content) {
-      const result = await ingestKnowledgeSource(
-        sourceId,
-        botId,
-        content,
-      ).catch((err: any) => {
-        console.error('[knowledge] ingest failed for upload:', err.message);
-        return null;
-      });
-      if (!result) {
+
+    // Extract text, then chunk + embed the uploaded content
+    try {
+      const content = await extractTextFromFile(
+        file.buffer,
+        file.originalname,
+        file.mimetype,
+      );
+      const result = await ingestKnowledgeSource(sourceId, botId, content);
+      if (result.chunksCreated === 0) {
         await sbUpdate(
           'knowledge_sources',
-          { status: 'failed', last_error: 'Ingestion failed' },
+          { status: 'failed', last_error: 'No extractable text in document' },
           { id: `eq.${sourceId}` },
         ).catch(() => {});
       }
+    } catch (err: any) {
+      console.error('[knowledge] ingest failed for upload:', err.message);
+      await sbUpdate(
+        'knowledge_sources',
+        { status: 'failed', last_error: err.message },
+        { id: `eq.${sourceId}` },
+      ).catch(() => {});
     }
     res.status(201).json({ ...(r[0] || {}), id: sourceId });
   } else if (sub === 'refresh') {
@@ -1712,6 +2214,7 @@ async function handleTemplates(
   req: VercelRequest,
   res: VercelResponse,
   user: AuthUser,
+  pathParts: string[] = [],
 ) {
   if (req.method === 'GET') {
     const featured = new URL(req.url, 'http://localhost').searchParams.get(
@@ -1726,25 +2229,58 @@ async function handleTemplates(
     );
   } else if (req.method === 'POST') {
     const body = parseBody(req);
+    // The marketplace UIs call POST /templates/:id/install; older callers
+    // POST /templates with { templateId } in the body. Accept both — the
+    // path form previously fell through to the body lookup and 404'd every
+    // marketplace install.
+    const templateId =
+      pathParts[1] === 'install' && pathParts[0]
+        ? pathParts[0]
+        : body.templateId;
+    if (!templateId)
+      return res.status(400).json({ error: 'templateId is required' });
     const tpls = await sbSelect('bot_templates', '*', {
-      id: `eq.${body.templateId}`,
+      id: `eq.${templateId}`,
     }).catch(() => []);
     if (!tpls.length)
       return res.status(404).json({ error: 'Template not found' });
     const tpl = tpls[0];
+    // The user's own customization ALWAYS wins over the template default.
+    // Previously the install wrote only tpl.persona (and never
+    // system_prompt at all), so a custom persona system-prompt configured
+    // at install time was discarded and chat fell back to the generic
+    // "You are a helpful assistant." — the core paid feature (custom bots)
+    // silently broken.
+    const customPrompt =
+      (typeof body.systemPrompt === 'string' && body.systemPrompt.trim()) ||
+      (typeof body.customPrompt === 'string' && body.customPrompt.trim()) ||
+      (typeof body.persona === 'string' && body.persona.trim()) ||
+      '';
+    const systemPrompt =
+      customPrompt ||
+      tpl.system_prompt ||
+      tpl.persona ||
+      'You are a helpful assistant.';
     const r = await sbInsert('bots', {
       id: crypto.randomUUID(),
+      user_id: user.id,
       organization_id: user.organizationId,
       creator_id: user.id,
-      name: `${tpl.name} (Copy)`,
-      description: tpl.description || '',
-      persona: tpl.persona || '',
-      model: 'gpt-4o-mini',
-      temperature: 70,
+      name: body.name || `${tpl.name} (Copy)`,
+      description: body.description || tpl.description || '',
+      persona: customPrompt || tpl.persona || '',
+      // system_prompt is what handleChat actually reads at conversation
+      // time — persist it explicitly so installed bots answer in character.
+      system_prompt: systemPrompt,
+      model: body.model || tpl.model || 'gpt-4o-mini',
+      // handleChat passes bot.temperature straight to the LLM API — the old
+      // hardcoded 70 (UI 0–100 scale) was out of the valid 0–2 range.
+      temperature:
+        typeof body.temperature === 'number' ? body.temperature : 0.7,
       max_tokens: 500,
       status: 'draft',
       config: tpl.config || {},
-    }).catch(() => [{ id: 'ok', success: true }]);
+    });
     res.status(201).json(r[0]);
   } else res.status(405).json({ error: 'Method not allowed' });
 }
@@ -2030,33 +2566,236 @@ async function handleChannels(
   );
 }
 
+/** Every phone number needs an answering bot. Reuse the user's existing
+ * voice bot if they have one (so re-purchasing after a release keeps the
+ * same knowledge base), otherwise create a starter one. */
+async function findOrCreateVoiceBot(user: AuthUser): Promise<string | null> {
+  const existing = await sbSelect('bots', 'id', {
+    ...ownerFilter(user),
+    type: 'eq.voice',
+    limit: '1',
+  }).catch(() => []);
+  if (existing?.[0]?.id) return existing[0].id;
+
+  const created = await sbInsert('bots', {
+    id: crypto.randomUUID(),
+    user_id: user.id,
+    organization_id: user.organizationId || null,
+    name: 'Phone Agent',
+    type: 'voice',
+    system_prompt:
+      'You are a helpful AI receptionist for this business. Answer caller questions warmly and concisely based on the business information and knowledge base provided. Never invent details you were not given.',
+    model: 'gpt-4o-mini',
+    temperature: 0.7,
+    knowledge_base: [],
+    active: true,
+  }).catch(() => null);
+  return created?.[0]?.id || null;
+}
+
+/** Assumes twilioConfigured() has already been checked by the caller. */
+async function getTwilioClient() {
+  const Twilio = (await import('twilio')).default;
+  const accountSid = process.env.TWILIO_ACCOUNT_SID as string;
+  const authToken = process.env.TWILIO_AUTH_TOKEN as string;
+  return new Twilio(accountSid, authToken);
+}
+
 async function handlePhone(
   req: VercelRequest,
   res: VercelResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
-  if (pathParts[0] === 'purchase' && req.method === 'POST') {
+  const { twilioConfigured } = await import('./twilio/service.js');
+
+  if (pathParts[0] === 'voice-plans' && req.method === 'GET') {
+    // Lets the UI show standalone voice-plan options regardless of the
+    // customer's main chatbot plan tier, plus what they've already got.
+    const rows = await sbSelect('users', 'voice_plan', {
+      id: `eq.${user.id}`,
+    }).catch(() => []);
+    res.json({
+      plans: VOICE_PLANS,
+      currentVoicePlan: rows?.[0]?.voice_plan || null,
+      bundledMinutes: getPlanLimits(getUserPlanKey(user)).phone_minutes,
+    });
+  } else if (pathParts[0] === 'voice-plan' && req.method === 'POST') {
+    // Selects a standalone voice-plan add-on. NOTE: does not collect payment
+    // yet — Stripe billing isn't live for this SKU (see CLAUDE.md's billing
+    // status note); this records the selection so phone provisioning can
+    // unblock immediately, same "honest, not faked" pattern as the rest of
+    // this codebase's not-yet-live billing surfaces.
     const body = parseBody(req);
-    const r = await sbInsert('phone_numbers', {
-      id: crypto.randomUUID(),
-      organization_id: user.organizationId,
-      number: body.number || '+10000000000',
-      provider: 'twilio',
-      status: 'active',
-    }).catch(() => [{ id: 'ok', success: true }]);
-    res.status(201).json(r[0]);
-  } else if (pathParts[0] === 'release') {
-    const body = parseBody(req);
+    if (!body.voicePlan || !(body.voicePlan in VOICE_PLANS)) {
+      return res.status(400).json({
+        error: `voicePlan must be one of: ${Object.keys(VOICE_PLANS).join(', ')}`,
+      });
+    }
     await sbUpdate(
-      'phone_numbers',
-      { status: 'released' },
-      { id: `eq.${body.numberId}` },
-    ).catch(() => {});
-    res.json({ success: true });
+      'users',
+      { voice_plan: body.voicePlan },
+      { id: `eq.${user.id}` },
+    ).catch(() => null);
+    res.json({ success: true, voicePlan: body.voicePlan });
+  } else if (pathParts[0] === 'voice-bot' && req.method === 'GET') {
+    // Lets the UI get (or lazily create) the answering bot's id up front —
+    // e.g. to upload knowledge/PDFs before a phone number is purchased —
+    // instead of only creating one at purchase time.
+    const botId = await findOrCreateVoiceBot(user);
+    if (!botId) {
+      return res.status(500).json({ error: 'Failed to prepare voice agent' });
+    }
+    res.json({ botId });
+  } else if (pathParts[0] === 'calls' && req.method === 'GET') {
+    const bots = await sbSelect('bots', 'id', {
+      ...ownerFilter(user),
+      type: 'eq.voice',
+    }).catch(() => []);
+    const botIds = (bots || []).map((b: any) => b.id);
+    if (!botIds.length) return res.json([]);
+    res.json(
+      await sbSelect('call_logs', '*', {
+        bot_id: `in.(${botIds.join(',')})`,
+        order: 'started_at.desc',
+        limit: '20',
+      }).catch(() => []),
+    );
+  } else if (pathParts[0] === 'available' && req.method === 'GET') {
+    if (!twilioConfigured()) {
+      return res.status(503).json({
+        error:
+          'Phone number provisioning is not configured on this deployment yet. Contact support.',
+      });
+    }
+    const url = new URL(req.url || '/', 'http://localhost');
+    const areaCode = url.searchParams.get('areaCode') || '';
+    const countryCode = url.searchParams.get('countryCode') || 'US';
+    try {
+      const client = await getTwilioClient();
+      const numbers = await client
+        .availablePhoneNumbers(countryCode)
+        .local.list({
+          ...(areaCode ? { areaCode: Number(areaCode) } : {}),
+          limit: 10,
+        });
+      res.json(
+        numbers.map((n: any) => ({
+          phoneNumber: n.phoneNumber,
+          friendlyName: n.friendlyName || n.phoneNumber,
+          locality: n.locality || '',
+          region: n.region || '',
+        })),
+      );
+    } catch (err: any) {
+      console.error('[phone] Twilio search failed:', err.message);
+      res.status(500).json({ error: 'Failed to search available numbers' });
+    }
+  } else if (pathParts[0] === 'purchase' && req.method === 'POST') {
+    if (!twilioConfigured()) {
+      return res.status(503).json({
+        error:
+          'Phone number provisioning is not configured on this deployment yet. Contact support.',
+      });
+    }
+    // Voice is purchasable on its own (a standalone VOICE_PLANS add-on)
+    // regardless of chatbot plan tier — Executive/Enterprise just get
+    // minutes bundled for free on top. Only block if the user has neither.
+    const phoneMinutesLimit = await getPhoneMinutesLimit(user);
+    if (phoneMinutesLimit <= 0) {
+      return res.status(402).json({
+        error:
+          'No phone minutes available yet. Add a voice plan to purchase a number.',
+        voicePlanRequired: true,
+        voicePlans: VOICE_PLANS,
+      });
+    }
+    const body = parseBody(req);
+    if (!body.phoneNumber) {
+      return res.status(400).json({ error: 'phoneNumber is required' });
+    }
+    try {
+      const botId = await findOrCreateVoiceBot(user);
+      const appBaseUrl =
+        process.env.APP_BASE_URL || 'https://www.buildmybot.app';
+      const client = await getTwilioClient();
+      const purchased = await client.incomingPhoneNumbers.create({
+        phoneNumber: body.phoneNumber,
+        friendlyName: body.friendlyName || undefined,
+        voiceUrl: `${appBaseUrl}/api/twilio/inbound-voice-handler`,
+        voiceMethod: 'POST',
+        statusCallback: `${appBaseUrl}/api/twilio/inbound-status-callback`,
+        statusCallbackMethod: 'POST',
+      });
+      const inserted = await sbInsert('phone_numbers', {
+        id: crypto.randomUUID(),
+        organization_id: user.organizationId || null,
+        user_id: user.id,
+        number: purchased.phoneNumber,
+        friendly_name: purchased.friendlyName || null,
+        provider: 'twilio',
+        provider_number_sid: purchased.sid,
+        bot_id: botId,
+        status: 'active',
+      }).catch(() => null);
+      res.status(201).json({
+        phoneNumber: purchased.phoneNumber,
+        sid: purchased.sid,
+        botId,
+        id: inserted?.[0]?.id,
+      });
+    } catch (err: any) {
+      console.error('[phone] Twilio purchase failed:', err.message);
+      res
+        .status(500)
+        .json({ error: err.message || 'Failed to purchase number' });
+    }
+  } else if (pathParts[0] === 'release' && req.method === 'POST') {
+    const body = parseBody(req);
+    try {
+      const filter: Record<string, string> = { ...ownerFilter(user) };
+      if (body.numberId) filter.id = `eq.${body.numberId}`;
+      else if (body.number) filter.number = `eq.${body.number}`;
+      else
+        return res
+          .status(400)
+          .json({ error: 'numberId or number is required' });
+
+      const rows = await sbSelect(
+        'phone_numbers',
+        'id,provider_number_sid',
+        filter,
+      ).catch(() => []);
+      const row = rows?.[0];
+      if (!row) return res.status(404).json({ error: 'Number not found' });
+
+      if (row.provider_number_sid && twilioConfigured()) {
+        try {
+          const client = await getTwilioClient();
+          await client.incomingPhoneNumbers(row.provider_number_sid).remove();
+        } catch (err: any) {
+          console.error('[phone] Twilio release failed:', err.message);
+          // Continue — mark it released locally even if the Twilio side
+          // errors (e.g. already released), so it doesn't get stuck.
+        }
+      }
+
+      await sbUpdate(
+        'phone_numbers',
+        { status: 'released', released_at: new Date().toISOString() },
+        { id: `eq.${row.id}` },
+      ).catch(() => {});
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error('[phone] Release error:', err.message);
+      res.status(500).json({ error: 'Failed to release number' });
+    }
   } else {
     res.json(
-      await sbSelect('phone_numbers', '*', ownerFilter(user)).catch(() => []),
+      await sbSelect('phone_numbers', '*', {
+        ...ownerFilter(user),
+        status: 'eq.active',
+      }).catch(() => []),
     );
   }
 }
@@ -2118,13 +2857,6 @@ async function handleClients(
     // handler at all, so it fell through to the client-by-id branch,
     // returning `{}` and crashing ClientOverview.tsx's `recentBots[0]?.id`
     // (recentBots was `undefined`, not `[]`) for EVERY user, new or existing.
-    const PLAN_LIMITS: Record<string, { bots: number; conversations: number }> =
-      {
-        FREE: { bots: 1, conversations: 60 },
-        STARTER: { bots: 1, conversations: 750 },
-        PROFESSIONAL: { bots: 5, conversations: 5000 },
-        ENTERPRISE: { bots: 9999, conversations: 999999 },
-      };
     const orgFilter = ownerFilter(user);
     const [bots, leads, conversations] = await Promise.all([
       sbSelect('bots', '*', orgFilter).catch(() => []),
@@ -2147,7 +2879,7 @@ async function handleClients(
         : 0;
 
     const planKey = (user.plan || 'FREE').toUpperCase();
-    const limits = PLAN_LIMITS[planKey] || PLAN_LIMITS.FREE;
+    const limits = getPlanLimits(planKey);
 
     const days: { date: string; count: number }[] = [];
     for (let i = 13; i >= 0; i--) {
@@ -2167,7 +2899,7 @@ async function handleClients(
       usage: {
         plan: planKey,
         conversationsUsed: conversations.length,
-        conversationsLimit: limits.conversations,
+        conversationsLimit: limits.conversations_per_month,
         botsUsed: botCount,
         botsLimit: limits.bots,
       },
@@ -2828,6 +3560,54 @@ async function handleLandingPages(
 ) {
   const pid = pathParts[0];
   const orgF = ownerFilter(user);
+  // POST /landing-pages/generate — real AI copy generation for the
+  // landing-page builder. The UI marketed this as AI-powered but no AI call
+  // existed anywhere in the flow (manual fields only). Uses the same
+  // free-provider-first fallback chain as everything else (callLLMMessages),
+  // so a single provider outage can't take the feature down.
+  if (pid === 'generate' && req.method === 'POST') {
+    const body = parseBody(req);
+    const businessName = (body.businessName || body.name || '')
+      .toString()
+      .slice(0, 200);
+    const description = (body.description || body.prompt || '')
+      .toString()
+      .slice(0, 2000);
+    if (!businessName && !description) {
+      return res.status(400).json({
+        error: 'Provide businessName and/or description to generate from',
+      });
+    }
+    const tone = (body.tone || 'professional, high-converting')
+      .toString()
+      .slice(0, 100);
+    const raw = await callLLMMessages(
+      [
+        {
+          role: 'system',
+          content:
+            'You are an expert direct-response copywriter. Return ONLY valid JSON (no markdown fences, no commentary) with exactly these string keys: headline, subheadline, ctaText, seoTitle, seoDescription, thankYouMessage. Keep headline under 12 words, subheadline under 30 words, ctaText under 5 words, seoTitle under 60 characters, seoDescription under 155 characters.',
+        },
+        {
+          role: 'user',
+          content: `Write landing-page copy for "${businessName}". Business description / campaign goal: ${description}. Tone: ${tone}.`,
+        },
+      ],
+      0.8,
+    );
+    let content: Record<string, string>;
+    try {
+      content = JSON.parse(
+        raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, ''),
+      );
+    } catch {
+      return res.status(502).json({
+        error: 'AI returned unparseable copy — please try again',
+        raw: raw.slice(0, 500),
+      });
+    }
+    return res.json({ generated: true, content });
+  }
   if (!pid) {
     if (req.method === 'GET') {
       res.json(await sbSelect('landing_pages', '*', orgF).catch(() => []));
@@ -2868,8 +3648,18 @@ async function handleLandingPages(
   }
 }
 
+// Only these camelCase profile fields are writable via PUT/PATCH
+// /api/users/:id — never role/organizationId/plan/etc. through this
+// generic path, those go through dedicated admin-gated endpoints.
+const USER_SELF_UPDATE_FIELDS: Record<string, string> = {
+  phoneConfig: 'phone_config',
+  companyName: 'company_name',
+  name: 'name',
+  avatarUrl: 'avatar_url',
+};
+
 async function handleUsers(
-  _req: VercelRequest,
+  req: VercelRequest,
   res: VercelResponse,
   user: AuthUser,
   pathParts: string[],
@@ -2880,6 +3670,34 @@ async function handleUsers(
         organization_id: `eq.${user.organizationId}`,
       }).catch(() => []),
     });
+  } else if (
+    pathParts[0] &&
+    !pathParts[1] &&
+    (req.method === 'PUT' || req.method === 'PATCH')
+  ) {
+    // dbService.saveUserProfile() PUTs the full (camelCase) user object here.
+    // This previously fell straight through to the 404 branch below —
+    // every "Save Configuration" click (phone/voice setup among others)
+    // silently did nothing against production.
+    const targetId = pathParts[0];
+    if (targetId !== user.id && user.role !== 'admin') {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    const body = parseBody(req);
+    const patch: Record<string, unknown> = {};
+    for (const [camel, column] of Object.entries(USER_SELF_UPDATE_FIELDS)) {
+      if (camel in body) patch[column] = body[camel];
+    }
+    if (Object.keys(patch).length === 0) {
+      return res.status(400).json({ error: 'No updatable fields provided' });
+    }
+    const updated = await sbUpdate('users', patch, {
+      id: `eq.${targetId}`,
+    }).catch(() => null);
+    if (!updated) {
+      return res.status(500).json({ error: 'Failed to update user profile' });
+    }
+    res.json(updated[0] || { id: targetId, ...patch });
   } else res.status(404).json({ error: 'Not found' });
 }
 
@@ -3443,8 +4261,7 @@ const EMPLOYEE_ROSTER: Array<{
     title: 'Customer Support Lead',
     email: `support@${EMAIL_DOMAIN}`,
     reportsTo: `admin@${EMAIL_DOMAIN}`,
-    systemPrompt:
-      'You are Sam Rivera, Customer Support Lead at BuildMyBot (buildmybot.app). You monitor support@buildmybot.app. Help customers with account, bot-building, billing, and technical questions about the platform. Plans: Free $0, Starter $29/mo, Professional $99/mo, Enterprise $499/mo. All paid plans offer 17% off (about 2 months free) when billed annually instead of monthly. Never promise refunds, credits, or legal outcomes — escalate those. Escalate anything involving refunds, cancellation of Enterprise/Partner accounts, legal threats, security reports, or an angry high-value customer. Be warm, clear, and solution-first.',
+    systemPrompt: `You are Sam Rivera, Customer Support Lead at BuildMyBot (buildmybot.app). You monitor support@buildmybot.app. Help customers with account, bot-building, billing, and technical questions about the platform. Plans: ${formatPricingForPrompt()}. All paid plans offer 17% off (about 2 months free) when billed annually instead of monthly. Never promise refunds, credits, or legal outcomes — escalate those. Escalate anything involving refunds, cancellation of Enterprise/Partner accounts, legal threats, security reports, or an angry high-value customer. Be warm, clear, and solution-first.`,
   },
   {
     id: 'vera-sales',
@@ -3453,8 +4270,7 @@ const EMPLOYEE_ROSTER: Array<{
     title: 'Vice President of Sales',
     email: `sales@${EMAIL_DOMAIN}`,
     reportsTo: PRESIDENT_EMAIL,
-    systemPrompt:
-      'You are Vera Cross, Vice President of Sales at BuildMyBot (buildmybot.app). You monitor sales@buildmybot.app and own the revenue pipeline. Plans: Free $0, Starter $29/mo, Professional $99/mo, Enterprise $499/mo. All paid plans offer 17% off (about 2 months free) when billed annually instead of monthly — lead with this for price-sensitive prospects. Partner Access: $499/mo for a 50% revenue split on new accounts. Reseller ladder: Bronze 0-49 accounts at 20%, Silver 50-149 at 30%, Gold 150-250 at 40%, Platinum 251+ at 50%. Qualify leads, answer pricing questions, and drive to a close or a demo. Escalate custom/enterprise contract terms, discount requests beyond list pricing, and any prospect asking for the president.',
+    systemPrompt: `You are Vera Cross, Vice President of Sales at BuildMyBot (buildmybot.app). You monitor sales@buildmybot.app and own the revenue pipeline. Plans: ${formatPricingForPrompt()}. All paid plans offer 17% off (about 2 months free) when billed annually instead of monthly — lead with this for price-sensitive prospects. Partner Access: $499/mo for a 50% revenue split on new accounts. Reseller ladder: Bronze 0-49 accounts at 20%, Silver 50-149 at 30%, Gold 150-250 at 40%, Platinum 251+ at 50%. Qualify leads, answer pricing questions, and drive to a close or a demo. Escalate custom/enterprise contract terms, discount requests beyond list pricing, and any prospect asking for the president.`,
   },
   {
     id: 'devon-agent-dev',
@@ -3493,8 +4309,7 @@ const EMPLOYEE_ROSTER: Array<{
     title: 'Billing Lead',
     email: `billing@${EMAIL_DOMAIN}`,
     reportsTo: PRESIDENT_EMAIL,
-    systemPrompt:
-      'You are Brianna Cole, Billing Lead at BuildMyBot (buildmybot.app). You monitor billing@buildmybot.app. Handle invoice questions, payment failures, refund requests, plan changes, and subscription/cancellation questions. Plans: Free $0, Starter $29/mo, Professional $99/mo, Enterprise $499/mo, Partner Access $499/mo (50% revenue split). All paid plans offer 17% off (about 2 months free) when billed annually instead of monthly — mention this whenever a customer asks about annual billing or discounts. Never promise a refund, credit, or chargeback reversal yourself — collect the details and escalate. Escalate refund requests, disputed charges, cancellation of Enterprise/Partner accounts, and anything that smells like fraud. Be precise with numbers and calm with frustrated customers.',
+    systemPrompt: `You are Brianna Cole, Billing Lead at BuildMyBot (buildmybot.app). You monitor billing@buildmybot.app. Handle invoice questions, payment failures, refund requests, plan changes, and subscription/cancellation questions. Plans: ${formatPricingForPrompt()}, Partner Access $499/mo (50% revenue split). All paid plans offer 17% off (about 2 months free) when billed annually instead of monthly — mention this whenever a customer asks about annual billing or discounts. Never promise a refund, credit, or chargeback reversal yourself — collect the details and escalate. Escalate refund requests, disputed charges, cancellation of Enterprise/Partner accounts, and anything that smells like fraud. Be precise with numbers and calm with frustrated customers.`,
   },
   {
     id: 'marcus-manager',
@@ -3507,6 +4322,31 @@ const EMPLOYEE_ROSTER: Array<{
       'You are Marcus Webb, Operations Manager at BuildMyBot (buildmybot.app). You monitor manager@buildmybot.app and keep an eye on how the AI team (Admin, Sales, Agent Development, Marketing, HR, Support, Billing) is performing day to day. Answer operational questions about team performance, workload, or process. You do not have authority over hiring, firing, compensation, or company policy — escalate anything like that, along with anything involving a specific customer complaint (route those to the right department instead), to the president.',
   },
 ];
+
+/** Maps System B's email-inbox roster onto System A's real 17-role
+ * pipeline (api/ai-team/lib.ts + api/cron/_all-shifts.ts), so email-handling
+ * work lands in the same ai_team_log Marcus's daily executive summary
+ * already reads, instead of a second, disconnected EmployeeLog table.
+ * "agents@" (Devon Reyes' reseller-program role) has no direct System A
+ * equivalent — routed to sales leadership as the closest fit; a real
+ * agent-development role would need to be added to System A to close this
+ * properly. */
+const EMPLOYEE_ID_TO_SYSTEM_A_ROLE: Record<
+  string,
+  { roleId: string; roleName: string }
+> = {
+  'vera-sales': { roleId: 'derek-sales-director', roleName: 'Robert Vance' },
+  'sam-support': { roleId: 'sam-support', roleName: 'Jack Miller' },
+  'brianna-billing': { roleId: 'brianna-billing', roleName: 'John Garrison' },
+  'maya-marketing': { roleId: 'maya-marketing', roleName: 'Amanda Hayes' },
+  'harper-hr': { roleId: 'hannah-hr', roleName: 'William Cross' },
+  'alex-admin': { roleId: 'oscar-operations', roleName: 'Michael Easton' },
+  'devon-agent-dev': {
+    roleId: 'derek-sales-director',
+    roleName: 'Robert Vance',
+  },
+  'marcus-manager': { roleId: 'marcus-manager', roleName: 'Marcus Stone' },
+};
 
 async function getEmployeeByAddress(address: string) {
   const normalized = String(address || '')
@@ -3960,6 +4800,26 @@ async function logEmployeeWork(entry: {
   summary: string;
   metadata?: any;
 }) {
+  // Roster consolidation: mirror into ai_team_log (System A's shared log,
+  // which Marcus's daily executive summary reads) under the mapped role,
+  // in addition to the legacy EmployeeLog write below (kept for historical
+  // audit trail, not read by anything new going forward).
+  const mapped = EMPLOYEE_ID_TO_SYSTEM_A_ROLE[entry.employeeId];
+  if (mapped) {
+    try {
+      const { logShift } = await import('./ai-team/lib.js');
+      await logShift({
+        role_id: mapped.roleId,
+        role_name: mapped.roleName,
+        summary: `[email] ${entry.summary}`,
+        tasks_completed: entry.status === 'completed' ? 1 : 0,
+        flags: entry.status === 'failed' ? entry.summary : '',
+      });
+    } catch (err) {
+      console.error('[email] ai_team_log mirror failed:', err);
+    }
+  }
+
   try {
     await sbInsert('EmployeeLog', {
       employeeId: entry.employeeId,
@@ -4693,9 +5553,10 @@ async function handleQuota(
   const effectivePlan = trial.active ? TRIAL_PLAN : planKey;
   const effectiveLimits = trial.active ? getPlanLimits(TRIAL_PLAN) : limits;
 
-  const [bots, leads] = await Promise.all([
+  const [bots, leads, phoneMinutes] = await Promise.all([
     checkQuota(user, 'bots'),
     checkQuota(user, 'leads'),
+    checkQuota(user, 'phone_minutes'),
   ]);
 
   return res.json({
@@ -4710,6 +5571,12 @@ async function handleQuota(
       leads: {
         current: leads.current,
         limit: trial.active ? getPlanLimits(TRIAL_PLAN).leads : leads.limit,
+      },
+      phoneMinutes: {
+        current: phoneMinutes.current,
+        limit: trial.active
+          ? getPlanLimits(TRIAL_PLAN).phone_minutes
+          : phoneMinutes.limit,
       },
     },
   });
@@ -4751,6 +5618,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return await statusCallback(req, res);
       if (pathParts[0] === 'recording-callback')
         return await recordingCallback(req, res);
+      // Inbound calls to a customer-purchased number — separate from the
+      // outbound sales-pipeline handlers above, grounded in the answering
+      // business's own bot (persona + knowledge base) instead of
+      // BuildMyBot's own pitch.
+      const {
+        inboundVoiceHandler,
+        inboundVoiceRespond,
+        inboundStatusCallback,
+      } = await import('./twilio/inbound.js');
+      if (pathParts[0] === 'inbound-voice-handler')
+        return await inboundVoiceHandler(req, res);
+      if (pathParts[0] === 'inbound-voice-respond')
+        return await inboundVoiceRespond(req, res);
+      if (pathParts[0] === 'inbound-status-callback')
+        return await inboundStatusCallback(req, res);
       return res.status(404).json({ error: 'Unknown Twilio endpoint' });
     }
     if (routeName === 'leads' && pathParts[0] === 'capture')
@@ -4837,7 +5719,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       case 'knowledge':
         return await handleKnowledge(req, res, user, pathParts);
       case 'templates':
-        return await handleTemplates(req, res, user);
+        return await handleTemplates(req, res, user, pathParts);
       case 'tools':
         return await handleTools(req, res, user, pathParts);
       case 'webhooks':

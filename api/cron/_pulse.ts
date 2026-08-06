@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import {
+  aiTeamKilled,
   callLLM,
   logAgentError,
   messageAgent,
@@ -22,8 +23,14 @@ import {
 //      role (tight, budgeted LLM call), so inter-agent questions resolve in
 //      minutes, not next-shift. Anti-loop guard: replies (subject "Re:") are
 //      never auto-replied to, capping every thread at one round trip.
-//   3. Stale critical errors → open criticals older than 2h that nobody
+//   3. Sales outreach → if researched leads are waiting (status new/
+//      surfaced_to_sales), invoke the sales-outreach worker immediately.
+//   4. Stale critical errors → open criticals older than 2h that nobody
 //      resolved get ONE Discord+Slack reminder (deduped via context flag).
+//   5. Escalation SLA → open escalations / president-required agent_messages
+//      older than ESCALATION_SLA_HOURS (default 4h) get ONE reminder each,
+//      same dedup pattern as step 4 — an escalation nobody reads must not
+//      sit forever just because the first alert was missed.
 //
 // A pulse only writes an ai_team_log row when it actually did something —
 // 144 no-op rows a day would drown the log Marcus reads.
@@ -49,6 +56,10 @@ const ROLE_NAMES: Record<string, string> = {
 export async function pulseHandler(req: VercelRequest, res: VercelResponse) {
   if (req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`)
     return res.status(401).end();
+
+  if (aiTeamKilled()) {
+    return res.status(200).json({ success: true, killed: true });
+  }
 
   const startedAt = Date.now();
   const deadlineAt = startedAt + 240_000; // leave headroom under maxDuration
@@ -188,6 +199,69 @@ export async function pulseHandler(req: VercelRequest, res: VercelResponse) {
     }
   } catch (err: any) {
     console.error('[pulse] stale-error sweep failed:', err.message);
+  }
+
+  // ── 5. Escalation SLA — nobody reads it, nobody hears about it twice ─────
+  // An escalations/agent_messages row can sit open forever if the one-time
+  // notification that created it was missed. Same dedup pattern as the
+  // stale-critical sweep above (a `context.pulse_reminded` flag), applied
+  // to escalations and to agent_messages flagged requires_president.
+  try {
+    const slaHours = Number(process.env.ESCALATION_SLA_HOURS || 4);
+    const slaCutoff = new Date(Date.now() - slaHours * 3600_000).toISOString();
+
+    const staleEscalations =
+      (await supabaseFetch(
+        'escalations',
+        `status=eq.open&created_at=lt.${slaCutoff}&select=id,source,subject,summary,reason,priority,context,created_at&limit=10`,
+      )) || [];
+    for (const e of staleEscalations) {
+      if (e.context?.pulse_reminded) continue;
+      const ageHours = Math.round(
+        (Date.now() - new Date(e.created_at).getTime()) / 3600_000,
+      );
+      const label = e.subject || e.summary || e.reason || 'Untitled escalation';
+      await notifyDiscord(
+        `🚨 **Escalation unacknowledged for ${ageHours}h** (${e.priority || 'normal'}) — \`${e.source}\`\n${String(label).slice(0, 400)}`,
+      );
+      await notifySlack(
+        `:rotating_light: *Escalation unacknowledged for ${ageHours}h* (${e.priority || 'normal'}) — \`${e.source}\`\n${String(label).slice(0, 400)}`,
+      );
+      await supabaseFetch('escalations', `id=eq.${e.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          context: { ...(e.context ?? {}), pulse_reminded: true },
+        }),
+      });
+      actions.push(`reminded stale escalation ${e.id}`);
+    }
+
+    const stalePresidentMail =
+      (await supabaseFetch(
+        'agent_messages',
+        `requires_president=eq.true&status=eq.sent&created_at=lt.${slaCutoff}&select=id,from_employee,subject,context,created_at&limit=10`,
+      )) || [];
+    for (const m of stalePresidentMail) {
+      if (m.context?.pulse_reminded) continue;
+      const ageHours = Math.round(
+        (Date.now() - new Date(m.created_at).getTime()) / 3600_000,
+      );
+      await notifyDiscord(
+        `🚨 **President-required message unread for ${ageHours}h** — from \`${m.from_employee}\`\n${String(m.subject || '(no subject)').slice(0, 200)}`,
+      );
+      await notifySlack(
+        `:rotating_light: *President-required message unread for ${ageHours}h* — from \`${m.from_employee}\`\n${String(m.subject || '(no subject)').slice(0, 200)}`,
+      );
+      await supabaseFetch('agent_messages', `id=eq.${m.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          context: { ...(m.context ?? {}), pulse_reminded: true },
+        }),
+      });
+      actions.push(`reminded stale president-mail ${m.id}`);
+    }
+  } catch (err: any) {
+    console.error('[pulse] escalation-SLA sweep failed:', err.message);
   }
 
   return res.status(200).json({

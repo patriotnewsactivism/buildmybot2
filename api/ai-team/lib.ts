@@ -77,17 +77,45 @@ export const PROVIDER_CONFIG: Record<Provider, ProviderConfig> = {
   // of any provider as of mid-2026. Good backstop when others rate-limit.
   cerebras: {
     baseURL: 'https://api.cerebras.ai/v1/chat/completions',
-    model: 'llama-3.3-70b',
+    model: 'gpt-oss-120b',
     keyEnv: 'CEREBRAS_API_KEY',
     format: 'openai',
   },
-  // Aggregator with several genuinely free models (Llama, DeepSeek, Qwen, etc).
+  // Production-tier Cohere key (confirmed live via direct completion test,
+  // 2026-07-26 portfolio-wide LLM audit). Placed ahead of gemini/openrouter
+  // since those two showed simultaneous rate-limit exhaustion same day.
+  cohere: {
+    baseURL: 'https://api.cohere.ai/compatibility/v1/chat/completions',
+    model: 'command-r-plus-08-2024',
+    keyEnv: 'COHERE_API_KEY',
+  },
+  // Aggregator with a rotating catalog of genuinely free models. WARNING:
+  // the :free catalog churns — llama-3.1-8b-instruct:free died in the
+  // 2026-07-22 purge and this provider silently failed on every call until
+  // the 2026-07-23 audit caught it. Both ids below were live-verified
+  // against GET /api/v1/models on 2026-07-23. If OpenRouter starts erroring
+  // in the shift logs, re-check the catalog before assuming rate limits.
   openrouter: {
     baseURL: 'https://openrouter.ai/api/v1/chat/completions',
-    model: 'meta-llama/llama-3.1-8b-instruct:free',
+    model: 'openai/gpt-oss-20b:free',
+    keyEnv: 'OPENROUTER_API_KEY',
+  },
+  // Second OpenRouter rung (same key, different free model) so one delisted
+  // model doesn't take out the whole OpenRouter link in the chain.
+  openrouter2: {
+    baseURL: 'https://openrouter.ai/api/v1/chat/completions',
+    model: 'nvidia/nemotron-3-super-120b-a12b:free',
     keyEnv: 'OPENROUTER_API_KEY',
     format: 'openai',
   },
+  // Free via GitHub Models (models.github.ai) using the existing
+  // GITHUB_TOKEN_4 PAT -- no new key needed. Live-verified 2026-07-20.
+  github: {
+    baseURL: 'https://models.github.ai/inference/chat/completions',
+    model: 'openai/gpt-4.1',
+    keyEnv: 'GITHUB_TOKEN_4',
+  },
+  // Qwen Cloud removed 2026-07-26 -- confirmed dead/blocked across the entire portfolio (401 on every cached key variant).
   // Paid last resort / use for anything customer-facing where quality matters most.
   openai: {
     baseURL: 'https://api.openai.com/v1/chat/completions',
@@ -104,7 +132,12 @@ const FALLBACK_ORDER: Provider[] = [
   'gemini',
   'groq',
   'cerebras',
+  'groq',
+  'cohere',
+  'gemini',
   'openrouter',
+  'openrouter2',
+  'github',
   'openai',
 ];
 
@@ -151,6 +184,30 @@ export function buildProviderOrder(
     order: [rrPick, ...configured.filter((p) => p !== rrPick)],
     source: 'round-robin',
   };
+  throw await providerChainExhausted(errors);
+}
+
+/** Full provider-chain exhaustion is a portfolio-level event: log it as a
+ * CRITICAL error_logs row (which also pings Discord + Slack via
+ * logAgentError, and surfaces in Apex's buildmybot_open_errors telemetry)
+ * instead of only throwing into whichever caller happened to hit it.
+ * Alerting must never mask the real failure, so this returns the Error for
+ * the caller to throw rather than throwing from inside the alert path. */
+async function providerChainExhausted(errors: string[]): Promise<Error> {
+  const message = errors.length
+    ? `All configured LLM providers failed: ${errors.join(' | ')}`
+    : `No LLM provider configured — set at least one of: ${FALLBACK_ORDER.map((p) => PROVIDER_CONFIG[p].keyEnv).join(', ')}`;
+  try {
+    await logAgentError({
+      source: 'llm-provider-chain',
+      message,
+      level: 'critical',
+      context: { providers_tried: errors.length, chain: FALLBACK_ORDER },
+    });
+  } catch {
+    console.error('[llm-provider-chain] exhaustion alert itself failed:', message);
+  }
+  return new Error(message);
 }
 
 // Adapt messages array to the wire format each provider expects.
@@ -466,9 +523,15 @@ export async function recallMemories(
     subjectId?: string;
     roleId?: string;
     limit?: number;
+    /** Tenant scope. Every current caller acts on BuildMyBot's own behalf,
+     * never a client organization's, so this defaults to 'house'. Pass a
+     * real organization id once agents act for client orgs — recall must
+     * never cross tenant boundaries. */
+    organizationId?: string;
   } = {},
 ): Promise<AgentMemoryRow[]> {
   const limit = opts.limit ?? 8;
+  const organizationId = opts.organizationId ?? 'house';
 
   const queryEmbedding = await embedText(query);
   if (queryEmbedding) {
@@ -489,6 +552,7 @@ export async function recallMemories(
             match_role_id: opts.roleId ?? null,
             match_threshold: 0.3,
             match_count: limit,
+            match_organization_id: organizationId,
           }),
         },
       );
@@ -500,7 +564,11 @@ export async function recallMemories(
   }
 
   // Fallback: most recent memories for the same subject/role (no vector math).
-  const filters: string[] = ['order=created_at.desc', `limit=${limit}`];
+  const filters: string[] = [
+    'order=created_at.desc',
+    `limit=${limit}`,
+    `organization_id=eq.${organizationId}`,
+  ];
   if (opts.subjectType) filters.push(`subject_type=eq.${opts.subjectType}`);
   if (opts.subjectId) filters.push(`subject_id=eq.${opts.subjectId}`);
   if (opts.roleId) filters.push(`role_id=eq.${opts.roleId}`);
@@ -517,6 +585,8 @@ export async function rememberMemory(entry: {
   subjectId?: string;
   content: string;
   metadata?: Record<string, unknown>;
+  /** Tenant scope — see recallMemories()'s organizationId doc. */
+  organizationId?: string;
 }): Promise<void> {
   const embedding = await embedText(entry.content);
   const row = await supabaseFetch('ai_agent_memories', '', {
@@ -527,6 +597,7 @@ export async function rememberMemory(entry: {
       subject_id: entry.subjectId ?? null,
       content: entry.content,
       metadata: entry.metadata ?? {},
+      organization_id: entry.organizationId ?? 'house',
       ...(embedding ? { embedding: JSON.stringify(embedding) } : {}),
     }),
   });
@@ -580,6 +651,35 @@ export async function logAgentError(entry: {
       `:rotating_light: *CRITICAL* — \`${entry.source}\`\n${entry.message.slice(0, 500)}`,
     );
   }
+}
+
+/**
+ * Records one row in analytics_events for a key sales-funnel moment (lead
+ * captured, outreach sent, follow-up sent, call completed). Best-effort —
+ * the funnel dashboard reading this table is nice-to-have, so a failure
+ * here must never interrupt the caller's actual work (sending the email,
+ * placing the call, etc).
+ */
+export async function trackAnalyticsEvent(entry: {
+  eventType: string;
+  organizationId?: string | null;
+  botId?: string | null;
+  userId?: string | null;
+  eventData?: Record<string, unknown>;
+}): Promise<void> {
+  await supabaseFetch('analytics_events', '', {
+    method: 'POST',
+    body: JSON.stringify({
+      id: crypto.randomUUID(),
+      organization_id: entry.organizationId ?? null,
+      bot_id: entry.botId ?? null,
+      user_id: entry.userId ?? null,
+      event_type: entry.eventType,
+      event_data: entry.eventData ?? {},
+    }),
+  }).catch((err: any) => {
+    console.error('[analytics] track event failed:', entry.eventType, err.message);
+  });
 }
 
 // ---------------------------------------------------------------------------

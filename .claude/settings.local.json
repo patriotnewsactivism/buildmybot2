@@ -20,7 +20,6 @@
       "Bash(xargs:*)",
       "Bash(powershell \"netsh interface ipv4 show excludedportrange protocol=tcp\")",
       "Bash(dir \"C:\\buildmybot\\shared\\models\")",
-      "*",
       "Bash(node -e:*)",
       "Bash(git push:*)",
       "Bash(git pull:*)",

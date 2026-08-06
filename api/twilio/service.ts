@@ -12,6 +12,8 @@
  * Every call is logged to the `leads` outreach fields and `call_logs` table.
  */
 
+import { salesAutomationDryRun, trackAnalyticsEvent } from '../ai-team/lib.js';
+
 const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
 const TWILIO_PHONE_NUMBER = process.env.TWILIO_PHONE_NUMBER;
@@ -92,6 +94,8 @@ export async function initiateOutboundCall(opts: {
   objective: string;
   agentRoleId: string;
   agentName: string;
+  /** Grok voice id for the call (defaults to 'eve'). */
+  voiceId?: string;
 }): Promise<{
   success: boolean;
   callSid?: string;
@@ -103,6 +107,15 @@ export async function initiateOutboundCall(opts: {
       error:
         'Twilio not configured (set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER)',
     };
+  }
+
+  // Belt-and-suspenders: even if a caller forgets to check this upstream,
+  // initiateOutboundCall never dials out while dry-run is active.
+  if (salesAutomationDryRun()) {
+    console.warn(
+      `[twilio][DRY RUN] Would call ${opts.phoneNumber} for lead ${opts.leadId} (objective: ${opts.objective})`,
+    );
+    return { success: false, error: 'dry_run' };
   }
 
   try {
@@ -132,7 +145,7 @@ export async function initiateOutboundCall(opts: {
     const call = await client.calls.create({
       to: opts.phoneNumber,
       from: TWILIO_PHONE_NUMBER!,
-      url: `${APP_BASE_URL}/api/twilio/voice-handler?leadId=${encodeURIComponent(opts.leadId)}&objective=${encodeURIComponent(opts.objective)}&logId=${logId || ''}`,
+      url: `${APP_BASE_URL}/api/twilio/voice-handler?leadId=${encodeURIComponent(opts.leadId)}&objective=${encodeURIComponent(opts.objective)}&logId=${logId || ''}&voice=${encodeURIComponent(opts.voiceId || 'eve')}`,
       statusCallback: `${APP_BASE_URL}/api/twilio/status-callback?logId=${logId || ''}&leadId=${encodeURIComponent(opts.leadId)}`,
       statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
       statusCallbackMethod: 'POST',
@@ -258,5 +271,12 @@ export async function logCallOutcome(opts: {
     });
   } catch {
     // Memory write is non-blocking
+  }
+
+  if (opts.status === 'completed') {
+    await trackAnalyticsEvent({
+      eventType: 'call_completed',
+      eventData: { leadId: opts.leadId, duration: opts.duration },
+    });
   }
 }

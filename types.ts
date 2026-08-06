@@ -23,7 +23,6 @@ export interface PhoneAgentConfig {
   phoneNumber?: string;
   voiceId: string;
   introMessage: string;
-  cartesiaApiKey?: string;
   delegationLink?: string;
   twilioSid?: string;
 }

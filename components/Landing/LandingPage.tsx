@@ -329,11 +329,11 @@ export const LandingPage: React.FC<LandingProps> = ({
   const faqs = [
     {
       q: 'How much does BuildMyBot cost?',
-      a: "Plans start at $29/month for Starter (750 conversations). Professional is $99/month with 5 bots and 5,000 conversations. Save 17% with annual billing — that's 2 months free. There's also a free tier with 60 conversations so you can try it risk-free.",
+      a: "Plans start at $29/month for Starter (750 conversations). Professional is $99/month with 5 bots and 5,000 conversations. Save 17% with annual billing — that's 2 months free. There's also a free tier with 250 conversations so you can try it risk-free.",
     },
     {
       q: 'How realistic does the voice agent actually sound?',
-      a: "This is our biggest differentiator. We use Cartesia's cutting-edge neural voice synthesis — the same caliber of technology used in Hollywood productions. In real-world calls, the vast majority of callers cannot tell they're speaking with AI. It has natural inflection, appropriate pauses, and emotional warmth. It's not the robotic voice you've heard from other services.",
+      a: "This is our biggest differentiator. We use Grok's cutting-edge neural voice synthesis — the same caliber of technology used in Hollywood productions. In real-world calls, the vast majority of callers cannot tell they're speaking with AI. It has natural inflection, appropriate pauses, and emotional warmth. It's not the robotic voice you've heard from other services.",
     },
     {
       q: 'How quickly can I get started?',
@@ -353,11 +353,11 @@ export const LandingPage: React.FC<LandingProps> = ({
     },
     {
       q: 'How is this different from other AI chatbot/phone services?',
-      a: "Most AI solutions use basic text-to-speech that sounds obviously robotic. BuildMyBot uses Cartesia's state-of-the-art voice synthesis with sub-second latency, natural breathing patterns, and human-like inflection. Combined with advanced AI understanding, our voice agents have real conversations — not scripted responses. Plus you get both chatbot AND voice agent in one platform.",
+      a: "Most AI solutions use basic text-to-speech that sounds obviously robotic. BuildMyBot uses Grok's state-of-the-art voice synthesis with sub-second latency, natural breathing patterns, and human-like inflection. Combined with advanced AI understanding, our voice agents have real conversations — not scripted responses. Plus you get both chatbot AND voice agent in one platform.",
     },
     {
       q: 'Is there a free trial?',
-      a: 'Yes! Our free tier gives you 1 bot with 60 conversations per month — no credit card required. Upgrade anytime. Paid plans come with a 14-day money-back guarantee.',
+      a: 'Yes! Our free tier gives you 1 bot with 250 conversations per month — no credit card required. Upgrade anytime. Paid plans come with a 14-day money-back guarantee.',
     },
   ];
 
@@ -893,7 +893,7 @@ export const LandingPage: React.FC<LandingProps> = ({
                 4.1
               </span>
               <span className="flex items-center gap-2">
-                <Mic size={14} className="text-purple-500" /> Cartesia Neural
+                <Mic size={14} className="text-purple-500" /> Grok Neural
                 Voice
               </span>
               <span className="flex items-center gap-2">
@@ -1294,7 +1294,7 @@ export const LandingPage: React.FC<LandingProps> = ({
                   onClick={onLogin}
                   className="text-blue-700 font-semibold hover:underline"
                 >
-                  Start free with 60 conversations/month →
+                  Start free with 250 conversations/month →
                 </button>
               </p>
             </div>

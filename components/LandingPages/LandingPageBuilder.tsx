@@ -136,6 +136,8 @@ export const LandingPageBuilder: React.FC<LandingPageBuilderProps> = ({
   );
   const [searchTerm, setSearchTerm] = useState('');
   const [saving, setSaving] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [aiDescription, setAiDescription] = useState('');
   const [draggedFieldId, setDraggedFieldId] = useState<string | null>(null);
   const heroImageInputRef = useRef<HTMLInputElement>(null);
 
@@ -308,6 +310,39 @@ export const LandingPageBuilder: React.FC<LandingPageBuilderProps> = ({
   ) => {
     if (selectedPage) {
       setSelectedPage({ ...selectedPage, [field]: value });
+    }
+  };
+
+  const handleGenerateWithAI = async () => {
+    if (!selectedPage || !aiDescription.trim()) return;
+    try {
+      setGenerating(true);
+      const response = await fetch(`${API_BASE}/landing-pages/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          businessName: selectedPage.name,
+          description: aiDescription,
+        }),
+      });
+      if (!response.ok) throw new Error('Generation failed');
+      const data = await response.json();
+      const c = data.content || {};
+      setSelectedPage({
+        ...selectedPage,
+        headline: c.headline || selectedPage.headline,
+        subheadline: c.subheadline || selectedPage.subheadline,
+        ctaText: c.ctaText || selectedPage.ctaText,
+        seoTitle: c.seoTitle || selectedPage.seoTitle,
+        seoDescription: c.seoDescription || selectedPage.seoDescription,
+        thankYouMessage: c.thankYouMessage || selectedPage.thankYouMessage,
+      });
+    } catch (err) {
+      console.error('AI generation error:', err);
+      alert('AI generation failed. Please try again.');
+    } finally {
+      setGenerating(false);
     }
   };
 
@@ -683,6 +718,41 @@ export const LandingPageBuilder: React.FC<LandingPageBuilderProps> = ({
               <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-slate-50/50">
                 {activeEditorTab === 'basic' && (
                   <div className="space-y-6 animate-fade-in">
+                    <div className="bg-white p-6 rounded-xl border border-orange-200">
+                      <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-2">
+                        <Zap size={18} className="text-orange-500" /> Generate
+                        with AI
+                      </h3>
+                      <p className="text-sm text-slate-500 mb-3">
+                        Describe your business or campaign and AI will write the
+                        headline, subheadline, CTA, SEO tags, and thank-you
+                        message for you.
+                      </p>
+                      <textarea
+                        value={aiDescription}
+                        onChange={(e) => setAiDescription(e.target.value)}
+                        rows={3}
+                        className="w-full rounded-lg border-slate-200 focus:ring-orange-500 focus:border-orange-500 mb-3"
+                        placeholder="e.g. A 24/7 AI chatbot service for real-estate agencies that captures and qualifies leads while they sleep..."
+                      />
+                      <button
+                        type="button"
+                        onClick={handleGenerateWithAI}
+                        disabled={generating || !aiDescription.trim()}
+                        className="px-4 py-2 bg-orange-500 text-white rounded-lg font-medium hover:bg-orange-600 disabled:opacity-50 transition flex items-center gap-2"
+                      >
+                        {generating ? (
+                          <>
+                            <Loader2 size={16} className="animate-spin" />{' '}
+                            Generating...
+                          </>
+                        ) : (
+                          <>
+                            <Zap size={16} /> Generate Copy
+                          </>
+                        )}
+                      </button>
+                    </div>
                     <div className="bg-white p-6 rounded-xl border border-slate-200">
                       <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
                         <FileText size={18} className="text-orange-500" /> Basic
