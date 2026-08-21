@@ -250,6 +250,27 @@ async function processLead(lead: ResearchedLead): Promise<OutreachResult> {
     };
   }
 
+  // Preview before any CRM promotion, email/call, analytics, or memory write.
+  // The previous order created CRM rows even though the result claimed a
+  // dry-run had zero persisted side effects.
+  if (salesAutomationDryRun()) {
+    if (method === 'email' && lead.email) {
+      const draft = await draftColdEmail(lead);
+      return {
+        id: lead.id,
+        company: lead.company_name,
+        action: 'dry_run',
+        detail: `[DRY RUN] Would email ${lead.email}: "${draft.subject}"`,
+      };
+    }
+    return {
+      id: lead.id,
+      company: lead.company_name,
+      action: 'dry_run',
+      detail: `[DRY RUN] Would call ${lead.phone}`,
+    };
+  }
+
   // Step 1: Promote to the main leads CRM table so it's visible in the dashboard
   const existingLeads = await sbSelect(
     'leads',
@@ -350,7 +371,11 @@ async function processLead(lead: ResearchedLead): Promise<OutreachResult> {
 
       await trackAnalyticsEvent({
         eventType: 'outreach_sent',
-        eventData: { method: 'email', leadId: crmLeadId, industry: lead.industry },
+        eventData: {
+          method: 'email',
+          leadId: crmLeadId,
+          industry: lead.industry,
+        },
       });
 
       return {
@@ -455,6 +480,18 @@ export async function salesOutreachHandler(
   if (aiTeamKilled()) {
     return res.status(200).json({ success: true, killed: true });
   }
+  const preview = Array.isArray(req.query.preview)
+    ? req.query.preview[0]
+    : req.query.preview;
+  if (salesAutomationDryRun() && preview !== '1') {
+    return res.status(200).json({
+      success: true,
+      dry_run: true,
+      skipped: true,
+      message:
+        'Outbound automation is paused. Use ?preview=1 for an explicit dry-run preview.',
+    });
+  }
 
   const startedAt = Date.now();
   const globalDeadline = startedAt + GLOBAL_BUDGET_MS;
@@ -495,7 +532,9 @@ export async function salesOutreachHandler(
         'researched_leads',
         {
           status:
-            result.action === 'error' ? 'outreach_failed' : 'outreach_initiated',
+            result.action === 'error'
+              ? 'outreach_failed'
+              : 'outreach_initiated',
           outreach_initiated_at: new Date().toISOString(),
         },
         `id=eq.${lead.id}`,

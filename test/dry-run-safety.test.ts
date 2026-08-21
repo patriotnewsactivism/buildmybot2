@@ -131,3 +131,48 @@ describe('initiateOutboundCall dry-run gate', () => {
     expect(result.success).toBe(true);
   });
 });
+
+describe('scheduled outbound work in dry-run mode', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.resetModules();
+  });
+
+  it('keeps the recurring pulse token-free and does not dispatch outbound workers', async () => {
+    process.env.SALES_AUTOMATION_DRY_RUN = 'true';
+    process.env.CRON_SECRET = 'test-cron-secret';
+    const urls: string[] = [];
+    global.fetch = vi.fn(async (url: string) => {
+      urls.push(String(url));
+      return { ok: true, text: async () => '[]' } as any;
+    }) as any;
+
+    const { pulseHandler } = await import('../api/cron/_pulse.js');
+    let responseBody: any;
+    const res = {
+      status: vi.fn(() => res),
+      json: vi.fn((body: any) => {
+        responseBody = body;
+        return res;
+      }),
+      end: vi.fn(() => res),
+    } as any;
+
+    await pulseHandler(
+      { headers: { authorization: 'Bearer test-cron-secret' } } as any,
+      res,
+    );
+
+    expect(responseBody.idle).toBe(true);
+    expect(urls.some((url) => url.includes('/rest/v1/leads'))).toBe(false);
+    expect(urls.some((url) => url.includes('/rest/v1/researched_leads'))).toBe(
+      false,
+    );
+    expect(urls.some((url) => url.includes('/api/cron/lead-followups'))).toBe(
+      false,
+    );
+    expect(urls.some((url) => url.includes('/api/cron/sales-outreach'))).toBe(
+      false,
+    );
+  });
+});

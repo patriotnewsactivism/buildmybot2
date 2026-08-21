@@ -352,6 +352,18 @@ export async function leadFollowupsHandler(
   if (aiTeamKilled()) {
     return res.status(200).json({ success: true, killed: true });
   }
+  const preview = Array.isArray(req.query.preview)
+    ? req.query.preview[0]
+    : req.query.preview;
+  if (salesAutomationDryRun() && preview !== '1') {
+    return res.status(200).json({
+      success: true,
+      dry_run: true,
+      skipped: true,
+      message:
+        'Outbound automation is paused. Use ?preview=1 for an explicit dry-run preview.',
+    });
+  }
   if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
     return res.status(500).json({
       success: false,

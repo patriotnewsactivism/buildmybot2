@@ -164,6 +164,12 @@ export const VoiceCallSimulator: React.FC<VoiceCallSimulatorProps> = ({
   useEffect(() => {
     if (!isOpen) return;
 
+    const voiceUrl = import.meta.env.VITE_VOICE_AGENT_URL?.trim();
+    if (!voiceUrl) {
+      setStatus('Voice service is not configured');
+      return;
+    }
+
     if (!audioContextRef.current) {
       try {
         audioContextRef.current = new (
@@ -176,9 +182,6 @@ export const VoiceCallSimulator: React.FC<VoiceCallSimulatorProps> = ({
       }
     }
 
-    const voiceUrl =
-      import.meta.env.VITE_VOICE_AGENT_URL ||
-      'wss://buildmybot2-backend-production.up.railway.app';
     const socket = new WebSocket(voiceUrl);
     wsRef.current = socket;
 

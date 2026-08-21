@@ -4,14 +4,14 @@ import { env } from '../server/env';
 const { Client } = pg;
 
 async function enableExtensions() {
-  console.log('Enabling required extensions on Railway DB...');
+  console.log('Enabling required extensions on the configured Postgres database...');
   const client = new Client({
     connectionString: env.DATABASE_URL,
   });
 
   try {
     await client.connect();
-    console.log('Connected to Railway DB.');
+    console.log('Connected to Postgres.');
     
     // Enable pgvector
     await client.query('CREATE EXTENSION IF NOT EXISTS vector;');

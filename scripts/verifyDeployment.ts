@@ -6,7 +6,7 @@ import { bots, organizations, users } from '../shared/schema';
 // Load environment variables
 dotenv.config();
 
-const API_URL = process.env.VITE_API_URL || 'https://buildmybot2-production.up.railway.app';
+const API_URL = process.env.API_BASE_URL || 'https://www.buildmybot.app';
 const APP_URL = process.env.APP_BASE_URL || 'https://buildmybot.app';
 
 async function verifyDeployment() {

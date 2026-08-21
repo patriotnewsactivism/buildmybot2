@@ -14,7 +14,15 @@
 const SUPABASE_URL = process.env.SUPABASE_URL!;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-type Provider = 'groq' | 'gemini' | 'cerebras' | 'cohere' | 'openrouter' | 'openrouter2' | 'github' | 'openai';
+type Provider =
+  | 'groq'
+  | 'gemini'
+  | 'cerebras'
+  | 'cohere'
+  | 'openrouter'
+  | 'openrouter2'
+  | 'github'
+  | 'openai';
 
 const PROVIDER_CONFIG: Record<
   Provider,
@@ -32,7 +40,7 @@ const PROVIDER_CONFIG: Record<
   // for short internal-reasoning shifts like these.
   groq: {
     baseURL: 'https://api.groq.com/openai/v1/chat/completions',
-    model: 'llama-3.3-70b-versatile',
+    model: 'openai/gpt-oss-120b',
     keyEnv: 'GROQ_API_KEY',
   },
   // Free tier, no card, 1M tokens/day — the most generous free daily volume
@@ -103,7 +111,9 @@ const FALLBACK_ORDER: Provider[] = [
 // pause the night before (the pause only touched vercel.json, not the
 // workflows actually triggering these paths).
 export function salesAutomationDryRun(): boolean {
-  return (process.env.SALES_AUTOMATION_DRY_RUN || 'true').toLowerCase() !== 'false';
+  return (
+    (process.env.SALES_AUTOMATION_DRY_RUN || 'true').toLowerCase() !== 'false'
+  );
 }
 
 // Global emergency stop for every AI Team cron handler. Unset/anything but
@@ -116,26 +126,31 @@ export function aiTeamKilled(): boolean {
  * drafting) — deliberately NOT shared with callLLMMessages (customer chat),
  * so a runaway internal loop can never throttle a paying customer's bot. */
 async function overDailyBudget(): Promise<boolean> {
-  const budget = Number(process.env.LLM_DAILY_BUDGET_CALLS || 1500);
+  const configuredBudget = Number(process.env.LLM_DAILY_BUDGET_CALLS || 500);
+  const budget = Number.isFinite(configuredBudget)
+    ? Math.max(0, Math.floor(configuredBudget))
+    : 500;
   try {
     const today = new Date().toISOString().slice(0, 10);
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/rpc/increment_llm_usage`,
-      {
-        method: 'POST',
-        headers: {
-          apikey: SUPABASE_SERVICE_ROLE_KEY,
-          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ usage_day: today }),
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/increment_llm_usage`, {
+      method: 'POST',
+      headers: {
+        apikey: SUPABASE_SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        'Content-Type': 'application/json',
       },
-    );
-    if (!res.ok) return false; // fail open — don't let budget bookkeeping break the AI team
+      body: JSON.stringify({ usage_day: today }),
+    });
+    if (!res.ok) {
+      throw new Error(`budget RPC returned ${res.status}`);
+    }
     const count = await res.json();
     return typeof count === 'number' && count > budget;
-  } catch {
-    return false; // fail open
+  } catch (err: any) {
+    // Fail closed: if the governor cannot count calls, allowing every cron to
+    // proceed recreates the exact unbounded-spend failure this guard exists to
+    // prevent. Customer chat uses callLLMMessages and is not affected.
+    throw new Error(`llm_budget_guard_unavailable: ${err.message}`);
   }
 }
 
@@ -147,13 +162,23 @@ export async function callLLM(
     await logAgentError({
       source: 'llm-daily-budget',
       level: 'warning',
-      message: `Daily internal LLM call budget exceeded (LLM_DAILY_BUDGET_CALLS=${process.env.LLM_DAILY_BUDGET_CALLS || 1500}) — skipping this call, will resume tomorrow.`,
+      message: `Daily internal LLM call budget exceeded (LLM_DAILY_BUDGET_CALLS=${process.env.LLM_DAILY_BUDGET_CALLS || 500}) — skipping this call, will resume tomorrow.`,
     }).catch(() => null);
     throw new Error('daily_llm_budget_exceeded');
   }
 
-  const preferred = (process.env.AI_TEAM_LLM_PROVIDER as Provider) || 'groq';
-  const order = [preferred, ...FALLBACK_ORDER.filter((p) => p !== preferred)];
+  const paidInternalFallback = ['1', 'true', 'on'].includes(
+    (process.env.AI_TEAM_PAID_FALLBACK || 'off').toLowerCase(),
+  );
+  const availableOrder = paidInternalFallback
+    ? FALLBACK_ORDER
+    : FALLBACK_ORDER.filter((provider) => provider !== 'openai');
+  const configuredPreferred =
+    (process.env.AI_TEAM_LLM_PROVIDER as Provider) || 'cerebras';
+  const preferred = availableOrder.includes(configuredPreferred)
+    ? configuredPreferred
+    : (availableOrder[0] ?? 'cerebras');
+  const order = [preferred, ...availableOrder.filter((p) => p !== preferred)];
 
   const errors: string[] = [];
   for (const provider of order) {
@@ -189,7 +214,10 @@ async function providerChainExhausted(errors: string[]): Promise<Error> {
       context: { providers_tried: errors.length, chain: FALLBACK_ORDER },
     });
   } catch {
-    console.error('[llm-provider-chain] exhaustion alert itself failed:', message);
+    console.error(
+      '[llm-provider-chain] exhaustion alert itself failed:',
+      message,
+    );
   }
   return new Error(message);
 }
@@ -257,18 +285,33 @@ async function callWithConfigMessages(
   messages: { role: 'system' | 'user' | 'assistant'; content: string }[],
   temperature = 0.4,
 ): Promise<string> {
-  const res = await fetch(cfg.baseURL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: cfg.model,
-      messages,
-      temperature,
-    }),
-  });
+  const configuredMaxTokens = Number(
+    process.env.AI_TEAM_MAX_OUTPUT_TOKENS || 1024,
+  );
+  const maxTokens = Number.isFinite(configuredMaxTokens)
+    ? Math.min(4096, Math.max(128, Math.floor(configuredMaxTokens)))
+    : 1024;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 25_000);
+  let res: Response;
+  try {
+    res = await fetch(cfg.baseURL, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: cfg.model,
+        messages,
+        temperature,
+        max_tokens: maxTokens,
+      }),
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
 
   if (!res.ok) {
     const text = await res.text();
@@ -315,6 +358,110 @@ export async function supabaseFetch(
     console.error(`Supabase ${table} fetch: non-JSON body`, text.slice(0, 200));
     return null;
   }
+}
+
+export interface AiTeamSchemaReadiness {
+  ready: boolean;
+  missing: string[];
+  checkedAt: string;
+}
+
+let schemaReadinessCache:
+  | { expiresAt: number; value: AiTeamSchemaReadiness }
+  | undefined;
+
+/** Verify the columns/RPCs every autonomous cron requires before it can spend
+ * a model token. This intentionally fails closed at the dynamic cron route:
+ * schema drift should be a visible 503, not thousands of logged errors hidden
+ * behind HTTP 200 responses. */
+export async function getAiTeamSchemaReadiness(
+  force = false,
+): Promise<AiTeamSchemaReadiness> {
+  if (
+    !force &&
+    schemaReadinessCache &&
+    schemaReadinessCache.expiresAt > Date.now()
+  ) {
+    return schemaReadinessCache.value;
+  }
+
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    return {
+      ready: false,
+      missing: ['SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY'],
+      checkedAt: new Date().toISOString(),
+    };
+  }
+
+  const headers = {
+    apikey: SUPABASE_SERVICE_ROLE_KEY,
+    Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+    'Content-Type': 'application/json',
+  };
+  const checks: Array<{
+    name: string;
+    path: string;
+    init?: RequestInit;
+  }> = [
+    {
+      name: 'ai_agent_memories.organization_id',
+      path: 'ai_agent_memories?select=id,organization_id&limit=0',
+    },
+    {
+      name: 'agent_messages.context',
+      path: 'agent_messages?select=id,context&limit=0',
+    },
+    {
+      name: 'escalations.context',
+      path: 'escalations?select=id,context&limit=0',
+    },
+    {
+      name: 'audit_logs.user_email',
+      path: 'audit_logs?select=id,user_email&limit=0',
+    },
+    {
+      name: 'llm_usage_daily.call_count',
+      path: 'llm_usage_daily?select=day,call_count&limit=0',
+    },
+    {
+      name: 'match_agent_memories RPC',
+      path: 'rpc/match_agent_memories',
+      init: {
+        method: 'POST',
+        body: JSON.stringify({
+          query_embedding: null,
+          match_subject_type: null,
+          match_subject_id: null,
+          match_role_id: null,
+          match_threshold: 0.3,
+          match_count: 1,
+          match_organization_id: 'house',
+        }),
+      },
+    },
+  ];
+
+  const results = await Promise.all(
+    checks.map(async (check) => {
+      try {
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/${check.path}`, {
+          ...check.init,
+          headers: { ...headers, ...(check.init?.headers || {}) },
+        });
+        return response.ok ? null : check.name;
+      } catch {
+        return check.name;
+      }
+    }),
+  );
+  const missing = results.filter((name): name is string => Boolean(name));
+  const value = {
+    ready: missing.length === 0,
+    missing,
+    checkedAt: new Date().toISOString(),
+  };
+  schemaReadinessCache = { expiresAt: Date.now() + 60_000, value };
+  return value;
 }
 
 // ---------------------------------------------------------------------------
@@ -535,7 +682,11 @@ export async function trackAnalyticsEvent(entry: {
       event_data: entry.eventData ?? {},
     }),
   }).catch((err: any) => {
-    console.error('[analytics] track event failed:', entry.eventType, err.message);
+    console.error(
+      '[analytics] track event failed:',
+      entry.eventType,
+      err.message,
+    );
   });
 }
 
