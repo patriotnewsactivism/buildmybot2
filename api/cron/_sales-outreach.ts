@@ -371,7 +371,11 @@ async function processLead(lead: ResearchedLead): Promise<OutreachResult> {
 
       await trackAnalyticsEvent({
         eventType: 'outreach_sent',
-        eventData: { method: 'email', leadId: crmLeadId, industry: lead.industry },
+        eventData: {
+          method: 'email',
+          leadId: crmLeadId,
+          industry: lead.industry,
+        },
       });
 
       return {
@@ -526,10 +530,12 @@ export async function salesOutreachHandler(
     if (result.action !== 'dry_run') {
       await sbUpdate(
         'researched_leads',
-        {
-          status:
-            result.action === 'error' ? 'outreach_failed' : 'outreach_initiated',
-          outreach_initiated_at: new Date().toISOString(),
+          {
+            status:
+              result.action === 'error'
+                ? 'outreach_failed'
+                : 'outreach_initiated',
+            outreach_initiated_at: new Date().toISOString(),
         },
         `id=eq.${lead.id}`,
       );

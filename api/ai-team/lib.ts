@@ -14,7 +14,15 @@
 const SUPABASE_URL = process.env.SUPABASE_URL!;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-type Provider = 'groq' | 'gemini' | 'cerebras' | 'cohere' | 'openrouter' | 'openrouter2' | 'github' | 'openai';
+type Provider =
+  | 'groq'
+  | 'gemini'
+  | 'cerebras'
+  | 'cohere'
+  | 'openrouter'
+  | 'openrouter2'
+  | 'github'
+  | 'openai';
 
 const PROVIDER_CONFIG: Record<
   Provider,
@@ -103,7 +111,9 @@ const FALLBACK_ORDER: Provider[] = [
 // pause the night before (the pause only touched vercel.json, not the
 // workflows actually triggering these paths).
 export function salesAutomationDryRun(): boolean {
-  return (process.env.SALES_AUTOMATION_DRY_RUN || 'true').toLowerCase() !== 'false';
+  return (
+    (process.env.SALES_AUTOMATION_DRY_RUN || 'true').toLowerCase() !== 'false'
+  );
 }
 
 // Global emergency stop for every AI Team cron handler. Unset/anything but
@@ -122,18 +132,15 @@ async function overDailyBudget(): Promise<boolean> {
     : 500;
   try {
     const today = new Date().toISOString().slice(0, 10);
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/rpc/increment_llm_usage`,
-      {
-        method: 'POST',
-        headers: {
-          apikey: SUPABASE_SERVICE_ROLE_KEY,
-          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ usage_day: today }),
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/increment_llm_usage`, {
+      method: 'POST',
+      headers: {
+        apikey: SUPABASE_SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        'Content-Type': 'application/json',
       },
-    );
+      body: JSON.stringify({ usage_day: today }),
+    });
     if (!res.ok) {
       throw new Error(`budget RPC returned ${res.status}`);
     }
@@ -207,7 +214,10 @@ async function providerChainExhausted(errors: string[]): Promise<Error> {
       context: { providers_tried: errors.length, chain: FALLBACK_ORDER },
     });
   } catch {
-    console.error('[llm-provider-chain] exhaustion alert itself failed:', message);
+    console.error(
+      '[llm-provider-chain] exhaustion alert itself failed:',
+      message,
+    );
   }
   return new Error(message);
 }
@@ -275,7 +285,9 @@ async function callWithConfigMessages(
   messages: { role: 'system' | 'user' | 'assistant'; content: string }[],
   temperature = 0.4,
 ): Promise<string> {
-  const configuredMaxTokens = Number(process.env.AI_TEAM_MAX_OUTPUT_TOKENS || 1024);
+  const configuredMaxTokens = Number(
+    process.env.AI_TEAM_MAX_OUTPUT_TOKENS || 1024,
+  );
   const maxTokens = Number.isFinite(configuredMaxTokens)
     ? Math.min(4096, Math.max(128, Math.floor(configuredMaxTokens)))
     : 1024;
@@ -365,7 +377,11 @@ let schemaReadinessCache:
 export async function getAiTeamSchemaReadiness(
   force = false,
 ): Promise<AiTeamSchemaReadiness> {
-  if (!force && schemaReadinessCache && schemaReadinessCache.expiresAt > Date.now()) {
+  if (
+    !force &&
+    schemaReadinessCache &&
+    schemaReadinessCache.expiresAt > Date.now()
+  ) {
     return schemaReadinessCache.value;
   }
 
@@ -666,7 +682,11 @@ export async function trackAnalyticsEvent(entry: {
       event_data: entry.eventData ?? {},
     }),
   }).catch((err: any) => {
-    console.error('[analytics] track event failed:', entry.eventType, err.message);
+    console.error(
+      '[analytics] track event failed:',
+      entry.eventType,
+      err.message,
+    );
   });
 }
 
