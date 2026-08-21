@@ -1,8 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import {
-  aiTeamKilled,
-  getAiTeamSchemaReadiness,
-} from '../ai-team/lib.js';
+import { aiTeamKilled, getAiTeamSchemaReadiness } from '../ai-team/lib.js';
 import { allShiftsHandler } from './_all-shifts.js';
 import { leadFollowupsHandler } from './_lead-followups.js';
 import { pulseHandler } from './_pulse.js';
@@ -34,7 +31,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const schema = await getAiTeamSchemaReadiness();
   if (!schema.ready) {
-    console.error(`[cron/${String(job)}] schema_not_ready: ${schema.missing.join(', ')}`);
+    console.error(
+      `[cron/${String(job)}] schema_not_ready: ${schema.missing.join(', ')}`,
+    );
     return res.status(503).json({
       success: false,
       error: 'schema_not_ready',

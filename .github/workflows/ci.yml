@@ -36,7 +36,8 @@ jobs:
             | grep -vE '(^|/)package-lock\.json$' || true
           )
           if (( ${#files[@]} )); then
-            npx --no-install biome check -- "${files[@]}"
+            npx --no-install biome check --diagnostic-level=error \
+              --max-diagnostics=100 -- "${files[@]}"
           else
             echo "No changed source files to lint."
           fi
