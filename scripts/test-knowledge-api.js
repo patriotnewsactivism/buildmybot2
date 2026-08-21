@@ -9,7 +9,7 @@
  * Usage: node scripts/test-knowledge-api.js
  */
 
-const API_BASE = process.env.VITE_API_URL || 'https://buildmybot2-production.up.railway.app';
+const API_BASE = process.env.API_BASE || 'https://www.buildmybot.app';
 
 const colors = {
   reset: '\x1b[0m',

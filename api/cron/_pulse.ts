@@ -7,6 +7,7 @@ import {
   notifyDiscord,
   notifySlack,
   rememberMemory,
+  salesAutomationDryRun,
   supabaseFetch,
 } from '../ai-team/lib.js';
 
@@ -17,8 +18,8 @@ import {
 // actual work. What each pulse does:
 //
 //   1. Overdue leads → if any lead has gone 48h+ with no follow-up, invoke
-//      the lead-followups worker immediately instead of waiting for its
-//      2-hour cron slot.
+//      the lead-followups worker. The pulse is the single scheduler for this
+//      work, avoiding a race with a second fixed cron.
 //   2. Internal mail → unread agent_messages get answered by their recipient
 //      role (tight, budgeted LLM call), so inter-agent questions resolve in
 //      minutes, not next-shift. Anti-loop guard: replies (subject "Re:") are
@@ -64,30 +65,35 @@ export async function pulseHandler(req: VercelRequest, res: VercelResponse) {
   const startedAt = Date.now();
   const deadlineAt = startedAt + 240_000; // leave headroom under maxDuration
   const actions: string[] = [];
+  // A safety pause must be token-free. Explicit previews remain available on
+  // the individual outbound workers with ?preview=1.
+  const outboundEnabled = !salesAutomationDryRun();
 
   // ── 1. Overdue leads → dispatch the follow-up worker now ─────────────────
-  try {
-    const cutoff = new Date(Date.now() - 48 * 3600_000).toISOString();
-    const overdue =
-      (await supabaseFetch(
-        'leads',
-        `select=id&replied_at=is.null&follow_up_sent_at=is.null&created_at=lt.${cutoff}&limit=1`,
-      )) || [];
-    if (overdue.length > 0) {
-      const base = process.env.APP_BASE_URL || 'https://www.buildmybot.app';
-      const resp = await fetch(`${base}/api/cron/lead-followups`, {
-        headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
+  if (outboundEnabled) {
+    try {
+      const cutoff = new Date(Date.now() - 48 * 3600_000).toISOString();
+      const overdue =
+        (await supabaseFetch(
+          'leads',
+          `select=id&replied_at=is.null&follow_up_sent_at=is.null&created_at=lt.${cutoff}&limit=1`,
+        )) || [];
+      if (overdue.length > 0) {
+        const base = process.env.APP_BASE_URL || 'https://www.buildmybot.app';
+        const resp = await fetch(`${base}/api/cron/lead-followups`, {
+          headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
+        });
+        const body = await resp.json().catch(() => ({}));
+        actions.push(
+          `dispatched lead-followups (sent=${body.sent ?? '?'}, escalated=${body.escalated ?? '?'})`,
+        );
+      }
+    } catch (err: any) {
+      await logAgentError({
+        source: 'cron/pulse/lead-dispatch',
+        message: `Overdue-lead dispatch failed: ${err.message}`,
       });
-      const body = await resp.json().catch(() => ({}));
-      actions.push(
-        `dispatched lead-followups (sent=${body.sent ?? '?'}, escalated=${body.escalated ?? '?'})`,
-      );
     }
-  } catch (err: any) {
-    await logAgentError({
-      source: 'cron/pulse/lead-dispatch',
-      message: `Overdue-lead dispatch failed: ${err.message}`,
-    });
   }
 
   // ── 2. Internal mail — recipients answer their unread messages ───────────
@@ -150,27 +156,29 @@ export async function pulseHandler(req: VercelRequest, res: VercelResponse) {
   }
 
   // ── 3. Sales outreach — dispatch if researched leads are waiting ──────
-  try {
-    const waitingLeads =
-      (await supabaseFetch(
-        'researched_leads',
-        'select=id&status=in.(new,surfaced_to_sales)&limit=1',
-      )) || [];
-    if (waitingLeads.length > 0) {
-      const base = process.env.APP_BASE_URL || 'https://www.buildmybot.app';
-      const resp = await fetch(`${base}/api/cron/sales-outreach`, {
-        headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
+  if (outboundEnabled) {
+    try {
+      const waitingLeads =
+        (await supabaseFetch(
+          'researched_leads',
+          'select=id&status=in.(new,surfaced_to_sales)&limit=1',
+        )) || [];
+      if (waitingLeads.length > 0) {
+        const base = process.env.APP_BASE_URL || 'https://www.buildmybot.app';
+        const resp = await fetch(`${base}/api/cron/sales-outreach`, {
+          headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
+        });
+        const body = await resp.json().catch(() => ({}));
+        actions.push(
+          `dispatched sales-outreach (emails=${body.emails_sent ?? '?'}, calls=${body.calls_initiated ?? '?'})`,
+        );
+      }
+    } catch (err: any) {
+      await logAgentError({
+        source: 'cron/pulse/sales-outreach',
+        message: `Sales outreach dispatch failed: ${err.message}`,
       });
-      const body = await resp.json().catch(() => ({}));
-      actions.push(
-        `dispatched sales-outreach (emails=${body.emails_sent ?? '?'}, calls=${body.calls_initiated ?? '?'})`,
-      );
     }
-  } catch (err: any) {
-    await logAgentError({
-      source: 'cron/pulse/sales-outreach',
-      message: `Sales outreach dispatch failed: ${err.message}`,
-    });
   }
 
   // ── 4. Stale critical errors — one loud reminder each ────────────────────

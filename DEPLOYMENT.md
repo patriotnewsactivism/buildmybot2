@@ -50,7 +50,7 @@ so redeploy after changing them.
 | `CRON_SECRET` | ✅ | Auths Vercel cron invocations + APEX `buildmybot_run_workforce`. |
 | `DISCORD_WEBHOOK_URL` | recommended | Agent notifications (shift summaries, critical errors, lead follow-ups). |
 | `SLACK_WEBHOOK_URL` | recommended | Same notifications, Slack channel. |
-| `PORTFOLIO_INTAKE_SECRET` | ✅ for portfolio leads | Shared secret for `POST /api/leads/capture` portfolio intake (donmatthews.live). Same value on the Railway project. |
+| `PORTFOLIO_INTAKE_SECRET` | ✅ for portfolio leads | Shared secret for `POST /api/leads/capture` portfolio intake (donmatthews.live). Set the same value on the intake producer and this Vercel project. |
 | `PORTFOLIO_OWNER_EMAIL` | optional | `users` row that owns portfolio leads; defaults to `president@buildmybot.app`. |
 
 See `Apex-Agent/APEX_INTEGRATION.md` for the APEX command-layer setup
