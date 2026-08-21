@@ -13,6 +13,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -23,10 +25,24 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run lint
-        run: npm run lint
-        # Gated 2026-07-10: biome exits 0 with 223 pre-existing warnings (no errors).
-        # This blocks NEW lint errors from merging while accepting existing warning debt.
+      - name: Lint changed source files
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          mapfile -t files < <(
+            git diff --name-only --diff-filter=ACMR "$BASE_SHA" "$HEAD_SHA" -- \
+              '*.js' '*.jsx' '*.ts' '*.tsx' '*.json' \
+            | grep -vE '(^|/)package-lock\.json$' || true
+          )
+          if (( ${#files[@]} )); then
+            npx --no-install biome check -- "${files[@]}"
+          else
+            echo "No changed source files to lint."
+          fi
+        # The repository still carries legacy lint debt. Enforce Biome on the
+        # proposed change set so new errors cannot merge while cleanup remains
+        # a separate, reviewable effort.
 
       - name: Run tests
         run: npm run test:run
