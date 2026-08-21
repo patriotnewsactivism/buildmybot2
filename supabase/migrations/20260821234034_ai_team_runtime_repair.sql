@@ -1,4 +1,5 @@
 -- Consolidated, idempotent repair for the live AI Team runtime.
+-- Migration version matches the production Supabase history.
 -- Production showed the application code ahead of its database: missing
 -- ai_agent_memories.organization_id, match_agent_memories, context columns,
 -- audit_logs.user_email, and the durable LLM call governor. Reapplying this
@@ -58,6 +59,8 @@ RETURNS TABLE (
   similarity float
 )
 LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = ''
 AS $$
 BEGIN
   RETURN QUERY
@@ -69,15 +72,15 @@ BEGIN
     m.content,
     m.metadata,
     m.created_at,
-    1 - (m.embedding <=> query_embedding) AS similarity
+    1 - (m.embedding OPERATOR(public.<=>) query_embedding) AS similarity
   FROM public.ai_agent_memories m
   WHERE m.embedding IS NOT NULL
     AND m.organization_id = match_organization_id
     AND (match_subject_type IS NULL OR m.subject_type = match_subject_type)
     AND (match_subject_id IS NULL OR m.subject_id = match_subject_id)
     AND (match_role_id IS NULL OR m.role_id = match_role_id)
-    AND 1 - (m.embedding <=> query_embedding) >= match_threshold
-  ORDER BY m.embedding <=> query_embedding
+    AND 1 - (m.embedding OPERATOR(public.<=>) query_embedding) >= match_threshold
+  ORDER BY m.embedding OPERATOR(public.<=>) query_embedding
   LIMIT match_count;
 END;
 $$;
@@ -140,6 +143,8 @@ CREATE TABLE IF NOT EXISTS public.llm_usage_daily (
 CREATE OR REPLACE FUNCTION public.increment_llm_usage(usage_day date)
 RETURNS integer
 LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = ''
 AS $$
 DECLARE
   new_count integer;
@@ -155,6 +160,14 @@ END;
 $$;
 
 GRANT USAGE ON SCHEMA public TO service_role;
+REVOKE ALL PRIVILEGES ON TABLE
+  public.ai_agent_memories,
+  public.error_logs,
+  public.agent_messages,
+  public.escalations,
+  public.audit_logs,
+  public.llm_usage_daily
+FROM anon, authenticated, PUBLIC;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
   public.ai_agent_memories,
   public.error_logs,
@@ -163,6 +176,11 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
   public.audit_logs,
   public.llm_usage_daily
 TO service_role;
+REVOKE EXECUTE ON FUNCTION public.match_agent_memories(
+  public.vector(1536), text, text, text, float, int, text
+) FROM anon, authenticated, PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.increment_llm_usage(date)
+  FROM anon, authenticated, PUBLIC;
 GRANT EXECUTE ON FUNCTION public.match_agent_memories(
   public.vector(1536), text, text, text, float, int, text
 ) TO service_role;
@@ -172,6 +190,7 @@ ALTER TABLE public.ai_agent_memories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.error_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.agent_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.escalations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.llm_usage_daily ENABLE ROW LEVEL SECURITY;
 
 NOTIFY pgrst, 'reload schema';
