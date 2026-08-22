@@ -1,6 +1,10 @@
 -- BuildMyBot accesses production data through server-side service_role calls.
 -- Keep every table in the exposed public schema deny-by-default for anon and
 -- authenticated clients unless a narrowly scoped policy is added deliberately.
+-- Each ALTER TABLE needs a brief exclusive lock. Run during low traffic; if a
+-- lock timeout occurs, clear the conflicting transaction and retry the migration.
+
+set local lock_timeout = '5s';
 
 do $migration$
 declare
