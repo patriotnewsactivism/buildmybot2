@@ -1853,4 +1853,9 @@ FLAGS: <anything urgent, or blank>`;
     results,
   };
 }
-// EOF
+
+export default async function handler(req: any, res: any) {
+  if (res && typeof res.status === 'function') {
+    return res.status(404).json({ error: 'AI Team library helper - not an API endpoint' });
+  }
+}
