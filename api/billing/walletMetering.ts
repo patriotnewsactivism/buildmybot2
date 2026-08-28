@@ -1,3 +1,5 @@
+import type { VercelRequest, VercelResponse } from '@vercel/node';
+
 /**
  * Automated monthly invoice generation and agency sub-account wallet metering.
  */
@@ -77,4 +79,30 @@ export function generateMonthlyInvoice(organizationId: string, period: string, r
     totalCents,
     status: 'paid',
   };
+}
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.method === 'OPTIONS') return res.status(204).end();
+  if (req.method !== 'POST') {
+    return res.status(200).json({ status: 'Wallet Metering active' });
+  }
+
+  const { action, balanceCents, costCents, serviceType, units, organizationId, period, records } = req.body || {};
+
+  if (action === 'calculate') {
+    const cost = calculateUsageCost(serviceType, units || 0);
+    return res.status(200).json({ costCents: cost });
+  }
+
+  if (action === 'meter') {
+    const result = meterUsage(balanceCents || 0, costCents || 0);
+    return res.status(200).json(result);
+  }
+
+  if (action === 'invoice') {
+    const invoice = generateMonthlyInvoice(organizationId || 'org_default', period || new Date().toISOString().slice(0, 7), records || []);
+    return res.status(200).json(invoice);
+  }
+
+  return res.status(200).json({ status: 'Wallet Metering active' });
 }

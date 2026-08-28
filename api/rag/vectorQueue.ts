@@ -1,3 +1,5 @@
+import type { VercelRequest, VercelResponse } from '@vercel/node';
+
 /**
  * Automated PDF/URL vector RAG re-indexing queues in Supabase pgvector.
  */
@@ -113,4 +115,15 @@ export async function indexRagQueueItem(
   } catch (err: any) {
     return { success: false, chunkCount: 0, error: err.message || 'Unknown indexing error' };
   }
+}
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.method === 'OPTIONS') return res.status(204).end();
+  if (req.method !== 'POST') {
+    return res.status(200).json({ status: 'Vector Queue active' });
+  }
+
+  const { text, chunkSize, overlap } = req.body || {};
+  const chunks = chunkText(text || '', chunkSize, overlap);
+  return res.status(200).json({ success: true, count: chunks.length, chunks });
 }

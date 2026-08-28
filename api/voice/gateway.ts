@@ -1,3 +1,5 @@
+import type { VercelRequest, VercelResponse } from '@vercel/node';
+
 /**
  * Inbound Twilio voice gateway routing with Cartesia & ElevenLabs TTS pipelines.
  */
@@ -116,4 +118,16 @@ function escapeXml(unsafe: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&apos;');
+}
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.method === 'OPTIONS') return res.status(204).end();
+  if (req.method !== 'POST') {
+    return res.status(200).json({ status: 'Voice Gateway active' });
+  }
+
+  const { message = 'Welcome to BuildMyBot Voice Gateway', actionUrl, transferTo } = req.body || {};
+  const xml = generateTwimlResponse({ message, actionUrl, transferTo });
+  res.setHeader('Content-Type', 'text/xml');
+  return res.status(200).send(xml);
 }
