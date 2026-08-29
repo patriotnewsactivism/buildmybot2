@@ -7,7 +7,7 @@ _Last updated: 2026-08-29. Vercel is fully decommissioned. Frontend is on Cloudf
 | Layer | What we officially run | Where |
 |---|---|---|
 | **Frontend** | Vite + React SPA (this repo, built by `npm run build:client`) | **Cloudflare Pages** — owns **buildmybot.app** and **www.buildmybot.app**. Auto-deploys from `patriotnewsactivism/buildmybot2@main`. Uses `_headers` and `_redirects` for routing/security. |
-| **Backend (API)** | Serverless functions in `api/` — `api/gateway.ts` serves every `/api/*` route, `api/auth/*.ts` serve login/signup/session/logout | ⚠️ **Currently proxied through Cloudflare to Railway** — needs migration to Cloudflare Pages Functions (`functions/` directory) or Google Cloud Run per the no-Railway standing rule. |
+| **Backend (API)** | Serverless functions in `api/` — `api/gateway.ts` serves every `/api/*` route, `api/auth/*.ts` serve login/signup/session/logout | 🔴 **DEAD — Railway returned "Application not found"** (confirmed 2026-08-29). Cloudflare proxy is live but the Railway origin is killed. Frontend serves static HTML but ALL API calls fail. Must be migrated to Cloud Run or Cloudflare Pages Functions immediately. |
 | **Database** | Supabase Postgres, accessed by the backend over the Supabase REST API with the service-role key | Supabase project `evkjlnbpntimbxklnhoz` |
 | **Email (outbound)** | Resend HTTP API, or the SMTP_* block (already configured on production) | — |
 | **Email (inbound)** | Your mail provider forwards to `POST /api/email/inbound` | — |
@@ -15,11 +15,13 @@ _Last updated: 2026-08-29. Vercel is fully decommissioned. Frontend is on Cloudf
 
 **Vercel is no longer used.** The `vercel.json` and `.vercelignore` files have been removed. All Vercel projects (`buildmybot20`, `buildmybot2`, etc.) are decommissioned — Vercel billing is closed.
 
-> ⚠️ **API migration needed:** The `_redirects` file references `functions/api/[[path]].ts` for API routing on Cloudflare Pages, but the `functions/` directory doesn't exist yet. API requests currently fall through to the Railway backend behind the Cloudflare proxy. This must be migrated to either:
-> - Cloudflare Pages Functions (create `functions/api/` directory), OR
-> - Google Cloud Run (containerize the API)
+> 🔴 **CRITICAL — API IS DOWN:** Railway has killed the application (returns "Application not found" on all API endpoints, confirmed 2026-08-29 03:11 UTC). The Cloudflare-hosted frontend still serves static HTML, but every `/api/*` call fails. This is a production outage.
 >
-> Per the standing rule: **Railway is never an acceptable hosting target.**
+> **Migration target (pick one):**
+> 1. **Cloudflare Pages Functions** — create `functions/api/` directory, move serverless functions there, update `_redirects`
+> 2. **Google Cloud Run** — containerize the API, deploy alongside Apex/bad-actors/donmatthews-live
+>
+> **Railway is NEVER an acceptable hosting target** — standing rule, zero exceptions.
 
 ## 2. Environment variables
 
