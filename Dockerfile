@@ -1,4 +1,4 @@
-# Build stage — build the Vite frontend
+# Build stage — build the Vite frontend (no new deps needed for build)
 FROM node:20-slim AS builder
 WORKDIR /app
 COPY package*.json ./
@@ -10,7 +10,7 @@ RUN npm run build:client
 FROM node:20-slim
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
+RUN npm ci --omit=dev
 RUN npm install --no-save express cookie-parser tsx
 COPY --from=builder /app/dist ./dist
 COPY api/ ./api/
