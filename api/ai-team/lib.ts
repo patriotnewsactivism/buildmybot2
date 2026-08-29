@@ -22,29 +22,38 @@ type Provider =
 
 const PROVIDER_CONFIG: Record<
   Provider,
-  { baseURL: string; model: string; keyEnv: string }
+  { baseURL: string; model: string; keyEnvs: string[] }
 > = {
   // Primary: cheapest DeepSeek V4 Flash, latest snapshot. The ~ prefix tells
   // OpenRouter to auto-route to the cheapest available provider for this model.
   'openrouter-flash': {
     baseURL: 'https://openrouter.ai/api/v1/chat/completions',
     model: '~deepseek/deepseek-v4-flash-latest',
-    keyEnv: 'OPENROUTER_API_KEY_2',
+    keyEnvs: ['OPENROUTER_API_KEY_2', 'OPENROUTER_API_KEY'],
   },
   // Fallback: pinned 0731 snapshot in case "latest" has a transient issue.
   'openrouter-flash-0731': {
     baseURL: 'https://openrouter.ai/api/v1/chat/completions',
     model: 'deepseek/deepseek-v4-flash-0731',
-    keyEnv: 'OPENROUTER_API_KEY_2',
+    keyEnvs: ['OPENROUTER_API_KEY_2', 'OPENROUTER_API_KEY'],
   },
   // Heavy reasoning: the Pro model for complex multi-step analysis. More
   // expensive but still a fraction of GPT-4o pricing.
   'openrouter-pro': {
     baseURL: 'https://openrouter.ai/api/v1/chat/completions',
     model: 'deepseek/deepseek-v4-pro-0813',
-    keyEnv: 'OPENROUTER_API_KEY_2',
+    keyEnvs: ['OPENROUTER_API_KEY_2', 'OPENROUTER_API_KEY'],
   },
 };
+
+/** Resolve the first available OpenRouter API key from the environment. */
+function resolveOpenRouterKey(): string | undefined {
+  for (const envName of ['OPENROUTER_API_KEY_2', 'OPENROUTER_API_KEY']) {
+    const key = process.env[envName];
+    if (key) return key;
+  }
+  return undefined;
+}
 
 const FALLBACK_ORDER: Provider[] = [
   'openrouter-flash',
@@ -115,8 +124,8 @@ export async function callLLM(
   const errors: string[] = [];
   for (const provider of FALLBACK_ORDER) {
     const cfg = PROVIDER_CONFIG[provider];
-    const apiKey = process.env[cfg.keyEnv];
-    if (!apiKey) continue; // no key configured, skip silently
+    const apiKey = resolveOpenRouterKey();
+    if (!apiKey) continue; // no OpenRouter key configured, skip silently
     try {
       return await callWithConfig(cfg, apiKey, systemPrompt, userPrompt);
     } catch (err: any) {
