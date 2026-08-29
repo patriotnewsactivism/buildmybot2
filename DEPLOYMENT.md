@@ -1,36 +1,29 @@
 # BuildMyBot — Official Deployment & Operations
 
-_Last updated: 2026-07-07. This file is authoritative; older PHASE*/VERCEL_DEPLOYMENT
-docs are historical._
+_Last updated: 2026-08-29. Vercel is fully decommissioned. Frontend is on Cloudflare._
 
 ## 1. The official stack
 
 | Layer | What we officially run | Where |
 |---|---|---|
-| **Frontend** | Vite + React SPA (this repo, built by `npm run build:client`) | Vercel project **buildmybot20** (team `don-matthews-projects`, `prj_fI5t1zSN8XyZ8v9YawKXsE7rDN7x`) — owns **buildmybot.app** and **www.buildmybot.app**, deploys `patriotnewsactivism/buildmybot2@main` |
-| **Backend** | Vercel serverless functions in `api/` — `api/gateway.ts` serves every `/api/*` route, `api/auth/*.ts` serve login/signup/session/logout | Same Vercel project |
+| **Frontend** | Vite + React SPA (this repo, built by `npm run build:client`) | **Cloudflare Pages** — owns **buildmybot.app** and **www.buildmybot.app**. Auto-deploys from `patriotnewsactivism/buildmybot2@main`. Uses `_headers` and `_redirects` for routing/security. |
+| **Backend (API)** | Serverless functions in `api/` — `api/gateway.ts` serves every `/api/*` route, `api/auth/*.ts` serve login/signup/session/logout | ⚠️ **Currently proxied through Cloudflare to Railway** — needs migration to Cloudflare Pages Functions (`functions/` directory) or Google Cloud Run per the no-Railway standing rule. |
 | **Database** | Supabase Postgres, accessed by the backend over the Supabase REST API with the service-role key | Supabase project `evkjlnbpntimbxklnhoz` |
 | **Email (outbound)** | Resend HTTP API, or the SMTP_* block (already configured on production) | — |
 | **Email (inbound)** | Your mail provider forwards to `POST /api/email/inbound` | — |
+| **LLM (AI Team)** | OpenRouter DeepSeek V4 stack — same config as Apex | Key: `OPENROUTER_API_KEY_2` (fallback: `OPENROUTER_API_KEY`) |
 
-**No other backend exists in this repo.** An earlier local-dev Express
-path (`server/`) was planned but never committed (see README "Deployment
-topology") — there's no Dockerfile or railway.json here either. The Railway
-account has no projects — nothing runs there. `package.json` still has a
-handful of dead scripts referencing the never-committed `server/` dir
-(`dev`, `server`, `start`, `check:server`, various `seed:*`); they'll fail
-if invoked, and cleaning them up is a separate task.
+**Vercel is no longer used.** The `vercel.json` and `.vercelignore` files have been removed. All Vercel projects (`buildmybot20`, `buildmybot2`, etc.) are decommissioned — Vercel billing is closed.
 
-> ⚠️ Several Vercel projects build this repo. **Production is `buildmybot20`**
-> (team `don-matthews-projects`) — verified by domain attachment: it holds
-> buildmybot.app + www.buildmybot.app. `buildmybot2` in
-> `patriotnewsactivisms-projects` also auto-builds PRs (its bot comments on
-> GitHub) but serves no production domain, and `buildmybot2` under
-> don-matthews-projects is stale. Set env vars on **buildmybot20** only.
+> ⚠️ **API migration needed:** The `_redirects` file references `functions/api/[[path]].ts` for API routing on Cloudflare Pages, but the `functions/` directory doesn't exist yet. API requests currently fall through to the Railway backend behind the Cloudflare proxy. This must be migrated to either:
+> - Cloudflare Pages Functions (create `functions/api/` directory), OR
+> - Google Cloud Run (containerize the API)
+>
+> Per the standing rule: **Railway is never an acceptable hosting target.**
 
 ## 2. Environment variables
 
-Set these in **Vercel → buildmybot2 → Settings → Environment Variables**
+Set these on **Cloudflare Pages** → Project → Settings → Environment Variables
 (Production + Preview). Frontend `VITE_*` values are baked in at build time,
 so redeploy after changing them.
 
@@ -41,20 +34,20 @@ so redeploy after changing them.
 | `SUPABASE_SERVICE_ROLE_KEY` | ✅ | All DB access from `api/`. Never expose with a `VITE_` prefix. |
 | `SESSION_JWT_SECRET` | ✅ | Signs session cookies (`openssl rand -hex 32`). Same value for all functions. |
 | `SUPABASE_URL` | ✅ | `https://evkjlnbpntimbxklnhoz.supabase.co` |
-| `OPENAI_API_KEY` | ✅ | Chat + AI employee reply drafting. **Rotate the leaked key first — see SECURITY.md.** |
+| `OPENROUTER_API_KEY_2` | ✅ | Primary LLM key for AI Team (OpenRouter DeepSeek V4). Fallback: `OPENROUTER_API_KEY`. |
 | `RESEND_API_KEY` | ✅ for email | Outbound mail for the AI employees (or set `SMTP_HOST/PORT/USER/PASS` instead). |
 | `INBOUND_EMAIL_WEBHOOK_SECRET` | ✅ for email | Shared secret for `POST /api/email/inbound` (`openssl rand -hex 32`). |
-| `PRESIDENT_EMAIL` | optional | Defaults to `president@buildmybot.app`. |
-| `AI_EMPLOYEE_MODEL` | optional | Defaults to `gpt-4o-mini`. |
-| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | when billing goes live | Stripe. |
-| `CRON_SECRET` | ✅ | Auths Vercel cron invocations + APEX `buildmybot_run_workforce`. |
+| `CRON_SECRET` | ✅ | Auths cron invocations + APEX `buildmybot_run_workforce`. |
 | `DISCORD_WEBHOOK_URL` | recommended | Agent notifications (shift summaries, critical errors, lead follow-ups). |
 | `SLACK_WEBHOOK_URL` | recommended | Same notifications, Slack channel. |
-| `PORTFOLIO_INTAKE_SECRET` | ✅ for portfolio leads | Shared secret for `POST /api/leads/capture` portfolio intake (donmatthews.live). Set the same value on the intake producer and this Vercel project. |
+| `PORTFOLIO_INTAKE_SECRET` | ✅ for portfolio leads | Shared secret for `POST /api/leads/capture` portfolio intake (donmatthews.live). |
 | `PORTFOLIO_OWNER_EMAIL` | optional | `users` row that owns portfolio leads; defaults to `president@buildmybot.app`. |
 
-See `Apex-Agent/APEX_INTEGRATION.md` for the APEX command-layer setup
-(briefings, workforce triggers, telemetry reads).
+**Removed (no longer needed):**
+- `OPENAI_API_KEY` — replaced by OpenRouter DeepSeek V4
+- `AI_TEAM_LLM_PROVIDER` — no longer used (OpenRouter is the only provider)
+- `CEREBRAS_API_KEY`, `GROQ_API_KEY`, `COHERE_API_KEY`, `GEMINI_API_KEY` — all removed from the LLM chain
+- `GITHUB_TOKEN_4` (for GitHub Models) — provider removed
 
 ### Frontend (build-time)
 
@@ -62,12 +55,27 @@ See `Apex-Agent/APEX_INTEGRATION.md` for the APEX command-layer setup
 |---|---|---|
 | `VITE_SUPABASE_URL` | ✅ | Same Supabase URL. |
 | `VITE_SUPABASE_ANON_KEY` | ✅ | Public anon key (RLS applies). |
-| `VITE_API_URL` | leave empty | Same-origin `/api` is correct on Vercel. |
+| `VITE_API_URL` | leave empty | Same-origin `/api` is correct. |
 | `VITE_STRIPE_PUBLISHABLE_KEY` | when billing goes live | Stripe publishable key. |
 
 The full annotated list is in `.env.example`.
 
-## 3. SQL migrations — runbook
+## 3. LLM Provider Chain (AI Team)
+
+The AI Team uses an OpenRouter DeepSeek V4 stack, matching Apex's configuration:
+
+| Provider | Model | Cost (per M tokens) | Role |
+|---|---|---|---|
+| `openrouter-flash` | `~deepseek/deepseek-v4-flash-latest` | $0.03 in / $0.10 out | Primary |
+| `openrouter-flash-0731` | `deepseek/deepseek-v4-flash-0731` | $0.06 in / $0.12 out | Fallback |
+| `openrouter-pro` | `deepseek/deepseek-v4-pro-0813` | $0.66 in / $1.98 out | Heavy reasoning |
+
+All three use `OPENROUTER_API_KEY_2` (falls back to `OPENROUTER_API_KEY`).
+Previous providers (Cerebras, Groq, Cohere, Gemini, GitHub Models, OpenAI) have been removed.
+
+Code: `api/ai-team/lib.ts`
+
+## 4. SQL migrations — runbook
 
 Migrations live in `supabase/migrations/` and are ordered by timestamp:
 
@@ -75,9 +83,7 @@ Migrations live in `supabase/migrations/` and are ordered by timestamp:
 2. `20260118140000_fix_bots_schema.sql`
 3. `20260118143000_knowledge_sources_processing.sql`
 4. `20260118151000_knowledge_chunks_embeddings.sql`
-5. `20260707240000_ai_employee_org.sql` — **NEW**: AI employee roster/emails/
-   hierarchy, `agent_messages`, `email_messages`, `escalations` (+ seeds the
-   six employees). Idempotent — safe to run repeatedly.
+5. `20260707240000_ai_employee_org.sql` — AI employee roster/emails/hierarchy, `agent_messages`, `email_messages`, `escalations` (+ seeds the six employees). Idempotent — safe to run repeatedly.
 
 Apply with the Supabase CLI:
 
@@ -87,17 +93,9 @@ npx supabase link --project-ref evkjlnbpntimbxklnhoz
 npx supabase db push          # applies anything not yet recorded remotely
 ```
 
-or paste each un-applied file into the Supabase SQL Editor in order (they are
-all idempotent `IF NOT EXISTS` style, so re-running is safe).
+## 5. AI employee organization
 
-> The automation session that authored this file has Supabase access only to
-> an unrelated project (`case-companion`), so migration #5 has been written
-> and verified but **not executed against production** — run the commands
-> above once.
-
-## 4. AI employee organization
-
-The human at the top: **president@buildmybot.app** (Matthew).
+The human at the top: **president@buildmybot.app** (Don Matthews).
 
 | AI Employee | Title | Mailbox | Reports to |
 |---|---|---|---|
@@ -108,60 +106,11 @@ The human at the top: **president@buildmybot.app** (Matthew).
 | Maya Chen | Marketing Director | marketing@buildmybot.app | president |
 | Harper Lane | Head of People (HR) | careers@buildmybot.app | president |
 
-Business rules encoded in the system prompts and gateway logic:
+## 6. Migration TODO
 
-- **Sales-agent ladder** (matches `constants.ts` `RESELLER_TIERS`): new agents
-  start at the bottom — **Bronze, 20% commission on their first 50 accounts**;
-  Silver 50–149 @ 30%; Gold 150–250 @ 40%; Platinum 251+ @ 50%. Harper (HR)
-  recruits and onboards using exactly this ladder.
-- **Direct-to-president rule:** any sender who is a **Partner Access member
-  ($499/mo, 50% split)** or has **251+ client accounts (Platinum)** bypasses
-  the AI hierarchy. Their mail is forwarded to the president immediately with
-  a courtesy acknowledgment to the sender, and an `escalations` row is opened.
-- **Escalation:** every AI reply decision includes an escalate flag; anything
-  legal/financial/security, refunds, custom enterprise terms, or "I want to
-  talk to the president" produces an escalation email to `PRESIDENT_EMAIL`
-  plus an open `escalations` row.
-- **Inter-agent communication:** employees loop colleagues in via
-  `agent_messages` (e.g. Harper → Devon on a new agent hire); every action is
-  logged to `EmployeeLog`.
-
-## 5. Wiring the mailboxes (one-time, ~30 min)
-
-Outbound (so replies come *from* support@/sales@/…):
-
-1. Create a [Resend](https://resend.com) account, add domain `buildmybot.app`,
-   and add the DNS records it gives you (SPF + DKIM).
-2. Put the API key in Vercel as `RESEND_API_KEY`.
-
-Inbound (so mail *to* those addresses reaches the AI):
-
-1. Easiest: **Cloudflare Email Routing** (free, works even though mailboxes
-   don't exist): add routes for support@, sales@, admin@, marketing@,
-   agents@, careers@ → an Email Worker that POSTs
-   `{to, from, subject, text}` as JSON to
-   `https://www.buildmybot.app/api/email/inbound` with header
-   `x-webhook-secret: <INBOUND_EMAIL_WEBHOOK_SECRET>`.
-   (Mailgun inbound routes or Postmark inbound both work identically — the
-   endpoint accepts their field names too.)
-2. Keep president@buildmybot.app as a real human mailbox (Google Workspace or
-   a Cloudflare route to your personal inbox) — escalations land there.
-
-Verify:
-
-```bash
-# outbound transport
-curl -X POST https://www.buildmybot.app/api/email/test \
-  -H 'Cookie: bmb_session=<your admin session>' \
-  -H 'Content-Type: application/json' -d '{"to":"president@buildmybot.app"}'
-
-# full inbound → AI reply loop (simulates a customer email)
-curl -X POST https://www.buildmybot.app/api/email/inbound \
-  -H "x-webhook-secret: $INBOUND_EMAIL_WEBHOOK_SECRET" \
-  -H 'Content-Type: application/json' \
-  -d '{"to":"support@buildmybot.app","from":"you@example.com","subject":"Test","text":"How do I add a knowledge base to my bot?"}'
-```
-
-Admin visibility (session-authenticated, admin/owner role):
-`GET /api/email/roster`, `GET /api/email/messages`, `GET /api/email/escalations`,
-`GET /api/email/agent-messages`, `PATCH /api/email/escalations/:id` (resolve).
+- [ ] Create `functions/api/` directory for Cloudflare Pages Functions (or containerize API for Cloud Run)
+- [ ] Set `OPENROUTER_API_KEY_2` on Cloudflare Pages
+- [x] Remove stale `vercel.json` and `.vercelignore`
+- [ ] Migrate API backend off Railway (currently proxied through Cloudflare)
+- [ ] Verify `_redirects` API proxy path works with Cloudflare Pages Functions
+- [ ] Update GitHub Actions cron workflows to point at the new API host
