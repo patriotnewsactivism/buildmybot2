@@ -2,6 +2,13 @@
 
 _Last updated: 2026-08-29. Vercel is fully decommissioned. Frontend is on Cloudflare._
 
+> 🚫 **BANNED INFRASTRUCTURE — zero exceptions, no "just this once":**
+> - **Vercel** — decommissioned, billing closed
+> - **Railway** — dead (returns "Application not found" on all services)
+> - **AWS** (Lightsail, EC2, ECR, CodeBuild, RDS) — credentials expired, no longer used
+>
+> **Only acceptable hosting targets: Google Cloud Run, Cloudflare, and Netlify.**
+
 ## 1. The official stack
 
 | Layer | What we officially run | Where |
@@ -20,8 +27,9 @@ _Last updated: 2026-08-29. Vercel is fully decommissioned. Frontend is on Cloudf
 > **Migration target (pick one):**
 > 1. **Cloudflare Pages Functions** — create `functions/api/` directory, move serverless functions there, update `_redirects`
 > 2. **Google Cloud Run** — containerize the API, deploy alongside Apex/bad-actors/donmatthews-live
+> 3. **Netlify Functions** — deploy as a Netlify site with serverless functions
 >
-> **Railway is NEVER an acceptable hosting target** — standing rule, zero exceptions.
+> **BANNED: Vercel, Railway, AWS — zero exceptions.**
 
 ## 2. Environment variables
 
