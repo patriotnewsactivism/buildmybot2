@@ -95,7 +95,8 @@ export async function pulseHandler(req: VercelRequest, res: VercelResponse) {
 
       const recipientName =
         ROLE_NAMES[message.to_employee] || message.to_employee;
-      const senderName = ROLE_NAMES[message.from_employee] || message.from_employee;
+      const senderName =
+        ROLE_NAMES[message.from_employee] || message.from_employee;
       const reply = await callLLM(
         `You are ${recipientName} on BuildMyBot's AI team. Answer this teammate concretely and briefly. If you cannot resolve it, state exactly what is needed. Never invent completed work.`,
         `From: ${senderName} (${message.from_employee})\nSubject: ${message.subject}\n\n${message.body}`,
