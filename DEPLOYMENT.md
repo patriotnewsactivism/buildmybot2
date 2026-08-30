@@ -64,6 +64,38 @@ The AI-team Supabase schema was verified ready on the same date: all six objects
 `llm_usage_daily.call_count`, and the `match_agent_memories` RPC) exist, so
 shifts will not be turned away with `schema_not_ready`.
 
+## 1a. Pointing a frontend host at Cloud Run
+
+Cloud Run is the only backend. Every frontend host must reach it by
+**proxy (HTTP 200 rewrite), never redirect.** The session cookie is issued
+host-only:
+
+```
+bmb_session=<token>; HttpOnly; Secure; SameSite=Lax; Path=/
+```
+
+With no `Domain` attribute it binds to whatever host the browser sees. A
+301/302 to the Cloud Run hostname would land the browser on `*.run.app`, and
+the cookie set there would never be sent back to `buildmybot.app` — login
+would appear to succeed and then every authenticated call would 401.
+
+| Host | Mechanism | State |
+|---|---|---|
+| Cloudflare Pages | `functions/api/[[path]].ts` | Correct in the repo; **not yet live** — production still serves a stale deployment whose `/api/*` reaches Railway |
+| Netlify (`buildmybotapp`) | `netlify.toml` `[[redirects]]` | Proxy + SPA fallback added |
+
+Cloudflare Pages ignores `netlify.toml`, and Netlify ignores the Pages
+Function, so the two configurations coexist without interfering.
+
+Netlify previously had **neither** rule, so the site could render the
+marketing home page and nothing else — `/pricing` and `/api/health` both
+returned Netlify's 404. It is now a complete origin, which also makes it a
+usable fallback if the Cloudflare route cannot be repaired quickly.
+
+Note that `_redirects` deliberately carries no `/api/*` rule: Cloudflare Pages
+does not support proxying to an external origin from that file, and a rule it
+degraded into a redirect would break auth exactly as described above.
+
 ## 2. Environment variables
 
 ### Cloud Run backend
