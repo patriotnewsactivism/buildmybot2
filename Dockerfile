@@ -2,7 +2,11 @@
 FROM mirror.gcr.io/library/node:22-slim AS builder
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
+# package-lock currently resolves @vitejs/plugin-react 4.x alongside Vite 8.
+# The plugin works for the existing build, but its older peer range causes npm 10
+# to fail strict resolution inside a clean container. Keep deployment reproducible
+# while the frontend dependency upgrade is handled separately.
+RUN npm ci --legacy-peer-deps
 COPY . .
 RUN npm run build:client
 
@@ -11,8 +15,9 @@ FROM mirror.gcr.io/library/node:22-slim
 WORKDIR /app
 ENV NODE_ENV=production
 COPY package*.json ./
-RUN npm ci --omit=dev
-RUN npm install --no-save express cookie-parser tsx
+RUN npm ci --omit=dev --legacy-peer-deps
+# cookie-parser is imported by server.ts but is not yet pinned in package.json.
+RUN npm install --no-save --legacy-peer-deps cookie-parser
 COPY --from=builder /app/dist ./dist
 COPY api/ ./api/
 COPY shared/ ./shared/
