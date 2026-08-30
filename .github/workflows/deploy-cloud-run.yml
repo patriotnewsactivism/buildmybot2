@@ -29,7 +29,7 @@ env:
   GCP_REGION: ${{ vars.BUILDMYBOT_GCP_REGION || secrets.BUILDMYBOT_GCP_REGION || vars.GCP_CLOUD_RUN_REGION || secrets.GCP_CLOUD_RUN_REGION || 'us-central1' }}
   GCP_SERVICE: buildmybot2
   ARTIFACT_REPO: cloud-run-source-deploy
-  GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER || secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+  GCP_WORKLOAD_IDENTITY_PROVIDER: projects/406797137160/locations/global/workloadIdentityPools/github-pool/providers/github-provider
   GCP_SA_KEY: ${{ secrets.BUILDMYBOT_GCP_SA_KEY || secrets.GCP_SA_KEY }}
 
   SUPABASE_URL: ${{ vars.SUPABASE_URL || secrets.SUPABASE_URL }}
