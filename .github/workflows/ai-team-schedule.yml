@@ -48,7 +48,14 @@ name: AI Team — Recurring Shifts
 # flaky wall-clock matching, even when entries land on the same clock time.
 
 on:
-  workflow_dispatch: {} # manual "Run workflow" from the Actions tab -> runs Marcus Stone's rollup
+  workflow_dispatch:
+    inputs:
+      role:
+        description: >-
+          Role id to run (e.g. sam-support, maya-marketing, marcus). Leave
+          blank for Marcus Stone's rollup, the historical dispatch default.
+        required: false
+        default: ''
   # schedule DISABLED 2026-07-24: the sales-research roles here feed
   # researched_leads, which sales-outreach/pulse then act on with real
   # emails and real Twilio calls. Paused pending the SALES_AUTOMATION_DRY_RUN
@@ -97,7 +104,23 @@ jobs:
         id: role
         run: |
           SCHEDULE="${{ github.event.schedule }}"
-          echo "fired cron: $SCHEDULE"
+          REQUESTED="${{ github.event.inputs.role }}"
+          echo "fired cron: ${SCHEDULE:-<manual dispatch>}"
+
+          # A manual dispatch carries no github.event.schedule, so it fell
+          # through the case below to Marcus Stone's rollup — which reports on
+          # shifts already logged and returns early with "nothing to report"
+          # when there are none. That path never calls an LLM, so a green
+          # manual run proved the transport but said nothing about whether the
+          # provider chain works. Naming a role makes the on-demand run
+          # exercise the real thing, and lets a single role be re-run during an
+          # incident without waiting for its cron slot.
+          if [[ -n "$REQUESTED" ]]; then
+            echo "roles=$REQUESTED" >> "$GITHUB_OUTPUT"
+            echo "manual dispatch requested role(s): $REQUESTED"
+            exit 0
+          fi
+
           case "$SCHEDULE" in
             "*/10 * * * *")
               echo "roles=derek-sales-director,victoria-vp-sales" >> "$GITHUB_OUTPUT" ;;
