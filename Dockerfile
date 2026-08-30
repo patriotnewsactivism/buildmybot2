@@ -1,5 +1,5 @@
-# Build stage — build the Vite frontend (no new deps needed for build)
-FROM node:20-slim AS builder
+# Build stage — build the Vite frontend
+FROM mirror.gcr.io/library/node:22-slim AS builder
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
@@ -7,8 +7,9 @@ COPY . .
 RUN npm run build:client
 
 # Runtime stage — serve API (tsx) + static frontend
-FROM node:20-slim
+FROM mirror.gcr.io/library/node:22-slim
 WORKDIR /app
+ENV NODE_ENV=production
 COPY package*.json ./
 RUN npm ci --omit=dev
 RUN npm install --no-save express cookie-parser tsx
