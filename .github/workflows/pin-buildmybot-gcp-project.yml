@@ -1,0 +1,46 @@
+name: Pin BuildMyBot GCP project
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/pin-buildmybot-gcp-project.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  pin-project:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Pin production project ID
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('.github/workflows/deploy-cloud-run.yml')
+          text = path.read_text()
+          old = "  GCP_PROJECT_ID: ${{ vars.BUILDMYBOT_GCP_PROJECT_ID || secrets.BUILDMYBOT_GCP_PROJECT_ID || vars.GCP_PROJECT_ID || secrets.GCP_PROJECT_ID }}"
+          new = "  GCP_PROJECT_ID: buildmybot-507112"
+          if old not in text and new not in text:
+              raise SystemExit('Expected GCP_PROJECT_ID line not found')
+          path.write_text(text.replace(old, new))
+          PY
+      - name: Commit project configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo 'Project ID already pinned.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/workflows/deploy-cloud-run.yml
+          git commit -m 'fix: pin BuildMyBot Cloud Run project'
+          git push origin HEAD:main
