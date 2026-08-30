@@ -150,15 +150,14 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Validate minimum runtime secrets for a new service
-        if: steps.service.outputs.exists == 'false'
+      - name: Validate minimum runtime secrets for startup
         shell: bash
         run: |
           set -euo pipefail
           missing=0
           for name in SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY SESSION_JWT_SECRET; do
             if [[ -z "${!name:-}" ]]; then
-              echo "Missing required runtime setting for first deployment: $name" >&2
+              echo "Missing required runtime setting: $name" >&2
               missing=1
             fi
           done
@@ -181,12 +180,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # These values must exist on the revision before Cloud Run starts the
+          # container. gateway.ts reads SUPABASE_URL at module initialization,
+          # so applying them only after deploy leaves the first revision unable
+          # to bind PORT=8080.
+          startup_env="NODE_ENV=production,APP_BASE_URL=https://www.buildmybot.app,BUILD_SHA=$GITHUB_SHA,PRESIDENT_EMAIL=president@buildmybot.app,SUPABASE_URL=$SUPABASE_URL,SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY,SESSION_JWT_SECRET=$SESSION_JWT_SECRET"
           gcloud run deploy "$GCP_SERVICE" \
             --project "$GCP_PROJECT_ID" \
             --region "$GCP_REGION" \
             --platform managed \
             --image "${{ steps.image.outputs.image }}" \
             --port 8080 \
+            --update-env-vars "$startup_env" \
             --allow-unauthenticated \
             --quiet
 
