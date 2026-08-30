@@ -183,7 +183,7 @@ The deployment workflow loads required runtime secrets from Google Secret Manage
 | `SUPABASE_SERVICE_ROLE_KEY` | ✅ | All DB access from `api/`. Never expose with a `VITE_` prefix. |
 | `SESSION_JWT_SECRET` | ✅ | Signs session cookies. |
 | `SUPABASE_URL` | ✅ | `https://evkjlnbpntimbxklnhoz.supabase.co` |
-| `OPENROUTER_API_KEY_2` | ✅ for primary AI stack | Primary OpenRouter key. Fallback: `OPENROUTER_API_KEY`. |
+| `OPENROUTER_API_KEY_2` | ✅ for primary AI stack | Primary OpenRouter key. Fallback: `OPENROUTER_API_KEY`. **Verified absent on Cloud Run 2026-08-30** — see below. |
 | `RESEND_API_KEY` | ✅ for email | Outbound mail for the AI employees. |
 | `INBOUND_EMAIL_WEBHOOK_SECRET` | ✅ for inbound email | Shared secret for `POST /api/email/inbound`. |
 | `CRON_SECRET` | ✅ for scheduled jobs | Authenticates cron invocations and workforce triggers. |
@@ -219,6 +219,46 @@ CDN, so Cloud Run is the correct default. Point the variable at
 off Railway.
 
 The full annotated list is in `.env.example`.
+
+## 2a. Why a green deploy can still mean no working AI team
+
+On 2026-08-30 the backend was healthy, `/health` returned 200, and a manual
+AI-team dispatch returned **HTTP 200** — while no AI employee could actually
+run. Three things hid it:
+
+1. The manual dispatch mapped to Marcus Stone's executive rollup, which
+   reports on shifts already logged and returns early with "nothing to report"
+   when there are none. That path never calls a model, so it cannot detect a
+   broken provider chain. (`ai-team-schedule` now takes a `role` input so an
+   on-demand run can drive a role that reasons.)
+2. The scheduled workflows use `curl -sf`, which discards the response body on
+   an HTTP error. A failing shift prints `HTTP 500` and nothing else.
+3. The real cause is only written to Supabase `error_logs`:
+
+   ```
+   critical | llm-provider-chain
+   No OpenRouter credential is configured.
+   Set OPENROUTER_API_KEY_2 or OPENROUTER_API_KEY.
+   ```
+
+Neither key was set on the Cloud Run service, so every role that reasons
+failed. The deploy workflow now reports this directly: *Report agent runtime
+readiness* annotates the run and writes to the job summary when the LLM
+credential, `CRON_SECRET`, or `RESEND_API_KEY` is missing, and the secret
+loader also looks for `buildmybot-openrouter-api-key-2` in Secret Manager.
+
+When shifts look wrong, check `error_logs` first:
+
+```sql
+select created_at, level, source, left(message, 300)
+from error_logs where created_at > now() - interval '1 hour'
+order by created_at desc;
+```
+
+Note that the 112 open `critical` rows dated 2026-08-22..27 are a **stale**
+backlog from the retired Groq chain ("groq: 429 / 413"). Groq is no longer in
+`api/ai-team/lib.ts` at all. Re-enabling `pulse` before clearing them will
+fire a Discord/Slack reminder for each.
 
 ## 3. LLM Provider Chain (AI Team)
 

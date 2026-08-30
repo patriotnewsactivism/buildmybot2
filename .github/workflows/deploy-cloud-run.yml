@@ -139,6 +139,14 @@ jobs:
           load_secret_if_missing SUPABASE_SERVICE_ROLE_KEY buildmybot-supabase-service-role-key
           load_secret_if_missing SESSION_JWT_SECRET buildmybot-session-jwt-secret
 
+          # The AI employees cannot reason without an OpenRouter credential —
+          # api/ai-team/lib.ts resolves its whole provider chain (three
+          # DeepSeek V4 models) from these two names and nothing else. Look in
+          # Secret Manager too, so the key does not have to live only as a
+          # GitHub secret.
+          load_secret_if_missing OPENROUTER_API_KEY_2 buildmybot-openrouter-api-key-2
+          load_secret_if_missing OPENROUTER_API_KEY buildmybot-openrouter-api-key
+
       - name: Determine whether service already exists
         id: service
         shell: bash
@@ -220,6 +228,46 @@ jobs:
             --platform managed \
             --update-env-vars "$spec" \
             --quiet
+
+      - name: Report agent runtime readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          # A deploy that cannot run agents still serves the marketing site and
+          # auth, so this reports rather than fails — but it reports loudly.
+          #
+          # This gap is invisible from the outside: /health returns 200 and a
+          # cron call returns 200, because the executive rollup short-circuits
+          # with "nothing to report" before it ever calls a model. The failure
+          # only appears when a role that actually reasons runs, and then it
+          # lands in error_logs as
+          #   llm-provider-chain: No OpenRouter credential is configured
+          # rather than anywhere a deploy would look. Found 2026-08-30, with
+          # every AI-employee shift silently unable to run.
+          missing=()
+          [[ -n "${OPENROUTER_API_KEY_2:-}${OPENROUTER_API_KEY:-}" ]] \
+            || missing+=('OPENROUTER_API_KEY_2 (or OPENROUTER_API_KEY) — AI employees cannot reason')
+          [[ -n "${CRON_SECRET:-}" ]] \
+            || missing+=('CRON_SECRET — scheduled shifts cannot authenticate')
+          [[ -n "${RESEND_API_KEY:-}" ]] \
+            || missing+=('RESEND_API_KEY — no outbound email')
+
+          if (( ${#missing[@]} )); then
+            {
+              echo "### ⚠️ Agent runtime is incomplete"
+              echo
+              echo "The backend deployed, but the AI team cannot fully operate:"
+              echo
+              for m in "${missing[@]}"; do echo "- $m"; done
+              echo
+              echo "Set these as GitHub production secrets, or in Secret Manager as"
+              echo '`buildmybot-openrouter-api-key-2`, then re-run this workflow.'
+            } >> "$GITHUB_STEP_SUMMARY"
+            for m in "${missing[@]}"; do echo "::error::Agent runtime missing: $m"; done
+          else
+            echo '### Agent runtime configured' >> "$GITHUB_STEP_SUMMARY"
+            echo 'LLM provider chain, cron auth and outbound email all have credentials.' >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Verify live backend
         shell: bash
