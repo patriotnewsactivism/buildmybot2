@@ -25,12 +25,12 @@ concurrency:
 
 env:
   GCP_PROJECT_ID: buildmybot-507112
+  EXPECTED_GCP_SERVICE_ACCOUNT: buildmybotsa@buildmybot-507112.iam.gserviceaccount.com
   GCP_REGION: ${{ vars.BUILDMYBOT_GCP_REGION || secrets.BUILDMYBOT_GCP_REGION || vars.GCP_CLOUD_RUN_REGION || secrets.GCP_CLOUD_RUN_REGION || 'us-central1' }}
   GCP_SERVICE: buildmybot2
   ARTIFACT_REPO: cloud-run-source-deploy
   GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER || secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-  GCP_SERVICE_ACCOUNT: ${{ vars.GCP_SERVICE_ACCOUNT || secrets.GCP_SERVICE_ACCOUNT }}
-  GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+  GCP_SA_KEY: ${{ secrets.BUILDMYBOT_GCP_SA_KEY || secrets.GCP_SA_KEY }}
 
   SUPABASE_URL: ${{ vars.SUPABASE_URL || secrets.SUPABASE_URL }}
   SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -79,31 +79,32 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [[ -z "${GCP_PROJECT_ID:-}" ]]; then
-            echo "Missing BUILDMYBOT_GCP_PROJECT_ID or GCP_PROJECT_ID." >&2
-            exit 2
-          fi
-          if [[ -n "${GCP_WORKLOAD_IDENTITY_PROVIDER:-}" || -n "${GCP_SERVICE_ACCOUNT:-}" ]]; then
-            if [[ -z "${GCP_WORKLOAD_IDENTITY_PROVIDER:-}" || -z "${GCP_SERVICE_ACCOUNT:-}" ]]; then
-              echo "Workload Identity requires both provider and service account." >&2
-              exit 2
+          if [[ -n "${GCP_WORKLOAD_IDENTITY_PROVIDER:-}" ]]; then
+            echo "Using Workload Identity for $EXPECTED_GCP_SERVICE_ACCOUNT"
+          elif [[ -n "${GCP_SA_KEY:-}" ]]; then
+            actual="$(printf '%s' "$GCP_SA_KEY" | jq -r '.client_email // empty')"
+            if [[ "$actual" != "$EXPECTED_GCP_SERVICE_ACCOUNT" ]]; then
+              echo "Wrong BuildMyBot Google credential. Expected $EXPECTED_GCP_SERVICE_ACCOUNT but secret contains ${actual:-unknown}." >&2
+              exit 3
             fi
-          elif [[ -z "${GCP_SA_KEY:-}" ]]; then
-            echo "No Google authentication configured. Set Workload Identity or GCP_SA_KEY." >&2
+          else
+            echo "No Google authentication configured. Set BUILDMYBOT_GCP_SA_KEY to the full service-account JSON or configure GCP_WORKLOAD_IDENTITY_PROVIDER." >&2
             exit 2
           fi
 
       - name: Authenticate with Google Workload Identity
-        if: env.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && env.GCP_SERVICE_ACCOUNT != ''
+        if: env.GCP_WORKLOAD_IDENTITY_PROVIDER != ''
         uses: google-github-actions/auth@v3
         with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
           workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ env.GCP_SERVICE_ACCOUNT }}
+          service_account: ${{ env.EXPECTED_GCP_SERVICE_ACCOUNT }}
 
       - name: Authenticate with service-account JSON
-        if: env.GCP_WORKLOAD_IDENTITY_PROVIDER == '' && env.GCP_SERVICE_ACCOUNT == '' && env.GCP_SA_KEY != ''
+        if: env.GCP_WORKLOAD_IDENTITY_PROVIDER == '' && env.GCP_SA_KEY != ''
         uses: google-github-actions/auth@v3
         with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
           credentials_json: ${{ env.GCP_SA_KEY }}
 
       - name: Set up Cloud SDK
@@ -134,26 +135,18 @@ jobs:
           done
           exit "$missing"
 
-      - name: Ensure Artifact Registry repository exists
-        shell: bash
-        run: |
-          set -euo pipefail
-          if ! gcloud artifacts repositories describe "$ARTIFACT_REPO" --project "$GCP_PROJECT_ID" --location "$GCP_REGION" >/dev/null 2>&1; then
-            gcloud artifacts repositories create "$ARTIFACT_REPO" \
-              --project "$GCP_PROJECT_ID" \
-              --location "$GCP_REGION" \
-              --repository-format docker \
-              --description "Cloud Run production images"
-          fi
+      - name: Configure Docker auth
+        run: gcloud auth configure-docker "$GCP_REGION-docker.pkg.dev" --quiet
 
-      - name: Build immutable image with Cloud Build
+      - name: Build immutable image on GitHub runner
         id: image
         shell: bash
         run: |
           set -euo pipefail
           IMAGE="$GCP_REGION-docker.pkg.dev/$GCP_PROJECT_ID/$ARTIFACT_REPO/$GCP_SERVICE:$GITHUB_SHA"
           echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
-          gcloud builds submit . --project "$GCP_PROJECT_ID" --tag "$IMAGE" --timeout=1200
+          docker build --platform linux/amd64 -t "$IMAGE" .
+          docker push "$IMAGE"
 
       - name: Deploy public Cloud Run service
         shell: bash
