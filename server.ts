@@ -38,6 +38,15 @@ app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(cookieParser());
 
+// Lightweight production health/provenance endpoint used by Cloud Run deploy verification.
+app.get("/health", (_req, res) => {
+  res.status(200).json({
+    status: "ok",
+    service: "buildmybot2",
+    build: { sha: process.env.BUILD_SHA || "unknown" },
+  });
+});
+
 // Auth routes — file-system routing equivalents from Vercel
 app.all("/api/auth/login", async (req, res) => {
   await loginHandler(req as any, res as any);
