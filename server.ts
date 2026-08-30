@@ -58,9 +58,24 @@ app.all('/api/auth/user', async (req, res) => {
   await userHandler(req as any, res as any);
 });
 
-// Cron routes — Vercel dynamic route [job] -> Express :job param
+// Cron routes — Vercel dynamic route [job] -> Express :job param.
+//
+// req.query must be shadowed with defineProperty, NOT assigned. Express 5
+// redefined req.query as a getter-only accessor on the request prototype, so
+// the previous `req.query = {...}` threw
+//   TypeError: Cannot set property query of #<IncomingMessage> which has only a getter
+// under ESM strict mode. That rejection surfaced as a bare HTTP 500 on every
+// /api/cron/* call, so all four AI-team jobs (all-shifts, pulse,
+// lead-followups, sales-outreach) failed before their own auth check ran.
+// Defining an own property on the instance shadows the prototype getter and
+// preserves the parsed query string alongside the injected :job param.
 app.all('/api/cron/:job', async (req, res) => {
-  (req as any).query = { ...req.query, job: req.params.job };
+  Object.defineProperty(req, 'query', {
+    value: { ...req.query, job: req.params.job },
+    writable: true,
+    configurable: true,
+    enumerable: true,
+  });
   await cronHandler(req as any, res as any);
 });
 

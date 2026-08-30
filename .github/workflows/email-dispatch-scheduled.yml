@@ -14,12 +14,25 @@ on:
   # schedule:
   #   - cron: '*/5 * * * *' # every 5 minutes
 
+# Server-to-server calls target the Cloud Run backend directly rather than the
+# public domain. www.buildmybot.app is fronted by Cloudflare, whose /api/*
+# route still resolves to the retired Railway app and answers every request
+# with {"code":404,"message":"Application not found"} — so every shift pointed
+# at the public host failed before reaching the backend. Cloud Run is the
+# authoritative origin and is verified healthy by the deploy workflow.
+#
+# Set the BUILDMYBOT_API_ORIGIN repository variable to move these jobs back to
+# https://www.buildmybot.app once that Cloudflare route is repaired; no code
+# change is needed.
+env:
+  API_ORIGIN: ${{ vars.BUILDMYBOT_API_ORIGIN || 'https://buildmybot2-fq5disxp2a-uc.a.run.app' }}
+
 jobs:
   dispatch:
     runs-on: ubuntu-latest
     steps:
       - name: Send any due scheduled replies
         run: |
-          curl -sf -X POST "https://www.buildmybot.app/api/email/dispatch-scheduled" \
+          curl -sf -X POST "$API_ORIGIN/api/email/dispatch-scheduled" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             -w "\nHTTP %{http_code}\n" || echo "::warning::dispatch call failed (non-fatal, will retry in 5 min)"

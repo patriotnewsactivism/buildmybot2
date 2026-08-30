@@ -1,0 +1,53 @@
+# Netlify configuration for the BuildMyBot frontend.
+#
+# The Netlify site (buildmybotapp) builds this repo and serves the current
+# bundle, but until now it had neither an API route nor a SPA fallback:
+#   https://buildmybotapp.netlify.app/api/health  -> 404 (Netlify's own page)
+#   https://buildmybotapp.netlify.app/pricing     -> 404
+# So it could render the marketing home page and nothing else. These rules
+# make it a complete origin.
+#
+# Both rules must be PROXIES (status 200), never redirects. The session cookie
+# is issued host-only:
+#   bmb_session=...; HttpOnly; Secure; SameSite=Lax; Path=/
+# With no Domain attribute it binds to whatever host the browser sees, so a
+# 301/302 to the Cloud Run hostname would land the browser on *.run.app and
+# the cookie would never come back to buildmybot.app. A 200 rewrite keeps the
+# browser on this origin and forwards server-side.
+#
+# Cloudflare Pages ignores this file entirely — its equivalent is the Pages
+# Function at functions/api/[[path]].ts, which targets the same backend.
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# API -> Cloud Run. This is the authoritative backend; the public domain's
+# /api/* route previously resolved to the retired Railway app, which answered
+# every request with {"code":404,"message":"Application not found"}.
+#
+# force = true so the proxy wins over the SPA fallback below and over any
+# static file that might share the path.
+[[redirects]]
+  from = "/api/*"
+  to = "https://buildmybot2-fq5disxp2a-uc.a.run.app/api/:splat"
+  status = 200
+  force = true
+
+# Deploy verification hits /health on the backend; keep it reachable
+# same-origin for uptime checks pointed at the frontend host.
+[[redirects]]
+  from = "/health"
+  to = "https://buildmybot2-fq5disxp2a-uc.a.run.app/health"
+  status = 200
+  force = true
+
+# SPA fallback, last so it never shadows the proxies above. React Router owns
+# every non-asset path; without this, deep links like /pricing 404.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
