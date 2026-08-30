@@ -15,7 +15,7 @@ BuildMyBot is an all-in-one AI Operating System that empowers businesses to auto
 
 ### AI Phone Agent
 - **24/7 Receptionist:** Handles incoming calls, books appointments, and routes urgent issues.
-- **Human-like Voice:** Powered by advanced neural speech synthesis.
+- **Human-like Voice:** Powered by advanced neural speech synthesis (Cartesia & Retell AI).
 - **Call Logging:** Transcripts automatically saved to the CRM.
 
 ### Lead CRM
@@ -32,40 +32,35 @@ BuildMyBot is an all-in-one AI Operating System that empowers businesses to auto
 - **Commission Tracking:** Real-time dashboard for earnings, payouts, and client management.
 - **Tiered System:** Bronze, Silver, Gold, and Platinum tiers with increasing commission rates.
 
-## Deployment topology (read this first)
+## Deployment Topology
 
-This repo has a single production path:
+This platform runs on **Vercel** serverless architecture:
+- **Frontend:** Vite + React single-page application built with `npm run build:client`.
+- **Backend Gateway:** `/api/gateway.ts` handles all `/api/*` REST endpoints with built-in token-bucket rate limiting.
+- **Auth Functions:** `/api/auth/*.ts` handles session creation, login, signup, and validation.
+- **Database:** Supabase PostgreSQL with vector similarity search for RAG embeddings.
 
-**Vercel** — the Vite client plus the serverless functions in `api/`
-(`api/gateway.ts` handles all `/api/*` routes, `api/auth/*.ts` handles
-login/signup/session). These talk to Supabase over its REST API.
-`vercel.json` builds with `npm run build:client`. Required env vars:
-`SUPABASE_SERVICE_ROLE_KEY`, `SESSION_JWT_SECRET`, `VITE_SUPABASE_URL`
-(see `.env.example`).
-
-There is no Express server, Dockerfile, or Railway config in this repo —
-an earlier local-dev Express path (`server/`) was planned but never
-actually committed (it depended on Drizzle tables and a `shared/types`
-module that don't exist here), so there is nothing to run or deploy
-outside of the Vercel path above. Note: `package.json` still has a few
-stray scripts (`dev`, `server`, `start`, `check:server`, several
-`seed:*`) referencing that non-existent `server/` — they will fail if
-run, and cleaning them up is a separate, not-yet-done task.
+Required environment variables:
+- `SUPABASE_URL` / `VITE_SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `SESSION_JWT_SECRET`
+- `OPENAI_API_KEY`
+- `CARTESIA_API_KEY` (optional, for ultra-low latency voice synthesis)
 
 ## Tech Stack
 
-- **Frontend:** React, TypeScript, Vite, Tailwind CSS
-- **Backend:** Express.js API server
-- **Database:** Postgres (Neon or Supabase) with Drizzle ORM
-- **AI Models:** OpenAI GPT-5o Mini (default) / GPT-4o / GPT-4o Mini
-- **Voice:** Cartesia (ultra-realistic voice synthesis)
+- **Frontend:** React 18, TypeScript, Vite, Tailwind CSS
+- **Backend:** Vercel Serverless Functions
+- **Database & Storage:** Supabase PostgreSQL & pgvector
+- **AI Models:** OpenAI GPT-4o / GPT-4o Mini / Embeddings
+- **Voice:** Cartesia Sonic & Retell AI
 - **Icons:** Lucide React
 
 ## Getting Started
 
 ### Prerequisites
 - Node.js 18+
-- PostgreSQL Database
+- Supabase Account / Database
 - OpenAI API Key
 - (Optional) Cartesia API Key for voice features
 - (Optional) Stripe Account for payments
@@ -84,31 +79,14 @@ run, and cleaning them up is a separate, not-yet-done task.
    ```
 
 3. Configure Environment:
-   Create a `.env` file and add your keys:
-   ```env
-   # OpenAI
-   OPENAI_API_KEY=sk-...
+   Create a `.env` file based on `.env.example`.
 
-   # Cartesia (for voice agent)
-   CARTESIA_API_KEY=...
-
-   # Database (PostgreSQL)
-   DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/DATABASE?sslmode=require
-
-   # Session Secret
-   SESSION_SECRET=your_random_secret_here
-
-   # App base URL (used for Stripe redirects/webhooks)
-   APP_BASE_URL=https://your-domain.com
-
-   # Stripe (optional)
-   STRIPE_SECRET_KEY=sk_live_...
-   STRIPE_PUBLISHABLE_KEY=pk_live_...
+4. Start Development Server:
+   ```bash
+   npm run dev
    ```
 
-   
-   Ensure to check the README for all necessary environment variables and details on deployment processes.
-
-## Additional Notes
-
-To successfully run the local server, ensure you also initialize your database and test the API endpoints through `npm run server`. For production deployment on Vercel, refer to the Vercel guide and ensure all environmental variables are correctly set up according to the `.env.example` file.
+5. Run Tests:
+   ```bash
+   npm test
+   ```

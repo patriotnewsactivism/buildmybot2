@@ -3,6 +3,8 @@ import {
   aiTeamKilled,
   logAgentError,
   logShift,
+  notifyDiscord,
+  notifySlack,
   salesAutomationDryRun,
   supabaseFetch,
 } from '../ai-team/lib.js';
@@ -18,43 +20,38 @@ export async function salesOutreachHandler(
     return res.status(200).json({ success: true, killed: true });
   }
 
-  const preview = Array.isArray(req.query?.preview)
-    ? req.query.preview[0]
-    : req.query?.preview;
-
-  if (salesAutomationDryRun() && preview !== '1') {
-    return res.status(200).json({
-      success: true,
-      dry_run: true,
-      skipped: true,
-      message: 'Outbound sales outreach paused (dry-run mode).',
-    });
-  }
+  const ROLE_ID = 'sales-outreach-agent';
+  const ROLE_NAME = 'Jordan Blake';
 
   try {
-    const freshLeads =
-      (await supabaseFetch(
-        'researched_leads',
-        'status=eq.new&order=created_at.desc&limit=10',
-      )) || [];
+    const isDryRun = salesAutomationDryRun();
+    const leads = (await supabaseFetch('leads', 'status=eq.New&limit=5')) || [];
+
+    const processed = Array.isArray(leads) ? leads.length : 0;
+    const summary = `Sales outreach run: ${processed} lead(s) reviewed. Dry run: ${isDryRun}.`;
 
     await logShift({
-      role_id: 'sales-outreach',
-      role_name: 'Jordan Blake',
-      summary: `Reviewed ${freshLeads.length} new researched lead(s) for outreach pipeline.`,
-      tasks_completed: freshLeads.length,
+      role_id: ROLE_ID,
+      role_name: ROLE_NAME,
+      summary,
+      tasks_completed: processed,
     });
+
+    if (processed > 0) {
+      await notifyDiscord(`🎯 **${ROLE_NAME} — Sales Outreach**\n${summary}`);
+      await notifySlack(`:dart: *${ROLE_NAME} — Sales Outreach*\n${summary}`);
+    }
 
     return res.status(200).json({
       success: true,
-      role: 'sales-outreach',
-      leads_reviewed: freshLeads.length,
-      timestamp: new Date().toISOString(),
+      processed,
+      dryRun: isDryRun,
+      summary,
     });
   } catch (err: any) {
     await logAgentError({
       source: 'cron/sales-outreach',
-      message: `Sales outreach handler error: ${err.message}`,
+      message: `Sales outreach failed: ${err.message}`,
     });
     return res.status(500).json({ success: false, error: err.message });
   }
