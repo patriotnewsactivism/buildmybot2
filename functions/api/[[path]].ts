@@ -20,9 +20,13 @@ const DEFAULT_API_ORIGIN = 'https://buildmybot2-fq5disxp2a-uc.a.run.app';
  */
 export async function onRequest(context: PagesContext): Promise<Response> {
   const incomingUrl = new URL(context.request.url);
-  const configuredOrigin = context.env.BUILDMYBOT_API_ORIGIN || DEFAULT_API_ORIGIN;
+  const configuredOrigin =
+    context.env.BUILDMYBOT_API_ORIGIN || DEFAULT_API_ORIGIN;
   const origin = new URL(configuredOrigin);
-  const upstreamUrl = new URL(`${incomingUrl.pathname}${incomingUrl.search}`, origin);
+  const upstreamUrl = new URL(
+    `${incomingUrl.pathname}${incomingUrl.search}`,
+    origin,
+  );
 
   const headers = new Headers(context.request.headers);
   headers.delete('host');
@@ -39,7 +43,9 @@ export async function onRequest(context: PagesContext): Promise<Response> {
     init.body = context.request.body;
   }
 
-  const upstreamResponse = await fetch(new Request(upstreamUrl.toString(), init));
+  const upstreamResponse = await fetch(
+    new Request(upstreamUrl.toString(), init),
+  );
 
   return new Response(upstreamResponse.body, {
     status: upstreamResponse.status,
