@@ -32,7 +32,8 @@ env:
   GCP_WORKLOAD_IDENTITY_PROVIDER: projects/406797137160/locations/global/workloadIdentityPools/github-pool/providers/github-provider
   GCP_SA_KEY: ${{ secrets.BUILDMYBOT_GCP_SA_KEY || secrets.GCP_SA_KEY }}
 
-  SUPABASE_URL: ${{ vars.SUPABASE_URL || secrets.SUPABASE_URL }}
+  # This value is public/non-secret and is the production BuildMyBot Supabase project.
+  SUPABASE_URL: https://evkjlnbpntimbxklnhoz.supabase.co
   SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
   SESSION_JWT_SECRET: ${{ secrets.SESSION_JWT_SECRET }}
   SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
@@ -109,6 +110,34 @@ jobs:
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v3
+
+      - name: Load required runtime secrets from Google Secret Manager
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          load_secret_if_missing() {
+            local env_name="$1"
+            local secret_name="$2"
+            local current="${!env_name:-}"
+            if [[ -n "$current" ]]; then
+              return 0
+            fi
+
+            local value
+            if value="$(gcloud secrets versions access latest \
+              --project "$GCP_PROJECT_ID" \
+              --secret "$secret_name" 2>/dev/null)"; then
+              if [[ -n "$value" ]]; then
+                echo "::add-mask::$value"
+                echo "$env_name=$value" >> "$GITHUB_ENV"
+                echo "Loaded $env_name from Google Secret Manager."
+              fi
+            fi
+          }
+
+          load_secret_if_missing SUPABASE_SERVICE_ROLE_KEY buildmybot-supabase-service-role-key
+          load_secret_if_missing SESSION_JWT_SECRET buildmybot-session-jwt-secret
 
       - name: Determine whether service already exists
         id: service
