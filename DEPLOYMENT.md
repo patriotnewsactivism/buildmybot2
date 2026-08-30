@@ -1,11 +1,11 @@
 # BuildMyBot — Official Deployment & Operations
 
-_Last updated: 2026-08-29. Vercel is fully decommissioned. Frontend is on Cloudflare._
+_Last updated: 2026-08-30. Frontend remains on Cloudflare Pages; backend is live on Google Cloud Run._
 
 > 🚫 **BANNED INFRASTRUCTURE — zero exceptions, no "just this once":**
 > - **Vercel** — decommissioned, billing closed
-> - **Railway** — dead (returns "Application not found" on all services)
-> - **AWS** (Lightsail, EC2, ECR, CodeBuild, RDS) — credentials expired, no longer used
+> - **Railway** — dead and no longer an accepted origin
+> - **AWS** (Lightsail, EC2, ECR, CodeBuild, RDS) — no longer used
 >
 > **Only acceptable hosting targets: Google Cloud Run, Cloudflare, and Netlify.**
 
@@ -13,60 +13,59 @@ _Last updated: 2026-08-29. Vercel is fully decommissioned. Frontend is on Cloudf
 
 | Layer | What we officially run | Where |
 |---|---|---|
-| **Frontend** | Vite + React SPA (this repo, built by `npm run build:client`) | **Cloudflare Pages** — owns **buildmybot.app** and **www.buildmybot.app**. Auto-deploys from `patriotnewsactivism/buildmybot2@main`. Uses `_headers` and `_redirects` for routing/security. |
-| **Backend (API)** | Serverless functions in `api/` — `api/gateway.ts` serves every `/api/*` route, `api/auth/*.ts` serve login/signup/session/logout | 🔴 **DEAD — Railway returned "Application not found"** (confirmed 2026-08-29). Cloudflare proxy is live but the Railway origin is killed. Frontend serves static HTML but ALL API calls fail. Must be migrated to Cloud Run or Cloudflare Pages Functions immediately. |
+| **Frontend** | Vite + React SPA (this repo, built by `npm run build:client`) | **Cloudflare Pages** — owns **buildmybot.app** and **www.buildmybot.app**. Auto-deploys from `patriotnewsactivism/buildmybot2@main`. |
+| **Backend (API)** | Express/Node container wrapping the existing `api/` handlers | **Google Cloud Run**, project `buildmybot-507112`, service `buildmybot2`, region `us-central1`. Production service URL: `https://buildmybot2-fq5disxp2a-uc.a.run.app`. |
+| **Frontend → API bridge** | Cloudflare Pages Function at `functions/api/[[path]].ts` proxies same-origin `/api/*` requests to Cloud Run | **Cloudflare Pages**. This keeps browser clients on `buildmybot.app` while the API runs on Cloud Run. |
 | **Database** | Supabase Postgres, accessed by the backend over the Supabase REST API with the service-role key | Supabase project `evkjlnbpntimbxklnhoz` |
-| **Email (outbound)** | Resend HTTP API, or the SMTP_* block (already configured on production) | — |
-| **Email (inbound)** | Your mail provider forwards to `POST /api/email/inbound` | — |
+| **Email (outbound)** | Resend HTTP API, or the SMTP_* block | — |
+| **Email (inbound)** | Mail provider forwards to `POST /api/email/inbound` | — |
 | **LLM (AI Team)** | OpenRouter DeepSeek V4 stack — same config as Apex | Key: `OPENROUTER_API_KEY_2` (fallback: `OPENROUTER_API_KEY`) |
 
-**Vercel is no longer used.** The `vercel.json` and `.vercelignore` files have been removed. All Vercel projects (`buildmybot20`, `buildmybot2`, etc.) are decommissioned — Vercel billing is closed.
+**Vercel and Railway are no longer used for production.**
 
-> 🔴 **CRITICAL — API IS DOWN:** Railway has killed the application (returns "Application not found" on all API endpoints, confirmed 2026-08-29 03:11 UTC). The Cloudflare-hosted frontend still serves static HTML, but every `/api/*` call fails. This is a production outage.
->
-> **Migration target (pick one):**
-> 1. **Cloudflare Pages Functions** — create `functions/api/` directory, move serverless functions there, update `_redirects`
-> 2. **Google Cloud Run** — containerize the API, deploy alongside Apex/bad-actors/donmatthews-live
-> 3. **Netlify Functions** — deploy as a Netlify site with serverless functions
->
-> **BANNED: Vercel, Railway, AWS — zero exceptions.**
+### Current deployment verification
+
+The Cloud Run deployment workflow authenticates through GitHub OIDC / Google Workload Identity as `buildmybotsa@buildmybot-507112.iam.gserviceaccount.com`, builds and pushes an immutable container to Artifact Registry, deploys it to Cloud Run, and verifies both `/health` build provenance and an auth API smoke test.
+
+The backend release for commit `66001b7f512f825b12e0b6bcacfe6b390a732270` completed successfully and Cloud Run reported revision `buildmybot2-00003-92b` serving 100% of traffic. The verified production URL is `https://buildmybot2-fq5disxp2a-uc.a.run.app`.
+
+The Cloudflare Pages proxy source is committed on `main`. If `https://www.buildmybot.app/api/*` still returns the historical Railway response, the remaining issue is the live Cloudflare Pages/Worker route or deployment state, not the Cloud Run backend.
 
 ## 2. Environment variables
 
-Set these on **Cloudflare Pages** → Project → Settings → Environment Variables
-(Production + Preview). Frontend `VITE_*` values are baked in at build time,
-so redeploy after changing them.
+### Cloud Run backend
 
-### Backend (serverless functions)
+The deployment workflow loads required runtime secrets from Google Secret Manager and applies available GitHub production secrets without deleting existing Cloud Run values.
 
 | Variable | Required | Purpose |
 |---|---|---|
 | `SUPABASE_SERVICE_ROLE_KEY` | ✅ | All DB access from `api/`. Never expose with a `VITE_` prefix. |
-| `SESSION_JWT_SECRET` | ✅ | Signs session cookies (`openssl rand -hex 32`). Same value for all functions. |
+| `SESSION_JWT_SECRET` | ✅ | Signs session cookies. |
 | `SUPABASE_URL` | ✅ | `https://evkjlnbpntimbxklnhoz.supabase.co` |
-| `OPENROUTER_API_KEY_2` | ✅ | Primary LLM key for AI Team (OpenRouter DeepSeek V4). Fallback: `OPENROUTER_API_KEY`. |
-| `RESEND_API_KEY` | ✅ for email | Outbound mail for the AI employees (or set `SMTP_HOST/PORT/USER/PASS` instead). |
-| `INBOUND_EMAIL_WEBHOOK_SECRET` | ✅ for email | Shared secret for `POST /api/email/inbound` (`openssl rand -hex 32`). |
-| `CRON_SECRET` | ✅ | Auths cron invocations + APEX `buildmybot_run_workforce`. |
-| `DISCORD_WEBHOOK_URL` | recommended | Agent notifications (shift summaries, critical errors, lead follow-ups). |
-| `SLACK_WEBHOOK_URL` | recommended | Same notifications, Slack channel. |
-| `PORTFOLIO_INTAKE_SECRET` | ✅ for portfolio leads | Shared secret for `POST /api/leads/capture` portfolio intake (donmatthews.live). |
-| `PORTFOLIO_OWNER_EMAIL` | optional | `users` row that owns portfolio leads; defaults to `president@buildmybot.app`. |
+| `OPENROUTER_API_KEY_2` | ✅ for primary AI stack | Primary OpenRouter key. Fallback: `OPENROUTER_API_KEY`. |
+| `RESEND_API_KEY` | ✅ for email | Outbound mail for the AI employees. |
+| `INBOUND_EMAIL_WEBHOOK_SECRET` | ✅ for inbound email | Shared secret for `POST /api/email/inbound`. |
+| `CRON_SECRET` | ✅ for scheduled jobs | Authenticates cron invocations and workforce triggers. |
+| `PORTFOLIO_INTAKE_SECRET` | ✅ for portfolio leads | Shared secret for `POST /api/leads/capture`. |
+| `PORTFOLIO_OWNER_EMAIL` | optional | Defaults to `president@buildmybot.app`. |
+| `BASE44_SUPERAGENT_API_KEY` | optional until configured | Server-side Base44 Superagent credential. Never expose to the client. |
 
-**Removed (no longer needed):**
-- `OPENAI_API_KEY` — replaced by OpenRouter DeepSeek V4
-- `AI_TEAM_LLM_PROVIDER` — no longer used (OpenRouter is the only provider)
-- `CEREBRAS_API_KEY`, `GROQ_API_KEY`, `COHERE_API_KEY`, `GEMINI_API_KEY` — all removed from the LLM chain
-- `GITHUB_TOKEN_4` (for GitHub Models) — provider removed
+The two minimum startup secrets are stored in Google Secret Manager as:
 
-### Frontend (build-time)
+- `buildmybot-supabase-service-role-key`
+- `buildmybot-session-jwt-secret`
+
+### Cloudflare Pages frontend
+
+Frontend `VITE_*` values are baked in at build time, so redeploy after changing them.
 
 | Variable | Required | Purpose |
 |---|---|---|
 | `VITE_SUPABASE_URL` | ✅ | Same Supabase URL. |
 | `VITE_SUPABASE_ANON_KEY` | ✅ | Public anon key (RLS applies). |
-| `VITE_API_URL` | leave empty | Same-origin `/api` is correct. |
+| `VITE_API_URL` | leave empty | Same-origin `/api` remains the browser-facing API path. |
 | `VITE_STRIPE_PUBLISHABLE_KEY` | when billing goes live | Stripe publishable key. |
+| `BUILDMYBOT_API_ORIGIN` | optional Pages Function override | Cloud Run origin used by `functions/api/[[path]].ts`; defaults to the verified production Cloud Run URL. |
 
 The full annotated list is in `.env.example`.
 
@@ -81,7 +80,6 @@ The AI Team uses an OpenRouter DeepSeek V4 stack, matching Apex's configuration:
 | `openrouter-pro` | `deepseek/deepseek-v4-pro-0813` | $0.66 in / $1.98 out | Heavy reasoning |
 
 All three use `OPENROUTER_API_KEY_2` (falls back to `OPENROUTER_API_KEY`).
-Previous providers (Cerebras, Groq, Cohere, Gemini, GitHub Models, OpenAI) have been removed.
 
 Code: `api/ai-team/lib.ts`
 
@@ -89,23 +87,23 @@ Code: `api/ai-team/lib.ts`
 
 Migrations live in `supabase/migrations/` and are ordered by timestamp:
 
-1. `20260110234903_remote_schema.sql` — baseline (already applied to prod)
+1. `20260110234903_remote_schema.sql` — baseline
 2. `20260118140000_fix_bots_schema.sql`
 3. `20260118143000_knowledge_sources_processing.sql`
 4. `20260118151000_knowledge_chunks_embeddings.sql`
-5. `20260707240000_ai_employee_org.sql` — AI employee roster/emails/hierarchy, `agent_messages`, `email_messages`, `escalations` (+ seeds the six employees). Idempotent — safe to run repeatedly.
+5. `20260707240000_ai_employee_org.sql` — AI employee roster/emails/hierarchy, `agent_messages`, `email_messages`, `escalations` (+ seeds the six employees). Idempotent.
 
 Apply with the Supabase CLI:
 
 ```bash
 npx supabase login
 npx supabase link --project-ref evkjlnbpntimbxklnhoz
-npx supabase db push          # applies anything not yet recorded remotely
+npx supabase db push
 ```
 
 ## 5. AI employee organization
 
-The human at the top: **president@buildmybot.app** (Don Matthews).
+The human at the top: **president@buildmybot.app**.
 
 | AI Employee | Title | Mailbox | Reports to |
 |---|---|---|---|
@@ -116,11 +114,15 @@ The human at the top: **president@buildmybot.app** (Don Matthews).
 | Maya Chen | Marketing Director | marketing@buildmybot.app | president |
 | Harper Lane | Head of People (HR) | careers@buildmybot.app | president |
 
-## 6. Migration TODO
+## 6. Migration / cutover status
 
-- [ ] Create `functions/api/` directory for Cloudflare Pages Functions (or containerize API for Cloud Run)
-- [ ] Set `OPENROUTER_API_KEY_2` on Cloudflare Pages
-- [x] Remove stale `vercel.json` and `.vercelignore`
-- [ ] Migrate API backend off Railway (currently proxied through Cloudflare)
-- [ ] Verify `_redirects` API proxy path works with Cloudflare Pages Functions
-- [ ] Update GitHub Actions cron workflows to point at the new API host
+- [x] Containerize the API/backend for Cloud Run.
+- [x] Create Google Workload Identity authentication for GitHub Actions.
+- [x] Store the minimum Supabase and session secrets in Google Secret Manager.
+- [x] Deploy `buildmybot2` to Cloud Run and verify `/health` plus auth smoke test.
+- [x] Add `functions/api/[[path]].ts` Cloudflare Pages proxy to the Cloud Run backend.
+- [x] Remove stale Vercel deployment files.
+- [ ] Confirm the latest Cloudflare Pages production deployment includes the Pages Function.
+- [ ] Remove/replace any remaining Cloudflare Worker/route that still sends `/api/*` to Railway.
+- [ ] Verify `https://www.buildmybot.app/api/auth/user` is no longer served by Railway.
+- [ ] Add/confirm optional production secrets such as OpenRouter, Base44, Stripe webhook, voice-provider credentials, and observability credentials as each feature requires them.
