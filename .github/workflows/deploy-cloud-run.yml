@@ -1,0 +1,236 @@
+name: Deploy BuildMyBot2 Backend to Cloud Run
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'api/**'
+      - 'shared/**'
+      - 'server.ts'
+      - 'constants.ts'
+      - 'types.ts'
+      - 'Dockerfile'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/deploy-cloud-run.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: buildmybot2-cloud-run-production
+  cancel-in-progress: false
+
+env:
+  GCP_PROJECT_ID: ${{ vars.BUILDMYBOT_GCP_PROJECT_ID || secrets.BUILDMYBOT_GCP_PROJECT_ID || vars.GCP_PROJECT_ID || secrets.GCP_PROJECT_ID }}
+  GCP_REGION: ${{ vars.BUILDMYBOT_GCP_REGION || secrets.BUILDMYBOT_GCP_REGION || vars.GCP_CLOUD_RUN_REGION || secrets.GCP_CLOUD_RUN_REGION || 'us-central1' }}
+  GCP_SERVICE: buildmybot2
+  ARTIFACT_REPO: cloud-run-source-deploy
+  GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER || secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+  GCP_SERVICE_ACCOUNT: ${{ vars.GCP_SERVICE_ACCOUNT || secrets.GCP_SERVICE_ACCOUNT }}
+  GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+
+  SUPABASE_URL: ${{ vars.SUPABASE_URL || secrets.SUPABASE_URL }}
+  SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+  SESSION_JWT_SECRET: ${{ secrets.SESSION_JWT_SECRET }}
+  SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+  ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+  DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  OPENROUTER_API_KEY_2: ${{ secrets.OPENROUTER_API_KEY_2 }}
+  OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+  OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+  CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+  GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+  GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+  COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
+  TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+  FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
+  RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+  INBOUND_EMAIL_WEBHOOK_SECRET: ${{ secrets.INBOUND_EMAIL_WEBHOOK_SECRET }}
+  CRON_SECRET: ${{ secrets.CRON_SECRET }}
+  STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+  STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+  STRIPE_WHITELABEL_PRICE_ID: ${{ secrets.STRIPE_WHITELABEL_PRICE_ID }}
+  RETELL_API_KEY: ${{ secrets.RETELL_API_KEY }}
+  RETELL_WEBHOOK_SECRET: ${{ secrets.RETELL_WEBHOOK_SECRET }}
+  CARTESIA_API_KEY: ${{ secrets.CARTESIA_API_KEY }}
+  VAPI_API_KEY: ${{ secrets.VAPI_API_KEY }}
+  VAPI_WEBHOOK_SECRET: ${{ secrets.VAPI_WEBHOOK_SECRET }}
+  TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
+  TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
+  TWILIO_PHONE_NUMBER: ${{ secrets.TWILIO_PHONE_NUMBER }}
+  SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+  BASE44_SUPERAGENT_API_KEY: ${{ secrets.BASE44_SUPERAGENT_API_KEY }}
+  PORTFOLIO_INTAKE_SECRET: ${{ secrets.PORTFOLIO_INTAKE_SECRET }}
+  PORTFOLIO_OWNER_EMAIL: ${{ vars.PORTFOLIO_OWNER_EMAIL || secrets.PORTFOLIO_OWNER_EMAIL }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate Google Cloud configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${GCP_PROJECT_ID:-}" ]]; then
+            echo "Missing BUILDMYBOT_GCP_PROJECT_ID or GCP_PROJECT_ID." >&2
+            exit 2
+          fi
+          if [[ -n "${GCP_WORKLOAD_IDENTITY_PROVIDER:-}" || -n "${GCP_SERVICE_ACCOUNT:-}" ]]; then
+            if [[ -z "${GCP_WORKLOAD_IDENTITY_PROVIDER:-}" || -z "${GCP_SERVICE_ACCOUNT:-}" ]]; then
+              echo "Workload Identity requires both provider and service account." >&2
+              exit 2
+            fi
+          elif [[ -z "${GCP_SA_KEY:-}" ]]; then
+            echo "No Google authentication configured. Set Workload Identity or GCP_SA_KEY." >&2
+            exit 2
+          fi
+
+      - name: Authenticate with Google Workload Identity
+        if: env.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && env.GCP_SERVICE_ACCOUNT != ''
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GCP_SERVICE_ACCOUNT }}
+
+      - name: Authenticate with service-account JSON
+        if: env.GCP_WORKLOAD_IDENTITY_PROVIDER == '' && env.GCP_SERVICE_ACCOUNT == '' && env.GCP_SA_KEY != ''
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ env.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Determine whether service already exists
+        id: service
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gcloud run services describe "$GCP_SERVICE" --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --platform managed >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Validate minimum runtime secrets for a new service
+        if: steps.service.outputs.exists == 'false'
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY SESSION_JWT_SECRET; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "Missing required runtime setting for first deployment: $name" >&2
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Ensure Artifact Registry repository exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! gcloud artifacts repositories describe "$ARTIFACT_REPO" --project "$GCP_PROJECT_ID" --location "$GCP_REGION" >/dev/null 2>&1; then
+            gcloud artifacts repositories create "$ARTIFACT_REPO" \
+              --project "$GCP_PROJECT_ID" \
+              --location "$GCP_REGION" \
+              --repository-format docker \
+              --description "Cloud Run production images"
+          fi
+
+      - name: Build immutable image with Cloud Build
+        id: image
+        shell: bash
+        run: |
+          set -euo pipefail
+          IMAGE="$GCP_REGION-docker.pkg.dev/$GCP_PROJECT_ID/$ARTIFACT_REPO/$GCP_SERVICE:$GITHUB_SHA"
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+          gcloud builds submit . --project "$GCP_PROJECT_ID" --tag "$IMAGE" --timeout=1200
+
+      - name: Deploy public Cloud Run service
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcloud run deploy "$GCP_SERVICE" \
+            --project "$GCP_PROJECT_ID" \
+            --region "$GCP_REGION" \
+            --platform managed \
+            --image "${{ steps.image.outputs.image }}" \
+            --port 8080 \
+            --allow-unauthenticated \
+            --quiet
+
+      - name: Apply available runtime configuration without deleting existing values
+        shell: bash
+        run: |
+          set -euo pipefail
+          delim='__BMB_ENV_7E4A1__'
+          spec="^${delim}^NODE_ENV=production${delim}APP_BASE_URL=https://www.buildmybot.app${delim}BUILD_SHA=$GITHUB_SHA${delim}PRESIDENT_EMAIL=president@buildmybot.app"
+          for name in \
+            SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY SESSION_JWT_SECRET SESSION_SECRET ENCRYPTION_KEY DATABASE_URL \
+            OPENROUTER_API_KEY_2 OPENROUTER_API_KEY OPENAI_API_KEY CEREBRAS_API_KEY GROQ_API_KEY GEMINI_API_KEY COHERE_API_KEY \
+            TAVILY_API_KEY FIRECRAWL_API_KEY RESEND_API_KEY INBOUND_EMAIL_WEBHOOK_SECRET CRON_SECRET \
+            STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET STRIPE_WHITELABEL_PRICE_ID \
+            RETELL_API_KEY RETELL_WEBHOOK_SECRET CARTESIA_API_KEY VAPI_API_KEY VAPI_WEBHOOK_SECRET \
+            TWILIO_ACCOUNT_SID TWILIO_AUTH_TOKEN TWILIO_PHONE_NUMBER SENTRY_DSN BASE44_SUPERAGENT_API_KEY \
+            PORTFOLIO_INTAKE_SECRET PORTFOLIO_OWNER_EMAIL; do
+            value="${!name:-}"
+            if [[ -n "$value" ]]; then
+              spec+="${delim}${name}=${value}"
+            fi
+          done
+          gcloud run services update "$GCP_SERVICE" \
+            --project "$GCP_PROJECT_ID" \
+            --region "$GCP_REGION" \
+            --platform managed \
+            --update-env-vars "$spec" \
+            --quiet
+
+      - name: Verify live backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          SERVICE_URL="$(gcloud run services describe "$GCP_SERVICE" \
+            --project "$GCP_PROJECT_ID" \
+            --region "$GCP_REGION" \
+            --platform managed \
+            --format='value(status.url)')"
+
+          for attempt in {1..30}; do
+            if body="$(curl -fsS --max-time 15 "${SERVICE_URL%/}/health" 2>/dev/null)"; then
+              live_sha="$(jq -r '.build.sha // empty' <<<"$body")"
+              if [[ "$live_sha" == "$GITHUB_SHA" ]]; then
+                break
+              fi
+            fi
+            sleep 5
+          done
+
+          body="$(curl -fsS --max-time 20 "${SERVICE_URL%/}/health")"
+          live_sha="$(jq -r '.build.sha // empty' <<<"$body")"
+          if [[ "$live_sha" != "$GITHUB_SHA" ]]; then
+            echo "Cloud Run health SHA mismatch. expected=$GITHUB_SHA actual=$live_sha" >&2
+            exit 4
+          fi
+
+          auth_status="$(curl -sS -o /tmp/auth-user.json -w '%{http_code}' --max-time 20 "${SERVICE_URL%/}/api/auth/user")"
+          if [[ "$auth_status" -ge 500 ]]; then
+            echo "API smoke test returned HTTP $auth_status" >&2
+            cat /tmp/auth-user.json >&2 || true
+            exit 5
+          fi
+
+          echo "Cloud Run backend: $SERVICE_URL"
+          echo "Verified SHA: $live_sha"
+          echo "### BuildMyBot2 Cloud Run" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Service: $SERVICE_URL" >> "$GITHUB_STEP_SUMMARY"
+          echo "- SHA: $live_sha" >> "$GITHUB_STEP_SUMMARY"
+          echo "- /api/auth/user: HTTP $auth_status" >> "$GITHUB_STEP_SUMMARY"
