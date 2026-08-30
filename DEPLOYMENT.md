@@ -96,6 +96,82 @@ Note that `_redirects` deliberately carries no `/api/*` rule: Cloudflare Pages
 does not support proxying to an external origin from that file, and a rule it
 degraded into a redirect would break auth exactly as described above.
 
+## 1b. Cutover runbook — putting buildmybot.app on Cloud Run
+
+The Cloud Run service serves **both** the frontend and the API from one origin:
+
+```
+GET  https://buildmybot2-fq5disxp2a-uc.a.run.app/         -> the full SPA
+GET  https://buildmybot2-fq5disxp2a-uc.a.run.app/api/health -> 200 buildmybot-api
+```
+
+So the shortest correct topology is a Cloud Run domain mapping with Cloudflare
+doing DNS only. That removes the stale Pages deployment, the Railway `/api/*`
+route, and the frontend/backend split in one move — and it is the same shape
+`apex.donmatthews.live` already uses (it resolves to `ghs.googlehosted.com`).
+
+### Option A — point the domain straight at Cloud Run (recommended)
+
+```bash
+gcloud beta run domain-mappings create \
+  --service buildmybot2 \
+  --domain www.buildmybot.app \
+  --region us-central1 \
+  --project buildmybot-507112
+```
+
+That prints the DNS record to create. Then in Cloudflare DNS:
+
+- `www` → `CNAME ghs.googlehosted.com`
+- **Proxy status must be DNS only (grey cloud).** Orange-cloud proxying breaks
+  Google's domain validation and its certificate issuance.
+- Remove whatever currently sends `/api/*` to Railway (see below).
+
+Verify:
+
+```bash
+curl -s https://www.buildmybot.app/api/health     # -> {"status":"ok","service":"buildmybot-api"}
+curl -s -o /dev/null -w '%{http_code}\n' https://www.buildmybot.app/pricing   # -> 200
+```
+
+### Option B — keep Cloudflare Pages as the frontend
+
+Set `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` and
+`CLOUDFLARE_PAGES_PROJECT`, then run *Deploy BuildMyBot Frontend to Cloudflare
+Pages*. The Pages Function already targets Cloud Run, and the workflow's last
+step fails loudly if `/api/*` is still Railway's — which distinguishes the two
+possible causes below.
+
+### Finding the Railway route
+
+`/api/*` on the live domain is answered by Railway's edge:
+
+```
+x-railway-edge: iad1
+x-railway-fallback: true
+x-hikari-trace: iad1.trg5
+```
+
+`/` is served by Cloudflare from a stale Pages build, so the divert is
+path-scoped. Checked 2026-08-30: the account's only two Workers
+(`tubescribe-yt-proxy`, `civil-rights-tool`) are unrelated, which leaves two
+candidates:
+
+1. the stale Pages deployment's own config, cleared by any fresh Pages deploy
+   from `main` (Option B); or
+2. a zone-level Rule — check **Rules → Origin Rules / Redirect Rules** for a
+   `/api/*` match, and **Workers Routes** for a `*/api/*` pattern.
+
+If a fresh Pages deploy does not clear it, it is (2), and the rule must be
+deleted in the dashboard.
+
+### Netlify as a fallback
+
+The Netlify site (`buildmybotapp`) is a complete working origin as of
+`netlify.toml` — `/api/*` and `/health` proxy to Cloud Run and the SPA
+fallback is in place, verified on a deploy preview. If the Cloudflare route
+cannot be cleared quickly, pointing DNS at Netlify is a working stopgap.
+
 ## 2. Environment variables
 
 ### Cloud Run backend
