@@ -1,0 +1,42 @@
+name: Format Cloud Run branch
+
+on:
+  push:
+    branches: [deploy/cloud-run-backend]
+    paths:
+      - 'api/ai-team/lib.ts'
+      - 'api/cron/_pulse.ts'
+      - 'server.ts'
+      - '.github/workflows/format-cloud-run-branch.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: deploy/cloud-run-backend
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply Biome formatting
+        run: npx --no-install biome format --write api/ai-team/lib.ts api/cron/_pulse.ts server.ts
+      - name: Commit formatting if needed
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo 'Already formatted.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add api/ai-team/lib.ts api/cron/_pulse.ts server.ts
+          git commit -m 'style: apply Biome formatting'
+          git push origin HEAD:deploy/cloud-run-backend
