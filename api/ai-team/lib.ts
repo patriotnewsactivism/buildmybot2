@@ -4,10 +4,7 @@
 const SUPABASE_URL = process.env.SUPABASE_URL!;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-type Provider =
-  | 'openrouter-flash'
-  | 'openrouter-flash-0731'
-  | 'openrouter-pro';
+type Provider = 'openrouter-flash' | 'openrouter-flash-0731' | 'openrouter-pro';
 
 interface ProviderConfig {
   baseURL: string;
@@ -468,8 +465,9 @@ export async function rememberMemory(entry: {
 export function formatMemories(memories: AgentMemoryRow[]): string {
   if (!memories.length) return 'No prior memories on record for this subject.';
   return memories
-    .map((memory) =>
-      `- [${memory.created_at.slice(0, 10)}] (${memory.role_id}) ${memory.content}`,
+    .map(
+      (memory) =>
+        `- [${memory.created_at.slice(0, 10)}] (${memory.role_id}) ${memory.content}`,
     )
     .join('\n');
 }
@@ -630,7 +628,8 @@ export async function runAgentTask(opts: {
       const parsed = JSON.parse(actionJson || '');
       action = { tool: String(parsed.tool), args: parsed.args ?? {} };
     } catch {
-      transcript += '\nOBSERVATION: Invalid ACTION JSON. Retry with valid JSON.';
+      transcript +=
+        '\nOBSERVATION: Invalid ACTION JSON. Retry with valid JSON.';
       continue;
     }
 
@@ -830,7 +829,12 @@ export async function runRoleShift(
   roleName: string,
   systemPrompt: string,
   opts?: { notify?: boolean },
-): Promise<{ summary: string; tasks: number; flags: string; escalatedTo: string }> {
+): Promise<{
+  summary: string;
+  tasks: number;
+  flags: string;
+  escalatedTo: string;
+}> {
   const context = await getRoleContext(roleId);
   const briefing = context.manager_briefing_today
     ? `President briefing: ${context.manager_briefing_today}\n\n`
@@ -845,8 +849,7 @@ export async function runRoleShift(
     10,
   );
   const flags = raw.match(/FLAGS:\s*(.*)/i)?.[1]?.trim() || '';
-  const escalatedTo =
-    raw.match(/ESCALATED_TO:\s*(.*)/i)?.[1]?.trim() || '';
+  const escalatedTo = raw.match(/ESCALATED_TO:\s*(.*)/i)?.[1]?.trim() || '';
 
   await logShift({
     role_id: roleId,
@@ -868,9 +871,7 @@ export async function runRoleShift(
     await messageAgent({
       fromRoleId: roleId,
       fromRoleName: roleName,
-      toRoleId: /don|president/i.test(escalatedTo)
-        ? 'president'
-        : escalatedTo,
+      toRoleId: /don|president/i.test(escalatedTo) ? 'president' : escalatedTo,
       subject: `Escalation from ${roleName}`,
       body: `${summary}${flags ? `\n\nFlags: ${flags}` : ''}`,
       requiresPresident: /don|president/i.test(escalatedTo),
@@ -921,7 +922,8 @@ export async function researchLeads(identity?: {
     await logShift({
       role_id: roleId,
       role_name: roleName,
-      summary: 'Lead research skipped because TAVILY_API_KEY is not configured.',
+      summary:
+        'Lead research skipped because TAVILY_API_KEY is not configured.',
       tasks_completed: 0,
       flags: 'TAVILY_API_KEY missing',
     });
