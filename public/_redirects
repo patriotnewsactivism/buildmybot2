@@ -1,0 +1,6 @@
+# Non-www to www redirect
+https://buildmybot.app/* https://www.buildmybot.app/:splat 301
+http://buildmybot.app/* https://www.buildmybot.app/:splat 301
+
+# API proxy is handled by functions/api/[[path]].ts.
+# Do not add a Railway or other external /api rewrite here.
