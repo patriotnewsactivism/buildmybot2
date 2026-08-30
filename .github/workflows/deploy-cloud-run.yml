@@ -24,7 +24,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  GCP_PROJECT_ID: ${{ vars.BUILDMYBOT_GCP_PROJECT_ID || secrets.BUILDMYBOT_GCP_PROJECT_ID || vars.GCP_PROJECT_ID || secrets.GCP_PROJECT_ID }}
+  GCP_PROJECT_ID: buildmybot-507112
   GCP_REGION: ${{ vars.BUILDMYBOT_GCP_REGION || secrets.BUILDMYBOT_GCP_REGION || vars.GCP_CLOUD_RUN_REGION || secrets.GCP_CLOUD_RUN_REGION || 'us-central1' }}
   GCP_SERVICE: buildmybot2
   ARTIFACT_REPO: cloud-run-source-deploy
