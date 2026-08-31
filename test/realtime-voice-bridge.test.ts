@@ -105,7 +105,7 @@ describe('Twilio <-> Gemini Live audio bridge', () => {
 describe('inbound realtime call routing', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
-    process.env.GEMINI_API_KEY = undefined;
+    process.env.GEMINI_API_KEY = '';
   });
 
   it('returns bidirectional Connect/Stream TwiML when Gemini Live is configured', async () => {
@@ -168,6 +168,8 @@ describe('inbound realtime call routing', () => {
   });
 
   it('keeps the speech Gather path as an outage fallback', async () => {
+    process.env.GEMINI_API_KEY = '';
+
     vi.stubGlobal(
       'fetch',
       vi.fn().mockImplementation((url: string, init?: RequestInit) => {
