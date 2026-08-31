@@ -1,0 +1,88 @@
+name: Finalize OpenRouter Runtime
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/finalize-openrouter-runtime.yml'
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: buildmybot2-finalize-openrouter-runtime
+  cancel-in-progress: true
+
+env:
+  GCP_PROJECT_ID: buildmybot-507112
+  GCP_REGION: us-central1
+  GCP_SERVICE: buildmybot2
+  EXPECTED_GCP_SERVICE_ACCOUNT: buildmybotsa@buildmybot-507112.iam.gserviceaccount.com
+  GCP_WORKLOAD_IDENTITY_PROVIDER: projects/406797137160/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+  RUNTIME_SERVICE_ACCOUNT: 406797137160-compute@developer.gserviceaccount.com
+  OPENROUTER_SECRET: buildmybot-openrouter-api-key
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v3
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.EXPECTED_GCP_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v3
+
+      - name: Convert OpenRouter variables to Secret Manager references
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcloud secrets describe "$OPENROUTER_SECRET" --project "$GCP_PROJECT_ID" >/dev/null
+          gcloud secrets add-iam-policy-binding "$OPENROUTER_SECRET" --project "$GCP_PROJECT_ID" \
+            --member "serviceAccount:${RUNTIME_SERVICE_ACCOUNT}" --role roles/secretmanager.secretAccessor --quiet >/dev/null
+
+          gcloud run services update "$GCP_SERVICE" --project "$GCP_PROJECT_ID" --region "$GCP_REGION" \
+            --remove-env-vars OPENROUTER_API_KEY,OPENROUTER_API_KEY_2 --quiet >/dev/null
+          gcloud run services update "$GCP_SERVICE" --project "$GCP_PROJECT_ID" --region "$GCP_REGION" \
+            --update-secrets OPENROUTER_API_KEY=${OPENROUTER_SECRET}:latest,OPENROUTER_API_KEY_2=${OPENROUTER_SECRET}:latest --quiet >/dev/null
+
+      - name: Verify binding and credential
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcloud run services describe "$GCP_SERVICE" --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format=json >/tmp/service.json
+          python3 - <<'PY'
+          import json
+          service=json.load(open('/tmp/service.json'))
+          env=service['spec']['template']['spec']['containers'][0].get('env',[])
+          for name in ('OPENROUTER_API_KEY','OPENROUTER_API_KEY_2'):
+              item=next((x for x in env if x.get('name')==name),None)
+              if not item or not item.get('valueFrom'):
+                  raise SystemExit(f'{name} is not Secret Manager-backed')
+          print('Both OpenRouter environment variables are Secret Manager-backed.')
+          PY
+
+          umask 077
+          cleanup() {
+            rm -f /tmp/openrouter.key
+            gcloud secrets remove-iam-policy-binding "$OPENROUTER_SECRET" --project "$GCP_PROJECT_ID" \
+              --member "serviceAccount:${EXPECTED_GCP_SERVICE_ACCOUNT}" --role roles/secretmanager.secretAccessor --quiet >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          gcloud secrets add-iam-policy-binding "$OPENROUTER_SECRET" --project "$GCP_PROJECT_ID" \
+            --member "serviceAccount:${EXPECTED_GCP_SERVICE_ACCOUNT}" --role roles/secretmanager.secretAccessor --quiet >/dev/null
+          gcloud secrets versions access latest --secret "$OPENROUTER_SECRET" --project "$GCP_PROJECT_ID" >/tmp/openrouter.key
+          python3 - <<'PY'
+          import json, urllib.request
+          key=open('/tmp/openrouter.key',encoding='utf-8').read().strip()
+          req=urllib.request.Request('https://openrouter.ai/api/v1/key',headers={'Authorization':f'Bearer {key}'})
+          with urllib.request.urlopen(req,timeout=20) as r:
+              if r.status != 200: raise SystemExit(f'OpenRouter verification returned HTTP {r.status}')
+              data=json.load(r)
+              if not isinstance(data,dict): raise SystemExit('Unexpected OpenRouter verification response')
+          print('BuildMyBot2 stored OpenRouter credential passed live verification.')
+          PY
