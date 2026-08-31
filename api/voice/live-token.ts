@@ -145,7 +145,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         'x-goog-api-key': apiKey,
       },
       body: JSON.stringify({
-        uses: 1,
         expireTime,
         newSessionExpireTime,
         bidiGenerateContentSetup: {
