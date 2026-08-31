@@ -1,16 +1,41 @@
 (() => {
-  // Get config from window
+  // Config comes from the script tag's data-* attributes first, because that
+  // is the snippet the Bot Builder hands customers:
+  //   <script src="https://buildmybot.app/embed.js" data-bot-id="..." async></script>
+  // Reading only window.bmbConfig meant every copied snippet bailed out at
+  // "No botId provided" and the widget never rendered.
+  //
+  // document.currentScript is set while a classic script executes (async
+  // included), but fall back to a src lookup so a bundler or tag manager that
+  // re-executes this file still finds its own tag.
   const config = window.bmbConfig || {};
-  const botId = config.botId;
-  // Use provided domain, or detect from script src, or fall back to current origin
-  const scriptSrc = document.currentScript?.src || '';
-  const scriptDomain = scriptSrc ? new URL(scriptSrc).origin : '';
-  const domain = config.domain || scriptDomain || window.location.origin;
+  const el =
+    document.currentScript ||
+    document.querySelector('script[data-bot-id][src*="embed.js"]') ||
+    document.querySelector('script[src*="embed.js"]');
+  const data = el?.dataset || {};
+
+  const botId = data.botId || config.botId;
 
   if (!botId) {
-    console.error('BuildMyBot: No botId provided.');
+    console.error(
+      'BuildMyBot: No botId provided. Add data-bot-id="<your bot id>" to the embed script tag.',
+    );
     return;
   }
+
+  // Accept either a bare host ("buildmybot.app") or a full origin
+  // ("https://buildmybot.app"). Both URL.origin and window.location.origin
+  // already carry the scheme, so the previous `https://${domain}` template
+  // produced "https://https://buildmybot.app/chat/..." on every fallback path.
+  const rawDomain =
+    data.domain ||
+    config.domain ||
+    (el?.src ? new URL(el.src, window.location.href).origin : '') ||
+    window.location.origin;
+  const origin = /^https?:\/\//i.test(rawDomain)
+    ? rawDomain.replace(/\/+$/, '')
+    : `https://${rawDomain.replace(/^\/+|\/+$/g, '')}`;
 
   // Create Container
   const container = document.createElement('div');
@@ -27,7 +52,7 @@
 
   // Create Iframe for Chat Window (Hidden by default)
   const iframe = document.createElement('iframe');
-  iframe.src = `https://${domain}/chat/${botId}?mode=embed`;
+  iframe.src = `${origin}/chat/${botId}?mode=embed`;
   iframe.style.border = 'none';
   iframe.style.position = 'fixed';
   iframe.style.bottom = '90px';
@@ -62,7 +87,7 @@
   button.style.width = '60px';
   button.style.height = '60px';
   button.style.borderRadius = '30px';
-  button.style.backgroundColor = config.theme || '#1e3a8a';
+  button.style.backgroundColor = data.theme || config.theme || '#1e3a8a';
   button.style.cursor = 'pointer';
   button.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
   button.style.display = 'flex';
