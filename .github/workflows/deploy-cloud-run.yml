@@ -40,6 +40,7 @@ env:
   GCP_REGION: ${{ vars.BUILDMYBOT_GCP_REGION || secrets.BUILDMYBOT_GCP_REGION || vars.GCP_CLOUD_RUN_REGION || secrets.GCP_CLOUD_RUN_REGION || 'us-central1' }}
   GCP_SERVICE: buildmybot2
   ARTIFACT_REPO: cloud-run-source-deploy
+  PUBLIC_DOMAIN: www.buildmybot.app
   GCP_WORKLOAD_IDENTITY_PROVIDER: projects/406797137160/locations/global/workloadIdentityPools/github-pool/providers/github-provider
   GCP_SA_KEY: ${{ secrets.BUILDMYBOT_GCP_SA_KEY || secrets.GCP_SA_KEY }}
 
@@ -240,6 +241,25 @@ jobs:
             --platform managed \
             --update-env-vars "$spec" \
             --quiet
+
+      - name: Configure the public Cloud Run domain
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! gcloud beta run domain-mappings describe "$PUBLIC_DOMAIN" \
+            --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --quiet >/dev/null 2>&1; then
+            gcloud beta run domain-mappings create \
+              --service "$GCP_SERVICE" \
+              --domain "$PUBLIC_DOMAIN" \
+              --project "$GCP_PROJECT_ID" \
+              --region "$GCP_REGION" \
+              --quiet
+          fi
+
+          gcloud beta run domain-mappings describe "$PUBLIC_DOMAIN" \
+            --project "$GCP_PROJECT_ID" \
+            --region "$GCP_REGION" \
+            --format='yaml(status.resourceRecords,status.conditions)'
 
       - name: Report agent runtime readiness
         shell: bash
