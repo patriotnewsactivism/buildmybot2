@@ -50,7 +50,6 @@ import {
   type PartnerTab,
 } from './components/Partner/PartnerDashboardV2';
 import { PhoneAgent } from './components/PhoneAgent/PhoneAgent';
-import { VoiceAgentPage } from './components/VoiceAgent/VoiceAgentPage';
 import { ServiceCatalog } from './components/Services/ServiceCatalog';
 import { Settings } from './components/Settings/Settings';
 import { StatusPage } from './components/Status/StatusPage';
@@ -58,6 +57,7 @@ import { HelpCenter } from './components/Support/HelpCenter';
 import { SupportTicketSystem } from './components/Support/SupportTicketSystem';
 import { AITeamDashboard } from './components/Team/AITeamDashboard';
 import { ErrorBoundary } from './components/UI/ErrorBoundary';
+import { VoiceAgentPage } from './components/VoiceAgent/VoiceAgentPage';
 import { WebsiteBuilder } from './components/WebsiteBuilder/WebsiteBuilder';
 import { useAuth } from './hooks/useAuth';
 import { DashboardProvider } from './hooks/useDashboardContext';

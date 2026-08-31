@@ -7,8 +7,7 @@ interface PagesContext {
   env: Env;
 }
 
-const DEFAULT_CLOUD_RUN_ORIGIN =
-  'https://buildmybot2-fq5disxp2a-uc.a.run.app';
+const DEFAULT_CLOUD_RUN_ORIGIN = 'https://buildmybot2-fq5disxp2a-uc.a.run.app';
 
 /**
  * Keep the public BuildMyBot domain on Cloudflare's edge while making Cloud
@@ -50,4 +49,3 @@ export async function onRequest(context: PagesContext): Promise<Response> {
     headers: responseHeaders,
   });
 }
-

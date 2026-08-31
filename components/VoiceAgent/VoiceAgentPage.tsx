@@ -249,8 +249,7 @@ export function VoiceAgentPage() {
       if (!content) return;
 
       if (content.interrupted) {
-        nextPlaybackTimeRef.current =
-          audioContextRef.current?.currentTime || 0;
+        nextPlaybackTimeRef.current = audioContextRef.current?.currentTime || 0;
         setCallState('listening');
         setStatus('Listening');
       }
@@ -284,7 +283,9 @@ export function VoiceAgentPage() {
 
     if (!navigator.mediaDevices?.getUserMedia || !window.AudioContext) {
       setCallState('error');
-      setErrorMessage('Live voice requires a modern browser with microphone access.');
+      setErrorMessage(
+        'Live voice requires a modern browser with microphone access.',
+      );
       return;
     }
 
@@ -343,7 +344,9 @@ export function VoiceAgentPage() {
       socket.onmessage = (event) => {
         void handleServerMessage(event).catch((error: unknown) => {
           const message =
-            error instanceof Error ? error.message : 'Live voice session failed';
+            error instanceof Error
+              ? error.message
+              : 'Live voice session failed';
           setErrorMessage(message);
           setStatus('Connection error');
           endConversation('error');
@@ -358,7 +361,9 @@ export function VoiceAgentPage() {
 
       socket.onclose = (event) => {
         if (event.code !== 1000 && mountedRef.current) {
-          setErrorMessage(event.reason || 'The live voice session ended unexpectedly.');
+          setErrorMessage(
+            event.reason || 'The live voice session ended unexpectedly.',
+          );
           setStatus('Session ended');
           endConversation('error');
         }
@@ -409,9 +414,9 @@ export function VoiceAgentPage() {
               Talk with the BuildMyBot voice agent.
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-300">
-              Ask about AI receptionists, website chatbots, lead capture, pricing,
-              or how BuildMyBot can work for your business. This is a live,
-              two-way voice conversation—not a prerecorded demo.
+              Ask about AI receptionists, website chatbots, lead capture,
+              pricing, or how BuildMyBot can work for your business. This is a
+              live, two-way voice conversation—not a prerecorded demo.
             </p>
 
             <div className="mt-8 grid gap-3 text-sm text-slate-300 sm:grid-cols-3">
@@ -479,7 +484,9 @@ export function VoiceAgentPage() {
 
             <button
               type="button"
-              onClick={isActive ? () => endConversation('idle') : startConversation}
+              onClick={
+                isActive ? () => endConversation('idle') : startConversation
+              }
               disabled={callState === 'connecting'}
               className={`mt-6 flex w-full items-center justify-center gap-3 rounded-2xl px-6 py-4 text-lg font-bold transition disabled:cursor-wait disabled:opacity-60 ${
                 isActive
@@ -509,4 +516,3 @@ export function VoiceAgentPage() {
     </main>
   );
 }
-

@@ -10,8 +10,8 @@ import userHandler from './api/auth/user.js';
 import cronHandler from './api/cron/[job].js';
 // Import API handlers (tsx resolves .js -> .ts automatically)
 import gatewayHandler from './api/gateway.js';
-import liveTokenHandler from './api/voice/live-token.js';
 import stripeWebhookHandler from './api/stripe-webhook.js';
+import liveTokenHandler from './api/voice/live-token.js';
 
 const app = express();
 const PORT = process.env.PORT || 8080;

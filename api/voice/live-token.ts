@@ -37,7 +37,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  const origin = typeof req.headers.origin === 'string' ? req.headers.origin : '';
+  const origin =
+    typeof req.headers.origin === 'string' ? req.headers.origin : '';
   if (!isAllowedOrigin(origin)) {
     return res.status(403).json({ error: 'Origin not allowed' });
   }
@@ -100,13 +101,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         response.status,
         detail.slice(0, 300),
       );
-      return res.status(502).json({ error: 'Unable to create live voice session' });
+      return res
+        .status(502)
+        .json({ error: 'Unable to create live voice session' });
     }
 
     const token = (await response.json()) as { name?: string };
     if (!token.name) {
       console.error('[voice-live-token] Gemini returned no token name');
-      return res.status(502).json({ error: 'Unable to create live voice session' });
+      return res
+        .status(502)
+        .json({ error: 'Unable to create live voice session' });
     }
 
     return res.status(200).json({
@@ -117,7 +122,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     console.error('[voice-live-token] Request error:', message);
-    return res.status(502).json({ error: 'Unable to create live voice session' });
+    return res
+      .status(502)
+      .json({ error: 'Unable to create live voice session' });
   }
 }
-
