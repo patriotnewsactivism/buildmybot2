@@ -74,3 +74,52 @@ jobs:
               raise SystemExit('TAVILY_API_KEY is not Secret Manager-backed on Cloud Run')
           print('BuildMyBot2 TAVILY_API_KEY is Secret Manager-backed on Cloud Run.')
           PY
+
+      - name: Verify live Tavily Search from stored production secret
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          cleanup() {
+            rm -f /tmp/tavily.key
+            gcloud secrets remove-iam-policy-binding "$TAVILY_SECRET" \
+              --project "$GCP_PROJECT_ID" \
+              --member "serviceAccount:${EXPECTED_GCP_SERVICE_ACCOUNT}" \
+              --role roles/secretmanager.secretAccessor \
+              --quiet >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          gcloud secrets add-iam-policy-binding "$TAVILY_SECRET" \
+            --project "$GCP_PROJECT_ID" \
+            --member "serviceAccount:${EXPECTED_GCP_SERVICE_ACCOUNT}" \
+            --role roles/secretmanager.secretAccessor \
+            --quiet >/dev/null
+          gcloud secrets versions access latest \
+            --secret "$TAVILY_SECRET" \
+            --project "$GCP_PROJECT_ID" >/tmp/tavily.key
+
+          python3 - <<'PY'
+          import json, urllib.request
+          key = open('/tmp/tavily.key', encoding='utf-8').read().strip()
+          req = urllib.request.Request(
+              'https://api.tavily.com/search',
+              data=json.dumps({
+                  'query': 'Tavily Search API',
+                  'search_depth': 'basic',
+                  'max_results': 1,
+              }).encode(),
+              headers={
+                  'Content-Type': 'application/json',
+                  'Authorization': f'Bearer {key}',
+              },
+              method='POST',
+          )
+          with urllib.request.urlopen(req, timeout=20) as response:
+              if response.status != 200:
+                  raise SystemExit(f'Tavily smoke test returned HTTP {response.status}')
+              payload = json.load(response)
+              if not isinstance(payload.get('results'), list):
+                  raise SystemExit('Tavily smoke test response did not contain results')
+          print('BuildMyBot2 stored production Tavily credential passed a live Search request.')
+          PY
