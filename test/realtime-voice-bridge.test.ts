@@ -8,10 +8,18 @@ process.env.TWILIO_AUTH_TOKEN = 'test-twilio-auth-token';
 process.env.TWILIO_ACCOUNT_SID = '';
 process.env.APP_BASE_URL = 'https://buildmybot.app';
 
-let createTwilioStreamToken: typeof import('../api/voice/twilio-live.ts').createTwilioStreamToken;
-let muLaw8kToPcm16k: typeof import('../api/voice/twilio-live.ts').muLaw8kToPcm16k;
-let pcm24kToMuLaw8k: typeof import('../api/voice/twilio-live.ts').pcm24kToMuLaw8k;
-let inboundVoiceHandler: typeof import('../api/twilio/inbound.ts').inboundVoiceHandler;
+let createTwilioStreamToken: typeof import(
+  '../api/voice/twilio-live.ts'
+).createTwilioStreamToken;
+let muLaw8kToPcm16k: typeof import(
+  '../api/voice/twilio-live.ts'
+).muLaw8kToPcm16k;
+let pcm24kToMuLaw8k: typeof import(
+  '../api/voice/twilio-live.ts'
+).pcm24kToMuLaw8k;
+let inboundVoiceHandler: typeof import(
+  '../api/twilio/inbound.ts'
+).inboundVoiceHandler;
 
 beforeAll(async () => {
   const bridge = await import('../api/voice/twilio-live.ts');
@@ -97,7 +105,7 @@ describe('Twilio <-> Gemini Live audio bridge', () => {
 describe('inbound realtime call routing', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
-    delete process.env.GEMINI_API_KEY;
+    process.env.GEMINI_API_KEY = undefined;
   });
 
   it('returns bidirectional Connect/Stream TwiML when Gemini Live is configured', async () => {
