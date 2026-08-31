@@ -28,89 +28,38 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-
           path = Path('components/VoiceAgent/VoiceAgentPage.tsx')
           text = path.read_text()
-
           replacements = [
-            (
-              "const NATURAL_SILENCE_MS = 750;\n",
-              "",
-            ),
-            (
-              "interface LiveTokenResponse {\n  token?: string;\n  model?: string;\n  error?: string;\n}\n",
-              "interface LiveTokenResponse {\n  token?: string;\n  model?: string;\n  voice?: string;\n  maxDurationSeconds?: number;\n  maxTurns?: number;\n  error?: string;\n}\n",
-            ),
-            (
-              "  const nextPlaybackTimeRef = useRef(0);\n  const mountedRef = useRef(true);\n",
-              "  const nextPlaybackTimeRef = useRef(0);\n  const mountedRef = useRef(true);\n  const demoTimeoutRef = useRef<number | null>(null);\n  const demoDurationSecondsRef = useRef(90);\n",
-            ),
-            (
-              "    (nextState: CallState = 'idle') => {\n      stopMicrophone();\n",
-              "    (nextState: CallState = 'idle') => {\n      if (demoTimeoutRef.current !== null) {\n        window.clearTimeout(demoTimeoutRef.current);\n        demoTimeoutRef.current = null;\n      }\n      stopMicrophone();\n",
-            ),
-            (
-              "      if (message.setupComplete) {\n        await startMicrophone();\n        setCallState('listening');\n        setStatus('Listening — speak naturally');\n        return;\n      }\n",
-              "      if (message.setupComplete) {\n        await startMicrophone();\n        setCallState('listening');\n        setStatus('Starting your 90-second live demo');\n\n        demoTimeoutRef.current = window.setTimeout(() => {\n          if (!mountedRef.current) return;\n          endConversation('idle');\n          setStatus('Demo complete — build your own voice agent to keep going');\n        }, demoDurationSecondsRef.current * 1000);\n\n        socketRef.current?.send(\n          JSON.stringify({\n            realtimeInput: {\n              text: 'Begin the public demo now. Greet the visitor naturally in one short sentence, explain that this is a quick live demonstration, and ask what kind of business they would like you to act as receptionist for.',\n            },\n          }),\n        );\n        return;\n      }\n",
-            ),
-            (
-              "    [clearPlayback, playPcmAudio, startMicrophone],\n",
-              "    [clearPlayback, endConversation, playPcmAudio, startMicrophone],\n",
-            ),
-            (
-              "      if (!tokenResponse.ok || !tokenPayload.token) {\n        throw new Error(tokenPayload.error || 'Unable to start a live session');\n      }\n\n      const audioContext",
-              "      if (!tokenResponse.ok || !tokenPayload.token) {\n        throw new Error(tokenPayload.error || 'Unable to start a live session');\n      }\n\n      demoDurationSecondsRef.current = Math.min(\n        90,\n        Math.max(30, tokenPayload.maxDurationSeconds || 90),\n      );\n\n      const audioContext",
-            ),
+            ("const NATURAL_SILENCE_MS = 750;\n", ""),
+            ("interface LiveTokenResponse {\n  token?: string;\n  model?: string;\n  error?: string;\n}\n", "interface LiveTokenResponse {\n  token?: string;\n  model?: string;\n  voice?: string;\n  maxDurationSeconds?: number;\n  maxTurns?: number;\n  error?: string;\n}\n"),
+            ("  const nextPlaybackTimeRef = useRef(0);\n  const mountedRef = useRef(true);\n", "  const nextPlaybackTimeRef = useRef(0);\n  const mountedRef = useRef(true);\n  const demoTimeoutRef = useRef<number | null>(null);\n  const demoDurationSecondsRef = useRef(90);\n"),
+            ("    (nextState: CallState = 'idle') => {\n      stopMicrophone();\n", "    (nextState: CallState = 'idle') => {\n      if (demoTimeoutRef.current !== null) {\n        window.clearTimeout(demoTimeoutRef.current);\n        demoTimeoutRef.current = null;\n      }\n      stopMicrophone();\n"),
+            ("      if (message.setupComplete) {\n        await startMicrophone();\n        setCallState('listening');\n        setStatus('Listening — speak naturally');\n        return;\n      }\n", "      if (message.setupComplete) {\n        await startMicrophone();\n        setCallState('listening');\n        setStatus('Starting your 90-second live demo');\n\n        demoTimeoutRef.current = window.setTimeout(() => {\n          if (!mountedRef.current) return;\n          endConversation('idle');\n          setStatus('Demo complete — build your own voice agent to keep going');\n        }, demoDurationSecondsRef.current * 1000);\n\n        socketRef.current?.send(\n          JSON.stringify({\n            realtimeInput: {\n              text: 'Begin the public demo now. Greet the visitor naturally in one short sentence, explain that this is a quick live demonstration, and ask what kind of business they would like you to act as receptionist for.',\n            },\n          }),\n        );\n        return;\n      }\n"),
+            ("    [clearPlayback, playPcmAudio, startMicrophone],\n", "    [clearPlayback, endConversation, playPcmAudio, startMicrophone],\n"),
+            ("      if (!tokenResponse.ok || !tokenPayload.token) {\n        throw new Error(tokenPayload.error || 'Unable to start a live session');\n      }\n\n      const audioContext", "      if (!tokenResponse.ok || !tokenPayload.token) {\n        throw new Error(tokenPayload.error || 'Unable to start a live session');\n      }\n\n      demoDurationSecondsRef.current = Math.min(\n        90,\n        Math.max(30, tokenPayload.maxDurationSeconds || 90),\n      );\n\n      const audioContext"),
+            ("<Mic size={20} /> Try the live voice agent", "<Mic size={20} /> Try the 90-second live demo"),
+            ("<ShieldCheck size={14} /> Ephemeral session", "<ShieldCheck size={14} /> 90-second live demo"),
+            ("No prerecorded clip. The demo below opens a real two-way Gemini\n              Live session in your browser.", "No prerecorded clip. This opens a real two-way Gemini Live session\n              with a warm natural voice, then ends automatically to control demo cost."),
           ]
-
           for old, new in replacements:
             if old not in text:
-              raise SystemExit(f'Expected source fragment not found: {old[:90]!r}')
+              raise SystemExit('Expected source fragment not found: ' + old[:90])
             text = text.replace(old, new, 1)
 
-          start = "      socket.onopen = () => {\n        setStatus('Connecting to Gemini Live');\n        const model = tokenPayload.model || GEMINI_MODEL;\n        socket.send(\n          JSON.stringify({\n            setup: {"
-          end = "          }),\n        );\n      };\n\n      socket.onmessage = (event) => {"
-          start_index = text.find(start)
-          if start_index < 0:
-            raise SystemExit('Gemini browser setup start not found')
-          end_index = text.find(end, start_index)
-          if end_index < 0:
-            raise SystemExit('Gemini browser setup end not found')
+          setup_start = "      socket.onopen = () => {\n        setStatus('Connecting to Gemini Live');\n        const model = tokenPayload.model || GEMINI_MODEL;\n        socket.send(\n          JSON.stringify({\n            setup: {"
+          setup_end = "          }),\n        );\n      };\n\n      socket.onmessage = (event) => {"
+          start_index = text.find(setup_start)
+          end_index = text.find(setup_end, start_index)
+          if start_index < 0 or end_index < 0:
+            raise SystemExit('Gemini browser setup block not found')
           end_index += len("          }),\n        );\n      };\n")
-          replacement = """      socket.onopen = () => {
-        setStatus('Connecting to Gemini Live');
-        const model = tokenPayload.model || GEMINI_MODEL;
-        // Voice, VAD, thinking, transcription and system instructions are
-        // locked into the short-lived token on the server. Google ignores
-        // client setup fields when the token carries the full constrained setup.
-        socket.send(
-          JSON.stringify({
-            setup: { model: `models/${model}` },
-          }),
-        );
-      };
-"""
-          text = text[:start_index] + replacement + text[end_index:]
-
-          ui_replacements = [
-            ('<Mic size={20} /> Try the live voice agent', '<Mic size={20} /> Try the 90-second live demo'),
-            ('<ShieldCheck size={14} /> Ephemeral session', '<ShieldCheck size={14} /> 90-second live demo'),
-            (
-              'No prerecorded clip. The demo below opens a real two-way Gemini\n              Live session in your browser.',
-              'No prerecorded clip. This opens a real two-way Gemini Live session\n              with a warm natural voice, then ends automatically to control demo cost.',
-            ),
-          ]
-          for old, new in ui_replacements:
-            if old not in text:
-              raise SystemExit(f'Expected UI fragment not found: {old!r}')
-            text = text.replace(old, new, 1)
-
+          setup_replacement = "      socket.onopen = () => {\n        setStatus('Connecting to Gemini Live');\n        const model = tokenPayload.model || GEMINI_MODEL;\n        // Voice, VAD, thinking, transcription and system instructions are\n        // locked into the short-lived token on the server.\n        socket.send(\n          JSON.stringify({\n            setup: { model: `models/${model}` },\n          }),\n        );\n      };\n"
+          text = text[:start_index] + setup_replacement + text[end_index:]
           path.write_text(text)
           PY
-
       - name: Format and validate changed component
         run: npx --no-install biome check --write components/VoiceAgent/VoiceAgentPage.tsx
-
       - name: Commit source patch
         run: |
           git config user.name "github-actions[bot]"
