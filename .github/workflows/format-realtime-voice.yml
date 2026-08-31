@@ -1,4 +1,4 @@
-name: Format realtime voice source
+name: Capture realtime voice lint diagnostics
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  format:
+  diagnose:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
@@ -22,24 +22,22 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
-      - name: Apply Biome fixes
-        run: >-
-          npx --no-install biome check --write
-          api/twilio/inbound.ts
-          api/voice/twilio-live.ts
-          components/PhoneAgent/PhoneAgent.tsx
-          server.ts
-          test/realtime-voice-bridge.test.ts
-          types.ts
-      - name: Remove one-time workflow
-        run: rm .github/workflows/format-realtime-voice.yml
-      - name: Commit fixes
+      - name: Capture Biome diagnostics
+        shell: bash
+        run: |
+          set +e
+          npx --no-install biome check --diagnostic-level=error --max-diagnostics=100 -- \
+            api/twilio/inbound.ts \
+            api/voice/twilio-live.ts \
+            components/PhoneAgent/PhoneAgent.tsx \
+            server.ts \
+            test/realtime-voice-bridge.test.ts \
+            types.ts > biome-realtime-voice-diagnostics.txt 2>&1
+          exit 0
+      - name: Commit diagnostics
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          if git diff --cached --quiet; then
-            exit 0
-          fi
-          git commit -m "Format realtime voice bridge changes"
+          git add biome-realtime-voice-diagnostics.txt
+          git commit -m "Capture realtime voice lint diagnostics"
           git push
