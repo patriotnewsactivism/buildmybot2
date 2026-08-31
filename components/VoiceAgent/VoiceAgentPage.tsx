@@ -25,7 +25,6 @@ const GEMINI_LIVE_URL =
   'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained';
 const INPUT_SAMPLE_RATE = 16_000;
 const OUTPUT_SAMPLE_RATE = 24_000;
-const NATURAL_SILENCE_MS = 750;
 
 type CallState = 'idle' | 'connecting' | 'listening' | 'speaking' | 'error';
 
@@ -51,6 +50,9 @@ interface GeminiServerMessage {
 interface LiveTokenResponse {
   token?: string;
   model?: string;
+  voice?: string;
+  maxDurationSeconds?: number;
+  maxTurns?: number;
   error?: string;
 }
 
@@ -174,6 +176,8 @@ export function VoiceAgentPage() {
   const playbackSourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
   const nextPlaybackTimeRef = useRef(0);
   const mountedRef = useRef(true);
+  const demoTimeoutRef = useRef<number | null>(null);
+  const demoDurationSecondsRef = useRef(90);
 
   const stopMicrophone = useCallback(() => {
     processorRef.current?.disconnect();
@@ -201,6 +205,10 @@ export function VoiceAgentPage() {
 
   const endConversation = useCallback(
     (nextState: CallState = 'idle') => {
+      if (demoTimeoutRef.current !== null) {
+        window.clearTimeout(demoTimeoutRef.current);
+        demoTimeoutRef.current = null;
+      }
       stopMicrophone();
       clearPlayback();
 
@@ -329,7 +337,21 @@ export function VoiceAgentPage() {
       if (message.setupComplete) {
         await startMicrophone();
         setCallState('listening');
-        setStatus('Listening — speak naturally');
+        setStatus('Starting your 90-second live demo');
+
+        demoTimeoutRef.current = window.setTimeout(() => {
+          if (!mountedRef.current) return;
+          endConversation('idle');
+          setStatus('Demo complete — build your own voice agent to keep going');
+        }, demoDurationSecondsRef.current * 1000);
+
+        socketRef.current?.send(
+          JSON.stringify({
+            realtimeInput: {
+              text: 'Begin the public demo now. Greet the visitor naturally in one short sentence, explain that this is a quick live demonstration, and ask what kind of business they would like you to act as receptionist for.',
+            },
+          }),
+        );
         return;
       }
 
@@ -363,7 +385,7 @@ export function VoiceAgentPage() {
         setStatus('Listening — your turn');
       }
     },
-    [clearPlayback, playPcmAudio, startMicrophone],
+    [clearPlayback, endConversation, playPcmAudio, startMicrophone],
   );
 
   const startConversation = async () => {
@@ -393,6 +415,11 @@ export function VoiceAgentPage() {
         throw new Error(tokenPayload.error || 'Unable to start a live session');
       }
 
+      demoDurationSecondsRef.current = Math.min(
+        90,
+        Math.max(30, tokenPayload.maxDurationSeconds || 90),
+      );
+
       const audioContext = new AudioContext({ latencyHint: 'interactive' });
       await audioContext.resume();
       audioContextRef.current = audioContext;
@@ -405,40 +432,11 @@ export function VoiceAgentPage() {
       socket.onopen = () => {
         setStatus('Connecting to Gemini Live');
         const model = tokenPayload.model || GEMINI_MODEL;
+        // Voice, VAD, thinking, transcription and system instructions are
+        // locked into the short-lived token on the server.
         socket.send(
           JSON.stringify({
-            setup: {
-              model: `models/${model}`,
-              generationConfig: {
-                responseModalities: ['AUDIO'],
-                speechConfig: {
-                  voiceConfig: {
-                    prebuiltVoiceConfig: { voiceName: 'Kore' },
-                  },
-                },
-                thinkingConfig: { thinkingLevel: 'minimal' },
-              },
-              inputAudioTranscription: {},
-              outputAudioTranscription: {},
-              realtimeInputConfig: {
-                automaticActivityDetection: {
-                  disabled: false,
-                  startOfSpeechSensitivity: 'START_SENSITIVITY_HIGH',
-                  endOfSpeechSensitivity: 'END_SENSITIVITY_LOW',
-                  prefixPaddingMs: 40,
-                  silenceDurationMs: NATURAL_SILENCE_MS,
-                },
-                activityHandling: 'START_OF_ACTIVITY_INTERRUPTS',
-                turnCoverage: 'TURN_INCLUDES_ONLY_ACTIVITY',
-              },
-              systemInstruction: {
-                parts: [
-                  {
-                    text: 'You are the BuildMyBot live voice concierge. Speak naturally and concisely. Let visitors finish their thoughts and tolerate normal pauses. If they correct a detail mid-sentence, use the corrected detail. Explain BuildMyBot AI receptionists, chatbots, lead capture, scheduling, CRM actions, hot-lead alerts, and human handoffs accurately. Ask one question at a time. Never pretend to be human. Never claim you completed a real transfer, booking, payment, text message, or CRM action in this public browser demo. If a visitor is interested, invite them to start free or contact the BuildMyBot team.',
-                  },
-                ],
-              },
-            },
+            setup: { model: `models/${model}` },
           }),
         );
       };
@@ -584,7 +582,7 @@ export function VoiceAgentPage() {
                 disabled={callState === 'connecting' || isActive}
                 className="inline-flex items-center justify-center gap-3 rounded-2xl bg-blue-600 px-7 py-4 text-base font-bold shadow-xl shadow-blue-600/25 transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <Mic size={20} /> Try the live voice agent
+                <Mic size={20} /> Try the 90-second live demo
               </button>
               <Link
                 to="/?auth=signup"
@@ -594,8 +592,9 @@ export function VoiceAgentPage() {
               </Link>
             </div>
             <p className="mt-4 text-sm text-slate-500">
-              No prerecorded clip. The demo below opens a real two-way Gemini
-              Live session in your browser.
+              No prerecorded clip. This opens a real two-way Gemini Live session
+              with a warm natural voice, then ends automatically to control demo
+              cost.
             </p>
           </div>
 
@@ -610,7 +609,7 @@ export function VoiceAgentPage() {
                   <h2 className="mt-1 text-2xl font-black">BuildMyBot Voice</h2>
                 </div>
                 <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/25 bg-emerald-400/10 px-3 py-1.5 text-xs font-semibold text-emerald-200">
-                  <ShieldCheck size={14} /> Ephemeral session
+                  <ShieldCheck size={14} /> 90-second live demo
                 </div>
               </div>
 
