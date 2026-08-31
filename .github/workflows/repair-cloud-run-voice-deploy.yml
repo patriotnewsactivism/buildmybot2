@@ -1,0 +1,215 @@
+name: Repair Cloud Run voice deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/repair-cloud-run-voice-deploy.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Patch production deploy workflow
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('.github/workflows/deploy-cloud-run.yml')
+          text = path.read_text()
+
+          text = text.replace(
+              '  cancel-in-progress: false\n',
+              '  cancel-in-progress: true\n',
+              1,
+          )
+
+          old = '''      - name: Apply available runtime configuration without deleting existing values
+        shell: bash
+        run: |
+          set -euo pipefail
+          delim='__BMB_ENV_7E4A1__'
+          spec="^${delim}^NODE_ENV=production${delim}APP_BASE_URL=https://buildmybot.app${delim}BUILD_SHA=$GITHUB_SHA${delim}PRESIDENT_EMAIL=president@buildmybot.app"
+          for name in \\
+            SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY SESSION_JWT_SECRET SESSION_SECRET ENCRYPTION_KEY DATABASE_URL \\
+            OPENROUTER_API_KEY_2 OPENROUTER_API_KEY OPENAI_API_KEY CEREBRAS_API_KEY GROQ_API_KEY GEMINI_API_KEY COHERE_API_KEY \\
+            TAVILY_API_KEY FIRECRAWL_API_KEY RESEND_API_KEY INBOUND_EMAIL_WEBHOOK_SECRET CRON_SECRET \\
+            STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET STRIPE_WHITELABEL_PRICE_ID \\
+            RETELL_API_KEY RETELL_WEBHOOK_SECRET CARTESIA_API_KEY VAPI_API_KEY VAPI_WEBHOOK_SECRET \\
+            TWILIO_ACCOUNT_SID TWILIO_AUTH_TOKEN TWILIO_PHONE_NUMBER SENTRY_DSN BASE44_SUPERAGENT_API_KEY \\
+            PORTFOLIO_INTAKE_SECRET PORTFOLIO_OWNER_EMAIL; do
+            value="${!name:-}"
+            if [[ -n "$value" ]]; then
+              spec+="${delim}${name}=${value}"
+            fi
+          done
+          gcloud run services update "$GCP_SERVICE" \\
+            --project "$GCP_PROJECT_ID" \\
+            --region "$GCP_REGION" \\
+            --platform managed \\
+            --update-env-vars "$spec" \\
+            --quiet
+'''
+
+          new = '''      - name: Apply available runtime configuration without deleting existing values
+        shell: bash
+        run: |
+          set -euo pipefail
+          delim='__BMB_ENV_7E4A1__'
+          spec="^${delim}^NODE_ENV=production${delim}APP_BASE_URL=https://buildmybot.app${delim}BUILD_SHA=$GITHUB_SHA${delim}PRESIDENT_EMAIL=president@buildmybot.app"
+
+          # Cloud Run rejects changing a Secret Manager-backed environment
+          # variable into a literal. Detect those names and leave the existing
+          # secret reference intact instead of downgrading its type.
+          service_json="$(gcloud run services describe "$GCP_SERVICE" \\
+            --project "$GCP_PROJECT_ID" \\
+            --region "$GCP_REGION" \\
+            --platform managed \\
+            --format=json)"
+          mapfile -t secret_backed < <(jq -r \\
+            '.spec.template.spec.containers[0].env[]? | select(.valueFrom.secretKeyRef != null) | .name' \\
+            <<<"$service_json")
+
+          is_secret_backed() {
+            local candidate="$1"
+            local existing
+            for existing in "${secret_backed[@]}"; do
+              [[ "$existing" == "$candidate" ]] && return 0
+            done
+            return 1
+          }
+
+          for name in \\
+            SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY SESSION_JWT_SECRET SESSION_SECRET ENCRYPTION_KEY DATABASE_URL \\
+            OPENROUTER_API_KEY_2 OPENROUTER_API_KEY OPENAI_API_KEY CEREBRAS_API_KEY GROQ_API_KEY GEMINI_API_KEY COHERE_API_KEY \\
+            TAVILY_API_KEY FIRECRAWL_API_KEY RESEND_API_KEY INBOUND_EMAIL_WEBHOOK_SECRET CRON_SECRET \\
+            STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET STRIPE_WHITELABEL_PRICE_ID \\
+            RETELL_API_KEY RETELL_WEBHOOK_SECRET CARTESIA_API_KEY VAPI_API_KEY VAPI_WEBHOOK_SECRET \\
+            TWILIO_ACCOUNT_SID TWILIO_AUTH_TOKEN TWILIO_PHONE_NUMBER SENTRY_DSN BASE44_SUPERAGENT_API_KEY \\
+            PORTFOLIO_INTAKE_SECRET PORTFOLIO_OWNER_EMAIL; do
+            value="${!name:-}"
+            if [[ -z "$value" ]]; then
+              continue
+            fi
+            if is_secret_backed "$name"; then
+              echo "Preserving Secret Manager-backed Cloud Run variable: $name"
+              continue
+            fi
+            spec+="${delim}${name}=${value}"
+          done
+
+          gcloud run services update "$GCP_SERVICE" \\
+            --project "$GCP_PROJECT_ID" \\
+            --region "$GCP_REGION" \\
+            --platform managed \\
+            --update-env-vars "$spec" \\
+            --quiet
+'''
+
+          if old not in text:
+              raise SystemExit('Could not locate runtime configuration block')
+          text = text.replace(old, new, 1)
+
+          old_verify = '''          if [[ "$voice_token_status" != "200" ]] || [[ -z "$live_token" ]]; then
+            echo "Gemini Live token smoke test failed with HTTP $voice_token_status" >&2
+            cat /tmp/voice-token.json >&2 || true
+            exit 7
+          fi
+
+          echo "Cloud Run backend: $SERVICE_URL"
+'''
+
+          new_verify = '''          if [[ "$voice_token_status" != "200" ]] || [[ -z "$live_token" ]]; then
+            echo "Gemini Live token smoke test failed with HTTP $voice_token_status" >&2
+            cat /tmp/voice-token.json >&2 || true
+            exit 7
+          fi
+
+          demo_duration="$(jq -r '.maxDurationSeconds // 0' /tmp/voice-token.json)"
+          demo_voice="$(jq -r '.voice // empty' /tmp/voice-token.json)"
+          if [[ "$demo_duration" != "90" ]] || [[ -z "$demo_voice" ]]; then
+            echo "Gemini Live demo constraints are missing from token response" >&2
+            cat /tmp/voice-token.json >&2 || true
+            exit 8
+          fi
+
+          # A token-only smoke test can pass while the browser demo still
+          # fails. Open the same constrained WebSocket used by /voice-agent and
+          # require Gemini to acknowledge session setup.
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+
+          const payload = JSON.parse(fs.readFileSync('/tmp/voice-token.json', 'utf8'));
+          const endpoint = 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained';
+          const url = `${endpoint}?access_token=${encodeURIComponent(payload.token)}`;
+
+          await new Promise((resolve, reject) => {
+            const socket = new WebSocket(url);
+            const timer = setTimeout(() => {
+              try { socket.close(); } catch {}
+              reject(new Error('Timed out waiting for Gemini setupComplete'));
+            }, 15000);
+
+            const finish = (error) => {
+              clearTimeout(timer);
+              try { socket.close(1000, 'Production smoke test complete'); } catch {}
+              error ? reject(error) : resolve();
+            };
+
+            socket.addEventListener('open', () => {
+              socket.send(JSON.stringify({
+                setup: { model: `models/${payload.model}` },
+              }));
+            });
+
+            socket.addEventListener('message', (event) => {
+              let message;
+              try {
+                message = JSON.parse(String(event.data));
+              } catch (error) {
+                finish(error);
+                return;
+              }
+              if (message.error?.message) {
+                finish(new Error(message.error.message));
+                return;
+              }
+              if (message.setupComplete) finish();
+            });
+
+            socket.addEventListener('error', () => {
+              finish(new Error('Gemini constrained WebSocket failed'));
+            });
+          });
+          NODE
+
+          echo "Cloud Run backend: $SERVICE_URL"
+'''
+
+          if old_verify not in text:
+              raise SystemExit('Could not locate voice token verification block')
+          text = text.replace(old_verify, new_verify, 1)
+
+          path.write_text(text)
+          PY
+
+      - name: Remove one-use repair workflow
+        run: rm .github/workflows/repair-cloud-run-voice-deploy.yml
+
+      - name: Commit repair
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/workflows/deploy-cloud-run.yml .github/workflows/repair-cloud-run-voice-deploy.yml
+          git commit -m "Harden Cloud Run voice deployment verification"
+          git push origin HEAD:main
