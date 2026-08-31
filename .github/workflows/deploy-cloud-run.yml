@@ -122,6 +122,8 @@ jobs:
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v3
+        with:
+          install_components: beta
 
       - name: Load required runtime secrets from Google Secret Manager
         shell: bash
