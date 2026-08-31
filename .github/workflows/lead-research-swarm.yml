@@ -1,0 +1,74 @@
+name: Lead Research Swarm
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Research only: six researchers every four hours. This does not invoke
+    # sales-outreach, lead-followups, pulse, email, SMS, or phone-call workers.
+    - cron: '15 */4 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buildmybot2-lead-research-swarm
+  cancel-in-progress: true
+
+env:
+  API_ORIGIN: ${{ vars.BUILDMYBOT_API_ORIGIN || 'https://buildmybot2-fq5disxp2a-uc.a.run.app' }}
+
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        role:
+          - lead-researcher
+          - sales-agent-1
+          - sales-agent-2
+          - sales-agent-3
+          - sales-agent-4
+          - sales-agent-5
+
+    steps:
+      - name: Run grounded lead research
+        shell: bash
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          ROLE: ${{ matrix.role }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${CRON_SECRET:-}" ]]; then
+            echo '::error::CRON_SECRET is not configured; refusing an unauthenticated request.'
+            exit 2
+          fi
+
+          response="$(mktemp)"
+          status="$(curl -sS --max-time 90 \
+            -o "$response" \
+            -w '%{http_code}' \
+            -X POST \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "${API_ORIGIN%/}/api/cron/all-shifts?role=${ROLE}")"
+
+          cat "$response"
+          echo
+          if [[ "$status" != '200' ]]; then
+            echo "::error::$ROLE research returned HTTP $status"
+            exit 1
+          fi
+
+          if grep -q '"reason":"no TAVILY_API_KEY"' "$response"; then
+            echo '::error::Cloud Run is missing TAVILY_API_KEY.'
+            exit 3
+          fi
+
+          if grep -q 'No OpenRouter credential is configured' "$response"; then
+            echo '::error::Cloud Run is missing OPENROUTER_API_KEY_2/OPENROUTER_API_KEY.'
+            exit 4
+          fi
+
+          echo "$ROLE research completed successfully."
