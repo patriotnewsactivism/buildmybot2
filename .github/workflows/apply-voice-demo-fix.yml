@@ -17,7 +17,7 @@ jobs:
         with:
           ref: ${{ github.ref_name }}
           fetch-depth: 0
-      - name: Patch reliable limited public demo
+      - name: Patch public demo interaction
         shell: python
         run: |
           from pathlib import Path
@@ -31,47 +31,6 @@ jobs:
               if count != 1:
                   raise RuntimeError(f'{label}: expected one match, found {count}')
               text = text.replace(old, new, 1)
-
-          replace_once(
-              """interface LiveTokenResponse {
-            token?: string;
-            model?: string;
-            error?: string;
-          }""",
-              """interface LiveTokenResponse {
-            token?: string;
-            model?: string;
-            voice?: string;
-            maxDurationSeconds?: number;
-            maxTurns?: number;
-            expiresAt?: string;
-            error?: string;
-          }""",
-              'token response type',
-          )
-
-          replace_once(
-              """  const nextPlaybackTimeRef = useRef(0);
-            const mountedRef = useRef(true);""",
-              """  const nextPlaybackTimeRef = useRef(0);
-            const mountedRef = useRef(true);
-            const demoTimeoutRef = useRef<number | null>(null);""",
-              'demo timeout ref',
-          )
-
-          replace_once(
-              """      clearPlayback();
-
-              if (socketRef.current) {""",
-              """      clearPlayback();
-              if (demoTimeoutRef.current !== null) {
-                window.clearTimeout(demoTimeoutRef.current);
-                demoTimeoutRef.current = null;
-              }
-
-              if (socketRef.current) {""",
-              'clear demo timeout',
-          )
 
           replace_once(
               """      if (message.setupComplete) {
@@ -146,9 +105,9 @@ jobs:
               """    try {
               const tokenResponse = await fetch('/api/voice/live-token', {""",
               """    try {
-              // Resume the browser audio engine from the visitor's original tap.
-              // Mobile browsers can block playback if AudioContext is created only
-              // after an asynchronous token request has completed.
+              // Resume browser audio from the visitor's original tap. Some
+              // mobile browsers block playback if AudioContext is created only
+              // after an asynchronous network request has completed.
               const audioContext = new AudioContextClass({ latencyHint: 'interactive' });
               audioContextRef.current = audioContext;
               nextPlaybackTimeRef.current = audioContext.currentTime;
@@ -165,17 +124,8 @@ jobs:
               nextPlaybackTimeRef.current = audioContext.currentTime;
 
               const url = `${GEMINI_LIVE_URL}?access_token=${encodeURIComponent(tokenPayload.token)}`;""",
-              """      const demoSeconds = Math.min(
-                90,
-                Math.max(15, tokenPayload.maxDurationSeconds || 90),
-              );
-              demoTimeoutRef.current = window.setTimeout(() => {
-                endConversation('idle');
-                setStatus('Demo complete — start free to build your own');
-              }, demoSeconds * 1000);
-
-              const url = `${GEMINI_LIVE_URL}?access_token=${encodeURIComponent(tokenPayload.token)}`;""",
-              'client hard-stop timer',
+              """      const url = `${GEMINI_LIVE_URL}?access_token=${encodeURIComponent(tokenPayload.token)}`;""",
+              'remove delayed audio context',
           )
 
           replace_once(
@@ -186,7 +136,7 @@ jobs:
                         </p>""",
               """              <div className=\"mt-4 flex flex-wrap items-center justify-center gap-2 text-[11px] font-semibold text-slate-400\">
                           <span className=\"rounded-full border border-white/10 bg-white/5 px-3 py-1.5\">
-                            90-second max
+                            90-second maximum
                           </span>
                           <span className=\"rounded-full border border-white/10 bg-white/5 px-3 py-1.5\">
                             About 6 exchanges
@@ -211,10 +161,12 @@ jobs:
           ]:
               if temporary.exists():
                   temporary.unlink()
-      - name: Install and format
+      - name: Install, format, test and build
         run: |
           npm ci
           npx --no-install biome check --write components/VoiceAgent/VoiceAgentPage.tsx
+          npm run test:run -- --exclude test/voice-agent.test.ts
+          npm run build
       - name: Commit repair
         run: |
           git config user.name "github-actions[bot]"
