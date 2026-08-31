@@ -9,16 +9,16 @@ process.env.TWILIO_ACCOUNT_SID = '';
 process.env.APP_BASE_URL = 'https://buildmybot.app';
 
 let createTwilioStreamToken: typeof import(
-  '../api/voice/twilio-live.ts'
+  '../api/voice/twilio-live.ts',
 ).createTwilioStreamToken;
 let muLaw8kToPcm16k: typeof import(
-  '../api/voice/twilio-live.ts'
+  '../api/voice/twilio-live.ts',
 ).muLaw8kToPcm16k;
 let pcm24kToMuLaw8k: typeof import(
-  '../api/voice/twilio-live.ts'
+  '../api/voice/twilio-live.ts',
 ).pcm24kToMuLaw8k;
 let inboundVoiceHandler: typeof import(
-  '../api/twilio/inbound.ts'
+  '../api/twilio/inbound.ts',
 ).inboundVoiceHandler;
 
 beforeAll(async () => {
