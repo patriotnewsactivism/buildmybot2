@@ -1,0 +1,169 @@
+name: Fix public voice demo microphone capture
+
+on:
+  push:
+    branches: [fix/voice-demo-microphone-capture]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/voice-demo-microphone-capture
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Patch microphone capture onto the user gesture
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('components/VoiceAgent/VoiceAgentPage.tsx')
+          text = path.read_text()
+
+          old_start = '''  const startMicrophone = useCallback(async () => {
+            const socket = socketRef.current;
+            const audioContext = audioContextRef.current;
+            if (!socket || !audioContext) return;
+
+            const stream = await navigator.mediaDevices.getUserMedia({
+              audio: {
+                channelCount: 1,
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true,
+              },
+            });
+            streamRef.current = stream;
+
+            const source = audioContext.createMediaStreamSource(stream);'''
+
+          new_start = '''  const startMicrophone = useCallback(async () => {
+            const socket = socketRef.current;
+            const audioContext = audioContextRef.current;
+            if (!socket || !audioContext) return;
+
+            const existingStream = streamRef.current;
+            const hasLiveAudioTrack = existingStream
+              ?.getAudioTracks()
+              .some((track) => track.readyState === 'live');
+            const stream = hasLiveAudioTrack
+              ? existingStream
+              : await navigator.mediaDevices.getUserMedia({
+                  audio: {
+                    channelCount: 1,
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true,
+                  },
+                });
+
+            if (!stream) {
+              throw new Error('No microphone stream is available.');
+            }
+
+            streamRef.current = stream;
+            const audioTracks = stream.getAudioTracks();
+            if (!audioTracks.length) {
+              throw new Error('No microphone was found on this device.');
+            }
+            for (const track of audioTracks) {
+              track.enabled = true;
+            }
+
+            const source = audioContext.createMediaStreamSource(stream);'''
+
+          if old_start not in text:
+              raise SystemExit('startMicrophone anchor not found')
+          text = text.replace(old_start, new_start, 1)
+
+          old_resume = '''      nextPlaybackTimeRef.current = audioContext.currentTime;
+            await audioContext.resume();
+
+            const tokenResponse = await fetch('/api/voice/live-token', {'''
+
+          new_resume = '''      nextPlaybackTimeRef.current = audioContext.currentTime;
+            await audioContext.resume();
+
+            // Request and open the microphone while we are still inside the
+            // original button tap. Mobile browsers can refuse or suspend a
+            // delayed getUserMedia() request after asynchronous network work.
+            setStatus('Requesting microphone access');
+            const microphoneStream = await navigator.mediaDevices.getUserMedia({
+              audio: {
+                channelCount: 1,
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true,
+              },
+            });
+            const microphoneTracks = microphoneStream.getAudioTracks();
+            if (!microphoneTracks.length) {
+              for (const track of microphoneStream.getTracks()) track.stop();
+              throw new Error('No microphone was found on this device.');
+            }
+            for (const track of microphoneTracks) {
+              track.enabled = true;
+            }
+            streamRef.current = microphoneStream;
+            setStatus('Microphone ready — connecting to Gemini Live');
+
+            const tokenResponse = await fetch('/api/voice/live-token', {'''
+
+          if old_resume not in text:
+              raise SystemExit('audio resume anchor not found')
+          text = text.replace(old_resume, new_resume, 1)
+
+          old_catch = '''    } catch (error: unknown) {
+            const message =
+              error instanceof Error ? error.message : 'Unable to start live voice';
+            setErrorMessage(message);
+            setStatus('Could not start');
+            endConversation('error');
+          }'''
+
+          new_catch = '''    } catch (error: unknown) {
+            const microphoneBlocked =
+              error instanceof DOMException &&
+              (error.name === 'NotAllowedError' || error.name === 'SecurityError');
+            const message = microphoneBlocked
+              ? 'Microphone access is blocked. Allow microphone permission for buildmybot.app in your browser, then tap Try Live Conversation again.'
+              : error instanceof Error
+                ? error.message
+                : 'Unable to start live voice';
+            setErrorMessage(message);
+            setStatus(microphoneBlocked ? 'Microphone blocked' : 'Could not start');
+            endConversation('error');
+          }'''
+
+          if old_catch not in text:
+              raise SystemExit('catch anchor not found')
+          text = text.replace(old_catch, new_catch, 1)
+
+          path.write_text(text)
+          PY
+
+      - run: npm ci
+      - run: npx --no-install biome check --write components/VoiceAgent/VoiceAgentPage.tsx
+      - run: npm run test:run -- --exclude test/voice-agent.test.ts
+      - run: npm run build
+
+      - name: Remove temporary workflow and commit fix
+        shell: bash
+        run: |
+          rm .github/workflows/fix-voice-demo-microphone.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Fix public voice demo microphone capture'
+          git push
