@@ -144,5 +144,21 @@
   <body class="bg-slate-50 text-slate-900 antialiased">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
+    <script>
+      (() => {
+        const normalizeVoiceLinks = () => {
+          document.querySelectorAll('a[href="#voice"]').forEach((link) => {
+            link.setAttribute('href', '/voice-agent');
+          });
+        };
+
+        const observer = new MutationObserver(normalizeVoiceLinks);
+        observer.observe(document.documentElement, {
+          childList: true,
+          subtree: true,
+        });
+        normalizeVoiceLinks();
+      })();
+    </script>
   </body>
 </html>
