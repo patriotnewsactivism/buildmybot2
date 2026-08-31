@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
 import WebSocket, { type RawData } from 'ws';
 import { searchKnowledge } from '../rag.js';
@@ -16,6 +16,7 @@ const SUPABASE_HEADERS = {
 };
 
 type JsonObject = Record<string, unknown>;
+type ToolResult = JsonObject & { success: boolean };
 
 type TwilioStart = {
   streamSid?: string;
@@ -25,13 +26,8 @@ type TwilioStart = {
 
 type TwilioMessage = {
   event?: 'connected' | 'start' | 'media' | 'mark' | 'stop' | 'dtmf';
-  streamSid?: string;
   start?: TwilioStart;
   media?: { payload?: string };
-};
-
-type GeminiPart = {
-  inlineData?: { data?: string; mimeType?: string };
 };
 
 type GeminiFunctionCall = {
@@ -45,9 +41,10 @@ type GeminiMessage = {
   serverContent?: {
     inputTranscription?: { text?: string };
     outputTranscription?: { text?: string };
-    modelTurn?: { parts?: GeminiPart[] };
+    modelTurn?: {
+      parts?: Array<{ inlineData?: { data?: string; mimeType?: string } }>;
+    };
     interrupted?: boolean;
-    turnComplete?: boolean;
   };
   toolCall?: { functionCalls?: GeminiFunctionCall[] };
   error?: { message?: string };
@@ -67,13 +64,12 @@ type SessionContext = {
   phoneConfig: Record<string, unknown>;
 };
 
-function secretForStreamToken(): string {
-  return (
-    process.env.TWILIO_AUTH_TOKEN ||
-    process.env.SESSION_JWT_SECRET ||
-    process.env.GEMINI_API_KEY ||
-    'buildmybot-unconfigured-stream-secret'
-  );
+function streamSigningSecret(): string {
+  const secret = process.env.TWILIO_AUTH_TOKEN || process.env.SESSION_JWT_SECRET;
+  if (!secret) {
+    throw new Error('No secure Twilio stream signing secret is configured');
+  }
+  return secret;
 }
 
 export function createTwilioStreamToken(input: {
@@ -81,7 +77,7 @@ export function createTwilioStreamToken(input: {
   botId: string;
   logId: string;
 }): string {
-  return createHmac('sha256', secretForStreamToken())
+  return createHmac('sha256', streamSigningSecret())
     .update(`${input.callSid}|${input.botId}|${input.logId}`)
     .digest('base64url');
 }
@@ -92,38 +88,58 @@ function validTwilioStreamToken(input: {
   logId: string;
   token: string;
 }): boolean {
-  const expected = createTwilioStreamToken(input);
-  const received = Buffer.from(input.token);
-  const expectedBuffer = Buffer.from(expected);
-  return (
-    received.length === expectedBuffer.length &&
-    timingSafeEqual(received, expectedBuffer)
-  );
-}
-
-async function sbFetch(table: string, params: string, init?: RequestInit) {
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return null;
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params}`, {
-    ...init,
-    headers: { ...SUPABASE_HEADERS, ...(init?.headers || {}) },
-  });
-  if (!response.ok) return null;
-  const text = await response.text();
-  if (!text) return null;
   try {
-    return JSON.parse(text);
+    const expected = Buffer.from(
+      createTwilioStreamToken({
+        callSid: input.callSid,
+        botId: input.botId,
+        logId: input.logId,
+      }),
+    );
+    const received = Buffer.from(input.token);
+    return (
+      received.length === expected.length && timingSafeEqual(received, expected)
+    );
   } catch {
-    return null;
+    return false;
   }
 }
 
-function xmlEscape(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
+async function sbRequest(
+  table: string,
+  params = '',
+  init?: RequestInit,
+): Promise<{ ok: boolean; data: unknown }> {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+    return { ok: false, data: null };
+  }
+
+  try {
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params}`, {
+      ...init,
+      headers: { ...SUPABASE_HEADERS, ...(init?.headers || {}) },
+    });
+    const text = await response.text();
+    let data: unknown = null;
+    if (text) {
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = text;
+      }
+    }
+    return { ok: response.ok, data };
+  } catch (error: unknown) {
+    console.error(
+      `[voice-live] Supabase ${table} request failed:`,
+      error instanceof Error ? error.message : error,
+    );
+    return { ok: false, data: null };
+  }
+}
+
+function asRows(data: unknown): JsonObject[] {
+  return Array.isArray(data) ? (data as JsonObject[]) : [];
 }
 
 function decodeMuLawByte(value: number): number {
@@ -137,12 +153,12 @@ function decodeMuLawByte(value: number): number {
 }
 
 function encodeMuLawSample(sample: number): number {
-  const BIAS = 0x84;
-  const CLIP = 32635;
-  let pcm = Math.max(-CLIP, Math.min(CLIP, Math.round(sample)));
+  const bias = 0x84;
+  const clip = 32635;
+  let pcm = Math.max(-clip, Math.min(clip, Math.round(sample)));
   const sign = pcm < 0 ? 0x80 : 0;
   if (pcm < 0) pcm = -pcm;
-  pcm += BIAS;
+  pcm += bias;
 
   let exponent = 7;
   for (let mask = 0x4000; exponent > 0 && (pcm & mask) === 0; mask >>= 1) {
@@ -152,7 +168,7 @@ function encodeMuLawSample(sample: number): number {
   return ~(sign | (exponent << 4) | mantissa) & 0xff;
 }
 
-function muLaw8kToPcm16k(payload: string): string {
+export function muLaw8kToPcm16k(payload: string): string {
   const input = Buffer.from(payload, 'base64');
   const output = Buffer.allocUnsafe(input.length * 4);
 
@@ -167,7 +183,7 @@ function muLaw8kToPcm16k(payload: string): string {
   return output.toString('base64');
 }
 
-function pcm24kToMuLaw8k(payload: string): string {
+export function pcm24kToMuLaw8k(payload: string): string {
   const input = Buffer.from(payload, 'base64');
   const sampleCount = Math.floor(input.length / 2);
   const outputCount = Math.floor(sampleCount / 3);
@@ -200,7 +216,9 @@ function sendJson(socket: WebSocket, payload: unknown) {
   }
 }
 
-async function loadSessionContext(start: TwilioStart): Promise<SessionContext | null> {
+async function loadSessionContext(
+  start: TwilioStart,
+): Promise<SessionContext | null> {
   const parameters = start.customParameters || {};
   const botId = parameters.botId || '';
   const logId = parameters.logId || '';
@@ -213,31 +231,41 @@ async function loadSessionContext(start: TwilioStart): Promise<SessionContext | 
   if (!botId || !callSid || !streamSid || !token) return null;
   if (!validTwilioStreamToken({ callSid, botId, logId, token })) return null;
 
-  const botRows = await sbFetch(
+  const botResult = await sbRequest(
     'bots',
-    `id=eq.${encodeURIComponent(botId)}&select=id,name,system_prompt,user_id,organization_id,config&limit=1`,
+    `id=eq.${encodeURIComponent(botId)}&select=id,name,system_prompt,user_id,organization_id&limit=1`,
   );
-  const bot = botRows?.[0];
-  if (!bot) return null;
+  const bot = asRows(botResult.data)[0];
+  if (!botResult.ok || !bot) return null;
 
-  let userId = bot.user_id || null;
-  let organizationId = bot.organization_id || null;
+  let userId = typeof bot.user_id === 'string' ? bot.user_id : null;
+  let organizationId =
+    typeof bot.organization_id === 'string' ? bot.organization_id : null;
+
   if (calledNumber) {
-    const numberRows = await sbFetch(
+    const numberResult = await sbRequest(
       'phone_numbers',
       `number=eq.${encodeURIComponent(calledNumber)}&select=user_id,organization_id&limit=1`,
     );
-    userId = numberRows?.[0]?.user_id || userId;
-    organizationId = numberRows?.[0]?.organization_id || organizationId;
+    const number = asRows(numberResult.data)[0];
+    if (number) {
+      if (typeof number.user_id === 'string') userId = number.user_id;
+      if (typeof number.organization_id === 'string') {
+        organizationId = number.organization_id;
+      }
+    }
   }
 
   let phoneConfig: Record<string, unknown> = {};
   if (userId) {
-    const users = await sbFetch(
+    const userResult = await sbRequest(
       'users',
-      `id=eq.${encodeURIComponent(userId)}&select=phone_config,name,company_name&limit=1`,
+      `id=eq.${encodeURIComponent(userId)}&select=phone_config&limit=1`,
     );
-    phoneConfig = users?.[0]?.phone_config || {};
+    const user = asRows(userResult.data)[0];
+    if (user?.phone_config && typeof user.phone_config === 'object') {
+      phoneConfig = user.phone_config as Record<string, unknown>;
+    }
   }
 
   return {
@@ -247,42 +275,50 @@ async function loadSessionContext(start: TwilioStart): Promise<SessionContext | 
     streamSid,
     callerNumber,
     calledNumber,
-    botName: bot.name || 'the business',
-    systemPrompt: bot.system_prompt || 'You are a helpful business receptionist.',
+    botName: typeof bot.name === 'string' ? bot.name : 'the business',
+    systemPrompt:
+      typeof bot.system_prompt === 'string' && bot.system_prompt.trim()
+        ? bot.system_prompt
+        : 'You are a helpful business receptionist.',
     userId,
     organizationId,
     phoneConfig,
   };
 }
 
+function configuredString(
+  config: Record<string, unknown>,
+  key: string,
+): string {
+  return typeof config[key] === 'string' ? config[key].trim() : '';
+}
+
 function buildSystemInstruction(context: SessionContext): string {
-  const intro =
-    typeof context.phoneConfig.introMessage === 'string'
-      ? context.phoneConfig.introMessage.trim()
-      : '';
-  const transferNumber =
-    typeof context.phoneConfig.transferNumber === 'string'
-      ? context.phoneConfig.transferNumber.trim()
-      : '';
-  const bookingConfigured =
-    typeof context.phoneConfig.bookingWebhookUrl === 'string' &&
-    context.phoneConfig.bookingWebhookUrl.trim().length > 0;
+  const intro = configuredString(context.phoneConfig, 'introMessage');
+  const transferNumber = configuredString(
+    context.phoneConfig,
+    'transferNumber',
+  );
+  const bookingWebhook = configuredString(
+    context.phoneConfig,
+    'bookingWebhookUrl',
+  );
 
   return [
     `You are the live AI receptionist for ${context.botName}.`,
     context.systemPrompt,
     intro ? `Preferred opening greeting: ${intro}` : '',
     'Speak naturally and concisely. Allow normal pauses, corrections, filler words, and interruptions.',
-    'Never claim that a transfer, appointment, CRM update, text message, payment, or other external action succeeded unless the corresponding tool returned success.',
-    'Use search_business_knowledge when the caller asks for business-specific facts that are not already explicit in your instructions.',
-    'Use capture_lead when you have enough contact information or buying intent to create a useful lead record.',
+    'Never claim that a transfer, appointment, CRM update, text message, payment, or any external action succeeded unless the matching tool returned success.',
+    'Use search_business_knowledge for business-specific facts that are not already explicit in your instructions.',
+    'Use capture_lead when the caller provides usable contact information or shows meaningful buying intent.',
     transferNumber
       ? 'Use transfer_to_human when the caller asks for a person, is frustrated, presents a high-value opportunity, or the issue is better handled by staff.'
-      : 'Human transfer is not configured. If a caller needs a person, offer to capture their details for follow-up instead of pretending to transfer.',
-    bookingConfigured
-      ? 'Use request_appointment when the caller wants to book or reschedule. Only confirm the booking after the tool reports success.'
-      : 'Direct calendar booking is not configured. You may collect a preferred date/time for follow-up, but do not claim an appointment is booked.',
-    'For emergencies or immediate threats to life or safety, tell the caller to contact local emergency services; do not try to handle the emergency yourself.',
+      : 'Human transfer is not configured. Offer to capture details for follow-up instead of pretending to transfer.',
+    bookingWebhook
+      ? 'Use request_appointment for booking or rescheduling. Only confirm an appointment after the tool reports success.'
+      : 'Direct calendar booking is not configured. You may collect a preferred date and time for follow-up, but do not claim it is booked.',
+    'For emergencies or immediate threats to life or safety, direct the caller to local emergency services rather than attempting to handle the emergency.',
   ]
     .filter(Boolean)
     .join('\n\n');
@@ -297,7 +333,10 @@ function buildTools(context: SessionContext) {
       parameters: {
         type: 'OBJECT',
         properties: {
-          query: { type: 'STRING', description: 'What business fact to look up' },
+          query: {
+            type: 'STRING',
+            description: 'The business fact or question to look up',
+          },
         },
         required: ['query'],
       },
@@ -305,7 +344,7 @@ function buildTools(context: SessionContext) {
     {
       name: 'capture_lead',
       description:
-        'Create or update a lead when the caller provides contact information or shows meaningful buying intent.',
+        'Capture a caller as a CRM lead after receiving contact information or meaningful buying intent.',
       parameters: {
         type: 'OBJECT',
         properties: {
@@ -319,14 +358,11 @@ function buildTools(context: SessionContext) {
     },
   ];
 
-  if (
-    typeof context.phoneConfig.transferNumber === 'string' &&
-    context.phoneConfig.transferNumber.trim()
-  ) {
+  if (configuredString(context.phoneConfig, 'transferNumber')) {
     functionDeclarations.push({
       name: 'transfer_to_human',
       description:
-        'Transfer this live phone call to the configured human handoff number.',
+        'Transfer the current live phone call to the configured human handoff number.',
       parameters: {
         type: 'OBJECT',
         properties: {
@@ -338,14 +374,11 @@ function buildTools(context: SessionContext) {
     });
   }
 
-  if (
-    typeof context.phoneConfig.bookingWebhookUrl === 'string' &&
-    context.phoneConfig.bookingWebhookUrl.trim()
-  ) {
+  if (configuredString(context.phoneConfig, 'bookingWebhookUrl')) {
     functionDeclarations.push({
       name: 'request_appointment',
       description:
-        'Send an appointment request to the business scheduling webhook and return whether it was accepted.',
+        'Send an appointment request to the configured scheduling integration and return whether it was accepted.',
       parameters: {
         type: 'OBJECT',
         properties: {
@@ -364,77 +397,45 @@ function buildTools(context: SessionContext) {
   return [{ functionDeclarations }];
 }
 
-async function patchCallLog(logId: string, patch: JsonObject) {
-  if (!logId) return;
-  await sbFetch('call_logs', `id=eq.${encodeURIComponent(logId)}`, {
+async function patchCallLog(
+  logId: string,
+  patch: JsonObject,
+): Promise<boolean> {
+  if (!logId) return false;
+  const result = await sbRequest('call_logs', `id=eq.${encodeURIComponent(logId)}`, {
     method: 'PATCH',
     body: JSON.stringify(patch),
-  }).catch(() => null);
+  });
+  return result.ok;
 }
 
-async function insertLead(context: SessionContext, args: JsonObject) {
-  const scoreValue = Number(args.score ?? 50);
-  const score = Number.isFinite(scoreValue)
-    ? Math.max(0, Math.min(100, Math.round(scoreValue)))
-    : 50;
-  const phone = String(args.phone || context.callerNumber || '').trim();
-  const name = String(args.name || 'Phone caller').trim().slice(0, 200);
-  const email = String(args.email || '').trim().slice(0, 320);
-  const summary = String(args.summary || '').trim().slice(0, 2000);
-  const id = crypto.randomUUID();
-
-  const rows = await sbFetch('leads', '', {
-    method: 'POST',
-    headers: { Prefer: 'return=representation' },
-    body: JSON.stringify({
-      id,
-      name,
-      email,
-      phone,
-      score,
-      status: score >= 70 ? 'Qualified' : 'New',
-      source_bot_id: context.botId,
-      user_id: context.userId,
-      organization_id: context.organizationId,
-      metadata: {
-        source: 'voice',
-        callSid: context.callSid,
-        callLogId: context.logId,
-        summary,
-      },
-    }),
-  });
-
-  const leadId = rows?.[0]?.id || id;
-  await patchCallLog(context.logId, {
-    lead_id: leadId,
-    metadata: {
-      source: 'gemini-live',
-      leadScore: score,
-      leadSummary: summary,
-    },
-  });
-
-  if (score >= 70) {
-    await sendHotLeadAlert(context, {
-      name,
-      phone,
-      summary,
-      score,
-    });
-  }
-
-  return { success: true, leadId, score };
+async function mergeCallMetadata(
+  logId: string,
+  extra: JsonObject,
+): Promise<boolean> {
+  if (!logId) return false;
+  const current = await sbRequest(
+    'call_logs',
+    `id=eq.${encodeURIComponent(logId)}&select=metadata&limit=1`,
+  );
+  const row = asRows(current.data)[0];
+  const metadata =
+    row?.metadata && typeof row.metadata === 'object'
+      ? (row.metadata as JsonObject)
+      : {};
+  return patchCallLog(logId, { metadata: { ...metadata, ...extra } });
 }
 
-async function sendHotLeadAlert(context: SessionContext, details: JsonObject) {
+async function sendHotLeadAlert(
+  context: SessionContext,
+  details: JsonObject,
+): Promise<ToolResult> {
   const alertNumber =
-    typeof context.phoneConfig.hotLeadNumber === 'string'
-      ? context.phoneConfig.hotLeadNumber.trim()
-      : typeof context.phoneConfig.transferNumber === 'string'
-        ? context.phoneConfig.transferNumber.trim()
-        : '';
-  if (!alertNumber) return { success: false, reason: 'No alert number configured' };
+    configuredString(context.phoneConfig, 'hotLeadNumber') ||
+    configuredString(context.phoneConfig, 'transferNumber');
+  if (!alertNumber) {
+    return { success: false, reason: 'No hot-lead alert number is configured' };
+  }
 
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
   const authToken = process.env.TWILIO_AUTH_TOKEN;
@@ -446,28 +447,95 @@ async function sendHotLeadAlert(context: SessionContext, details: JsonObject) {
   try {
     const twilio = (await import('twilio')).default;
     const client = twilio(accountSid, authToken);
-    const name = String(details.name || 'Caller');
+    const name = String(details.name || 'Caller').slice(0, 120);
     const phone = String(details.phone || context.callerNumber || 'unknown');
     const score = String(details.score || '');
     const summary = String(details.summary || '').slice(0, 600);
-    await client.messages.create({
+    const message = await client.messages.create({
       to: alertNumber,
       from: fromNumber,
       body: `BuildMyBot hot lead${score ? ` (${score}/100)` : ''}: ${name} ${phone}${summary ? ` — ${summary}` : ''}`,
     });
-    return { success: true };
+    return { success: true, messageSid: message.sid };
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'SMS alert failed';
-    console.error('[voice-live] Hot-lead SMS failed:', message);
-    return { success: false, reason: message };
+    const reason = error instanceof Error ? error.message : 'SMS alert failed';
+    console.error('[voice-live] Hot-lead SMS failed:', reason);
+    return { success: false, reason };
   }
 }
 
-async function transferToHuman(context: SessionContext, args: JsonObject) {
-  const transferNumber =
-    typeof context.phoneConfig.transferNumber === 'string'
-      ? context.phoneConfig.transferNumber.trim()
-      : '';
+async function captureLead(
+  context: SessionContext,
+  args: JsonObject,
+): Promise<ToolResult> {
+  const scoreValue = Number(args.score ?? 50);
+  const score = Number.isFinite(scoreValue)
+    ? Math.max(0, Math.min(100, Math.round(scoreValue)))
+    : 50;
+  const phone = String(args.phone || context.callerNumber || '').trim();
+  const email = String(args.email || '').trim().slice(0, 255);
+  const name = String(args.name || 'Phone caller').trim().slice(0, 255);
+  const summary = String(args.summary || '').trim().slice(0, 4000);
+  const leadId = randomUUID();
+  const now = new Date().toISOString();
+
+  const inserted = await sbRequest('leads', '', {
+    method: 'POST',
+    headers: { Prefer: 'return=representation' },
+    body: JSON.stringify({
+      id: leadId,
+      name,
+      email,
+      phone,
+      score,
+      status: score >= 70 ? 'Qualified' : 'New',
+      source_bot_id: context.botId,
+      source: 'voice',
+      user_id: context.userId,
+      organization_id: context.organizationId,
+      notes: summary || null,
+      ai_notes: summary || null,
+      contact_method: 'call',
+      last_contacted_at: now,
+    }),
+  });
+
+  if (!inserted.ok || !asRows(inserted.data)[0]) {
+    return { success: false, reason: 'CRM lead creation failed' };
+  }
+
+  const logLinked = context.logId
+    ? await patchCallLog(context.logId, { lead_id: leadId })
+    : false;
+  if (context.logId) {
+    await mergeCallMetadata(context.logId, {
+      leadScore: score,
+      leadSummary: summary,
+    });
+  }
+
+  const alert =
+    score >= 70
+      ? await sendHotLeadAlert(context, { name, phone, summary, score })
+      : { success: false, reason: 'Lead score below hot-lead threshold' };
+
+  return {
+    success: true,
+    leadId,
+    score,
+    callLogLinked: logLinked,
+    hotLeadAlertSent: alert.success,
+  };
+}
+
+async function transferToHuman(
+  context: SessionContext,
+  args: JsonObject,
+): Promise<ToolResult> {
+  const transferNumber = configuredString(
+    context.phoneConfig,
+    'transferNumber',
+  );
   if (!transferNumber) {
     return { success: false, reason: 'Human transfer is not configured' };
   }
@@ -479,41 +547,52 @@ async function transferToHuman(context: SessionContext, args: JsonObject) {
   }
 
   try {
-    await sendHotLeadAlert(context, {
-      name: String(args.callerName || 'Caller'),
-      phone: context.callerNumber,
-      score: 100,
-      summary: String(args.reason || 'Human handoff requested'),
-    });
-
     const twilio = (await import('twilio')).default;
     const client = twilio(accountSid, authToken);
     const reason = String(args.reason || 'Human handoff requested').slice(0, 300);
-    const twiml = `<Response><Say voice="Polly.Joanna">One moment while I connect you.</Say><Dial timeout="25">${xmlEscape(transferNumber)}</Dial><Say voice="Polly.Joanna">I could not reach the team. I have saved the reason for your call so they can follow up.</Say></Response>`;
+    const alert = await sendHotLeadAlert(context, {
+      name: String(args.callerName || 'Caller'),
+      phone: context.callerNumber,
+      score: 100,
+      summary: reason,
+    });
+    const twiml = [
+      '<Response>',
+      '<Say voice="Polly.Joanna">One moment while I connect you.</Say>',
+      `<Dial timeout="25">${transferNumber.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</Dial>`,
+      '<Say voice="Polly.Joanna">I could not reach the team. I saved the reason for your call so they can follow up.</Say>',
+      '</Response>',
+    ].join('');
     await client.calls(context.callSid).update({ twiml });
-    await patchCallLog(context.logId, {
-      metadata: {
-        source: 'gemini-live',
+    if (context.logId) {
+      await mergeCallMetadata(context.logId, {
         handoffRequested: true,
         handoffReason: reason,
         handoffNumber: transferNumber,
-      },
-    });
-    return { success: true, transferredTo: transferNumber };
+      });
+    }
+    return {
+      success: true,
+      transferredTo: transferNumber,
+      hotLeadAlertSent: alert.success,
+    };
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Transfer failed';
-    console.error('[voice-live] Human transfer failed:', message);
-    return { success: false, reason: message };
+    const reason = error instanceof Error ? error.message : 'Transfer failed';
+    console.error('[voice-live] Human transfer failed:', reason);
+    return { success: false, reason };
   }
 }
 
-async function requestAppointment(context: SessionContext, args: JsonObject) {
-  const bookingWebhookUrl =
-    typeof context.phoneConfig.bookingWebhookUrl === 'string'
-      ? context.phoneConfig.bookingWebhookUrl.trim()
-      : '';
+async function requestAppointment(
+  context: SessionContext,
+  args: JsonObject,
+): Promise<ToolResult> {
+  const bookingWebhookUrl = configuredString(
+    context.phoneConfig,
+    'bookingWebhookUrl',
+  );
   if (!bookingWebhookUrl) {
-    return { success: false, reason: 'Scheduling webhook is not configured' };
+    return { success: false, reason: 'Scheduling integration is not configured' };
   }
 
   try {
@@ -537,34 +616,41 @@ async function requestAppointment(context: SessionContext, args: JsonObject) {
     }
     return { success: true, result: text.slice(0, 1000) || 'accepted' };
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Scheduling failed';
-    return { success: false, reason: message };
+    return {
+      success: false,
+      reason: error instanceof Error ? error.message : 'Scheduling failed',
+    };
   }
 }
 
 async function executeFunction(
   context: SessionContext,
   call: GeminiFunctionCall,
-): Promise<JsonObject> {
+): Promise<ToolResult> {
   const args = call.args || {};
   switch (call.name) {
     case 'search_business_knowledge': {
       const query = String(args.query || '').trim();
       if (!query) return { success: false, reason: 'Query is required' };
-      const chunks = await searchKnowledge(context.botId, query, 5).catch(() => []);
+      const chunks = await searchKnowledge(context.botId, query, 5).catch(
+        () => [],
+      );
       return {
         success: true,
         matches: chunks.slice(0, 5).map((chunk) => chunk.slice(0, 1800)),
       };
     }
     case 'capture_lead':
-      return insertLead(context, args);
+      return captureLead(context, args);
     case 'transfer_to_human':
       return transferToHuman(context, args);
     case 'request_appointment':
       return requestAppointment(context, args);
     default:
-      return { success: false, reason: `Unknown tool: ${call.name || 'unnamed'}` };
+      return {
+        success: false,
+        reason: `Unknown tool: ${call.name || 'unnamed'}`,
+      };
   }
 }
 
@@ -578,9 +664,7 @@ function setupGeminiSession(gemini: WebSocket, context: SessionContext) {
           voiceConfig: {
             prebuiltVoiceConfig: {
               voiceName:
-                typeof context.phoneConfig.geminiVoice === 'string'
-                  ? context.phoneConfig.geminiVoice
-                  : 'Aoede',
+                configuredString(context.phoneConfig, 'geminiVoice') || 'Aoede',
             },
           },
         },
@@ -613,7 +697,7 @@ function promptInitialGreeting(gemini: WebSocket) {
           role: 'user',
           parts: [
             {
-              text: 'The caller has just connected. Greet them now using the configured greeting or a short natural greeting, then ask how you can help.',
+              text: 'The caller just connected. Greet them now using the configured greeting or a short natural greeting, then ask how you can help.',
             },
           ],
         },
@@ -629,30 +713,37 @@ export function handleTwilioMediaConnection(
 ) {
   let context: SessionContext | null = null;
   let gemini: WebSocket | null = null;
-  let transcript: Array<{ role: 'caller' | 'agent'; text: string; at: string }> = [];
-  let closed = false;
+  const transcript: Array<{
+    role: 'caller' | 'agent';
+    text: string;
+    at: string;
+  }> = [];
+  let finalized = false;
 
   const closeGemini = () => {
-    if (gemini && gemini.readyState <= WebSocket.OPEN) {
+    if (!gemini) return;
+    if (gemini.readyState === WebSocket.OPEN) {
       gemini.close(1000, 'Twilio stream ended');
+    } else if (gemini.readyState === WebSocket.CONNECTING) {
+      gemini.terminate();
     }
     gemini = null;
   };
 
   const finalize = async (status = 'completed') => {
-    if (closed) return;
-    closed = true;
+    if (finalized) return;
+    finalized = true;
     closeGemini();
     if (context?.logId) {
       await patchCallLog(context.logId, {
         status,
         transcript,
         ended_at: new Date().toISOString(),
-        metadata: {
-          source: 'gemini-live',
-          realtime: true,
-          streamSid: context.streamSid,
-        },
+      });
+      await mergeCallMetadata(context.logId, {
+        source: 'gemini-live',
+        realtime: true,
+        streamSid: context.streamSid,
       });
     }
   };
@@ -668,7 +759,7 @@ export function handleTwilioMediaConnection(
     if (message.event === 'start' && message.start) {
       context = await loadSessionContext(message.start);
       if (!context) {
-        console.error('[voice-live] Rejected Twilio stream: invalid session context');
+        console.error('[voice-live] Rejected Twilio stream session');
         twilioSocket.close(1008, 'Invalid stream session');
         return;
       }
@@ -709,6 +800,7 @@ export function handleTwilioMediaConnection(
             streamSid: context.streamSid,
           });
         }
+
         const callerText = content?.inputTranscription?.text?.trim();
         if (callerText) {
           transcript.push({
@@ -754,7 +846,7 @@ export function handleTwilioMediaConnection(
         console.error('[voice-live] Gemini WebSocket error:', error.message);
       });
       gemini.on('close', () => {
-        if (!closed && twilioSocket.readyState === WebSocket.OPEN) {
+        if (!finalized && twilioSocket.readyState === WebSocket.OPEN) {
           twilioSocket.close(1011, 'Voice engine disconnected');
         }
       });
