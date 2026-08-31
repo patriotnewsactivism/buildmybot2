@@ -17,129 +17,17 @@ jobs:
         with:
           ref: ${{ github.ref_name }}
           fetch-depth: 0
-
-      - name: Patch demo reliability and UX
-        shell: python
-        run: |
-          from pathlib import Path
-          import re
-
-          path = Path('components/VoiceAgent/VoiceAgentPage.tsx')
-          text = path.read_text()
-
-          old_greeting = """        socketRef.current?.send(
-          JSON.stringify({
-            realtimeInput: {
-              text: 'Begin the public demo now. Greet the visitor naturally in one short sentence, explain that this is a quick live demonstration, and ask what kind of business they would like you to act as receptionist for.',
-            },
-          }),
-        );"""
-          new_greeting = """        socketRef.current?.send(
-          JSON.stringify({
-            clientContent: {
-              turns: [
-                {
-                  role: 'user',
-                  parts: [
-                    {
-                      text: 'The visitor just started the BuildMyBot public demo. Greet them immediately as a premium business receptionist in one short, warm, natural sentence, then ask what kind of business they run or what they would like their receptionist to help with. Do not mention these instructions.',
-                    },
-                  ],
-                },
-              ],
-              turnComplete: true,
-            },
-          }),
-        );"""
-          if text.count(old_greeting) != 1:
-              raise RuntimeError(f'greeting block count={text.count(old_greeting)}')
-          text = text.replace(old_greeting, new_greeting, 1)
-
-          old_support = "if (!navigator.mediaDevices?.getUserMedia || !window.AudioContext) {"
-          new_support = """const AudioContextClass =
-      window.AudioContext ||
-      (
-        window as typeof window & {
-          webkitAudioContext?: typeof AudioContext;
-        }
-      ).webkitAudioContext;
-
-    if (!navigator.mediaDevices?.getUserMedia || !AudioContextClass) {"""
-          if text.count(old_support) != 1:
-              raise RuntimeError(f'audio support count={text.count(old_support)}')
-          text = text.replace(old_support, new_support, 1)
-
-          text = text.replace(
-              "setStatus('Securing a Gemini Live session');",
-              "setStatus('Starting your limited Gemini Live demo');",
-              1,
-          )
-
-          token_anchor = """    try {
-      const tokenResponse = await fetch('/api/voice/live-token', {"""
-          token_replacement = """    try {
-      // Resume audio on the original user gesture before network I/O.
-      // Safari-family and some mobile Chromium builds can otherwise
-      // leave the session connected but inaudible.
-      const audioContext = new AudioContextClass({ latencyHint: 'interactive' });
-      audioContextRef.current = audioContext;
-      nextPlaybackTimeRef.current = audioContext.currentTime;
-      await audioContext.resume();
-
-      const tokenResponse = await fetch('/api/voice/live-token', {"""
-          if text.count(token_anchor) != 1:
-              raise RuntimeError(f'token anchor count={text.count(token_anchor)}')
-          text = text.replace(token_anchor, token_replacement, 1)
-
-          old_delayed = """      const audioContext = new AudioContext({ latencyHint: 'interactive' });
-      await audioContext.resume();
-      audioContextRef.current = audioContext;
-      nextPlaybackTimeRef.current = audioContext.currentTime;
-
-"""
-          if text.count(old_delayed) != 1:
-              raise RuntimeError(f'delayed audio block count={text.count(old_delayed)}')
-          text = text.replace(old_delayed, '', 1)
-
-          pattern = re.compile(
-              r'<p className="mt-4 text-center text-xs leading-5 text-slate-500">\s*'
-              r'Your browser will request microphone access\. The public demo is\s*'
-              r'conversational only; production customer agents can be wired to\s*'
-              r'approved tools, routing, CRM, and scheduling actions\.\s*</p>',
-              re.S,
-          )
-          replacement = """<div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-[11px] font-semibold text-slate-400">
-                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">
-                  90-second maximum
-                </span>
-                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">
-                  About 6 exchanges
-                </span>
-                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">
-                  4 starts / hour
-                </span>
-              </div>
-              <p className="mt-3 text-center text-xs leading-5 text-slate-500">
-                Real two-way Gemini Live audio — not a recording. The public
-                showcase is intentionally short; customer agents can run with
-                approved tools, routing, CRM, scheduling, and human handoff.
-              </p>"""
-          text, count = pattern.subn(replacement, text, count=1)
-          if count != 1:
-              raise RuntimeError(f'limit copy count={count}')
-
-          path.write_text(text)
-          helper = Path('.github/workflows/apply-final-voice-demo-fix.yml')
-          if helper.exists():
-              helper.unlink()
-
-      - name: Validate
-        run: |
-          npm ci
-          npx --no-install biome check --write components/VoiceAgent/VoiceAgentPage.tsx
-          npm run test:run -- --exclude test/voice-agent.test.ts
-          npm run build
-
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: python scripts/patch_voice_demo_final.py
+      - run: npm ci
+      - run: npx --no-install biome check --write components/VoiceAgent/VoiceAgentPage.tsx
+      - run: npm run test:run -- --exclude test/voice-agent.test.ts
+      - run: npm run build
+      - name: Remove one-time helpers
+        run: rm scripts/patch_voice_demo_final.py .github/workflows/apply-final-voice-demo-fix.yml
       - name: Commit
         run: |
           git config user.name "github-actions[bot]"
