@@ -156,7 +156,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               voiceConfig: {
                 prebuiltVoiceConfig: { voiceName: DEMO_VOICE },
               },
-              languageCode: 'en-US',
             },
             thinkingConfig: { thinkingLevel: 'minimal' },
           },
