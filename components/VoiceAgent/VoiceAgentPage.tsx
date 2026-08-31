@@ -276,15 +276,33 @@ export function VoiceAgentPage() {
     const audioContext = audioContextRef.current;
     if (!socket || !audioContext) return;
 
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        channelCount: 1,
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-      },
-    });
+    const existingStream = streamRef.current;
+    const hasLiveAudioTrack = existingStream
+      ?.getAudioTracks()
+      .some((track) => track.readyState === 'live');
+    const stream = hasLiveAudioTrack
+      ? existingStream
+      : await navigator.mediaDevices.getUserMedia({
+          audio: {
+            channelCount: 1,
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+        });
+
+    if (!stream) {
+      throw new Error('No microphone stream is available.');
+    }
+
     streamRef.current = stream;
+    const audioTracks = stream.getAudioTracks();
+    if (!audioTracks.length) {
+      throw new Error('No microphone was found on this device.');
+    }
+    for (const track of audioTracks) {
+      track.enabled = true;
+    }
 
     const source = audioContext.createMediaStreamSource(stream);
     const processor = audioContext.createScriptProcessor(4096, 1, 1);
@@ -433,6 +451,29 @@ export function VoiceAgentPage() {
       audioContextRef.current = audioContext;
       nextPlaybackTimeRef.current = audioContext.currentTime;
       await audioContext.resume();
+
+      // Open the microphone from the original button tap before any network
+      // I/O. Mobile browsers can otherwise connect Gemini successfully while
+      // never starting the microphone capture path.
+      setStatus('Requesting microphone access');
+      const microphoneStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          channelCount: 1,
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
+      const microphoneTracks = microphoneStream.getAudioTracks();
+      if (!microphoneTracks.length) {
+        for (const track of microphoneStream.getTracks()) track.stop();
+        throw new Error('No microphone was found on this device.');
+      }
+      for (const track of microphoneTracks) {
+        track.enabled = true;
+      }
+      streamRef.current = microphoneStream;
+      setStatus('Microphone ready — connecting to Gemini Live');
 
       const tokenResponse = await fetch('/api/voice/live-token', {
         method: 'POST',
