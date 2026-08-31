@@ -88,8 +88,7 @@ function escapeXml(str: string): string {
 function speakLine(text: string, voice = 'eve'): string {
   const XAI_API_KEY = process.env.XAI_API_KEY;
   if (XAI_API_KEY) {
-    const APP_BASE_URL =
-      process.env.APP_BASE_URL || 'https://www.buildmybot.app';
+    const APP_BASE_URL = process.env.APP_BASE_URL || 'https://buildmybot.app';
     const token = createHmac('sha256', XAI_API_KEY)
       .update(`${text}|${voice}`)
       .digest('hex')
@@ -138,7 +137,7 @@ export async function voiceHandler(req: VercelRequest, res: VercelResponse) {
     );
     // Ensure we don't exceed Twilio's character limits
     if (greeting.length > 500) {
-      greeting = greeting.slice(0, 497) + '...';
+      greeting = `${greeting.slice(0, 497)}...`;
     }
   } catch (err: any) {
     console.error('[twilio] Failed to generate greeting:', err.message);
@@ -146,7 +145,7 @@ export async function voiceHandler(req: VercelRequest, res: VercelResponse) {
   }
 
   // TwiML: Say the greeting, then listen for the lead's response
-  const APP_BASE_URL = process.env.APP_BASE_URL || 'https://www.buildmybot.app';
+  const APP_BASE_URL = process.env.APP_BASE_URL || 'https://buildmybot.app';
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   ${speakLine(greeting, voice)}
@@ -221,14 +220,14 @@ Rules:
 
     // Ensure we don't exceed Twilio's character limits
     if (aiResponse.length > 500) {
-      aiResponse = aiResponse.slice(0, 497) + '...';
+      aiResponse = `${aiResponse.slice(0, 497)}...`;
     }
   } catch (err: any) {
     console.error('[twilio] Failed to generate AI response:', err.message);
     // Use default response
   }
 
-  const APP_BASE_URL = process.env.APP_BASE_URL || 'https://www.buildmybot.app';
+  const APP_BASE_URL = process.env.APP_BASE_URL || 'https://buildmybot.app';
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   ${speakLine(aiResponse, voice)}

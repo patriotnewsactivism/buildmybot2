@@ -1,5 +1,10 @@
-# Non-www to www redirect
-https://buildmybot.app/* https://www.buildmybot.app/:splat 301
-http://buildmybot.app/* https://www.buildmybot.app/:splat 301
+# Canonical host is the apex domain, which is what the Cloud Run mapping and
+# index.html's <link rel="canonical"> both use. This file previously sent
+# buildmybot.app -> www.buildmybot.app, which is backwards: www has no DNS
+# record, so the rule pointed the only working host at an unreachable one.
+# Kept in the reverse direction so a www request still lands somewhere real if
+# a www record is added later and traffic reaches a host that reads this file.
+https://www.buildmybot.app/* https://buildmybot.app/:splat 301
+http://www.buildmybot.app/* https://buildmybot.app/:splat 301
 
 # API proxy handled by functions/api/[[path]].ts

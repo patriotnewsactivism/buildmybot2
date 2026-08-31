@@ -327,9 +327,7 @@ export const ResellerDashboard: React.FC<ResellerProps> = ({
 
   const displayDomain =
     user.customDomain ||
-    (typeof window !== 'undefined'
-      ? window.location.host
-      : 'www.buildmybot.app');
+    (typeof window !== 'undefined' ? window.location.host : 'buildmybot.app');
 
   const referralUrl = `https://${displayDomain}/?ref=${user.resellerCode || 'CODE'}`;
 

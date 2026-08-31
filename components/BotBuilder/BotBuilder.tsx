@@ -118,7 +118,7 @@ const BotBuilder: React.FC<BotBuilderProps> = ({
     }
   };
 
-  const embedHost = customDomain || 'www.buildmybot.app';
+  const embedHost = customDomain || 'buildmybot.app';
   const embedSnippet = draft
     ? `<script src="https://${embedHost}/embed.js" data-bot-id="${draft.id}" async></script>`
     : '';
