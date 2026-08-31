@@ -203,21 +203,43 @@ jobs:
           delim='__BMB_ENV_7E4A1__'
           spec="^${delim}^NODE_ENV=production${delim}APP_BASE_URL=https://buildmybot.app${delim}BUILD_SHA=$GITHUB_SHA${delim}PRESIDENT_EMAIL=president@buildmybot.app"
 
-          # OPENROUTER_API_KEY_2 is already Secret Manager-backed in Cloud Run.
-          # Do not replace it with a string literal: gcloud rejects changing the
-          # environment variable type and the deploy would stop before smoke tests.
+          service_json="$(gcloud run services describe "$GCP_SERVICE" \
+            --project "$GCP_PROJECT_ID" \
+            --region "$GCP_REGION" \
+            --platform managed \
+            --format=json)"
+          mapfile -t secret_backed < <(jq -r \
+            '.spec.template.spec.containers[0].env[]? | select(.valueFrom.secretKeyRef != null) | .name' \
+            <<<"$service_json")
+
+          is_secret_backed() {
+            local candidate="$1"
+            local existing
+            for existing in "${secret_backed[@]}"; do
+              if [[ "$existing" == "$candidate" ]]; then
+                return 0
+              fi
+            done
+            return 1
+          }
+
           for name in \
             SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY SESSION_JWT_SECRET SESSION_SECRET ENCRYPTION_KEY DATABASE_URL \
-            OPENROUTER_API_KEY OPENAI_API_KEY CEREBRAS_API_KEY GROQ_API_KEY GEMINI_API_KEY COHERE_API_KEY \
+            OPENROUTER_API_KEY_2 OPENROUTER_API_KEY OPENAI_API_KEY CEREBRAS_API_KEY GROQ_API_KEY GEMINI_API_KEY COHERE_API_KEY \
             TAVILY_API_KEY FIRECRAWL_API_KEY RESEND_API_KEY INBOUND_EMAIL_WEBHOOK_SECRET CRON_SECRET \
             STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET STRIPE_WHITELABEL_PRICE_ID \
             RETELL_API_KEY RETELL_WEBHOOK_SECRET CARTESIA_API_KEY VAPI_API_KEY VAPI_WEBHOOK_SECRET \
             TWILIO_ACCOUNT_SID TWILIO_AUTH_TOKEN TWILIO_PHONE_NUMBER SENTRY_DSN BASE44_SUPERAGENT_API_KEY \
             PORTFOLIO_INTAKE_SECRET PORTFOLIO_OWNER_EMAIL; do
             value="${!name:-}"
-            if [[ -n "$value" ]]; then
-              spec+="${delim}${name}=${value}"
+            if [[ -z "$value" ]]; then
+              continue
             fi
+            if is_secret_backed "$name"; then
+              echo "Preserving Secret Manager-backed Cloud Run variable: $name"
+              continue
+            fi
+            spec+="${delim}${name}=${value}"
           done
 
           gcloud run services update "$GCP_SERVICE" \
@@ -337,9 +359,6 @@ jobs:
             exit 8
           fi
 
-          # The browser demo uses BidiGenerateContentConstrained. Actually open
-          # that WebSocket and require setupComplete so a token-only success can
-          # never mask a broken public demo handshake.
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
 
