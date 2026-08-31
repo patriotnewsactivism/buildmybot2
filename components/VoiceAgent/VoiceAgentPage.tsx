@@ -501,7 +501,10 @@ export function VoiceAgentPage() {
       <div className="relative">
         <header className="border-b border-white/10 bg-slate-950/80 backdrop-blur-xl">
           <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 sm:px-8">
-            <Link to="/" className="flex items-center gap-3 font-black tracking-tight">
+            <Link
+              to="/"
+              className="flex items-center gap-3 font-black tracking-tight"
+            >
               <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 shadow-lg shadow-blue-600/25">
                 <Bot size={22} />
               </span>
@@ -686,7 +689,9 @@ export function VoiceAgentPage() {
                 ) : (
                   <>
                     <Mic size={22} />
-                    {callState === 'connecting' ? 'Connecting…' : 'Start talking'}
+                    {callState === 'connecting'
+                      ? 'Connecting…'
+                      : 'Start talking'}
                   </>
                 )}
               </button>
@@ -717,7 +722,10 @@ export function VoiceAgentPage() {
           </div>
         </section>
 
-        <section id="capabilities" className="mx-auto max-w-7xl px-5 py-24 sm:px-8">
+        <section
+          id="capabilities"
+          className="mx-auto max-w-7xl px-5 py-24 sm:px-8"
+        >
           <div className="max-w-3xl">
             <p className="text-sm font-bold uppercase tracking-[0.22em] text-blue-400">
               More than text-to-speech
@@ -848,7 +856,9 @@ export function VoiceAgentPage() {
 
         <footer className="border-t border-white/10">
           <div className="mx-auto flex max-w-7xl flex-col gap-4 px-5 py-8 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:px-8">
-            <p>© 2026 BuildMyBot. AI chatbots and voice agents for businesses.</p>
+            <p>
+              © 2026 BuildMyBot. AI chatbots and voice agents for businesses.
+            </p>
             <div className="flex gap-5">
               <Link to="/privacy" className="transition hover:text-slate-300">
                 Privacy
