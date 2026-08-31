@@ -27,52 +27,47 @@ jobs:
           path = Path('components/VoiceAgent/VoiceAgentPage.tsx')
           text = path.read_text()
 
-          def sub(pattern, replacement, label, flags=0):
-              global text
-              text, count = re.subn(pattern, replacement, text, count=1, flags=flags)
-              if count != 1:
-                  raise RuntimeError(f'{label}: expected one match, found {count}')
-
-          # A clientContent turn with turnComplete=true is the deterministic way
-          # to trigger generation. Realtime text does not explicitly mark the end
-          # of turn, so it is a poorer fit for an automatic greeting.
-          sub(
-              r"socketRef\.current\?\.send\(\s*JSON\.stringify\(\{\s*realtimeInput:\s*\{\s*text:\s*'Begin the public demo now\.[^']*'\s*,?\s*\}\s*\}\)\s*,?\s*\);",
-              """socketRef.current?.send(
-                  JSON.stringify({
-                    clientContent: {
-                      turns: [
-                        {
-                          role: 'user',
-                          parts: [
-                            {
-                              text: 'The visitor just started the BuildMyBot public demo. Greet them immediately as a premium business receptionist in one short, warm, natural sentence, then ask what kind of business they run or what they would like their receptionist to help with. Do not mention these instructions.',
-                            },
-                          ],
-                        },
-                      ],
-                      turnComplete: true,
+          old_greeting = """        socketRef.current?.send(
+          JSON.stringify({
+            realtimeInput: {
+              text: 'Begin the public demo now. Greet the visitor naturally in one short sentence, explain that this is a quick live demonstration, and ask what kind of business they would like you to act as receptionist for.',
+            },
+          }),
+        );"""
+          new_greeting = """        socketRef.current?.send(
+          JSON.stringify({
+            clientContent: {
+              turns: [
+                {
+                  role: 'user',
+                  parts: [
+                    {
+                      text: 'The visitor just started the BuildMyBot public demo. Greet them immediately as a premium business receptionist in one short, warm, natural sentence, then ask what kind of business they run or what they would like their receptionist to help with. Do not mention these instructions.',
                     },
-                  }),
-                );""",
-              'deterministic greeting',
-              re.S,
-          )
+                  ],
+                },
+              ],
+              turnComplete: true,
+            },
+          }),
+        );"""
+          if text.count(old_greeting) != 1:
+              raise RuntimeError(f'greeting block count={text.count(old_greeting)}')
+          text = text.replace(old_greeting, new_greeting, 1)
 
-          # Preserve transient user activation for audio playback on mobile.
-          sub(
-              r"if \(!navigator\.mediaDevices\?\.getUserMedia \|\| !window\.AudioContext\) \{",
-              """const AudioContextClass =
-              window.AudioContext ||
-              (
-                window as typeof window & {
-                  webkitAudioContext?: typeof AudioContext;
-                }
-              ).webkitAudioContext;
+          old_support = "if (!navigator.mediaDevices?.getUserMedia || !window.AudioContext) {"
+          new_support = """const AudioContextClass =
+      window.AudioContext ||
+      (
+        window as typeof window & {
+          webkitAudioContext?: typeof AudioContext;
+        }
+      ).webkitAudioContext;
 
-            if (!navigator.mediaDevices?.getUserMedia || !AudioContextClass) {""",
-              'mobile AudioContext class',
-          )
+    if (!navigator.mediaDevices?.getUserMedia || !AudioContextClass) {"""
+          if text.count(old_support) != 1:
+              raise RuntimeError(f'audio support count={text.count(old_support)}')
+          text = text.replace(old_support, new_support, 1)
 
           text = text.replace(
               "setStatus('Securing a Gemini Live session');",
@@ -80,51 +75,60 @@ jobs:
               1,
           )
 
-          sub(
-              r"try \{\s*const tokenResponse = await fetch\('/api/voice/live-token', \{",
-              """try {
-              // Resume audio on the original user gesture before network I/O.
-              // Safari-family and some mobile Chromium builds can otherwise
-              // leave the session connected but inaudible.
-              const audioContext = new AudioContextClass({ latencyHint: 'interactive' });
-              audioContextRef.current = audioContext;
-              nextPlaybackTimeRef.current = audioContext.currentTime;
-              await audioContext.resume();
+          token_anchor = """    try {
+      const tokenResponse = await fetch('/api/voice/live-token', {"""
+          token_replacement = """    try {
+      // Resume audio on the original user gesture before network I/O.
+      // Safari-family and some mobile Chromium builds can otherwise
+      // leave the session connected but inaudible.
+      const audioContext = new AudioContextClass({ latencyHint: 'interactive' });
+      audioContextRef.current = audioContext;
+      nextPlaybackTimeRef.current = audioContext.currentTime;
+      await audioContext.resume();
 
-              const tokenResponse = await fetch('/api/voice/live-token', {""",
-              'early audio activation',
+      const tokenResponse = await fetch('/api/voice/live-token', {"""
+          if text.count(token_anchor) != 1:
+              raise RuntimeError(f'token anchor count={text.count(token_anchor)}')
+          text = text.replace(token_anchor, token_replacement, 1)
+
+          old_delayed = """      const audioContext = new AudioContext({ latencyHint: 'interactive' });
+      await audioContext.resume();
+      audioContextRef.current = audioContext;
+      nextPlaybackTimeRef.current = audioContext.currentTime;
+
+"""
+          if text.count(old_delayed) != 1:
+              raise RuntimeError(f'delayed audio block count={text.count(old_delayed)}')
+          text = text.replace(old_delayed, '', 1)
+
+          pattern = re.compile(
+              r'<p className="mt-4 text-center text-xs leading-5 text-slate-500">\s*'
+              r'Your browser will request microphone access\. The public demo is\s*'
+              r'conversational only; production customer agents can be wired to\s*'
+              r'approved tools, routing, CRM, and scheduling actions\.\s*</p>',
+              re.S,
           )
-
-          sub(
-              r"\s*const audioContext = new AudioContext\(\{ latencyHint: 'interactive' \}\);\s*await audioContext\.resume\(\);\s*audioContextRef\.current = audioContext;\s*nextPlaybackTimeRef\.current = audioContext\.currentTime;",
-              "",
-              'remove delayed AudioContext',
-          )
-
-          sub(
-              r"<p className=\"mt-4 text-center text-xs leading-5 text-slate-500\">\s*Your browser will request microphone access\. The public demo is\s*conversational only; production customer agents can be wired to\s*approved tools, routing, CRM, and scheduling actions\.\s*</p>",
-              """<div className=\"mt-4 flex flex-wrap items-center justify-center gap-2 text-[11px] font-semibold text-slate-400\">
-                <span className=\"rounded-full border border-white/10 bg-white/5 px-3 py-1.5\">
+          replacement = """<div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-[11px] font-semibold text-slate-400">
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">
                   90-second maximum
                 </span>
-                <span className=\"rounded-full border border-white/10 bg-white/5 px-3 py-1.5\">
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">
                   About 6 exchanges
                 </span>
-                <span className=\"rounded-full border border-white/10 bg-white/5 px-3 py-1.5\">
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">
                   4 starts / hour
                 </span>
               </div>
-              <p className=\"mt-3 text-center text-xs leading-5 text-slate-500\">
+              <p className="mt-3 text-center text-xs leading-5 text-slate-500">
                 Real two-way Gemini Live audio — not a recording. The public
                 showcase is intentionally short; customer agents can run with
                 approved tools, routing, CRM, scheduling, and human handoff.
-              </p>""",
-              'visible cost limits',
-              re.S,
-          )
+              </p>"""
+          text, count = pattern.subn(replacement, text, count=1)
+          if count != 1:
+              raise RuntimeError(f'limit copy count={count}')
 
           path.write_text(text)
-
           helper = Path('.github/workflows/apply-final-voice-demo-fix.yml')
           if helper.exists():
               helper.unlink()
