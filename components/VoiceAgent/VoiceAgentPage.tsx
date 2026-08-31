@@ -329,7 +329,28 @@ export function VoiceAgentPage() {
       if (message.setupComplete) {
         await startMicrophone();
         setCallState('listening');
-        setStatus('Listening — speak naturally');
+        setStatus('Connected — your AI receptionist is greeting you');
+
+        const socket = socketRef.current;
+        if (socket?.readyState === WebSocket.OPEN) {
+          socket.send(
+            JSON.stringify({
+              clientContent: {
+                turns: [
+                  {
+                    role: 'user',
+                    parts: [
+                      {
+                        text: 'The visitor just started the BuildMyBot public voice demo. Greet them now in one short, warm, natural sentence as a premium business receptionist. Then ask what kind of business they run or what they would like their receptionist to help with. Do not explain that this greeting was prompted.',
+                      },
+                    ],
+                  },
+                ],
+                turnComplete: true,
+              },
+            }),
+          );
+        }
         return;
       }
 
@@ -369,7 +390,15 @@ export function VoiceAgentPage() {
   const startConversation = async () => {
     if (callState !== 'idle' && callState !== 'error') return;
 
-    if (!navigator.mediaDevices?.getUserMedia || !window.AudioContext) {
+    const AudioContextClass =
+      window.AudioContext ||
+      (
+        window as typeof window & {
+          webkitAudioContext?: typeof AudioContext;
+        }
+      ).webkitAudioContext;
+
+    if (!navigator.mediaDevices?.getUserMedia || !AudioContextClass) {
       setCallState('error');
       setErrorMessage(
         'Live voice requires a modern browser with microphone access.',
@@ -378,12 +407,19 @@ export function VoiceAgentPage() {
     }
 
     setCallState('connecting');
-    setStatus('Securing a Gemini Live session');
+    setStatus('Starting your limited live demo');
     setErrorMessage('');
     setInputTranscript('');
     setOutputTranscript('');
 
     try {
+      const audioContext = new AudioContextClass({
+        latencyHint: 'interactive',
+      });
+      audioContextRef.current = audioContext;
+      nextPlaybackTimeRef.current = audioContext.currentTime;
+      await audioContext.resume();
+
       const tokenResponse = await fetch('/api/voice/live-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -392,11 +428,6 @@ export function VoiceAgentPage() {
       if (!tokenResponse.ok || !tokenPayload.token) {
         throw new Error(tokenPayload.error || 'Unable to start a live session');
       }
-
-      const audioContext = new AudioContext({ latencyHint: 'interactive' });
-      await audioContext.resume();
-      audioContextRef.current = audioContext;
-      nextPlaybackTimeRef.current = audioContext.currentTime;
 
       const url = `${GEMINI_LIVE_URL}?access_token=${encodeURIComponent(tokenPayload.token)}`;
       const socket = new WebSocket(url);
@@ -695,10 +726,22 @@ export function VoiceAgentPage() {
                   </>
                 )}
               </button>
-              <p className="mt-4 text-center text-xs leading-5 text-slate-500">
-                Your browser will request microphone access. The public demo is
-                conversational only; production customer agents can be wired to
-                approved tools, routing, CRM, and scheduling actions.
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-[11px] font-semibold text-slate-400">
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">
+                  90-second maximum
+                </span>
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">
+                  About 6 exchanges
+                </span>
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">
+                  Rate limited
+                </span>
+              </div>
+              <p className="mt-3 text-center text-xs leading-5 text-slate-500">
+                This is a real two-way Gemini Live conversation, not a
+                recording. The public showcase is intentionally short; customer
+                agents can run continuously with approved tools, routing, CRM,
+                and scheduling.
               </p>
             </div>
           </div>
