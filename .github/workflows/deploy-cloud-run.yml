@@ -157,6 +157,7 @@ jobs:
           # GitHub secret.
           load_secret_if_missing OPENROUTER_API_KEY_2 buildmybot-openrouter-api-key-2
           load_secret_if_missing OPENROUTER_API_KEY buildmybot-openrouter-api-key
+          load_secret_if_missing GEMINI_API_KEY buildmybot-gemini-api-key
 
       - name: Determine whether service already exists
         id: service
@@ -314,9 +315,27 @@ jobs:
             exit 5
           fi
 
+          voice_page_status="$(curl -sS -o /tmp/voice-agent.html -w '%{http_code}' --max-time 20 "${SERVICE_URL%/}/voice-agent")"
+          if [[ "$voice_page_status" != "200" ]]; then
+            echo "Standalone voice-agent page returned HTTP $voice_page_status" >&2
+            exit 6
+          fi
+
+          voice_token_status="$(curl -sS -o /tmp/voice-token.json -w '%{http_code}' --max-time 30 \
+            -X POST -H 'Content-Type: application/json' -H "Origin: $SERVICE_URL" \
+            "${SERVICE_URL%/}/api/voice/live-token")"
+          live_token="$(jq -r '.token // empty' /tmp/voice-token.json 2>/dev/null || true)"
+          if [[ "$voice_token_status" != "200" ]] || [[ -z "$live_token" ]]; then
+            echo "Gemini Live token smoke test failed with HTTP $voice_token_status" >&2
+            cat /tmp/voice-token.json >&2 || true
+            exit 7
+          fi
+
           echo "Cloud Run backend: $SERVICE_URL"
           echo "Verified SHA: $live_sha"
           echo "### BuildMyBot2 Cloud Run" >> "$GITHUB_STEP_SUMMARY"
           echo "- Service: $SERVICE_URL" >> "$GITHUB_STEP_SUMMARY"
           echo "- SHA: $live_sha" >> "$GITHUB_STEP_SUMMARY"
           echo "- /api/auth/user: HTTP $auth_status" >> "$GITHUB_STEP_SUMMARY"
+          echo "- /voice-agent: HTTP $voice_page_status" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Gemini Live one-use token: HTTP $voice_token_status" >> "$GITHUB_STEP_SUMMARY"
