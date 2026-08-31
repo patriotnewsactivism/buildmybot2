@@ -1,0 +1,188 @@
+name: Sync Lead Research Runtime
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/sync-lead-runtime.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: buildmybot2-sync-lead-runtime
+  cancel-in-progress: true
+
+env:
+  GCP_PROJECT_ID: buildmybot-507112
+  GCP_REGION: us-central1
+  GCP_SERVICE: buildmybot2
+  EXPECTED_GCP_SERVICE_ACCOUNT: buildmybotsa@buildmybot-507112.iam.gserviceaccount.com
+  GCP_WORKLOAD_IDENTITY_PROVIDER: projects/406797137160/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    env:
+      OPENROUTER_API_KEY_2: ${{ secrets.OPENROUTER_API_KEY_2 }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+      FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
+      BRAVE_SEARCH_API_KEY: ${{ secrets.BRAVE_SEARCH_API_KEY }}
+      GOOGLE_PLACES_API_KEY: ${{ secrets.GOOGLE_PLACES_API_KEY }}
+      YELP_API_KEY: ${{ secrets.YELP_API_KEY }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate with Google Workload Identity
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.EXPECTED_GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Resolve and attach lead-research credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if ! gcloud run services describe "$GCP_SERVICE" \
+            --project "$GCP_PROJECT_ID" --region "$GCP_REGION" \
+            --format=json >/tmp/service.json; then
+            echo 'BuildMyBot2 Cloud Run service is unavailable; refusing to create a replacement.' >&2
+            exit 2
+          fi
+
+          delim='__BMB_LEADS_5D93A__'
+          env_spec="^${delim}^"
+          has_env=false
+          secret_spec=''
+
+          add_env() {
+            local name="$1"
+            local value="$2"
+            [[ -n "$value" ]] || return 0
+            echo "::add-mask::$value"
+            if [[ "$has_env" == true ]]; then env_spec+="$delim"; fi
+            env_spec+="${name}=${value}"
+            has_env=true
+          }
+
+          add_secret() {
+            local name="$1"
+            local secret_name="$2"
+            [[ -n "$secret_name" ]] || return 0
+            if [[ -n "$secret_spec" ]]; then secret_spec+=','; fi
+            secret_spec+="${name}=${secret_name}:latest"
+          }
+
+          existing_has() {
+            local name="$1"
+            python3 - "$name" <<'PY'
+          import json, sys
+          name = sys.argv[1]
+          service = json.load(open('/tmp/service.json'))
+          containers = service.get('spec', {}).get('template', {}).get('spec', {}).get('containers', [])
+          env = containers[0].get('env', []) if containers else []
+          raise SystemExit(0 if any(item.get('name') == name for item in env) else 1)
+          PY
+          }
+
+          resolve() {
+            local name="$1"
+            shift
+            local current="${!name:-}"
+
+            if [[ -n "$current" ]]; then
+              add_env "$name" "$current"
+              echo "$name: using masked GitHub production secret."
+              return 0
+            fi
+
+            local candidate
+            for candidate in "$@"; do
+              if gcloud secrets describe "$candidate" --project "$GCP_PROJECT_ID" >/dev/null 2>&1; then
+                add_secret "$name" "$candidate"
+                echo "$name: attaching Google Secret Manager secret '$candidate'."
+                return 0
+              fi
+            done
+
+            if existing_has "$name"; then
+              echo "$name: already configured on Cloud Run; preserving it."
+              return 0
+            fi
+
+            echo "::warning::$name is not available in GitHub production secrets, recognized Secret Manager aliases, or the current Cloud Run service."
+          }
+
+          resolve OPENROUTER_API_KEY_2 \
+            buildmybot-openrouter-api-key-2 openrouter-api-key-2 OPENROUTER_API_KEY_2
+          resolve OPENROUTER_API_KEY \
+            buildmybot-openrouter-api-key openrouter-api-key OPENROUTER_API_KEY
+          resolve TAVILY_API_KEY \
+            buildmybot-tavily-api-key tavily-api-key TAVILY_API_KEY
+          resolve FIRECRAWL_API_KEY \
+            buildmybot-firecrawl-api-key firecrawl-api-key FIRECRAWL_API_KEY
+          resolve BRAVE_SEARCH_API_KEY \
+            buildmybot-brave-search-api-key brave-search-api-key BRAVE_SEARCH_API_KEY
+          resolve GOOGLE_PLACES_API_KEY \
+            buildmybot-google-places-api-key google-places-api-key GOOGLE_PLACES_API_KEY
+          resolve YELP_API_KEY \
+            buildmybot-yelp-api-key yelp-api-key YELP_API_KEY
+
+          args=(
+            --project "$GCP_PROJECT_ID"
+            --region "$GCP_REGION"
+            --platform managed
+          )
+          if [[ "$has_env" == true ]]; then args+=(--update-env-vars "$env_spec"); fi
+          if [[ -n "$secret_spec" ]]; then args+=(--update-secrets "$secret_spec"); fi
+
+          if [[ "$has_env" == true || -n "$secret_spec" ]]; then
+            gcloud run services update "$GCP_SERVICE" "${args[@]}" --quiet
+          else
+            echo 'No new credential sources found; existing Cloud Run configuration was left untouched.'
+          fi
+
+      - name: Report lead-research readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcloud run services describe "$GCP_SERVICE" \
+            --project "$GCP_PROJECT_ID" --region "$GCP_REGION" \
+            --format=json >/tmp/service-after.json
+
+          python3 - <<'PY'
+          import json
+          service = json.load(open('/tmp/service-after.json'))
+          containers = service.get('spec', {}).get('template', {}).get('spec', {}).get('containers', [])
+          env = {item.get('name'): item for item in (containers[0].get('env', []) if containers else [])}
+          names = [
+              'OPENROUTER_API_KEY_2', 'OPENROUTER_API_KEY', 'TAVILY_API_KEY',
+              'FIRECRAWL_API_KEY', 'BRAVE_SEARCH_API_KEY',
+              'GOOGLE_PLACES_API_KEY', 'YELP_API_KEY',
+          ]
+          print('BuildMyBot2 lead-research runtime:')
+          for name in names:
+              item = env.get(name)
+              if not item:
+                  print(f'- {name}: missing')
+              elif item.get('valueFrom'):
+                  print(f'- {name}: configured from Secret Manager')
+              else:
+                  print(f'- {name}: configured as a masked environment value')
+
+          if not (env.get('OPENROUTER_API_KEY_2') or env.get('OPENROUTER_API_KEY')):
+              raise SystemExit('OpenRouter is still missing from Cloud Run.')
+          if not env.get('TAVILY_API_KEY'):
+              print('::warning::TAVILY_API_KEY is still missing; the research swarm will fail safely until a Tavily key is supplied.')
+          PY
