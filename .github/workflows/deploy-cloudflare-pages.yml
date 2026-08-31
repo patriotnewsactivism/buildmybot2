@@ -127,11 +127,13 @@ jobs:
           for f in dist/_headers dist/_redirects dist/index.html; do
             [[ -f "$f" ]] || { echo "Missing $f in build output." >&2; exit 1; }
           done
-          [[ -f 'functions/api/[[path]].ts' ]] || {
-            echo 'Missing functions/api/[[path]].ts — /api/* would not reach Cloud Run.' >&2
-            exit 1
-          }
-          echo 'Build output contains _headers, _redirects and the API Pages Function.'
+          for f in 'functions/[[path]].ts' 'functions/api/[[path]].ts'; do
+            [[ -f "$f" ]] || {
+              echo "Missing $f — the public domain would not be backed by Cloud Run." >&2
+              exit 1
+            }
+          done
+          echo 'Build output and Cloud Run origin proxy are present.'
 
       - name: Deploy to Cloudflare Pages
         if: steps.gate.outputs.configured == 'true'
@@ -147,44 +149,50 @@ jobs:
             --commit-hash "$GITHUB_SHA" \
             --commit-message "$(git log -1 --pretty=%s)"
 
-      - name: Verify the public domain now reaches Cloud Run
+      - name: Verify the public domain is backed by the deployed Cloud Run revision
         if: steps.gate.outputs.configured == 'true'
         shell: bash
         run: |
           set -euo pipefail
-          # Pages purges asynchronously, so poll rather than asserting once.
           status=000
           body=''
-          for _ in $(seq 1 20); do
-            status="$(curl -sS -o /tmp/health.json -w '%{http_code}' --max-time 20 \
-              "${PUBLIC_SITE_URL%/}/api/health" || echo 000)"
+          live_sha=''
+          for _ in $(seq 1 30); do
+            status="$(curl -sS -D /tmp/public-headers.txt -o /tmp/health.json -w '%{http_code}' --max-time 20               "${PUBLIC_SITE_URL%/}/health" || true)"
             body="$(cat /tmp/health.json 2>/dev/null || true)"
-            if [[ "$status" == "200" ]] && grep -q '"service"' <<<"$body"; then
+            live_sha="$(jq -r '.build.sha // empty' /tmp/health.json 2>/dev/null || true)"
+            if [[ "$status" == "200" ]]               && [[ "$live_sha" == "$GITHUB_SHA" ]]               && grep -qi '^x-buildmybot-origin: cloud-run' /tmp/public-headers.txt; then
               break
             fi
-            sleep 15
+            sleep 10
           done
 
-          echo "GET ${PUBLIC_SITE_URL%/}/api/health -> HTTP $status"
+          echo "GET ${PUBLIC_SITE_URL%/}/health -> HTTP $status"
           echo "$body"
 
-          # The exact failure this workflow exists to eliminate. Railway's edge
-          # answers unknown hostnames with this shape; seeing it again means
-          # /api/* is still routed away from Cloud Run somewhere ahead of Pages
-          # (a Worker route or a DNS record), which a Pages deploy cannot fix.
-          if grep -q 'Application not found' <<<"$body"; then
-            echo "::error::/api/* is still served by the retired Railway app. A route ahead of Pages is intercepting it." >&2
+          if [[ "$status" != "200" ]]; then
+            echo "::error::Expected HTTP 200 from public /health, got $status." >&2
+            exit 1
+          fi
+          if [[ "$live_sha" != "$GITHUB_SHA" ]]; then
+            echo "::error::Public domain is not serving the deployed Cloud Run SHA. expected=$GITHUB_SHA actual=${live_sha:-unknown}" >&2
+            exit 1
+          fi
+          if ! grep -qi '^x-buildmybot-origin: cloud-run' /tmp/public-headers.txt; then
+            echo "::error::Public traffic is not passing through the Cloud Run origin proxy." >&2
             exit 1
           fi
 
-          if [[ "$status" != "200" ]]; then
-            echo "::error::Expected HTTP 200 from /api/health, got $status." >&2
+          voice_status="$(curl -sS -o /tmp/voice-agent.html -w '%{http_code}' --max-time 20             "${PUBLIC_SITE_URL%/}/voice-agent")"
+          if [[ "$voice_status" != "200" ]]; then
+            echo "::error::Standalone voice-agent page returned HTTP $voice_status." >&2
             exit 1
           fi
 
           {
-            echo "### BuildMyBot frontend deployed"
-            echo "- Commit: \`$GITHUB_SHA\`"
+            echo "### BuildMyBot Cloud Run frontend deployed"
+            echo "- Commit: `$GITHUB_SHA`"
             echo "- Public health: HTTP $status"
-            echo "- \`/api/*\` is served by Cloud Run."
+            echo "- Voice page: HTTP $voice_status"
+            echo "- Public traffic is served from the Cloud Run revision."
           } >> "$GITHUB_STEP_SUMMARY"

@@ -10,6 +10,7 @@ import userHandler from './api/auth/user.js';
 import cronHandler from './api/cron/[job].js';
 // Import API handlers (tsx resolves .js -> .ts automatically)
 import gatewayHandler from './api/gateway.js';
+import liveTokenHandler from './api/voice/live-token.js';
 import stripeWebhookHandler from './api/stripe-webhook.js';
 
 const app = express();
@@ -77,6 +78,12 @@ app.all('/api/cron/:job', async (req, res) => {
     enumerable: true,
   });
   await cronHandler(req as any, res as any);
+});
+
+// Gemini Live ephemeral tokens are minted server-side so the permanent API
+// key never enters the browser bundle.
+app.all('/api/voice/live-token', async (req, res) => {
+  await liveTokenHandler(req as any, res as any);
 });
 
 // Gateway handles everything else under /api/*.

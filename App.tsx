@@ -50,6 +50,7 @@ import {
   type PartnerTab,
 } from './components/Partner/PartnerDashboardV2';
 import { PhoneAgent } from './components/PhoneAgent/PhoneAgent';
+import { VoiceAgentPage } from './components/VoiceAgent/VoiceAgentPage';
 import { ServiceCatalog } from './components/Services/ServiceCatalog';
 import { Settings } from './components/Settings/Settings';
 import { StatusPage } from './components/Status/StatusPage';
@@ -145,8 +146,9 @@ function App() {
 
   const hostname =
     typeof window !== 'undefined' ? window.location.hostname.toLowerCase() : '';
-  const isBuildMyBotHost =
-    hostname === 'buildmybot.app' || hostname.endsWith('.buildmybot.app');
+  const isBuildMyBotHost = ['buildmybot.app', 'buildmmybot.app'].some(
+    (domain) => hostname === domain || hostname.endsWith(`.${domain}`),
+  );
 
   const openAuth = (mode: 'login' | 'signup') => {
     setAuthMode(mode);
@@ -514,6 +516,7 @@ function App() {
         />
         <Route path="/status" element={<StatusPage />} />
         <Route path="/chat/:botId" element={<ChatRoute />} />
+        <Route path="/voice-agent" element={<VoiceAgentPage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/blog" element={<BlogPage />} />
         <Route path="/blog/:articleId" element={<ArticleRoute />} />

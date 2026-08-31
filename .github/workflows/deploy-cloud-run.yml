@@ -5,6 +5,17 @@ on:
     branches: [main]
     paths:
       - 'api/**'
+      - 'components/**'
+      - 'hooks/**'
+      - 'services/**'
+      - 'src/**'
+      - 'public/**'
+      - 'App.tsx'
+      - 'index.tsx'
+      - 'index.html'
+      - 'vite.config.ts'
+      - 'postcss.config.js'
+      - 'tailwind.config.js'
       - 'shared/**'
       - 'server.ts'
       - 'constants.ts'
