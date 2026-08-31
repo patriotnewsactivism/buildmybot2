@@ -17,29 +17,27 @@ jobs:
         with:
           ref: ${{ github.ref_name }}
           fetch-depth: 0
+
       - name: Patch public demo interaction
         shell: python
         run: |
           from pathlib import Path
+          import re
 
           path = Path('components/VoiceAgent/VoiceAgentPage.tsx')
           text = path.read_text()
 
-          def replace_once(old: str, new: str, label: str):
+          def sub(pattern: str, replacement: str, label: str, flags=0):
               global text
-              count = text.count(old)
+              text, count = re.subn(pattern, replacement, text, count=1, flags=flags)
               if count != 1:
                   raise RuntimeError(f'{label}: expected one match, found {count}')
-              text = text.replace(old, new, 1)
 
-          replace_once(
-              """      if (message.setupComplete) {
-                await startMicrophone();
-                setCallState('listening');
-                setStatus('Listening — speak naturally');
-                return;
-              }""",
-              """      if (message.setupComplete) {
+          # Start the demo like a real receptionist instead of silently waiting
+          # for the visitor to guess that they should speak first.
+          sub(
+              r"if \(message\.setupComplete\) \{\s*await startMicrophone\(\);\s*setCallState\('listening'\);\s*setStatus\('Listening — speak naturally'\);\s*return;\s*\}",
+              """if (message.setupComplete) {
                 await startMicrophone();
                 setCallState('listening');
                 setStatus('Connected — your AI receptionist is greeting you');
@@ -69,18 +67,10 @@ jobs:
               'automatic greeting',
           )
 
-          replace_once(
-              """    if (!navigator.mediaDevices?.getUserMedia || !window.AudioContext) {
-              setCallState('error');
-              setErrorMessage(
-                'Live voice requires a modern browser with microphone access.',
-              );
-              return;
-            }
-
-            setCallState('connecting');
-            setStatus('Securing a Gemini Live session');""",
-              """    const AudioContextClass =
+          # Safari/iOS still exposes webkitAudioContext on some versions.
+          sub(
+              r"if \(!navigator\.mediaDevices\?\.getUserMedia \|\| !window\.AudioContext\) \{",
+              """const AudioContextClass =
               window.AudioContext ||
               (
                 window as typeof window & {
@@ -88,26 +78,21 @@ jobs:
                 }
               ).webkitAudioContext;
 
-            if (!navigator.mediaDevices?.getUserMedia || !AudioContextClass) {
-              setCallState('error');
-              setErrorMessage(
-                'Live voice requires a modern browser with microphone access.',
-              );
-              return;
-            }
-
-            setCallState('connecting');
-            setStatus('Starting your limited live demo');""",
+            if (!navigator.mediaDevices?.getUserMedia || !AudioContextClass) {""",
               'mobile audio compatibility',
           )
 
-          replace_once(
-              """    try {
-              const tokenResponse = await fetch('/api/voice/live-token', {""",
-              """    try {
-              // Resume browser audio from the visitor's original tap. Some
-              // mobile browsers block playback if AudioContext is created only
-              // after an asynchronous network request has completed.
+          text = text.replace(
+              "setStatus('Securing a Gemini Live session');",
+              "setStatus('Starting your limited live demo');",
+              1,
+          )
+
+          # Resume audio during the original button gesture, before an async
+          # fetch can consume transient user activation on mobile browsers.
+          sub(
+              r"try \{\s*const tokenResponse = await fetch\('/api/voice/live-token', \{",
+              """try {
               const audioContext = new AudioContextClass({ latencyHint: 'interactive' });
               audioContextRef.current = audioContext;
               nextPlaybackTimeRef.current = audioContext.currentTime;
@@ -117,56 +102,53 @@ jobs:
               'activate audio before token request',
           )
 
-          replace_once(
-              """      const audioContext = new AudioContext({ latencyHint: 'interactive' });
-              await audioContext.resume();
-              audioContextRef.current = audioContext;
-              nextPlaybackTimeRef.current = audioContext.currentTime;
-
-              const url = `${GEMINI_LIVE_URL}?access_token=${encodeURIComponent(tokenPayload.token)}`;""",
-              """      const url = `${GEMINI_LIVE_URL}?access_token=${encodeURIComponent(tokenPayload.token)}`;""",
+          # Remove the old delayed AudioContext creation after token issuance.
+          sub(
+              r"\s*const audioContext = new AudioContext\(\{ latencyHint: 'interactive' \}\);\s*await audioContext\.resume\(\);\s*audioContextRef\.current = audioContext;\s*nextPlaybackTimeRef\.current = audioContext\.currentTime;",
+              "",
               'remove delayed audio context',
           )
 
-          replace_once(
-              """              <p className=\"mt-4 text-center text-xs leading-5 text-slate-500\">
-                          Your browser will request microphone access. The public demo is
-                          conversational only; production customer agents can be wired to
-                          approved tools, routing, CRM, and scheduling actions.
-                        </p>""",
-              """              <div className=\"mt-4 flex flex-wrap items-center justify-center gap-2 text-[11px] font-semibold text-slate-400\">
-                          <span className=\"rounded-full border border-white/10 bg-white/5 px-3 py-1.5\">
-                            90-second maximum
-                          </span>
-                          <span className=\"rounded-full border border-white/10 bg-white/5 px-3 py-1.5\">
-                            About 6 exchanges
-                          </span>
-                          <span className=\"rounded-full border border-white/10 bg-white/5 px-3 py-1.5\">
-                            Rate limited
-                          </span>
-                        </div>
-                        <p className=\"mt-3 text-center text-xs leading-5 text-slate-500\">
-                          This is a real two-way Gemini Live conversation, not a recording.
-                          The public showcase is intentionally short; customer agents can
-                          run continuously with approved tools, routing, CRM, and scheduling.
-                        </p>""",
+          # Show visitors that the showcase is intentionally limited. The real
+          # enforcement remains server-side in the one-use ephemeral token.
+          sub(
+              r"<p className=\"mt-4 text-center text-xs leading-5 text-slate-500\">\s*Your browser will request microphone access\. The public demo is\s*conversational only; production customer agents can be wired to\s*approved tools, routing, CRM, and scheduling actions\.\s*</p>",
+              """<div className=\"mt-4 flex flex-wrap items-center justify-center gap-2 text-[11px] font-semibold text-slate-400\">
+                <span className=\"rounded-full border border-white/10 bg-white/5 px-3 py-1.5\">
+                  90-second maximum
+                </span>
+                <span className=\"rounded-full border border-white/10 bg-white/5 px-3 py-1.5\">
+                  About 6 exchanges
+                </span>
+                <span className=\"rounded-full border border-white/10 bg-white/5 px-3 py-1.5\">
+                  Rate limited
+                </span>
+              </div>
+              <p className=\"mt-3 text-center text-xs leading-5 text-slate-500\">
+                This is a real two-way Gemini Live conversation, not a recording.
+                The public showcase is intentionally short; customer agents can
+                run continuously with approved tools, routing, CRM, and scheduling.
+              </p>""",
               'visible demo limits',
           )
 
           path.write_text(text)
 
+          # One-time implementation/diagnostic workflows never belong in main.
           for temporary in [
               Path('.github/workflows/diagnose-public-voice-demo.yml'),
               Path('.github/workflows/apply-voice-demo-fix.yml'),
           ]:
               if temporary.exists():
                   temporary.unlink()
+
       - name: Install, format, test and build
         run: |
           npm ci
           npx --no-install biome check --write components/VoiceAgent/VoiceAgentPage.tsx
           npm run test:run -- --exclude test/voice-agent.test.ts
           npm run build
+
       - name: Commit repair
         run: |
           git config user.name "github-actions[bot]"
