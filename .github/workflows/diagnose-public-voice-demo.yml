@@ -1,0 +1,111 @@
+name: Diagnose public voice demo
+
+on:
+  push:
+    branches:
+      - fix/voice-agent-demo-limits
+
+permissions:
+  contents: read
+
+jobs:
+  handshake:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Exercise production ephemeral token and constrained websocket
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import WebSocket from 'ws';
+
+          const tokenResponse = await fetch('https://buildmybot.app/api/voice/live-token', {
+            method: 'POST',
+            headers: {
+              Origin: 'https://buildmybot.app',
+              'Content-Type': 'application/json',
+            },
+          });
+          const body = await tokenResponse.text();
+          console.log('token status', tokenResponse.status);
+          console.log('token body', body.slice(0, 800));
+          if (!tokenResponse.ok) process.exit(2);
+          const payload = JSON.parse(body);
+          if (!payload.token) process.exit(3);
+
+          const url = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained?access_token=${encodeURIComponent(payload.token)}`;
+          const ws = new WebSocket(url);
+          const timeout = setTimeout(() => {
+            console.error('Timed out waiting for setupComplete');
+            ws.terminate();
+            process.exit(4);
+          }, 15000);
+
+          ws.on('open', () => {
+            console.log('websocket open');
+            ws.send(JSON.stringify({
+              setup: {
+                model: `models/${payload.model || 'gemini-3.1-flash-live-preview'}`,
+                generationConfig: {
+                  responseModalities: ['AUDIO'],
+                  speechConfig: {
+                    voiceConfig: {
+                      prebuiltVoiceConfig: { voiceName: 'Kore' },
+                    },
+                  },
+                  thinkingConfig: { thinkingLevel: 'minimal' },
+                },
+                inputAudioTranscription: {},
+                outputAudioTranscription: {},
+                realtimeInputConfig: {
+                  automaticActivityDetection: {
+                    disabled: false,
+                    startOfSpeechSensitivity: 'START_SENSITIVITY_HIGH',
+                    endOfSpeechSensitivity: 'END_SENSITIVITY_LOW',
+                    prefixPaddingMs: 40,
+                    silenceDurationMs: 750,
+                  },
+                  activityHandling: 'START_OF_ACTIVITY_INTERRUPTS',
+                  turnCoverage: 'TURN_INCLUDES_ONLY_ACTIVITY',
+                },
+                systemInstruction: {
+                  parts: [{ text: 'BuildMyBot public voice demo diagnostic.' }],
+                },
+              },
+            }));
+          });
+
+          ws.on('message', (raw) => {
+            const text = raw.toString();
+            console.log('server message', text.slice(0, 1200));
+            const msg = JSON.parse(text);
+            if (msg.setupComplete !== undefined) {
+              clearTimeout(timeout);
+              console.log('SETUP_COMPLETE_OK');
+              ws.close(1000, 'diagnostic complete');
+            }
+            if (msg.error) {
+              clearTimeout(timeout);
+              console.error('GEMINI_ERROR', JSON.stringify(msg.error));
+              ws.close();
+              process.exitCode = 5;
+            }
+          });
+
+          ws.on('error', (error) => {
+            clearTimeout(timeout);
+            console.error('WS_ERROR', error.message);
+            process.exitCode = 6;
+          });
+
+          ws.on('close', (code, reason) => {
+            clearTimeout(timeout);
+            console.log('websocket close', code, reason.toString());
+          });
+          NODE
