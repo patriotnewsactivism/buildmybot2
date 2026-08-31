@@ -147,7 +147,10 @@ async function createCallLog(options: {
 }
 
 function mediaStreamUrl(): string {
-  const base = APP_BASE_URL.replace(/^https:/i, 'wss:').replace(/^http:/i, 'ws:');
+  const base = APP_BASE_URL.replace(/^https:/i, 'wss:').replace(
+    /^http:/i,
+    'ws:',
+  );
   return `${base.replace(/\/$/, '')}/api/voice/twilio-media`;
 }
 
@@ -324,7 +327,10 @@ export async function inboundVoiceRespond(
     );
     if (aiResponse.length > 500) aiResponse = `${aiResponse.slice(0, 497)}...`;
   } catch (error: any) {
-    console.error('[twilio][inbound] Response generation failed:', error.message);
+    console.error(
+      '[twilio][inbound] Response generation failed:',
+      error.message,
+    );
   }
 
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -361,9 +367,13 @@ export async function inboundStatusCallback(
   const url = new URL(req.url || '/', 'http://localhost');
   const logId = url.searchParams.get('logId') || '';
 
-  const terminal = ['completed', 'busy', 'no-answer', 'failed', 'canceled'].includes(
-    callStatus,
-  );
+  const terminal = [
+    'completed',
+    'busy',
+    'no-answer',
+    'failed',
+    'canceled',
+  ].includes(callStatus);
   if (terminal) {
     const filter = logId
       ? `id=eq.${encodeURIComponent(logId)}`

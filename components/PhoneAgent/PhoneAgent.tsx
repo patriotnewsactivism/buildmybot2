@@ -1,8 +1,11 @@
 import {
+  Bell,
+  Calendar,
   Database,
   Loader,
   Mic,
   Phone,
+  PhoneForwarded,
   Save,
   Settings,
   Sparkles,
@@ -46,6 +49,18 @@ export const PhoneAgent: React.FC<PhoneAgentProps> = ({ user, onUpdate }) => {
     user?.phoneConfig?.introMessage ||
       'Hi! Thanks for calling. This is your AI assistant. How can I help you today?',
   );
+  const [geminiVoice, setGeminiVoice] = useState(
+    user?.phoneConfig?.geminiVoice || 'Aoede',
+  );
+  const [transferNumber, setTransferNumber] = useState(
+    user?.phoneConfig?.transferNumber || '',
+  );
+  const [hotLeadNumber, setHotLeadNumber] = useState(
+    user?.phoneConfig?.hotLeadNumber || '',
+  );
+  const [bookingWebhookUrl, setBookingWebhookUrl] = useState(
+    user?.phoneConfig?.bookingWebhookUrl || '',
+  );
   const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isPlayingPreview, setIsPlayingPreview] = useState<string | null>(null);
@@ -58,6 +73,10 @@ export const PhoneAgent: React.FC<PhoneAgentProps> = ({ user, onUpdate }) => {
       if (user.phoneConfig.voiceId) setVoice(user.phoneConfig.voiceId);
       if (user.phoneConfig.introMessage)
         setIntroMessage(user.phoneConfig.introMessage);
+      setGeminiVoice(user.phoneConfig.geminiVoice || 'Aoede');
+      setTransferNumber(user.phoneConfig.transferNumber || '');
+      setHotLeadNumber(user.phoneConfig.hotLeadNumber || '');
+      setBookingWebhookUrl(user.phoneConfig.bookingWebhookUrl || '');
     }
   }, [user?.phoneConfig]);
 
@@ -120,6 +139,10 @@ export const PhoneAgent: React.FC<PhoneAgentProps> = ({ user, onUpdate }) => {
             enabled,
             voiceId: voice,
             introMessage,
+            geminiVoice,
+            transferNumber: transferNumber.trim() || undefined,
+            hotLeadNumber: hotLeadNumber.trim() || undefined,
+            bookingWebhookUrl: bookingWebhookUrl.trim() || undefined,
           },
         });
       }
@@ -170,11 +193,12 @@ export const PhoneAgent: React.FC<PhoneAgentProps> = ({ user, onUpdate }) => {
         </div>
         <div>
           <p className="font-semibold text-slate-800 text-sm">
-            Powered by the platform voice engine
+            Powered by Gemini Live
           </p>
           <p className="text-sm text-slate-600 mt-0.5">
-            Realistic Grok voices are built in — no third-party API key to set
-            up. Pick a voice, write your greeting, and test it live below.
+            Production phone calls use a realtime two-way Gemini Live session
+            with natural pauses, barge-in, business knowledge, tool actions,
+            hot-lead alerts, and optional human handoff.
           </p>
         </div>
       </div>
@@ -206,12 +230,92 @@ export const PhoneAgent: React.FC<PhoneAgentProps> = ({ user, onUpdate }) => {
 
           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
             <div className="flex items-center gap-2 mb-4">
+              <div className="p-2 bg-emerald-50 text-emerald-700 rounded-lg">
+                <PhoneForwarded size={18} />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-800">
+                  Realtime Call Actions
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Configure the actions Gemini Live is allowed to perform on
+                  real calls.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <label className="text-sm text-slate-700">
+                <span className="block font-medium mb-1">
+                  Gemini Live voice
+                </span>
+                <select
+                  value={geminiVoice}
+                  onChange={(event) => setGeminiVoice(event.target.value)}
+                  className="w-full rounded-lg border border-slate-200 p-2.5 bg-white focus:ring-2 focus:ring-blue-500"
+                >
+                  {['Aoede', 'Puck', 'Charon', 'Kore', 'Fenrir'].map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="text-sm text-slate-700">
+                <span className="flex items-center gap-1 font-medium mb-1">
+                  <PhoneForwarded size={14} /> Human handoff number
+                </span>
+                <input
+                  type="tel"
+                  value={transferNumber}
+                  onChange={(event) => setTransferNumber(event.target.value)}
+                  placeholder="+1 555 123 4567"
+                  className="w-full rounded-lg border border-slate-200 p-2.5 focus:ring-2 focus:ring-blue-500"
+                />
+              </label>
+
+              <label className="text-sm text-slate-700">
+                <span className="flex items-center gap-1 font-medium mb-1">
+                  <Bell size={14} /> Hot-lead SMS number
+                </span>
+                <input
+                  type="tel"
+                  value={hotLeadNumber}
+                  onChange={(event) => setHotLeadNumber(event.target.value)}
+                  placeholder="Defaults to handoff number"
+                  className="w-full rounded-lg border border-slate-200 p-2.5 focus:ring-2 focus:ring-blue-500"
+                />
+              </label>
+
+              <label className="text-sm text-slate-700">
+                <span className="flex items-center gap-1 font-medium mb-1">
+                  <Calendar size={14} /> Appointment webhook
+                </span>
+                <input
+                  type="url"
+                  value={bookingWebhookUrl}
+                  onChange={(event) => setBookingWebhookUrl(event.target.value)}
+                  placeholder="https://your-app.example/webhooks/book"
+                  className="w-full rounded-lg border border-slate-200 p-2.5 focus:ring-2 focus:ring-blue-500"
+                />
+              </label>
+            </div>
+
+            <p className="text-xs text-slate-500 mt-4">
+              The agent never claims an action succeeded unless the connected
+              service confirms it. Leave an action blank to disable it.
+            </p>
+          </div>
+
+          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+            <div className="flex items-center gap-2 mb-4">
               <div className="p-2 bg-blue-50 text-blue-900 rounded-lg">
                 <Mic size={18} />
               </div>
               <h3 className="font-bold text-slate-800">Select Voice</h3>
               <span className="text-xs text-slate-500 ml-auto">
-                Powered by Grok
+                Preview / fallback voice
               </span>
             </div>
 

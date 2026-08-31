@@ -65,7 +65,8 @@ type SessionContext = {
 };
 
 function streamSigningSecret(): string {
-  const secret = process.env.TWILIO_AUTH_TOKEN || process.env.SESSION_JWT_SECRET;
+  const secret =
+    process.env.TWILIO_AUTH_TOKEN || process.env.SESSION_JWT_SECRET;
   if (!secret) {
     throw new Error('No secure Twilio stream signing secret is configured');
   }
@@ -193,10 +194,8 @@ export function pcm24kToMuLaw8k(payload: string): string {
     const sourceIndex = index * 3;
     const offset = sourceIndex * 2;
     const a = input.readInt16LE(offset);
-    const b =
-      sourceIndex + 1 < sampleCount ? input.readInt16LE(offset + 2) : a;
-    const c =
-      sourceIndex + 2 < sampleCount ? input.readInt16LE(offset + 4) : b;
+    const b = sourceIndex + 1 < sampleCount ? input.readInt16LE(offset + 2) : a;
+    const c = sourceIndex + 2 < sampleCount ? input.readInt16LE(offset + 4) : b;
     output[index] = encodeMuLawSample((a + b + c) / 3);
   }
 
@@ -402,10 +401,14 @@ async function patchCallLog(
   patch: JsonObject,
 ): Promise<boolean> {
   if (!logId) return false;
-  const result = await sbRequest('call_logs', `id=eq.${encodeURIComponent(logId)}`, {
-    method: 'PATCH',
-    body: JSON.stringify(patch),
-  });
+  const result = await sbRequest(
+    'call_logs',
+    `id=eq.${encodeURIComponent(logId)}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    },
+  );
   return result.ok;
 }
 
@@ -473,9 +476,15 @@ async function captureLead(
     ? Math.max(0, Math.min(100, Math.round(scoreValue)))
     : 50;
   const phone = String(args.phone || context.callerNumber || '').trim();
-  const email = String(args.email || '').trim().slice(0, 255);
-  const name = String(args.name || 'Phone caller').trim().slice(0, 255);
-  const summary = String(args.summary || '').trim().slice(0, 4000);
+  const email = String(args.email || '')
+    .trim()
+    .slice(0, 255);
+  const name = String(args.name || 'Phone caller')
+    .trim()
+    .slice(0, 255);
+  const summary = String(args.summary || '')
+    .trim()
+    .slice(0, 4000);
   const leadId = randomUUID();
   const now = new Date().toISOString();
 
@@ -549,7 +558,10 @@ async function transferToHuman(
   try {
     const twilio = (await import('twilio')).default;
     const client = twilio(accountSid, authToken);
-    const reason = String(args.reason || 'Human handoff requested').slice(0, 300);
+    const reason = String(args.reason || 'Human handoff requested').slice(
+      0,
+      300,
+    );
     const alert = await sendHotLeadAlert(context, {
       name: String(args.callerName || 'Caller'),
       phone: context.callerNumber,
@@ -592,7 +604,10 @@ async function requestAppointment(
     'bookingWebhookUrl',
   );
   if (!bookingWebhookUrl) {
-    return { success: false, reason: 'Scheduling integration is not configured' };
+    return {
+      success: false,
+      reason: 'Scheduling integration is not configured',
+    };
   }
 
   try {
@@ -771,7 +786,9 @@ export function handleTwilioMediaConnection(
         return;
       }
 
-      gemini = new WebSocket(`${GEMINI_WS_URL}?key=${encodeURIComponent(apiKey)}`);
+      gemini = new WebSocket(
+        `${GEMINI_WS_URL}?key=${encodeURIComponent(apiKey)}`,
+      );
       gemini.on('open', () => {
         if (context && gemini) setupGeminiSession(gemini, context);
       });
@@ -779,7 +796,9 @@ export function handleTwilioMediaConnection(
         if (!context || !gemini) return;
         let response: GeminiMessage;
         try {
-          response = JSON.parse(parseSocketMessage(geminiData)) as GeminiMessage;
+          response = JSON.parse(
+            parseSocketMessage(geminiData),
+          ) as GeminiMessage;
         } catch {
           return;
         }
