@@ -23,6 +23,10 @@ export interface PhoneAgentConfig {
   phoneNumber?: string;
   voiceId: string;
   introMessage: string;
+  geminiVoice?: string;
+  transferNumber?: string;
+  hotLeadNumber?: string;
+  bookingWebhookUrl?: string;
   delegationLink?: string;
   twilioSid?: string;
 }
