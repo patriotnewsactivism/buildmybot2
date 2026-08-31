@@ -8,18 +8,23 @@ process.env.TWILIO_AUTH_TOKEN = 'test-twilio-auth-token';
 process.env.TWILIO_ACCOUNT_SID = '';
 process.env.APP_BASE_URL = 'https://buildmybot.app';
 
-let createTwilioStreamToken: typeof import(
-  '../api/voice/twilio-live.ts',
-).createTwilioStreamToken;
-let muLaw8kToPcm16k: typeof import(
-  '../api/voice/twilio-live.ts',
-).muLaw8kToPcm16k;
-let pcm24kToMuLaw8k: typeof import(
-  '../api/voice/twilio-live.ts',
-).pcm24kToMuLaw8k;
-let inboundVoiceHandler: typeof import(
-  '../api/twilio/inbound.ts',
-).inboundVoiceHandler;
+interface StreamTokenInput {
+  callSid: string;
+  botId: string;
+  logId: string;
+}
+
+type StreamTokenSigner = (input: StreamTokenInput) => string;
+type AudioConverter = (payload: string) => string;
+type InboundVoiceHandler = (
+  req: VercelRequest,
+  res: VercelResponse,
+) => Promise<unknown>;
+
+let createTwilioStreamToken: StreamTokenSigner;
+let muLaw8kToPcm16k: AudioConverter;
+let pcm24kToMuLaw8k: AudioConverter;
+let inboundVoiceHandler: InboundVoiceHandler;
 
 beforeAll(async () => {
   const bridge = await import('../api/voice/twilio-live.ts');
