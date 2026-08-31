@@ -248,20 +248,39 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if ! gcloud beta run domain-mappings describe "$PUBLIC_DOMAIN" \
+          if gcloud beta run domain-mappings describe "$PUBLIC_DOMAIN" \
             --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --quiet >/dev/null 2>&1; then
-            gcloud beta run domain-mappings create \
-              --service "$GCP_SERVICE" \
-              --domain "$PUBLIC_DOMAIN" \
+            gcloud beta run domain-mappings describe "$PUBLIC_DOMAIN" \
               --project "$GCP_PROJECT_ID" \
               --region "$GCP_REGION" \
-              --quiet
-          fi
-
-          gcloud beta run domain-mappings describe "$PUBLIC_DOMAIN" \
+              --format='yaml(status.resourceRecords,status.conditions)'
+          elif mapping_output="$(gcloud beta run domain-mappings create \
+            --service "$GCP_SERVICE" \
+            --domain "$PUBLIC_DOMAIN" \
             --project "$GCP_PROJECT_ID" \
             --region "$GCP_REGION" \
-            --format='yaml(status.resourceRecords,status.conditions)'
+            --quiet 2>&1)"; then
+            echo "$mapping_output"
+            gcloud beta run domain-mappings describe "$PUBLIC_DOMAIN" \
+              --project "$GCP_PROJECT_ID" \
+              --region "$GCP_REGION" \
+              --format='yaml(status.resourceRecords,status.conditions)'
+          elif [[ "$mapping_output" == *"does not appear to be verified"* ]]; then
+            echo "$mapping_output" >&2
+            {
+              echo "### Custom domain awaits Google ownership verification"
+              echo
+              echo "The Cloud Run application is deployed, but \`$PUBLIC_DOMAIN\` cannot be mapped until the base domain is verified."
+              echo
+              echo "1. Verify \`buildmybot.app\` in [Google Search Console](https://search.google.com/search-console/welcome)."
+              echo "2. In Search Console, add \`$EXPECTED_GCP_SERVICE_ACCOUNT\` as a verified owner."
+              echo "3. Re-run this workflow. It will create the Cloud Run mapping and print the required DNS records."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::warning::Cloud Run custom-domain mapping awaits Google Search Console ownership verification."
+          else
+            echo "$mapping_output" >&2
+            exit 1
+          fi
 
       - name: Report agent runtime readiness
         shell: bash
