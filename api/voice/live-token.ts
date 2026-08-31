@@ -83,14 +83,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         uses: 1,
         expireTime,
         newSessionExpireTime,
-        liveConnectConstraints: {
-          model: GEMINI_MODEL,
-          config: {
-            responseModalities: ['AUDIO'],
-            inputAudioTranscription: {},
-            outputAudioTranscription: {},
-          },
-        },
       }),
     });
 
