@@ -92,6 +92,33 @@ app.all('/api/{*path}', async (req, res) => {
   await gatewayHandler(req as any, res as any);
 });
 
+// Response headers that used to come from `_headers`.
+//
+// That file is a Cloudflare Pages / Netlify feature. Now that Cloud Run serves
+// the built frontend directly through express.static, nothing reads it, so the
+// site silently lost every header it declared. Reproduced against production:
+// GET / returned no x-content-type-options, no referrer-policy, and /embed.js
+// no access-control-allow-origin.
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+
+  if (req.path === '/embed.js') {
+    // The loader is fetched from arbitrary customer origins.
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+  }
+
+  if (req.path.startsWith('/chat/')) {
+    // The widget renders this route inside an iframe on customer sites.
+    // Stated explicitly rather than relying on the absence of X-Frame-Options.
+    res.setHeader('Content-Security-Policy', 'frame-ancestors *');
+  }
+
+  next();
+});
+
 // Static frontend (built by Vite)
 app.use(express.static(path.join(__dirname, 'dist')));
 
