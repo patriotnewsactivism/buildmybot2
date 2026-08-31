@@ -1,0 +1,104 @@
+
+> buildmybot@1.0.0 test:run
+> vitest run --exclude test/voice-agent.test.ts
+
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90m/home/runner/work/buildmybot2/buildmybot2[39m
+
+ [32m✓[39m test/middleware/validation-security.test.ts [2m([22m[2m49 tests[22m[2m)[22m[32m 23[2mms[22m[39m
+ [32m✓[39m test/e2e/user-flows.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 45[2mms[22m[39m
+ [32m✓[39m test/api/phone-and-users.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 42[2mms[22m[39m
+ [32m✓[39m test/middleware/tenant-isolation.test.ts [2m([22m[2m37 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+[90mstderr[2m | test/api/gateway.test.ts[2m > [22m[2mapi/gateway.ts — chat endpoint is public[2m > [22m[2mallows unauthenticated chat requests (embedded widget use case)
+[22m[39m[logAgentError] failed to log: No OpenRouter credential is configured. Set OPENROUTER_API_KEY_2 or OPENROUTER_API_KEY. TypeError: response.text is not a function
+    at supabaseFetch [90m(/home/runner/work/buildmybot2/buildmybot2/[39mapi/ai-team/lib.ts:246:31[90m)[39m
+[90m    at processTicksAndRejections (node:internal/process/task_queues:103:5)[39m
+    at logAgentError [90m(/home/runner/work/buildmybot2/buildmybot2/[39mapi/ai-team/lib.ts:514:5[90m)[39m
+    at providerChainExhausted [90m(/home/runner/work/buildmybot2/buildmybot2/[39mapi/ai-team/lib.ts:123:3[90m)[39m
+    at callLLMMessages [90m(/home/runner/work/buildmybot2/buildmybot2/[39mapi/ai-team/lib.ts:160:9[90m)[39m
+    at handleChat [90m(/home/runner/work/buildmybot2/buildmybot2/[39mapi/gateway.ts:3149:13[90m)[39m
+    at handler [90m(/home/runner/work/buildmybot2/buildmybot2/[39mapi/gateway.ts:5676:38[90m)[39m
+    at [90m/home/runner/work/buildmybot2/buildmybot2/[39mtest/api/gateway.test.ts:322:5
+
+[90mstderr[2m | test/api/gateway.test.ts[2m > [22m[2mapi/gateway.ts — chat endpoint is public[2m > [22m[2mallows unauthenticated chat requests (embedded widget use case)
+[22m[39m[chat] LLM call failed: No OpenRouter credential is configured. Set OPENROUTER_API_KEY_2 or OPENROUTER_API_KEY.
+
+ [32m✓[39m test/api/gateway.test.ts [2m([22m[2m19 tests[22m[2m)[22m[32m 47[2mms[22m[39m
+ [32m✓[39m test/middleware/authentication.test.ts [2m([22m[2m31 tests[22m[2m)[22m[32m 24[2mms[22m[39m
+ [32m✓[39m test/realtime-voice-bridge.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 104[2mms[22m[39m
+[90mstderr[2m | test/components/BotBuilder/KnowledgeBaseManager.test.tsx[2m > [22m[2mKnowledgeBaseManager[2m > [22m[2mhandles file upload
+[22m[39mFailed to fetch sources: TypeError: Cannot read properties of undefined (reading 'ok')
+    at [90m/home/runner/work/buildmybot2/buildmybot2/[39mcomponents/BotBuilder/KnowledgeBaseManager.tsx:82:20
+
+[90mstderr[2m | test/dry-run-safety.test.ts[2m > [22m[2minitiateOutboundCall dry-run gate[2m > [22m[2mnever calls the Twilio SDK while dry-run is active, even with Twilio fully configured
+[22m[39m[twilio][DRY RUN] Would call +15559876543 for lead lead-1 (objective: test call)
+
+ [32m✓[39m test/dry-run-safety.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 50[2mms[22m[39m
+[90mstderr[2m | test/components/BotBuilder/KnowledgeBaseManager.test.tsx[2m > [22m[2mKnowledgeBaseManager[2m > [22m[2mhandles document deletion
+[22m[39mWarning: An update to KnowledgeBaseManager inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at KnowledgeBaseManager (/home/runner/work/buildmybot2/buildmybot2/components/BotBuilder/KnowledgeBaseManager.tsx:13:33)
+Warning: An update to KnowledgeBaseManager inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at KnowledgeBaseManager (/home/runner/work/buildmybot2/buildmybot2/components/BotBuilder/KnowledgeBaseManager.tsx:13:33)
+
+ [32m✓[39m test/components/BotBuilder/KnowledgeBaseManager.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[33m 837[2mms[22m[39m
+     [33m[2m✓[22m[39m handles document deletion [33m 330[2mms[22m[39m
+ [32m✓[39m test/agent-memory-org-scope.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m test/pulse-escalation-sla.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+[90mstderr[2m | test/api/email-roster-consolidation.test.ts[2m > [22m[2mPOST /api/email/inbound — roster consolidation[2m > [22m[2mmirrors support@ mail handling into ai_team_log under sam-support
+[22m[39m[email] ai_team_log mirror failed: TypeError: response.text is not a function
+    at supabaseFetch [90m(/home/runner/work/buildmybot2/buildmybot2/[39mapi/ai-team/lib.ts:246:31[90m)[39m
+[90m    at processTicksAndRejections (node:internal/process/task_queues:103:5)[39m
+    at logShift [90m(/home/runner/work/buildmybot2/buildmybot2/[39mapi/ai-team/lib.ts:736:3[90m)[39m
+    at logEmployeeWork [90m(/home/runner/work/buildmybot2/buildmybot2/[39mapi/gateway.ts:4833:7[90m)[39m
+    at handleEmailInbound [90m(/home/runner/work/buildmybot2/buildmybot2/[39mapi/gateway.ts:5211:3[90m)[39m
+    at handler [90m(/home/runner/work/buildmybot2/buildmybot2/[39mapi/gateway.ts:5665:14[90m)[39m
+    at [90m/home/runner/work/buildmybot2/buildmybot2/[39mtest/api/email-roster-consolidation.test.ts:118:5
+    at [90mfile:///home/runner/work/buildmybot2/buildmybot2/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:1903:20
+
+ [32m✓[39m test/api/email-roster-consolidation.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 69[2mms[22m[39m
+ [32m✓[39m test/embed-widget.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 135[2mms[22m[39m
+ [32m✓[39m test/cron-route-query.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 75[2mms[22m[39m
+ [32m✓[39m test/components/Dashboard/RouteGuard.test.tsx [2m([22m[2m5 tests[22m[2m)[22m[32m 75[2mms[22m[39m
+ [32m✓[39m test/components/OnboardingWizard.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[33m 1841[2mms[22m[39m
+     [33m[2m✓[22m[39m should require required fields before progressing [33m 399[2mms[22m[39m
+     [33m[2m✓[22m[39m should complete all onboarding steps and submit setup payload [33m 889[2mms[22m[39m
+     [33m[2m✓[22m[39m should copy embed code in step 4 [33m 547[2mms[22m[39m
+ [32m✓[39m test/ai-team-schema-readiness.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+[90mstderr[2m | test/components/Marketplace.test.tsx[2m > [22m[2mMarketplace[2m > [22m[2mrenders error state when fetch fails
+[22m[39mError fetching templates: Error: Failed to fetch
+    at [90m/home/runner/work/buildmybot2/buildmybot2/[39mtest/components/Marketplace.test.tsx:55:37
+    at [90mfile:///home/runner/work/buildmybot2/buildmybot2/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:302:11
+    at [90mfile:///home/runner/work/buildmybot2/buildmybot2/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:1903:26
+    at [90mfile:///home/runner/work/buildmybot2/buildmybot2/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2326:20
+    at new Promise (<anonymous>)
+    at runWithCancel [90m(file:///home/runner/work/buildmybot2/buildmybot2/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2323:10[90m)[39m
+    at [90mfile:///home/runner/work/buildmybot2/buildmybot2/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2305:20
+    at new Promise (<anonymous>)
+    at runWithTimeout [90m(file:///home/runner/work/buildmybot2/buildmybot2/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2272:10[90m)[39m
+    at [90mfile:///home/runner/work/buildmybot2/buildmybot2/[39mnode_modules/[4m@vitest/runner[24m/dist/chunk-artifact.js:2955:64
+
+ [32m✓[39m test/components/Marketplace.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[32m 228[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m18 passed[39m[22m[90m (18)[39m
+[2m      Tests [22m [1m[32m206 passed[39m[22m[90m (206)[39m
+[2m   Start at [22m 19:12:10
+[2m   Duration [22m 9.45s[2m (transform 1.27s, setup 2.38s, import 4.31s, tests 3.66s, environment 12.98s)[22m
+
