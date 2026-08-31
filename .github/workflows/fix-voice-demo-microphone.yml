@@ -27,128 +27,86 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
+          import re
 
           path = Path('components/VoiceAgent/VoiceAgentPage.tsx')
           text = path.read_text()
 
-          old_start = '''  const startMicrophone = useCallback(async () => {
-            const socket = socketRef.current;
-            const audioContext = audioContextRef.current;
-            if (!socket || !audioContext) return;
+          pattern = re.compile(
+              r"    const stream = await navigator\.mediaDevices\.getUserMedia\(\{\n"
+              r"      audio: \{\n"
+              r"        channelCount: 1,\n"
+              r"        echoCancellation: true,\n"
+              r"        noiseSuppression: true,\n"
+              r"        autoGainControl: true,\n"
+              r"      \},\n"
+              r"    \}\);\n"
+              r"    streamRef\.current = stream;",
+              re.MULTILINE,
+          )
 
-            const stream = await navigator.mediaDevices.getUserMedia({
-              audio: {
-                channelCount: 1,
-                echoCancellation: true,
-                noiseSuppression: true,
-                autoGainControl: true,
-              },
-            });
-            streamRef.current = stream;
+          replacement = """    const existingStream = streamRef.current;
+              const hasLiveAudioTrack = existingStream
+                ?.getAudioTracks()
+                .some((track) => track.readyState === 'live');
+              const stream = hasLiveAudioTrack
+                ? existingStream
+                : await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                      channelCount: 1,
+                      echoCancellation: true,
+                      noiseSuppression: true,
+                      autoGainControl: true,
+                    },
+                  });
 
-            const source = audioContext.createMediaStreamSource(stream);'''
+              if (!stream) {
+                throw new Error('No microphone stream is available.');
+              }
 
-          new_start = '''  const startMicrophone = useCallback(async () => {
-            const socket = socketRef.current;
-            const audioContext = audioContextRef.current;
-            if (!socket || !audioContext) return;
+              streamRef.current = stream;
+              const audioTracks = stream.getAudioTracks();
+              if (!audioTracks.length) {
+                throw new Error('No microphone was found on this device.');
+              }
+              for (const track of audioTracks) {
+                track.enabled = true;
+              }"""
 
-            const existingStream = streamRef.current;
-            const hasLiveAudioTrack = existingStream
-              ?.getAudioTracks()
-              .some((track) => track.readyState === 'live');
-            const stream = hasLiveAudioTrack
-              ? existingStream
-              : await navigator.mediaDevices.getUserMedia({
-                  audio: {
-                    channelCount: 1,
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    autoGainControl: true,
-                  },
-                });
+          text, count = pattern.subn(replacement, text, count=1)
+          if count != 1:
+              raise SystemExit(f'getUserMedia block replacement count={count}')
 
-            if (!stream) {
-              throw new Error('No microphone stream is available.');
-            }
+          marker = "      await audioContext.resume();\n"
+          if marker not in text:
+              raise SystemExit('audioContext.resume marker not found')
 
-            streamRef.current = stream;
-            const audioTracks = stream.getAudioTracks();
-            if (!audioTracks.length) {
-              throw new Error('No microphone was found on this device.');
-            }
-            for (const track of audioTracks) {
-              track.enabled = true;
-            }
+          early_capture = marker + """
 
-            const source = audioContext.createMediaStreamSource(stream);'''
-
-          if old_start not in text:
-              raise SystemExit('startMicrophone anchor not found')
-          text = text.replace(old_start, new_start, 1)
-
-          old_resume = '''      nextPlaybackTimeRef.current = audioContext.currentTime;
-            await audioContext.resume();
-
-            const tokenResponse = await fetch('/api/voice/live-token', {'''
-
-          new_resume = '''      nextPlaybackTimeRef.current = audioContext.currentTime;
-            await audioContext.resume();
-
-            // Request and open the microphone while we are still inside the
-            // original button tap. Mobile browsers can refuse or suspend a
-            // delayed getUserMedia() request after asynchronous network work.
-            setStatus('Requesting microphone access');
-            const microphoneStream = await navigator.mediaDevices.getUserMedia({
-              audio: {
-                channelCount: 1,
-                echoCancellation: true,
-                noiseSuppression: true,
-                autoGainControl: true,
-              },
-            });
-            const microphoneTracks = microphoneStream.getAudioTracks();
-            if (!microphoneTracks.length) {
-              for (const track of microphoneStream.getTracks()) track.stop();
-              throw new Error('No microphone was found on this device.');
-            }
-            for (const track of microphoneTracks) {
-              track.enabled = true;
-            }
-            streamRef.current = microphoneStream;
-            setStatus('Microphone ready — connecting to Gemini Live');
-
-            const tokenResponse = await fetch('/api/voice/live-token', {'''
-
-          if old_resume not in text:
-              raise SystemExit('audio resume anchor not found')
-          text = text.replace(old_resume, new_resume, 1)
-
-          old_catch = '''    } catch (error: unknown) {
-            const message =
-              error instanceof Error ? error.message : 'Unable to start live voice';
-            setErrorMessage(message);
-            setStatus('Could not start');
-            endConversation('error');
-          }'''
-
-          new_catch = '''    } catch (error: unknown) {
-            const microphoneBlocked =
-              error instanceof DOMException &&
-              (error.name === 'NotAllowedError' || error.name === 'SecurityError');
-            const message = microphoneBlocked
-              ? 'Microphone access is blocked. Allow microphone permission for buildmybot.app in your browser, then tap Try Live Conversation again.'
-              : error instanceof Error
-                ? error.message
-                : 'Unable to start live voice';
-            setErrorMessage(message);
-            setStatus(microphoneBlocked ? 'Microphone blocked' : 'Could not start');
-            endConversation('error');
-          }'''
-
-          if old_catch not in text:
-              raise SystemExit('catch anchor not found')
-          text = text.replace(old_catch, new_catch, 1)
+              // Open the microphone from the original button tap before any
+              // network I/O. This keeps mobile browsers from leaving Gemini
+              // connected while the microphone capture never actually starts.
+              setStatus('Requesting microphone access');
+              const microphoneStream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                  channelCount: 1,
+                  echoCancellation: true,
+                  noiseSuppression: true,
+                  autoGainControl: true,
+                },
+              });
+              const microphoneTracks = microphoneStream.getAudioTracks();
+              if (!microphoneTracks.length) {
+                for (const track of microphoneStream.getTracks()) track.stop();
+                throw new Error('No microphone was found on this device.');
+              }
+              for (const track of microphoneTracks) {
+                track.enabled = true;
+              }
+              streamRef.current = microphoneStream;
+              setStatus('Microphone ready — connecting to Gemini Live');
+"""
+          text = text.replace(marker, early_capture, 1)
 
           path.write_text(text)
           PY
