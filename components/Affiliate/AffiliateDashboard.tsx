@@ -72,7 +72,7 @@ export const AffiliateDashboard: React.FC = () => {
       // For now showing the structure with placeholder data
       setStats({
         referralCode: 'REF-XXXXX',
-        referralLink: 'https://www.buildmybot.app/ref/XXXXX',
+        referralLink: 'https://buildmybot.app/ref/XXXXX',
         totalReferrals: 0,
         activeReferrals: 0,
         totalEarnedCents: 0,

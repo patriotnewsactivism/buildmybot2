@@ -40,7 +40,12 @@ env:
   GCP_REGION: ${{ vars.BUILDMYBOT_GCP_REGION || secrets.BUILDMYBOT_GCP_REGION || vars.GCP_CLOUD_RUN_REGION || secrets.GCP_CLOUD_RUN_REGION || 'us-central1' }}
   GCP_SERVICE: buildmybot2
   ARTIFACT_REPO: cloud-run-source-deploy
-  PUBLIC_DOMAIN: www.buildmybot.app
+  # The apex domain is the canonical host: index.html already declares
+  # <link rel="canonical" href="https://buildmybot.app/">, its Cloud Run
+  # mapping is live with a valid certificate, and www.buildmybot.app has no
+  # DNS record at all (both A and AAAA resolve to nothing), so every absolute
+  # URL built from the www host pointed at an unreachable name.
+  PUBLIC_DOMAIN: buildmybot.app
   GCP_WORKLOAD_IDENTITY_PROVIDER: projects/406797137160/locations/global/workloadIdentityPools/github-pool/providers/github-provider
   GCP_SA_KEY: ${{ secrets.BUILDMYBOT_GCP_SA_KEY || secrets.GCP_SA_KEY }}
 
@@ -207,7 +212,7 @@ jobs:
           # container. gateway.ts reads SUPABASE_URL at module initialization,
           # so applying them only after deploy leaves the first revision unable
           # to bind PORT=8080.
-          startup_env="NODE_ENV=production,APP_BASE_URL=https://www.buildmybot.app,BUILD_SHA=$GITHUB_SHA,PRESIDENT_EMAIL=president@buildmybot.app,SUPABASE_URL=$SUPABASE_URL,SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY,SESSION_JWT_SECRET=$SESSION_JWT_SECRET"
+          startup_env="NODE_ENV=production,APP_BASE_URL=https://buildmybot.app,BUILD_SHA=$GITHUB_SHA,PRESIDENT_EMAIL=president@buildmybot.app,SUPABASE_URL=$SUPABASE_URL,SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY,SESSION_JWT_SECRET=$SESSION_JWT_SECRET"
           gcloud run deploy "$GCP_SERVICE" \
             --project "$GCP_PROJECT_ID" \
             --region "$GCP_REGION" \
@@ -223,7 +228,7 @@ jobs:
         run: |
           set -euo pipefail
           delim='__BMB_ENV_7E4A1__'
-          spec="^${delim}^NODE_ENV=production${delim}APP_BASE_URL=https://www.buildmybot.app${delim}BUILD_SHA=$GITHUB_SHA${delim}PRESIDENT_EMAIL=president@buildmybot.app"
+          spec="^${delim}^NODE_ENV=production${delim}APP_BASE_URL=https://buildmybot.app${delim}BUILD_SHA=$GITHUB_SHA${delim}PRESIDENT_EMAIL=president@buildmybot.app"
           for name in \
             SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY SESSION_JWT_SECRET SESSION_SECRET ENCRYPTION_KEY DATABASE_URL \
             OPENROUTER_API_KEY_2 OPENROUTER_API_KEY OPENAI_API_KEY CEREBRAS_API_KEY GROQ_API_KEY GEMINI_API_KEY COHERE_API_KEY \

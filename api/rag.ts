@@ -283,7 +283,7 @@ export async function scrapeUrl(url: string): Promise<string> {
 
 const FIRECRAWL_API_KEY = process.env.FIRECRAWL_API_KEY || '';
 const FIRECRAWL_BASE = 'https://api.firecrawl.dev/v1';
-const APP_BASE_URL = process.env.APP_BASE_URL || 'https://www.buildmybot.app';
+const APP_BASE_URL = process.env.APP_BASE_URL || 'https://buildmybot.app';
 const FIRECRAWL_WEBHOOK_SECRET = process.env.FIRECRAWL_WEBHOOK_SECRET || '';
 
 /** Single-page scrape via Firecrawl (JS-rendered, clean markdown). */

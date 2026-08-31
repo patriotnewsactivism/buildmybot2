@@ -54,7 +54,7 @@ export async function pulseHandler(req: VercelRequest, res: VercelResponse) {
           `select=id&replied_at=is.null&follow_up_sent_at=is.null&created_at=lt.${cutoff}&limit=1`,
         )) || [];
       if (overdue.length > 0) {
-        const base = process.env.APP_BASE_URL || 'https://www.buildmybot.app';
+        const base = process.env.APP_BASE_URL || 'https://buildmybot.app';
         const response = await fetch(`${base}/api/cron/lead-followups`, {
           headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
         });
@@ -140,7 +140,7 @@ export async function pulseHandler(req: VercelRequest, res: VercelResponse) {
           'select=id&status=in.(new,surfaced_to_sales)&limit=1',
         )) || [];
       if (waitingLeads.length > 0) {
-        const base = process.env.APP_BASE_URL || 'https://www.buildmybot.app';
+        const base = process.env.APP_BASE_URL || 'https://buildmybot.app';
         const response = await fetch(`${base}/api/cron/sales-outreach`, {
           headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
         });

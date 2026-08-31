@@ -17,7 +17,7 @@ import { salesAutomationDryRun, trackAnalyticsEvent } from '../ai-team/lib.js';
 const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
 const TWILIO_PHONE_NUMBER = process.env.TWILIO_PHONE_NUMBER;
-const APP_BASE_URL = process.env.APP_BASE_URL || 'https://www.buildmybot.app';
+const APP_BASE_URL = process.env.APP_BASE_URL || 'https://buildmybot.app';
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;

@@ -1314,9 +1314,8 @@ async function handleAdmin(
           const churnedRecent = canceledSubs.data.filter(
             (s: any) => (s.canceled_at || 0) >= thirtyDaysAgo,
           );
-          const activeCustomers = new Set(
-            liveSubs.map((s: any) => s.customer),
-          ).size;
+          const activeCustomers = new Set(liveSubs.map((s: any) => s.customer))
+            .size;
           const churnedCustomers = new Set(
             churnedRecent.map((s: any) => s.customer),
           ).size;
@@ -1333,7 +1332,10 @@ async function handleAdmin(
             wired: true,
           });
         } catch (err: any) {
-          console.error('[financial/overview] Stripe fetch failed:', err.message);
+          console.error(
+            '[financial/overview] Stripe fetch failed:',
+            err.message,
+          );
           // Never let a live Stripe error blank the whole admin tab --
           // degrade to the same honest-zero shape used when unconfigured.
           res.json({
@@ -1369,7 +1371,10 @@ async function handleAdmin(
             })),
           );
         } catch (err: any) {
-          console.error('[financial/invoices] Stripe fetch failed:', err.message);
+          console.error(
+            '[financial/invoices] Stripe fetch failed:',
+            err.message,
+          );
           res.json([]);
         }
       }
@@ -1393,7 +1398,10 @@ async function handleAdmin(
             })),
           );
         } catch (err: any) {
-          console.error('[financial/refunds] Stripe fetch failed:', err.message);
+          console.error(
+            '[financial/refunds] Stripe fetch failed:',
+            err.message,
+          );
           res.json([]);
         }
       }
@@ -2716,8 +2724,7 @@ async function handlePhone(
     }
     try {
       const botId = await findOrCreateVoiceBot(user);
-      const appBaseUrl =
-        process.env.APP_BASE_URL || 'https://www.buildmybot.app';
+      const appBaseUrl = process.env.APP_BASE_URL || 'https://buildmybot.app';
       const client = await getTwilioClient();
       const purchased = await client.incomingPhoneNumbers.create({
         phoneNumber: body.phoneNumber,
@@ -3197,7 +3204,7 @@ async function handleSearch(
 
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || '';
 const STRIPE_API = 'https://api.stripe.com/v1';
-const APP_BASE_URL = process.env.APP_BASE_URL || 'https://www.buildmybot.app';
+const APP_BASE_URL = process.env.APP_BASE_URL || 'https://buildmybot.app';
 
 /** Minimal Stripe REST client -- form-encoded POSTs, Basic auth with the
  * secret key, same fetch-based style as the rest of this file (no SDK). */

@@ -14,7 +14,7 @@ function isAllowedOrigin(origin: string): boolean {
 
   return new Set([
     'https://buildmybot.app',
-    'https://www.buildmybot.app',
+    'https://buildmybot.app',
     'https://buildmmybot.app',
     'https://www.buildmmybot.app',
   ]).has(origin);
