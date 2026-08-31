@@ -60,7 +60,9 @@ function getClientIp(req: VercelRequest): string {
   }
 
   const realIp = req.headers['x-real-ip'];
-  return typeof realIp === 'string' && realIp.trim() ? realIp.trim() : 'unknown';
+  return typeof realIp === 'string' && realIp.trim()
+    ? realIp.trim()
+    : 'unknown';
 }
 
 function getRateLimit(ip: string): {
@@ -84,10 +86,7 @@ function getRateLimit(ip: string): {
     return {
       limited: true,
       remaining: 0,
-      retryAfterSeconds: Math.max(
-        1,
-        Math.ceil((current.resetAt - now) / 1000),
-      ),
+      retryAfterSeconds: Math.max(1, Math.ceil((current.resetAt - now) / 1000)),
     };
   }
 
@@ -95,10 +94,7 @@ function getRateLimit(ip: string): {
   return {
     limited: false,
     remaining: RATE_LIMIT_MAX_SESSIONS - current.count,
-    retryAfterSeconds: Math.max(
-      1,
-      Math.ceil((current.resetAt - now) / 1000),
-    ),
+    retryAfterSeconds: Math.max(1, Math.ceil((current.resetAt - now) / 1000)),
   };
 }
 
