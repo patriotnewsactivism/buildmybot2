@@ -1,0 +1,431 @@
+name: Apply voice demo fix
+
+on:
+  push:
+    branches:
+      - fix/voice-agent-demo-limits
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - name: Patch public voice demo
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('components/VoiceAgent/VoiceAgentPage.tsx')
+          text = path.read_text()
+
+          old = """interface LiveTokenResponse {
+            token?: string;
+            model?: string;
+            error?: string;
+          }"""
+          new = """interface LiveTokenResponse {
+            token?: string;
+            model?: string;
+            voice?: string;
+            maxDurationSeconds?: number;
+            maxTurns?: number;
+            expiresAt?: string;
+            error?: string;
+          }"""
+          assert old in text
+          text = text.replace(old, new)
+
+          old = """  const [outputTranscript, setOutputTranscript] = useState('');
+            const [errorMessage, setErrorMessage] = useState('');
+
+            const socketRef = useRef<WebSocket | null>(null);"""
+          new = """  const [outputTranscript, setOutputTranscript] = useState('');
+            const [errorMessage, setErrorMessage] = useState('');
+            const [secondsRemaining, setSecondsRemaining] = useState(90);
+
+            const socketRef = useRef<WebSocket | null>(null);"""
+          assert old in text
+          text = text.replace(old, new)
+
+          old = """  const nextPlaybackTimeRef = useRef(0);
+            const mountedRef = useRef(true);
+
+            const stopMicrophone = useCallback(() => {"""
+          new = """  const nextPlaybackTimeRef = useRef(0);
+            const mountedRef = useRef(true);
+            const demoTimerRef = useRef<number | null>(null);
+            const demoDurationRef = useRef(90);
+            const turnCountRef = useRef(0);
+            const maxTurnsRef = useRef(6);
+
+            const stopMicrophone = useCallback(() => {"""
+          assert old in text
+          text = text.replace(old, new)
+
+          old = """  const clearPlayback = useCallback(() => {
+            for (const source of playbackSourcesRef.current) {"""
+          new = """  const prepareMicrophone = useCallback(async () => {
+            if (streamRef.current) return streamRef.current;
+            const stream = await navigator.mediaDevices.getUserMedia({
+              audio: {
+                channelCount: 1,
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true,
+              },
+            });
+            streamRef.current = stream;
+            return stream;
+          }, []);
+
+          const clearPlayback = useCallback(() => {
+            for (const source of playbackSourcesRef.current) {"""
+          assert old in text
+          text = text.replace(old, new)
+
+          old = """  const endConversation = useCallback(
+              (nextState: CallState = 'idle') => {
+                stopMicrophone();
+                clearPlayback();"""
+          new = """  const endConversation = useCallback(
+              (
+                nextState: CallState = 'idle',
+                idleStatus = 'Ready for a live conversation',
+              ) => {
+                stopMicrophone();
+                clearPlayback();
+                if (demoTimerRef.current !== null) {
+                  window.clearInterval(demoTimerRef.current);
+                  demoTimerRef.current = null;
+                }"""
+          assert old in text
+          text = text.replace(old, new)
+
+          old = """        if (nextState === 'idle') {
+                  setStatus('Ready for a live conversation');
+                }"""
+          new = """        if (nextState === 'idle') {
+                  setStatus(idleStatus);
+                }"""
+          assert old in text
+          text = text.replace(old, new)
+
+          old = """  const playPcmAudio = useCallback((data: string, mimeType?: string) => {"""
+          new = """  const startDemoTimer = useCallback(
+              (durationSeconds: number) => {
+                if (demoTimerRef.current !== null) {
+                  window.clearInterval(demoTimerRef.current);
+                }
+                const deadline = Date.now() + durationSeconds * 1000;
+                setSecondsRemaining(durationSeconds);
+                demoTimerRef.current = window.setInterval(() => {
+                  const remaining = Math.max(
+                    0,
+                    Math.ceil((deadline - Date.now()) / 1000),
+                  );
+                  setSecondsRemaining(remaining);
+                  if (remaining <= 0) {
+                    if (demoTimerRef.current !== null) {
+                      window.clearInterval(demoTimerRef.current);
+                      demoTimerRef.current = null;
+                    }
+                    endConversation(
+                      'idle',
+                      'Demo complete — build yours free to keep going',
+                    );
+                  }
+                }, 250);
+              },
+              [endConversation],
+            );
+
+          const playPcmAudio = useCallback((data: string, mimeType?: string) => {"""
+          assert old in text
+          text = text.replace(old, new)
+
+          old = """    const stream = await navigator.mediaDevices.getUserMedia({
+              audio: {
+                channelCount: 1,
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true,
+              },
+            });
+            streamRef.current = stream;
+
+            const source = audioContext.createMediaStreamSource(stream);"""
+          new = """    const stream = await prepareMicrophone();
+
+            const source = audioContext.createMediaStreamSource(stream);"""
+          assert old in text
+          text = text.replace(old, new)
+
+          old = """  }, []);
+
+            const handleServerMessage = useCallback("""
+          # Replace only the startMicrophone callback terminator nearest the handler.
+          idx = text.index("  const handleServerMessage = useCallback(")
+          prefix = text[:idx]
+          suffix = text[idx:]
+          marker = "  }, []);\n\n"
+          pos = prefix.rfind(marker)
+          assert pos >= 0
+          prefix = prefix[:pos] + "  }, [prepareMicrophone]);\n\n" + prefix[pos + len(marker):]
+          text = prefix + suffix
+
+          old = """      if (message.setupComplete) {
+                await startMicrophone();
+                setCallState('listening');
+                setStatus('Listening — speak naturally');
+                return;
+              }"""
+          new = """      if (message.setupComplete) {
+                await startMicrophone();
+                setCallState('listening');
+                setStatus('Connected — listen for the greeting, then speak naturally');
+                startDemoTimer(demoDurationRef.current);
+
+                const socket = socketRef.current;
+                if (socket?.readyState === WebSocket.OPEN) {
+                  socket.send(
+                    JSON.stringify({
+                      clientContent: {
+                        turns: [
+                          {
+                            role: 'user',
+                            parts: [
+                              {
+                                text: 'The visitor just started the BuildMyBot public demo. Greet them now in one short, warm, natural sentence as a premium business receptionist, then ask what kind of business they run or what they would like the receptionist to help with.',
+                              },
+                            ],
+                          },
+                        ],
+                        turnComplete: true,
+                      },
+                    }),
+                  );
+                }
+                return;
+              }"""
+          assert old in text
+          text = text.replace(old, new)
+
+          old = """      if (content.turnComplete) {
+                setCallState('listening');
+                setStatus('Listening — your turn');
+              }"""
+          new = """      if (content.turnComplete) {
+                turnCountRef.current += 1;
+                if (turnCountRef.current >= maxTurnsRef.current) {
+                  stopMicrophone();
+                  setStatus('Demo complete — finishing the showcase');
+                  window.setTimeout(() => {
+                    endConversation(
+                      'idle',
+                      'Demo complete — build yours free to keep going',
+                    );
+                  }, 4000);
+                } else if (turnCountRef.current === maxTurnsRef.current - 1) {
+                  setCallState('listening');
+                  setStatus('One final exchange — ask your best question');
+                } else {
+                  setCallState('listening');
+                  setStatus('Listening — your turn');
+                }
+              }"""
+          assert old in text
+          text = text.replace(old, new)
+
+          old = """    [clearPlayback, playPcmAudio, startMicrophone],"""
+          new = """    [
+                clearPlayback,
+                endConversation,
+                playPcmAudio,
+                startDemoTimer,
+                startMicrophone,
+                stopMicrophone,
+              ],"""
+          assert old in text
+          text = text.replace(old, new)
+
+          old = """    if (!navigator.mediaDevices?.getUserMedia || !window.AudioContext) {
+              setCallState('error');
+              setErrorMessage(
+                'Live voice requires a modern browser with microphone access.',
+              );
+              return;
+            }
+
+            setCallState('connecting');
+            setStatus('Securing a Gemini Live session');"""
+          new = """    const AudioContextClass =
+              window.AudioContext ||
+              (
+                window as typeof window & {
+                  webkitAudioContext?: typeof AudioContext;
+                }
+              ).webkitAudioContext;
+
+            if (!navigator.mediaDevices?.getUserMedia || !AudioContextClass) {
+              setCallState('error');
+              setErrorMessage(
+                'Live voice requires a modern browser with microphone access.',
+              );
+              return;
+            }
+
+            setCallState('connecting');
+            setStatus('Requesting microphone access');"""
+          assert old in text
+          text = text.replace(old, new)
+
+          old = """    try {
+              const tokenResponse = await fetch('/api/voice/live-token', {"""
+          new = """    try {
+              // Create/resume audio and request the microphone while the original
+              // click gesture is still active. This is required by some mobile
+              // browsers and avoids minting a paid Gemini session if mic access
+              // is denied.
+              const audioContext = new AudioContextClass({ latencyHint: 'interactive' });
+              audioContextRef.current = audioContext;
+              nextPlaybackTimeRef.current = audioContext.currentTime;
+              await audioContext.resume();
+              await prepareMicrophone();
+
+              setStatus('Securing a limited Gemini Live session');
+              const tokenResponse = await fetch('/api/voice/live-token', {"""
+          assert old in text
+          text = text.replace(old, new)
+
+          old = """      const audioContext = new AudioContext({ latencyHint: 'interactive' });
+              await audioContext.resume();
+              audioContextRef.current = audioContext;
+              nextPlaybackTimeRef.current = audioContext.currentTime;
+
+              const url = `${GEMINI_LIVE_URL}?access_token=${encodeURIComponent(tokenPayload.token)}`;"""
+          new = """      demoDurationRef.current = Math.min(
+                90,
+                Math.max(15, tokenPayload.maxDurationSeconds || 90),
+              );
+              maxTurnsRef.current = Math.min(
+                6,
+                Math.max(2, tokenPayload.maxTurns || 6),
+              );
+              turnCountRef.current = 0;
+              setSecondsRemaining(demoDurationRef.current);
+
+              const url = `${GEMINI_LIVE_URL}?access_token=${encodeURIComponent(tokenPayload.token)}`;"""
+          assert old in text
+          text = text.replace(old, new)
+
+          old = """        const model = tokenPayload.model || GEMINI_MODEL;
+                socket.send(
+                  JSON.stringify({
+                    setup: {
+                      model: `models/${model}`,
+                      generationConfig: {
+                        responseModalities: ['AUDIO'],
+                        speechConfig: {
+                          voiceConfig: {
+                            prebuiltVoiceConfig: { voiceName: 'Kore' },
+                          },
+                        },
+                        thinkingConfig: { thinkingLevel: 'minimal' },
+                      },
+                      inputAudioTranscription: {},
+                      outputAudioTranscription: {},
+                      realtimeInputConfig: {
+                        automaticActivityDetection: {
+                          disabled: false,
+                          startOfSpeechSensitivity: 'START_SENSITIVITY_HIGH',
+                          endOfSpeechSensitivity: 'END_SENSITIVITY_LOW',
+                          prefixPaddingMs: 40,
+                          silenceDurationMs: NATURAL_SILENCE_MS,
+                        },
+                        activityHandling: 'START_OF_ACTIVITY_INTERRUPTS',
+                        turnCoverage: 'TURN_INCLUDES_ONLY_ACTIVITY',
+                      },
+                      systemInstruction: {
+                        parts: [
+                          {
+                            text: 'You are the BuildMyBot live voice concierge. Speak naturally and concisely. Let visitors finish their thoughts and tolerate normal pauses. If they correct a detail mid-sentence, use the corrected detail. Explain BuildMyBot AI receptionists, chatbots, lead capture, scheduling, CRM actions, hot-lead alerts, and human handoffs accurately. Ask one question at a time. Never pretend to be human. Never claim you completed a real transfer, booking, payment, text message, or CRM action in this public browser demo. If a visitor is interested, invite them to start free or contact the BuildMyBot team.',
+                          },
+                        ],
+                      },
+                    },
+                  }),
+                );"""
+          new = """        const model = tokenPayload.model || GEMINI_MODEL;
+                // The server-issued ephemeral token contains and locks the full
+                // demo configuration (voice, VAD, prompt, model limits). Gemini
+                // requires a setup frame, but the constrained-token setup takes
+                // precedence so visitors cannot weaken those limits in-browser.
+                socket.send(
+                  JSON.stringify({
+                    setup: {
+                      model: `models/${model}`,
+                    },
+                  }),
+                );"""
+          assert old in text
+          text = text.replace(old, new)
+
+          old = """  }, [clearPlayback, stopMicrophone]);
+
+            const isActive = callState === 'listening' || callState === 'speaking';"""
+          new = """  }, [clearPlayback, stopMicrophone]);
+
+            const isActive = callState === 'listening' || callState === 'speaking';
+            const demoTimeLabel = `${Math.floor(secondsRemaining / 60)}:${String(
+              secondsRemaining % 60,
+            ).padStart(2, '0')}`;"""
+          assert old in text
+          text = text.replace(old, new)
+
+          old = """              <p className=\"mt-4 text-center text-xs leading-5 text-slate-500\">
+                          Your browser will request microphone access. The public demo is
+                          conversational only; production customer agents can be wired to
+                          approved tools, routing, CRM, and scheduling actions.
+                        </p>"""
+          new = """              <div className=\"mt-4 flex items-center justify-center gap-3 text-xs font-semibold text-slate-400\">
+                          <span className=\"rounded-full border border-white/10 bg-white/5 px-3 py-1.5\">
+                            {demoTimeLabel} max
+                          </span>
+                          <span className=\"rounded-full border border-white/10 bg-white/5 px-3 py-1.5\">
+                            Up to {maxTurnsRef.current} demo turns
+                          </span>
+                        </div>
+                        <p className=\"mt-3 text-center text-xs leading-5 text-slate-500\">
+                          Your browser will request microphone access before a paid session
+                          starts. The public showcase is capped at 90 seconds and a small
+                          number of exchanges; production customer agents can use approved
+                          tools, routing, CRM, and scheduling actions.
+                        </p>"""
+          assert old in text
+          text = text.replace(old, new)
+
+          path.write_text(text)
+
+          # Remove the one-time handshake diagnostic workflow; it has already
+          # proved token issuance + setupComplete work in production.
+          diag = Path('.github/workflows/diagnose-public-voice-demo.yml')
+          if diag.exists():
+            diag.unlink()
+      - name: Remove one-time patch workflow
+        run: rm .github/workflows/apply-voice-demo-fix.yml
+      - name: Format changed source
+        run: npx --no-install biome check --write components/VoiceAgent/VoiceAgentPage.tsx
+      - name: Commit fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Fix limited public voice demo interaction"
+          git push
