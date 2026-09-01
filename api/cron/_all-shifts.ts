@@ -9,7 +9,7 @@ import {
   researchLeads,
   runRoleShift,
   runSocialMediaShift,
-} from '../ai-team/lib.js';
+} from '../ai-team/_lib.js';
 import { salesOutreachHandler } from './_sales-outreach.js';
 
 // Every AI Team role, each runnable individually via ?role=<id> so an

@@ -7,7 +7,7 @@ import {
   notifySlack,
   salesAutomationDryRun,
   supabaseFetch,
-} from '../ai-team/lib.js';
+} from '../ai-team/_lib.js';
 
 export async function salesOutreachHandler(
   req: VercelRequest,

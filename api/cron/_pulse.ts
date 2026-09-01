@@ -3,7 +3,7 @@ import {
   aiTeamKilled,
   logAgentError,
   supabaseFetch,
-} from '../ai-team/lib.js';
+} from '../ai-team/_lib.js';
 
 export async function pulseHandler(
   req: VercelRequest,

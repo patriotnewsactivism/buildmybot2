@@ -9,7 +9,7 @@ import {
   runAgentTask,
   salesAutomationDryRun,
   trackAnalyticsEvent,
-} from '../ai-team/lib.js';
+} from '../ai-team/_lib.js';
 
 // Autonomous Lead Follow-Up worker for BuildMyBot.App.
 //
