@@ -50,7 +50,13 @@ async function sbFetch(table: string, params: string, init?: RequestInit) {
     ...init,
     headers: { ...SUPABASE_HEADERS, ...(init?.headers || {}) },
   });
-  if (!response.ok) return null;
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '');
+    console.error(
+      `[tenant-twilio] Supabase ${init?.method || 'GET'} ${table} failed: ${response.status}${detail ? ` ${detail}` : ''}`,
+    );
+    return null;
+  }
   const text = await response.text();
   if (!text) return null;
   try {
@@ -101,8 +107,16 @@ async function validateTwilioRequest(req: VercelRequest): Promise<boolean> {
 
   try {
     const twilio = (await import('twilio')).default;
-    const fullUrl = `${TWILIO_WEBHOOK_BASE_URL}${req.url || ''}`;
-    return twilio.validateRequest(authToken, signature, fullUrl, body);
+    const base = TWILIO_WEBHOOK_BASE_URL.replace(/\/$/, '');
+    const requestPath = req.url?.startsWith('/')
+      ? req.url
+      : `/${req.url || ''}`;
+    return twilio.validateRequest(
+      authToken,
+      signature,
+      `${base}${requestPath}`,
+      body,
+    );
   } catch (error) {
     console.error(
       '[tenant-twilio] Signature validation failed:',
@@ -133,28 +147,56 @@ interface BusinessBot {
   system_prompt: string | null;
 }
 
-async function resolveBotForNumber(calledNumber: string): Promise<{
+interface ResolvedPhoneNumber {
   phoneNumberId: string;
+  userId: string;
+  voiceAgentId: string;
+  greeting: string | null;
   bot: BusinessBot | null;
-} | null> {
+}
+
+async function resolveBotForNumber(
+  calledNumber: string,
+): Promise<ResolvedPhoneNumber | null> {
   const numbers = await sbFetch(
     'phone_numbers',
-    `number=eq.${encodeURIComponent(calledNumber)}&status=eq.active&select=id,bot_id&limit=1`,
+    `phone_number=eq.${encodeURIComponent(calledNumber)}&status=eq.active&select=id,user_id,voice_agent_id&limit=1`,
   );
   const row = numbers?.[0];
-  if (!row) return null;
+  if (!row?.id || !row?.user_id || !row?.voice_agent_id) return null;
 
-  if (!row.bot_id) return { phoneNumberId: row.id, bot: null };
+  const agents = await sbFetch(
+    'voice_agents',
+    `id=eq.${encodeURIComponent(row.voice_agent_id)}&select=id,bot_id,greeting&limit=1`,
+  );
+  const agent = agents?.[0];
+  if (!agent?.id || !agent?.bot_id) {
+    return {
+      phoneNumberId: String(row.id),
+      userId: String(row.user_id),
+      voiceAgentId: String(row.voice_agent_id),
+      greeting: null,
+      bot: null,
+    };
+  }
 
   const bots = await sbFetch(
     'bots',
-    `id=eq.${encodeURIComponent(row.bot_id)}&select=id,name,system_prompt&limit=1`,
+    `id=eq.${encodeURIComponent(agent.bot_id)}&select=id,name,system_prompt&limit=1`,
   );
-  return { phoneNumberId: row.id, bot: bots?.[0] || null };
+  return {
+    phoneNumberId: String(row.id),
+    userId: String(row.user_id),
+    voiceAgentId: String(agent.id),
+    greeting: agent.greeting || null,
+    bot: bots?.[0] || null,
+  };
 }
 
 async function createCallLog(options: {
-  botId: string | null;
+  voiceAgentId: string;
+  userId: string;
+  botId: string;
   callerNumber: string;
   calledNumber: string;
   callSid: string;
@@ -164,7 +206,9 @@ async function createCallLog(options: {
     method: 'POST',
     headers: { Prefer: 'return=representation' },
     body: JSON.stringify({
+      voice_agent_id: options.voiceAgentId,
       bot_id: options.botId,
+      user_id: options.userId,
       provider: 'twilio',
       direction: 'inbound',
       caller_number: options.callerNumber,
@@ -178,7 +222,13 @@ async function createCallLog(options: {
       started_at: new Date().toISOString(),
     }),
   });
-  return rows?.[0]?.id || null;
+  if (rows?.[0]?.id != null) return String(rows[0].id);
+
+  const existing = await sbFetch(
+    'call_logs',
+    `call_sid=eq.${encodeURIComponent(options.callSid)}&select=id&limit=1`,
+  );
+  return existing?.[0]?.id != null ? String(existing[0].id) : null;
 }
 
 function mediaStreamUrl(): string {
@@ -238,19 +288,24 @@ export async function tenantInboundVoiceHandler(
 
   const resolved = await resolveBotForNumber(calledNumber);
   const bot = resolved?.bot || null;
-  const logId = await createCallLog({
-    botId: bot?.id || null,
-    callerNumber,
-    calledNumber,
-    callSid,
-    accountSid,
-  });
+  const logId =
+    resolved && bot
+      ? await createCallLog({
+          voiceAgentId: resolved.voiceAgentId,
+          userId: resolved.userId,
+          botId: bot.id,
+          callerNumber,
+          calledNumber,
+          callSid,
+          accountSid,
+        })
+      : null;
 
-  if (bot && process.env.GEMINI_API_KEY && process.env.TWILIO_AUTH_TOKEN) {
+  if (bot && logId && process.env.GEMINI_API_KEY) {
     try {
       const twiml = realtimeTwiml({
         botId: bot.id,
-        logId: logId || '',
+        logId,
         callSid,
         callerNumber,
         calledNumber,
@@ -265,11 +320,13 @@ export async function tenantInboundVoiceHandler(
     }
   }
 
-  let greeting = bot
-    ? `Thanks for calling ${bot.name}. How can I help you today?`
-    : "Thanks for calling. I'm not fully set up yet, but I'll do my best to help.";
+  let greeting =
+    resolved?.greeting ||
+    (bot
+      ? `Thanks for calling ${bot.name}. How can I help you today?`
+      : "Thanks for calling. I'm not fully set up yet, but I'll do my best to help.");
 
-  if (bot?.system_prompt) {
+  if (!resolved?.greeting && bot?.system_prompt) {
     try {
       const { callLLM } = await import('../ai-team/lib.js');
       greeting = await callLLM(
@@ -285,7 +342,7 @@ export async function tenantInboundVoiceHandler(
     }
   }
 
-  const nextUrl = `${TWILIO_WEBHOOK_BASE_URL}/api/phone/activation/twilio/respond?logId=${encodeURIComponent(
+  const nextUrl = `${TWILIO_WEBHOOK_BASE_URL.replace(/\/$/, '')}/api/phone/activation/twilio/respond?logId=${encodeURIComponent(
     logId || '',
   )}&botId=${encodeURIComponent(bot?.id || '')}&turn=1`;
 
@@ -375,7 +432,7 @@ export async function tenantInboundVoiceRespond(
     );
   }
 
-  const nextUrl = `${TWILIO_WEBHOOK_BASE_URL}/api/phone/activation/twilio/respond?logId=${encodeURIComponent(
+  const nextUrl = `${TWILIO_WEBHOOK_BASE_URL.replace(/\/$/, '')}/api/phone/activation/twilio/respond?logId=${encodeURIComponent(
     logId,
   )}&botId=${encodeURIComponent(botId)}&turn=${turn + 1}`;
 
