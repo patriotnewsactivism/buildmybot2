@@ -446,7 +446,11 @@ async function ensureVoiceAgentForBot(
     if (!existing[0].enabled || existing[0].is_active === false) {
       await sbUpdate(
         'voice_agents',
-        { enabled: true, is_active: true, updated_at: new Date().toISOString() },
+        {
+          enabled: true,
+          is_active: true,
+          updated_at: new Date().toISOString(),
+        },
         { id: `eq.${existing[0].id}` },
       ).catch(() => []);
     }
@@ -608,7 +612,9 @@ async function provision(
   const body = parseBody(req) as ProvisionBody;
   const mode = body.mode;
   if (!mode || !['new', 'forward', 'port'].includes(mode)) {
-    return res.status(400).json({ error: 'mode must be new, forward, or port' });
+    return res
+      .status(400)
+      .json({ error: 'mode must be new, forward, or port' });
   }
 
   const knowledgeMode: KnowledgeMode =
