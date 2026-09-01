@@ -113,8 +113,7 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
 }) => {
   const [step, setStep] = useState<WizardStep>(1);
   const [mode, setMode] = useState<SetupMode>('new');
-  const [knowledgeMode, setKnowledgeMode] =
-    useState<KnowledgeMode>('shared');
+  const [knowledgeMode, setKnowledgeMode] = useState<KnowledgeMode>('shared');
   const [knowledgeBots, setKnowledgeBots] = useState<KnowledgeBot[]>([]);
   const [selectedBotId, setSelectedBotId] = useState('');
   const [loadingBots, setLoadingBots] = useState(true);
@@ -156,7 +155,8 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
       credentials: 'include',
     })
       .then(async (response) => {
-        if (!response.ok) throw new Error('Unable to load knowledge workspaces');
+        if (!response.ok)
+          throw new Error('Unable to load knowledge workspaces');
         return response.json();
       })
       .then((data) => {
@@ -202,7 +202,8 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
         Boolean(selectedBotId)
       );
     }
-    if (step === 3) return Boolean(config.voiceId && config.introMessage.trim());
+    if (step === 3)
+      return Boolean(config.voiceId && config.introMessage.trim());
     if (step === 4) {
       if (mode === 'port') return Boolean(sourceNumber.trim());
       if (mode === 'forward') {
@@ -532,8 +533,8 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
                     Shared chatbot + voice knowledge
                   </div>
                   <p className="mt-2 text-sm text-slate-600">
-                    Recommended. One knowledge workspace stays consistent
-                    across chat and phone.
+                    Recommended. One knowledge workspace stays consistent across
+                    chat and phone.
                   </p>
                 </button>
 
@@ -772,9 +773,7 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
                         <button
                           key={number.phoneNumber}
                           type="button"
-                          onClick={() =>
-                            setSelectedNumber(number.phoneNumber)
-                          }
+                          onClick={() => setSelectedNumber(number.phoneNumber)}
                           className={`rounded-xl border-2 p-4 text-left ${
                             selectedNumber === number.phoneNumber
                               ? 'border-blue-600 bg-blue-50'
@@ -833,7 +832,8 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
                     <SummaryRow
                       label="Phone setup"
                       value={
-                        MODES.find((option) => option.id === mode)?.title || mode
+                        MODES.find((option) => option.id === mode)?.title ||
+                        mode
                       }
                     />
                     <SummaryRow

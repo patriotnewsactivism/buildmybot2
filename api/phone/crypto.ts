@@ -35,8 +35,9 @@ export function encryptSecret(plaintext: string): string {
 }
 
 export function decryptSecret(payload: string): string {
-  const [version, ivValue, tagValue, encryptedValue, extra] =
-    String(payload || '').split(':');
+  const [version, ivValue, tagValue, encryptedValue, extra] = String(
+    payload || '',
+  ).split(':');
   if (
     version !== VERSION ||
     !ivValue ||

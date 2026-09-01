@@ -344,9 +344,7 @@ export async function tenantInboundVoiceRespond(
     if (botId) {
       const bots = await sbFetch(
         'bots',
-        `id=eq.${encodeURIComponent(
-          botId,
-        )}&select=system_prompt&limit=1`,
+        `id=eq.${encodeURIComponent(botId)}&select=system_prompt&limit=1`,
       );
       if (bots?.[0]?.system_prompt) {
         systemPrompt = bots[0].system_prompt;

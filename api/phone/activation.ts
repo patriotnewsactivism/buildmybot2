@@ -196,10 +196,7 @@ async function getAuthUser(req: VercelRequest): Promise<AuthUser | null> {
 function setCors(res: VercelResponse) {
   const origin = process.env.CORS_ORIGINS?.split(',')[0]?.trim();
   res.setHeader('Access-Control-Allow-Origin', origin || APP_BASE_URL);
-  res.setHeader(
-    'Access-Control-Allow-Methods',
-    'GET,POST,PATCH,OPTIONS',
-  );
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,OPTIONS');
   res.setHeader(
     'Access-Control-Allow-Headers',
     'Content-Type, Authorization, Cookie',
@@ -533,11 +530,7 @@ async function provision(
 
   const knowledgeMode: KnowledgeMode =
     body.knowledgeMode === 'voice_only' ? 'voice_only' : 'shared';
-  const botId = await resolveKnowledgeBot(
-    user,
-    body.botId,
-    knowledgeMode,
-  );
+  const botId = await resolveKnowledgeBot(user, body.botId, knowledgeMode);
 
   const sourceNumber = body.sourceNumber
     ? normalizePhoneNumber(body.sourceNumber)
@@ -670,12 +663,10 @@ async function availableNumbers(
 
   const account = await ensureTelephonyAccount(user);
   const client = await tenantTwilioClient(account.provider_account_sid);
-  const numbers = await client
-    .availablePhoneNumbers(countryCode)
-    .local.list({
-      ...(areaCode ? { areaCode: Number(areaCode) } : {}),
-      limit: 12,
-    });
+  const numbers = await client.availablePhoneNumbers(countryCode).local.list({
+    ...(areaCode ? { areaCode: Number(areaCode) } : {}),
+    limit: 12,
+  });
 
   return res.json(
     numbers.map((number: any) => ({
@@ -687,10 +678,7 @@ async function availableNumbers(
   );
 }
 
-async function status(
-  res: VercelResponse,
-  user: AuthUser,
-) {
+async function status(res: VercelResponse, user: AuthUser) {
   const [accounts, activations, numbers] = await Promise.all([
     sbSelect(
       'telephony_accounts',
@@ -733,7 +721,8 @@ export async function handlePhoneActivation(
 
   if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY || !SESSION_JWT_SECRET) {
     return res.status(503).json({
-      error: 'Phone activation backend is missing required server configuration',
+      error:
+        'Phone activation backend is missing required server configuration',
     });
   }
 
@@ -768,11 +757,7 @@ export async function handlePhoneActivation(
           error: 'numberId and botId are required',
         });
       }
-      const botId = await resolveKnowledgeBot(
-        user,
-        requestedBotId,
-        'shared',
-      );
+      const botId = await resolveKnowledgeBot(user, requestedBotId, 'shared');
       const numbers = await sbSelect('phone_numbers', 'id', {
         ...ownerFilter(user),
         id: `eq.${numberId}`,

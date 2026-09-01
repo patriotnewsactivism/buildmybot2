@@ -9,10 +9,7 @@ function pathname(req: VercelRequest): string {
   return (req.url || '').split('?')[0] || '';
 }
 
-export default async function handler(
-  req: VercelRequest,
-  res: VercelResponse,
-) {
+export default async function handler(req: VercelRequest, res: VercelResponse) {
   const path = pathname(req);
 
   if (path.startsWith('/api/phone/activation/twilio/')) {

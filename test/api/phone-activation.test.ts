@@ -3,16 +3,13 @@ import {
   activationSubpath,
   normalizePhoneNumber,
 } from '../../api/phone/activation.js';
-import {
-  decryptSecret,
-  encryptSecret,
-} from '../../api/phone/crypto.js';
+import { decryptSecret, encryptSecret } from '../../api/phone/crypto.js';
 
 const originalEncryptionKey = process.env.ENCRYPTION_KEY;
 
 afterEach(() => {
   if (originalEncryptionKey === undefined) {
-    delete process.env.ENCRYPTION_KEY;
+    process.env.ENCRYPTION_KEY = undefined;
   } else {
     process.env.ENCRYPTION_KEY = originalEncryptionKey;
   }
