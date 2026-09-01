@@ -49,8 +49,8 @@ CREATE TABLE IF NOT EXISTS public.phone_agent_activations (
   telephony_account_id uuid REFERENCES public.telephony_accounts(id) ON DELETE RESTRICT,
   mode text NOT NULL CHECK (mode IN ('new', 'forward', 'port')),
   source_number text,
-  destination_number_id uuid REFERENCES public.phone_numbers(id) ON DELETE SET NULL,
-  bot_id uuid REFERENCES public.bots(id) ON DELETE SET NULL,
+  destination_number_id integer REFERENCES public.phone_numbers(id) ON DELETE SET NULL,
+  bot_id text REFERENCES public.bots(id) ON DELETE SET NULL,
   knowledge_mode text NOT NULL DEFAULT 'shared'
     CHECK (knowledge_mode IN ('shared', 'voice_only')),
   carrier text,
