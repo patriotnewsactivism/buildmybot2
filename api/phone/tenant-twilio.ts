@@ -243,6 +243,7 @@ function realtimeTwiml(options: {
   botId: string;
   logId: string;
   callSid: string;
+  accountSid: string;
   callerNumber: string;
   calledNumber: string;
 }): string {
@@ -260,6 +261,7 @@ function realtimeTwiml(options: {
       <Parameter name="botId" value="${escapeXml(options.botId)}" />
       <Parameter name="logId" value="${escapeXml(options.logId)}" />
       <Parameter name="callSid" value="${escapeXml(options.callSid)}" />
+      <Parameter name="accountSid" value="${escapeXml(options.accountSid)}" />
       <Parameter name="callerNumber" value="${escapeXml(options.callerNumber)}" />
       <Parameter name="calledNumber" value="${escapeXml(options.calledNumber)}" />
     </Stream>
@@ -307,6 +309,7 @@ export async function tenantInboundVoiceHandler(
         botId: bot.id,
         logId,
         callSid,
+        accountSid,
         callerNumber,
         calledNumber,
       });
