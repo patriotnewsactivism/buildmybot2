@@ -54,6 +54,7 @@ type SessionContext = {
   botId: string;
   logId: string;
   callSid: string;
+  accountSid: string;
   streamSid: string;
   callerNumber: string;
   calledNumber: string;
@@ -225,6 +226,7 @@ async function loadSessionContext(
   const calledNumber = parameters.calledNumber || '';
   const token = parameters.token || '';
   const callSid = start.callSid || parameters.callSid || '';
+  let accountSid = parameters.accountSid || '';
   const streamSid = start.streamSid || '';
 
   if (!botId || !callSid || !streamSid || !token) return null;
@@ -244,13 +246,16 @@ async function loadSessionContext(
   if (calledNumber) {
     const numberResult = await sbRequest(
       'phone_numbers',
-      `number=eq.${encodeURIComponent(calledNumber)}&select=user_id,organization_id&limit=1`,
+      `phone_number=eq.${encodeURIComponent(calledNumber)}&select=user_id,organization_id,twilio_subaccount_sid&limit=1`,
     );
     const number = asRows(numberResult.data)[0];
     if (number) {
       if (typeof number.user_id === 'string') userId = number.user_id;
       if (typeof number.organization_id === 'string') {
         organizationId = number.organization_id;
+      }
+      if (!accountSid && typeof number.twilio_subaccount_sid === 'string') {
+        accountSid = number.twilio_subaccount_sid;
       }
     }
   }
@@ -271,6 +276,7 @@ async function loadSessionContext(
     botId,
     logId,
     callSid,
+    accountSid,
     streamSid,
     callerNumber,
     calledNumber,
@@ -442,14 +448,18 @@ async function sendHotLeadAlert(
 
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
   const authToken = process.env.TWILIO_AUTH_TOKEN;
-  const fromNumber = process.env.TWILIO_PHONE_NUMBER || context.calledNumber;
+  const fromNumber = context.accountSid
+    ? context.calledNumber
+    : process.env.TWILIO_PHONE_NUMBER || context.calledNumber;
   if (!accountSid || !authToken || !fromNumber) {
     return { success: false, reason: 'Twilio messaging is not configured' };
   }
 
   try {
     const twilio = (await import('twilio')).default;
-    const client = twilio(accountSid, authToken);
+    const client = context.accountSid
+      ? twilio(accountSid, authToken, { accountSid: context.accountSid })
+      : twilio(accountSid, authToken);
     const name = String(details.name || 'Caller').slice(0, 120);
     const phone = String(details.phone || context.callerNumber || 'unknown');
     const score = String(details.score || '');
@@ -557,7 +567,9 @@ async function transferToHuman(
 
   try {
     const twilio = (await import('twilio')).default;
-    const client = twilio(accountSid, authToken);
+    const client = context.accountSid
+      ? twilio(accountSid, authToken, { accountSid: context.accountSid })
+      : twilio(accountSid, authToken);
     const reason = String(args.reason || 'Human handoff requested').slice(
       0,
       300,
