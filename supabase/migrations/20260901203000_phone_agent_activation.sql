@@ -71,6 +71,11 @@ CREATE INDEX IF NOT EXISTS phone_agent_activations_user_idx
 CREATE INDEX IF NOT EXISTS phone_agent_activations_status_idx
   ON public.phone_agent_activations (status, created_at DESC);
 
+-- These tables are backend-only. With RLS enabled and no client policies,
+-- browser roles fail closed while the server-side service role retains access.
+ALTER TABLE public.telephony_accounts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.phone_agent_activations ENABLE ROW LEVEL SECURITY;
+
 COMMENT ON TABLE public.telephony_accounts IS
   'Per-tenant telephony provider accounts. Provider auth tokens are encrypted server-side; never return auth_token_encrypted to clients.';
 COMMENT ON TABLE public.phone_agent_activations IS
