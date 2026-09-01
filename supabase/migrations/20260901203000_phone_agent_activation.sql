@@ -5,8 +5,8 @@
 
 CREATE TABLE IF NOT EXISTS public.telephony_accounts (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  organization_id uuid,
-  user_id uuid,
+  organization_id text,
+  user_id text,
   provider text NOT NULL DEFAULT 'twilio',
   provider_account_sid text NOT NULL,
   auth_token_encrypted text NOT NULL,
@@ -28,6 +28,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS telephony_accounts_user_provider_idx
   ON public.telephony_accounts (provider, user_id)
   WHERE organization_id IS NULL AND user_id IS NOT NULL AND status = 'active';
 
+ALTER TABLE public.users
+  ADD COLUMN IF NOT EXISTS voice_plan text;
+
 ALTER TABLE public.phone_numbers
   ADD COLUMN IF NOT EXISTS provider_account_sid text;
 ALTER TABLE public.phone_numbers
@@ -44,8 +47,8 @@ CREATE INDEX IF NOT EXISTS phone_numbers_provider_account_idx
 
 CREATE TABLE IF NOT EXISTS public.phone_agent_activations (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  organization_id uuid,
-  user_id uuid,
+  organization_id text,
+  user_id text,
   telephony_account_id uuid REFERENCES public.telephony_accounts(id) ON DELETE RESTRICT,
   mode text NOT NULL CHECK (mode IN ('new', 'forward', 'port')),
   source_number text,
@@ -73,4 +76,4 @@ COMMENT ON TABLE public.telephony_accounts IS
 COMMENT ON TABLE public.phone_agent_activations IS
   'Auditable phone onboarding state for new-number, forwarding, and port workflows.';
 COMMENT ON COLUMN public.phone_numbers.provider_account_sid IS
-  'Twilio account/subaccount that owns provider_number_sid.';
+  'Twilio account/subaccount that owns provider_number_id.';
