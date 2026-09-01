@@ -1,0 +1,76 @@
+-- Phone Agent activation state and tenant-isolated Twilio subaccounts.
+-- Idempotent: safe to apply to environments that already have phone_numbers.
+-- Secrets are never stored in plaintext: auth_token_encrypted is AES-256-GCM
+-- ciphertext produced server-side with ENCRYPTION_KEY.
+
+CREATE TABLE IF NOT EXISTS public.telephony_accounts (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id uuid,
+  user_id uuid,
+  provider text NOT NULL DEFAULT 'twilio',
+  provider_account_sid text NOT NULL,
+  auth_token_encrypted text NOT NULL,
+  status text NOT NULL DEFAULT 'active',
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  closed_at timestamptz
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS telephony_accounts_provider_sid_idx
+  ON public.telephony_accounts (provider, provider_account_sid);
+
+CREATE UNIQUE INDEX IF NOT EXISTS telephony_accounts_org_provider_idx
+  ON public.telephony_accounts (provider, organization_id)
+  WHERE organization_id IS NOT NULL AND status = 'active';
+
+CREATE UNIQUE INDEX IF NOT EXISTS telephony_accounts_user_provider_idx
+  ON public.telephony_accounts (provider, user_id)
+  WHERE organization_id IS NULL AND user_id IS NOT NULL AND status = 'active';
+
+ALTER TABLE public.phone_numbers
+  ADD COLUMN IF NOT EXISTS provider_account_sid text;
+ALTER TABLE public.phone_numbers
+  ADD COLUMN IF NOT EXISTS setup_mode text;
+ALTER TABLE public.phone_numbers
+  ADD COLUMN IF NOT EXISTS source_number text;
+ALTER TABLE public.phone_numbers
+  ADD COLUMN IF NOT EXISTS activation_status text NOT NULL DEFAULT 'active';
+ALTER TABLE public.phone_numbers
+  ADD COLUMN IF NOT EXISTS activated_at timestamptz;
+
+CREATE INDEX IF NOT EXISTS phone_numbers_provider_account_idx
+  ON public.phone_numbers (provider_account_sid, status);
+
+CREATE TABLE IF NOT EXISTS public.phone_agent_activations (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id uuid,
+  user_id uuid,
+  telephony_account_id uuid REFERENCES public.telephony_accounts(id) ON DELETE RESTRICT,
+  mode text NOT NULL CHECK (mode IN ('new', 'forward', 'port')),
+  source_number text,
+  destination_number_id uuid REFERENCES public.phone_numbers(id) ON DELETE SET NULL,
+  bot_id uuid REFERENCES public.bots(id) ON DELETE SET NULL,
+  knowledge_mode text NOT NULL DEFAULT 'shared'
+    CHECK (knowledge_mode IN ('shared', 'voice_only')),
+  carrier text,
+  status text NOT NULL,
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  activated_at timestamptz
+);
+
+CREATE INDEX IF NOT EXISTS phone_agent_activations_org_idx
+  ON public.phone_agent_activations (organization_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS phone_agent_activations_user_idx
+  ON public.phone_agent_activations (user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS phone_agent_activations_status_idx
+  ON public.phone_agent_activations (status, created_at DESC);
+
+COMMENT ON TABLE public.telephony_accounts IS
+  'Per-tenant telephony provider accounts. Provider auth tokens are encrypted server-side; never return auth_token_encrypted to clients.';
+COMMENT ON TABLE public.phone_agent_activations IS
+  'Auditable phone onboarding state for new-number, forwarding, and port workflows.';
+COMMENT ON COLUMN public.phone_numbers.provider_account_sid IS
+  'Twilio account/subaccount that owns provider_number_sid.';
