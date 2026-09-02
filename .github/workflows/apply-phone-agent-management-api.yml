@@ -1,0 +1,101 @@
+name: Apply phone activation migration through Supabase Management API
+
+on:
+  push:
+    branches: [feat/phone-agent-activation]
+    paths:
+      - '.github/workflows/apply-phone-agent-management-api.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: evkjlnbpntimbxklnhoz
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/phone-agent-activation
+      - name: Verify management token and exact BuildMyBot project
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -n "${SUPABASE_ACCESS_TOKEN:-}" ]] || { echo 'SUPABASE_ACCESS_TOKEN missing' >&2; exit 2; }
+          status="$(curl -sS -o /tmp/project.json -w '%{http_code}' --max-time 30 \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            "https://api.supabase.com/v1/projects/$PROJECT_REF")"
+          if [[ "$status" != "200" ]]; then
+            echo "Supabase project verification failed with HTTP $status" >&2
+            cat /tmp/project.json >&2 || true
+            exit 3
+          fi
+          actual_ref="$(jq -r '.ref // .id // empty' /tmp/project.json)"
+          if [[ "$actual_ref" != "$PROJECT_REF" ]]; then
+            echo "Refusing migration: expected project $PROJECT_REF, got ${actual_ref:-unknown}" >&2
+            exit 4
+          fi
+          echo "Verified BuildMyBot Supabase project: $actual_ref"
+      - name: Apply idempotent migration through Management API
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -n --rawfile query supabase/migrations/20260901203000_phone_agent_activation.sql \
+            '{query:$query,read_only:false}' > /tmp/migration.json
+          status="$(curl -sS -o /tmp/migration-response.json -w '%{http_code}' --max-time 60 \
+            -X POST \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            -H 'Content-Type: application/json' \
+            --data-binary @/tmp/migration.json \
+            "https://api.supabase.com/v1/projects/$PROJECT_REF/database/query")"
+          if [[ "$status" != "201" ]]; then
+            echo "Supabase migration query failed with HTTP $status" >&2
+            cat /tmp/migration-response.json >&2 || true
+            exit 5
+          fi
+          echo 'Phone activation migration executed through Supabase Management API.'
+      - name: Verify production schema through Management API
+        shell: bash
+        run: |
+          set -euo pipefail
+          read -r -d '' SQL <<'SQL' || true
+          SELECT json_build_object(
+            'telephony_accounts', to_regclass('public.telephony_accounts') IS NOT NULL,
+            'phone_agent_activations', to_regclass('public.phone_agent_activations') IS NOT NULL,
+            'destination_number_id_type', (
+              SELECT data_type FROM information_schema.columns
+              WHERE table_schema='public' AND table_name='phone_agent_activations' AND column_name='destination_number_id'
+            ),
+            'provider_account_sid_type', (
+              SELECT data_type FROM information_schema.columns
+              WHERE table_schema='public' AND table_name='phone_numbers' AND column_name='provider_account_sid'
+            ),
+            'voice_agent_id_type', (
+              SELECT data_type FROM information_schema.columns
+              WHERE table_schema='public' AND table_name='phone_numbers' AND column_name='voice_agent_id'
+            )
+          ) AS verification;
+          SQL
+          jq -n --arg query "$SQL" '{query:$query,read_only:true}' > /tmp/verify.json
+          status="$(curl -sS -o /tmp/verify-response.json -w '%{http_code}' --max-time 30 \
+            -X POST \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            -H 'Content-Type: application/json' \
+            --data-binary @/tmp/verify.json \
+            "https://api.supabase.com/v1/projects/$PROJECT_REF/database/query")"
+          if [[ "$status" != "201" ]]; then
+            echo "Supabase schema verification failed with HTTP $status" >&2
+            cat /tmp/verify-response.json >&2 || true
+            exit 6
+          fi
+          compact="$(jq -c '.' /tmp/verify-response.json)"
+          echo "$compact" | grep -q '"telephony_accounts":true'
+          echo "$compact" | grep -q '"phone_agent_activations":true'
+          echo "$compact" | grep -q '"destination_number_id_type":"uuid"'
+          echo "$compact" | grep -q '"provider_account_sid_type":"text"'
+          echo "$compact" | grep -q '"voice_agent_id_type":"text"'
+          echo 'Verified production phone activation schema.'
