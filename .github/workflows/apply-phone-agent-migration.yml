@@ -1,0 +1,57 @@
+name: Apply phone agent activation migration
+
+on:
+  push:
+    branches: [feat/phone-agent-activation]
+    paths:
+      - '.github/workflows/apply-phone-agent-migration.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      EXPECTED_PROJECT_REF: evkjlnbpntimbxklnhoz
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/phone-agent-activation
+      - name: Validate production database target
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${DATABASE_URL:-}" ]]; then
+            echo 'DATABASE_URL is not configured in the production environment.' >&2
+            exit 2
+          fi
+          if [[ "$DATABASE_URL" != *"$EXPECTED_PROJECT_REF"* ]]; then
+            echo 'Refusing migration: DATABASE_URL does not identify the BuildMyBot Supabase project.' >&2
+            exit 3
+          fi
+          echo 'Production database target matches the BuildMyBot project reference.'
+      - name: Apply phone activation migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20260901203000_phone_agent_activation.sql
+      - name: Verify phone activation schema
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "
+            SELECT CASE WHEN to_regclass('public.telephony_accounts') IS NOT NULL THEN 'telephony_accounts=ok' ELSE 'telephony_accounts=missing' END;
+            SELECT CASE WHEN to_regclass('public.phone_agent_activations') IS NOT NULL THEN 'phone_agent_activations=ok' ELSE 'phone_agent_activations=missing' END;
+            SELECT 'destination_number_id=' || data_type FROM information_schema.columns WHERE table_schema='public' AND table_name='phone_agent_activations' AND column_name='destination_number_id';
+            SELECT 'phone_provider_account=' || data_type FROM information_schema.columns WHERE table_schema='public' AND table_name='phone_numbers' AND column_name='provider_account_sid';
+            SELECT 'phone_voice_agent=' || data_type FROM information_schema.columns WHERE table_schema='public' AND table_name='phone_numbers' AND column_name='voice_agent_id';
+          " | tee /tmp/schema.txt
+          grep -Fx 'telephony_accounts=ok' /tmp/schema.txt
+          grep -Fx 'phone_agent_activations=ok' /tmp/schema.txt
+          grep -Fx 'destination_number_id=uuid' /tmp/schema.txt
+          grep -Fx 'phone_provider_account=text' /tmp/schema.txt
+          grep -Fx 'phone_voice_agent=text' /tmp/schema.txt
