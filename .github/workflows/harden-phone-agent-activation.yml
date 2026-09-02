@@ -45,13 +45,17 @@ jobs:
           ! grep -Fq 'VITE_SUPABASE_URL' api/phone/activation.ts
           ! grep -Fq 'VITE_SUPABASE_URL' api/phone/tenant-twilio.ts
           ! grep -Fq 'VITE_SUPABASE_URL' api/voice/twilio-live.ts
-      - name: Commit hardened implementation and remove one-use helpers
+      - name: Commit tested application and migration changes
         shell: bash
         run: |
           set -euo pipefail
-          rm scripts/harden-phone-agent-activation.py .github/workflows/harden-phone-agent-activation.yml
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
+          git add \
+            api/phone/activation.ts \
+            api/phone/tenant-twilio.ts \
+            api/voice/twilio-live.ts \
+            supabase/migrations/20260901203000_phone_agent_activation.sql \
+            test/api/phone-activation.test.ts
           git commit -m 'Harden tenant phone activation and schema'
           git push
