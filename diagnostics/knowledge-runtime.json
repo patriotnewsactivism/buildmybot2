@@ -1,0 +1,63 @@
+{
+  "secret_names": [
+    "buildmybot-supabase-service-role-key"
+  ],
+  "cloud_run_env_names": [
+    "SUPABASE_URL",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "GEMINI_API_KEY"
+  ],
+  "schema": [
+    {
+      "snapshot": {
+        "sources_cols": [
+          "id",
+          "bot_id",
+          "organization_id",
+          "source_type",
+          "source_name",
+          "source_url",
+          "status",
+          "error_message",
+          "source_text",
+          "page_count",
+          "processing_state",
+          "retry_count",
+          "last_error",
+          "next_retry_at",
+          "dead_lettered_at",
+          "pages_crawled",
+          "last_crawled_at",
+          "last_processed_at",
+          "created_at",
+          "updated_at",
+          "knowledge_space_id",
+          "enabled_for_chat",
+          "enabled_for_voice"
+        ],
+        "chunks_cols": [
+          "id",
+          "source_id",
+          "bot_id",
+          "content",
+          "content_hash",
+          "metadata",
+          "chunk_index",
+          "token_count",
+          "embedding",
+          "created_at",
+          "knowledge_space_id"
+        ],
+        "bot_cols": [
+          "id",
+          "user_id",
+          "organization_id",
+          "knowledge_space_id"
+        ],
+        "match_args": [
+          "query_embedding vector, match_bot_id uuid, match_threshold double precision, match_count integer"
+        ]
+      }
+    }
+  ]
+}
