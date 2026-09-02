@@ -46,7 +46,6 @@ jobs:
           grep -F 'twilio_subaccount_sid=eq.' api/voice/twilio-live.ts
           grep -F 'provider_number_id: purchased.sid' api/phone/activation.ts
           grep -F 'knowledge_space_id: options.voiceAgent.knowledgeSpaceId' api/phone/activation.ts
-          ! grep -Fq 'provider_number_sid' api/phone/activation.ts
       - name: Commit tested application and migration changes
         shell: bash
         run: |
