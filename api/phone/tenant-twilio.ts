@@ -201,7 +201,7 @@ async function resolveBotForNumber(
 ): Promise<ResolvedPhoneNumber | null> {
   const numbers = await sbFetch(
     'phone_numbers',
-    `number=eq.${encodeURIComponent(calledNumber)}&provider_account_sid=eq.${encodeURIComponent(accountSid)}&status=eq.active&select=id,user_id,voice_agent_id,bot_id&limit=2`,
+    `phone_number=eq.${encodeURIComponent(calledNumber)}&twilio_subaccount_sid=eq.${encodeURIComponent(accountSid)}&status=eq.active&select=id,user_id,voice_agent_id&limit=2`,
   );
   if (!Array.isArray(numbers) || numbers.length !== 1) return null;
   const row = numbers[0];
@@ -212,22 +212,11 @@ async function resolveBotForNumber(
     `id=eq.${encodeURIComponent(row.voice_agent_id)}&select=id,bot_id,greeting&limit=1`,
   );
   const agent = agents?.[0];
-  if (!agent?.id) return null;
-
-  const botId = agent.bot_id || row.bot_id;
-  if (!botId) {
-    return {
-      phoneNumberId: String(row.id),
-      userId: String(row.user_id),
-      voiceAgentId: String(agent.id),
-      greeting: agent.greeting || null,
-      bot: null,
-    };
-  }
+  if (!agent?.id || !agent?.bot_id) return null;
 
   const bots = await sbFetch(
     'bots',
-    `id=eq.${encodeURIComponent(botId)}&select=id,name,system_prompt&limit=1`,
+    `id=eq.${encodeURIComponent(agent.bot_id)}&select=id,name,system_prompt&limit=1`,
   );
   return {
     phoneNumberId: String(row.id),

@@ -278,19 +278,23 @@ async function loadSessionContext(
 
   if (calledNumber) {
     const numberParams = accountSid
-      ? `number=eq.${encodeURIComponent(calledNumber)}&provider_account_sid=eq.${encodeURIComponent(accountSid)}&status=eq.active&select=user_id,organization_id,bot_id&limit=2`
-      : `number=eq.${encodeURIComponent(calledNumber)}&status=eq.active&select=user_id,organization_id,bot_id&limit=1`;
+      ? `phone_number=eq.${encodeURIComponent(calledNumber)}&twilio_subaccount_sid=eq.${encodeURIComponent(accountSid)}&status=eq.active&select=user_id,organization_id,voice_agent_id&limit=2`
+      : `phone_number=eq.${encodeURIComponent(calledNumber)}&status=eq.active&select=user_id,organization_id,voice_agent_id&limit=1`;
     const numberResult = await sbRequest('phone_numbers', numberParams);
     const numberRows = asRows(numberResult.data);
     if (!numberResult.ok || numberRows.length !== 1) return null;
     const number = numberRows[0];
-    if (
-      accountSid &&
-      typeof number.bot_id === 'string' &&
-      number.bot_id !== botId
-    ) {
-      return null;
+
+    if (accountSid) {
+      if (typeof number.voice_agent_id !== 'string') return null;
+      const agentResult = await sbRequest(
+        'voice_agents',
+        `id=eq.${encodeURIComponent(number.voice_agent_id)}&select=bot_id&limit=1`,
+      );
+      const agent = asRows(agentResult.data)[0];
+      if (!agentResult.ok || agent?.bot_id !== botId) return null;
     }
+
     if (typeof number.user_id === 'string') userId = number.user_id;
     if (typeof number.organization_id === 'string') {
       organizationId = number.organization_id;

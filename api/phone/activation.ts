@@ -38,6 +38,7 @@ interface TelephonyAccount {
 interface VoiceAgentLink {
   id: string;
   botId: string;
+  knowledgeSpaceId?: string | null;
 }
 
 interface ProvisionBody {
@@ -442,11 +443,15 @@ async function ensureVoiceAgentForBot(
   user: AuthUser,
   botId: string,
 ): Promise<VoiceAgentLink> {
-  const bots = await sbSelect('bots', 'id,name,system_prompt', {
-    ...ownerFilter(user),
-    id: `eq.${botId}`,
-    limit: '1',
-  }).catch(() => []);
+  const bots = await sbSelect(
+    'bots',
+    'id,name,system_prompt,knowledge_space_id',
+    {
+      ...ownerFilter(user),
+      id: `eq.${botId}`,
+      limit: '1',
+    },
+  ).catch(() => []);
   const bot = bots?.[0];
   if (!bot?.id) {
     throw new Error('The selected knowledge workspace is not available');
@@ -476,7 +481,11 @@ async function ensureVoiceAgentForBot(
         throw new Error('Unable to reactivate the selected voice agent');
       }
     }
-    return { id: existing[0].id, botId };
+    return {
+      id: existing[0].id,
+      botId,
+      knowledgeSpaceId: bot.knowledge_space_id || null,
+    };
   }
 
   const voiceAgentData = {
@@ -488,7 +497,7 @@ async function ensureVoiceAgentForBot(
     is_active: true,
     system_prompt:
       bot.system_prompt ||
-      'You are a helpful AI receptionist for this business. Never invent facts.',
+      'You are a helpful business receptionist for this business. Never invent facts.',
     greeting: `Thanks for calling ${bot.name || 'the business'}. How can I help you today?`,
     voice_model: 'gemini-live',
     language: 'en',
@@ -499,7 +508,11 @@ async function ensureVoiceAgentForBot(
   try {
     const created = await sbInsert('voice_agents', voiceAgentData);
     if (!created?.[0]?.id) throw new Error('Voice agent was not persisted');
-    return { id: created[0].id, botId };
+    return {
+      id: created[0].id,
+      botId,
+      knowledgeSpaceId: bot.knowledge_space_id || null,
+    };
   } catch (error) {
     const raced = await sbSelect(
       'voice_agents',
@@ -507,7 +520,11 @@ async function ensureVoiceAgentForBot(
       { bot_id: `eq.${botId}`, limit: '1' },
     ).catch(() => []);
     if (raced?.[0]?.id && raced[0].enabled && raced[0].is_active !== false) {
-      return { id: raced[0].id, botId };
+      return {
+        id: raced[0].id,
+        botId,
+        knowledgeSpaceId: bot.knowledge_space_id || null,
+      };
     }
     throw error;
   }
@@ -552,21 +569,20 @@ async function purchaseDestinationNumber(options: {
     const activatedAt =
       options.setupMode === 'new' ? new Date().toISOString() : null;
     const rows = await sbInsert('phone_numbers', {
-      id: randomUUID(),
       voice_agent_id: options.voiceAgent.id,
-      bot_id: options.voiceAgent.botId,
       user_id: options.user.id,
       organization_id: options.user.organizationId || null,
       provider: 'twilio',
-      provider_number_sid: purchased.sid,
-      number: purchased.phoneNumber,
+      provider_number_id: purchased.sid,
+      phone_number: purchased.phoneNumber,
       friendly_name: purchased.friendlyName || null,
       status: 'active',
-      provider_account_sid: options.accountSid,
-      setup_mode: options.setupMode,
-      source_number: options.sourceNumber || null,
-      activation_status:
-        options.setupMode === 'new' ? 'active' : 'awaiting_forwarding',
+      knowledge_space_id: options.voiceAgent.knowledgeSpaceId || null,
+      twilio_subaccount_sid: options.accountSid,
+      setup_method: options.setupMode,
+      existing_business_number: options.sourceNumber || null,
+      forwarding_mode:
+        options.setupMode === 'forward' ? 'carrier_forwarding' : null,
       activated_at: activatedAt,
     });
     if (!rows?.[0]?.id) throw new Error('Phone number was not persisted');
@@ -591,7 +607,7 @@ async function createActivationRecord(options: {
   botId: string;
   knowledgeMode: KnowledgeMode;
   sourceNumber?: string | null;
-  destinationNumberId?: string | null;
+  destinationNumberId?: number | string | null;
   carrier?: string | null;
   status: string;
   metadata?: Record<string, unknown>;
@@ -869,8 +885,7 @@ async function availableNumbers(
     });
   }
 
-  // Number inventory is global to Twilio. Do not create a tenant subaccount
-  // merely because a customer browsed available numbers.
+  // Inventory browsing must not create a paid/managed tenant subaccount.
   const client = await rootTwilioClient();
   const numbers = await client.availablePhoneNumbers(countryCode).local.list({
     ...(areaCode ? { areaCode: Number(areaCode) } : {}),
@@ -889,7 +904,7 @@ async function availableNumbers(
 
 async function status(res: VercelResponse, user: AuthUser) {
   res.setHeader('Cache-Control', 'private, no-store, max-age=0');
-  const [accounts, activations, numberRows] = await Promise.all([
+  const [accounts, activations, numbers] = await Promise.all([
     sbSelect(
       'telephony_accounts',
       'id,status,provider,provider_account_sid,created_at',
@@ -902,7 +917,7 @@ async function status(res: VercelResponse, user: AuthUser) {
     }).catch(() => []),
     sbSelect(
       'phone_numbers',
-      'id,number,friendly_name,voice_agent_id,bot_id,status,provider_number_sid,provider_account_sid,setup_mode,source_number,activation_status,activated_at,created_at',
+      'id,phone_number,friendly_name,voice_agent_id,status,provider_number_id,twilio_subaccount_sid,setup_method,existing_business_number,forwarding_mode,knowledge_space_id,activated_at,created_at',
       {
         ...ownerFilter(user),
         status: 'eq.active',
@@ -911,12 +926,6 @@ async function status(res: VercelResponse, user: AuthUser) {
       },
     ).catch(() => []),
   ]);
-
-  const numbers = (numberRows || []).map((row: any) => ({
-    ...row,
-    phone_number: row.number,
-    provider_number_id: row.provider_number_sid,
-  }));
 
   return res.json({
     telephony: {
@@ -988,7 +997,7 @@ export async function handlePhoneActivation(
         'phone_numbers',
         {
           voice_agent_id: voiceAgent.id,
-          bot_id: botId,
+          knowledge_space_id: voiceAgent.knowledgeSpaceId || null,
         },
         { ...ownerFilter(user), id: `eq.${numberId}` },
       );
