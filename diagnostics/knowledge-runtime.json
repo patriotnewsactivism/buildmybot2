@@ -54,6 +54,15 @@
           "organization_id",
           "knowledge_space_id"
         ],
+        "knowledge_spaces_cols": [
+          "id",
+          "organization_id",
+          "user_id",
+          "name",
+          "is_default",
+          "created_at",
+          "updated_at"
+        ],
         "match_args": [
           "query_embedding vector, match_bot_id uuid, match_threshold double precision, match_count integer"
         ]
