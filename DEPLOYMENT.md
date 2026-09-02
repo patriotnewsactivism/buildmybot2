@@ -19,7 +19,7 @@ _Last updated: 2026-09-01. This document describes the supported production topo
 | Verified service URL | `https://buildmybot2-fq5disxp2a-uc.a.run.app` | Google Cloud Run |
 | Browser API bridge | Same-origin `/api/*` proxy | Cloudflare Pages Function `functions/api/[[path]].ts` |
 | Database | Supabase Postgres / REST | project `evkjlnbpntimbxklnhoz` |
-| Primary AI-team provider | OpenRouter DeepSeek stack | server-side only |
+| Primary AI-team provider | OpenRouter MiniMax M3 Free → Nemotron 3 Ultra Free stack | server-side only |
 | Realtime voice | Gemini Live | server-side only |
 | Telephony | Twilio Programmable Voice + bidirectional Media Streams | tenant-isolated Twilio subaccounts for new activations |
 
