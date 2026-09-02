@@ -1,10 +1,10 @@
 // Shared AI Team runtime for BuildMyBot2.
-// Production inference is routed through OpenRouter's DeepSeek V4 stack.
+// Production inference is routed through a high-capability OpenRouter free tier.
 
 const SUPABASE_URL = process.env.SUPABASE_URL!;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-type Provider = 'openrouter-flash' | 'openrouter-flash-0731' | 'openrouter-pro';
+type Provider = 'openrouter-minimax-m3' | 'openrouter-nemotron-ultra';
 
 interface ProviderConfig {
   baseURL: string;
@@ -13,27 +13,21 @@ interface ProviderConfig {
 }
 
 const PROVIDER_CONFIG: Record<Provider, ProviderConfig> = {
-  'openrouter-flash': {
+  'openrouter-minimax-m3': {
     baseURL: 'https://openrouter.ai/api/v1/chat/completions',
-    model: '~deepseek/deepseek-v4-flash-latest',
+    model: 'minimax/minimax-m3:free',
     keyEnvs: ['OPENROUTER_API_KEY_2', 'OPENROUTER_API_KEY'],
   },
-  'openrouter-flash-0731': {
+  'openrouter-nemotron-ultra': {
     baseURL: 'https://openrouter.ai/api/v1/chat/completions',
-    model: 'deepseek/deepseek-v4-flash-0731',
-    keyEnvs: ['OPENROUTER_API_KEY_2', 'OPENROUTER_API_KEY'],
-  },
-  'openrouter-pro': {
-    baseURL: 'https://openrouter.ai/api/v1/chat/completions',
-    model: 'deepseek/deepseek-v4-pro-0813',
+    model: 'nvidia/nemotron-3-ultra-550b-a55b:free',
     keyEnvs: ['OPENROUTER_API_KEY_2', 'OPENROUTER_API_KEY'],
   },
 };
 
 const FALLBACK_ORDER: Provider[] = [
-  'openrouter-flash',
-  'openrouter-flash-0731',
-  'openrouter-pro',
+  'openrouter-minimax-m3',
+  'openrouter-nemotron-ultra',
 ];
 
 function resolveOpenRouterKey(config?: ProviderConfig): string | undefined {
@@ -118,7 +112,7 @@ export async function callLLM(
 
 async function providerChainExhausted(errors: string[]): Promise<Error> {
   const message = errors.length
-    ? `All OpenRouter DeepSeek V4 models failed: ${errors.join(' | ')}`
+    ? `All OpenRouter free agent models failed: ${errors.join(' | ')}`
     : 'No OpenRouter credential is configured. Set OPENROUTER_API_KEY_2 or OPENROUTER_API_KEY.';
   await logAgentError({
     source: 'llm-provider-chain',
