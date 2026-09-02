@@ -7,7 +7,7 @@ on:
       - '.github/workflows/inspect-knowledge-runtime.yml'
 
 permissions:
-  contents: read
+  contents: write
   id-token: write
 
 jobs:
@@ -60,3 +60,20 @@ jobs:
             "https://api.supabase.com/v1/projects/$PROJECT_REF/database/query/read-only")"
           [[ "$status" == "201" ]] || { cat /tmp/result.json >&2; exit 2; }
           jq '.' /tmp/result.json
+
+      - name: Persist sanitized knowledge diagnostics
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p diagnostics
+          secret_names="$(gcloud secrets list --project "$GCP_PROJECT_ID" --format='value(name)' | grep -Ei 'firecrawl|openai|gemini|supabase|embedding|rag' || true)"
+          env_names="$(gcloud run services describe "$GCP_SERVICE" --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format=json | jq -r '.spec.template.spec.containers[0].env[]?.name' | grep -Ei 'FIRECRAWL|OPENAI|GEMINI|SUPABASE|EMBED|RAG' || true)"
+          SQL="SELECT json_build_object('sources_cols',(SELECT json_agg(column_name ORDER BY ordinal_position) FROM information_schema.columns WHERE table_schema='public' AND table_name='knowledge_sources'),'chunks_cols',(SELECT json_agg(column_name ORDER BY ordinal_position) FROM information_schema.columns WHERE table_schema='public' AND table_name='knowledge_chunks'),'bot_cols',(SELECT json_agg(column_name ORDER BY ordinal_position) FROM information_schema.columns WHERE table_schema='public' AND table_name='bots' AND column_name IN ('id','user_id','organization_id','knowledge_space_id')),'match_args',(SELECT json_agg(pg_get_function_identity_arguments(p.oid)) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND p.proname='match_knowledge_chunks')) AS snapshot;"
+          jq -n --arg query "$SQL" '{query:$query,read_only:true}' >/tmp/q.json
+          curl -fsS -X POST -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H 'Content-Type: application/json' --data-binary @/tmp/q.json "https://api.supabase.com/v1/projects/$PROJECT_REF/database/query/read-only" >/tmp/schema.json
+          jq -n --arg secrets "$secret_names" --arg env "$env_names" --slurpfile schema /tmp/schema.json '{secret_names:($secrets|split("\n")|map(select(length>0))),cloud_run_env_names:($env|split("\n")|map(select(length>0))),schema:$schema[0]}' > diagnostics/knowledge-runtime.json
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add diagnostics/knowledge-runtime.json
+          git commit -m 'Record sanitized knowledge runtime diagnostics'
+          git push
