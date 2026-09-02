@@ -1,0 +1,64 @@
+name: Reconcile phone activation to live schema
+
+on:
+  push:
+    branches: [feat/phone-agent-activation]
+    paths:
+      - 'scripts/reconcile-phone-activation-live-schema.py'
+      - '.github/workflows/reconcile-phone-activation-live-schema.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/phone-agent-activation
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Apply production-schema reconciliation
+        run: python scripts/reconcile-phone-activation-live-schema.py
+      - name: Install dependencies
+        run: npm ci
+      - name: Format and lint reconciled source
+        run: npx --no-install biome check --write api/phone/activation.ts api/phone/tenant-twilio.ts api/voice/twilio-live.ts test/api/phone-activation.test.ts
+      - name: Run maintained tests
+        run: npm run test:run -- --exclude test/voice-agent.test.ts
+      - name: Build production client
+        run: npm run build
+      - name: Validate production schema contract in migration and code
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -F 'destination_number_id integer REFERENCES public.phone_numbers(id)' supabase/migrations/20260901203000_phone_agent_activation.sql
+          grep -F 'bot_id text REFERENCES public.bots(id)' supabase/migrations/20260901203000_phone_agent_activation.sql
+          grep -F 'twilio_subaccount_sid text' supabase/migrations/20260901203000_phone_agent_activation.sql
+          grep -F 'phone_number=eq.' api/phone/tenant-twilio.ts
+          grep -F 'twilio_subaccount_sid=eq.' api/phone/tenant-twilio.ts
+          grep -F 'phone_number=eq.' api/voice/twilio-live.ts
+          grep -F 'twilio_subaccount_sid=eq.' api/voice/twilio-live.ts
+          grep -F 'provider_number_id: purchased.sid' api/phone/activation.ts
+          grep -F 'knowledge_space_id: options.voiceAgent.knowledgeSpaceId' api/phone/activation.ts
+          ! grep -Fq 'provider_number_sid' api/phone/activation.ts
+          ! grep -Fq 'number=eq.' api/phone/tenant-twilio.ts
+      - name: Commit tested application and migration changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            api/phone/activation.ts \
+            api/phone/tenant-twilio.ts \
+            api/voice/twilio-live.ts \
+            supabase/migrations/20260901203000_phone_agent_activation.sql \
+            test/api/phone-activation.test.ts
+          git commit -m 'Align phone activation with live production schema'
+          git push
