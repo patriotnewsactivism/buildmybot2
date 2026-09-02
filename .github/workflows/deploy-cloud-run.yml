@@ -73,6 +73,7 @@ env:
   TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
   TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
   TWILIO_PHONE_NUMBER: ${{ secrets.TWILIO_PHONE_NUMBER }}
+  TWILIO_WEBHOOK_BASE_URL: ${{ vars.TWILIO_WEBHOOK_BASE_URL || secrets.TWILIO_WEBHOOK_BASE_URL }}
   SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
   BASE44_SUPERAGENT_API_KEY: ${{ secrets.BASE44_SUPERAGENT_API_KEY }}
   PORTFOLIO_INTAKE_SECRET: ${{ secrets.PORTFOLIO_INTAKE_SECRET }}
@@ -155,19 +156,86 @@ jobs:
           load_secret_if_missing OPENROUTER_API_KEY buildmybot-openrouter-api-key
           load_secret_if_missing GEMINI_API_KEY buildmybot-gemini-api-key
 
-      - name: Validate minimum runtime secrets for startup
+          service_json="$(gcloud run services describe "$GCP_SERVICE" \
+            --project "$GCP_PROJECT_ID" \
+            --region "$GCP_REGION" \
+            --platform managed \
+            --format=json 2>/dev/null || true)"
+
+          load_cloud_run_value_if_missing() {
+            local env_name="$1"
+            [[ -n "${!env_name:-}" ]] && return 0
+            [[ -n "$service_json" ]] || return 0
+
+            local plain secret_name secret_version value
+            plain="$(jq -r --arg name "$env_name" '.spec.template.spec.containers[0].env[]? | select(.name == $name) | .value // empty' <<<"$service_json")"
+            if [[ -n "$plain" ]]; then
+              echo "::add-mask::$plain"
+              echo "$env_name=$plain" >> "$GITHUB_ENV"
+              echo "Recovered $env_name from the existing Cloud Run service."
+              return 0
+            fi
+
+            secret_name="$(jq -r --arg name "$env_name" '.spec.template.spec.containers[0].env[]? | select(.name == $name) | .valueFrom.secretKeyRef.name // empty' <<<"$service_json")"
+            secret_version="$(jq -r --arg name "$env_name" '.spec.template.spec.containers[0].env[]? | select(.name == $name) | .valueFrom.secretKeyRef.key // "latest"' <<<"$service_json")"
+            if [[ -n "$secret_name" ]] && value="$(gcloud secrets versions access "$secret_version" --project "$GCP_PROJECT_ID" --secret "$secret_name" 2>/dev/null)" && [[ -n "$value" ]]; then
+              echo "::add-mask::$value"
+              echo "$env_name=$value" >> "$GITHUB_ENV"
+              echo "Recovered $env_name from its existing Cloud Run Secret Manager binding."
+            fi
+          }
+
+          for name in ENCRYPTION_KEY TWILIO_ACCOUNT_SID TWILIO_AUTH_TOKEN GEMINI_API_KEY TWILIO_WEBHOOK_BASE_URL; do
+            load_cloud_run_value_if_missing "$name"
+          done
+
+          if [[ -z "${TWILIO_WEBHOOK_BASE_URL:-}" ]]; then
+            service_url="$(gcloud run services describe "$GCP_SERVICE" \
+              --project "$GCP_PROJECT_ID" \
+              --region "$GCP_REGION" \
+              --platform managed \
+              --format='value(status.url)')"
+            if [[ -n "$service_url" ]]; then
+              echo "TWILIO_WEBHOOK_BASE_URL=$service_url" >> "$GITHUB_ENV"
+              echo "Using the actual Cloud Run service URL for Twilio activation webhooks."
+            fi
+          fi
+      - name: Validate runtime secrets and phone activation prerequisites
         shell: bash
         run: |
           set -euo pipefail
           missing=0
-          for name in SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY SESSION_JWT_SECRET; do
+          for name in SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY SESSION_JWT_SECRET ENCRYPTION_KEY GEMINI_API_KEY TWILIO_ACCOUNT_SID TWILIO_AUTH_TOKEN TWILIO_WEBHOOK_BASE_URL; do
             if [[ -z "${!name:-}" ]]; then
               echo "Missing required runtime setting: $name" >&2
               missing=1
             fi
           done
-          exit "$missing"
+          if [[ -n "${TWILIO_WEBHOOK_BASE_URL:-}" && ! "$TWILIO_WEBHOOK_BASE_URL" =~ ^https:// ]]; then
+            echo "TWILIO_WEBHOOK_BASE_URL must be an HTTPS origin reachable by Twilio." >&2
+            missing=1
+          fi
+          if (( missing )); then exit 1; fi
 
+          check_supabase_shape() {
+            local resource="$1"
+            local label="$2"
+            local status
+            status="$(curl -sS -o /tmp/bmb-schema-check.json -w '%{http_code}' --max-time 20 \
+              -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+              -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+              "${SUPABASE_URL%/}/rest/v1/${resource}")"
+            if [[ "$status" != "200" ]]; then
+              echo "Supabase phone activation schema check failed for $label (HTTP $status). Apply 20260901203000_phone_agent_activation.sql before deployment." >&2
+              cat /tmp/bmb-schema-check.json >&2 || true
+              exit 2
+            fi
+          }
+
+          check_supabase_shape 'telephony_accounts?select=id,provider_account_sid,auth_token_encrypted&limit=1' telephony_accounts
+          check_supabase_shape 'phone_agent_activations?select=id,telephony_account_id,destination_number_id,bot_id,knowledge_mode&limit=1' phone_agent_activations
+          check_supabase_shape 'phone_numbers?select=id,provider_account_sid,setup_mode,source_number,activation_status,activated_at&limit=1' phone_numbers
+          check_supabase_shape 'users?select=id,voice_plan&limit=1' users.voice_plan
       - name: Configure Docker auth
         run: gcloud auth configure-docker "$GCP_REGION-docker.pkg.dev" --quiet
 
@@ -229,7 +297,7 @@ jobs:
             TAVILY_API_KEY FIRECRAWL_API_KEY RESEND_API_KEY INBOUND_EMAIL_WEBHOOK_SECRET CRON_SECRET \
             STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET STRIPE_WHITELABEL_PRICE_ID \
             RETELL_API_KEY RETELL_WEBHOOK_SECRET CARTESIA_API_KEY VAPI_API_KEY VAPI_WEBHOOK_SECRET \
-            TWILIO_ACCOUNT_SID TWILIO_AUTH_TOKEN TWILIO_PHONE_NUMBER SENTRY_DSN BASE44_SUPERAGENT_API_KEY \
+            TWILIO_ACCOUNT_SID TWILIO_AUTH_TOKEN TWILIO_PHONE_NUMBER TWILIO_WEBHOOK_BASE_URL SENTRY_DSN BASE44_SUPERAGENT_API_KEY \
             PORTFOLIO_INTAKE_SECRET PORTFOLIO_OWNER_EMAIL; do
             value="${!name:-}"
             if [[ -z "$value" ]]; then
@@ -336,6 +404,23 @@ jobs:
             exit 5
           fi
 
+          activation_status="$(curl -sS -o /tmp/phone-activation.json -w '%{http_code}' --max-time 20 "${SERVICE_URL%/}/api/phone/activation/status")"
+          if [[ "$activation_status" != "401" ]]; then
+            echo "Unauthenticated phone activation endpoint returned HTTP $activation_status; expected 401." >&2
+            cat /tmp/phone-activation.json >&2 || true
+            exit 9
+          fi
+
+          unsigned_twilio_status="$(curl -sS -o /tmp/phone-twilio.json -w '%{http_code}' --max-time 20 \
+            -X POST -H 'Content-Type: application/json' \
+            --data '{"AccountSid":"AC00000000000000000000000000000000","CallSid":"CA00000000000000000000000000000000","To":"+15555550100","From":"+15555550101"}' \
+            "${SERVICE_URL%/}/api/phone/activation/twilio/inbound")"
+          if [[ "$unsigned_twilio_status" != "403" ]]; then
+            echo "Unsigned activation Twilio webhook returned HTTP $unsigned_twilio_status; expected 403." >&2
+            cat /tmp/phone-twilio.json >&2 || true
+            exit 10
+          fi
+
           voice_page_status="$(curl -sS -o /tmp/voice-agent.html -w '%{http_code}' --max-time 20 "${SERVICE_URL%/}/voice-agent")"
           if [[ "$voice_page_status" != "200" ]]; then
             echo "Standalone voice-agent page returned HTTP $voice_page_status" >&2
@@ -413,6 +498,8 @@ jobs:
           echo "- Service: $SERVICE_URL" >> "$GITHUB_STEP_SUMMARY"
           echo "- SHA: $live_sha" >> "$GITHUB_STEP_SUMMARY"
           echo "- /api/auth/user: HTTP $auth_status" >> "$GITHUB_STEP_SUMMARY"
+          echo "- /api/phone/activation/status (logged out): HTTP $activation_status" >> "$GITHUB_STEP_SUMMARY"
+          echo "- unsigned /api/phone/activation/twilio/inbound: HTTP $unsigned_twilio_status" >> "$GITHUB_STEP_SUMMARY"
           echo "- /voice-agent: HTTP $voice_page_status" >> "$GITHUB_STEP_SUMMARY"
           echo "- Gemini Live one-use token: HTTP $voice_token_status" >> "$GITHUB_STEP_SUMMARY"
           echo "- Gemini constrained WebSocket: setupComplete" >> "$GITHUB_STEP_SUMMARY"
