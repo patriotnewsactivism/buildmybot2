@@ -1,4 +1,4 @@
-name: Inspect BuildMyBot phone activation data
+name: Apply BuildMyBot phone activation migration
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  inspect:
+  migrate:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: production
@@ -18,7 +18,10 @@ jobs:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       PROJECT_REF: evkjlnbpntimbxklnhoz
     steps:
-      - name: Verify exact BuildMyBot project and inspect safe counts
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/phone-agent-activation
+      - name: Verify exact production project
         shell: bash
         run: |
           set -euo pipefail
@@ -28,27 +31,78 @@ jobs:
             "https://api.supabase.com/v1/projects/$PROJECT_REF")"
           [[ "$status" == "200" ]] || exit 3
           [[ "$(jq -r '.ref // .id // empty' /tmp/project.json)" == "$PROJECT_REF" ]] || exit 4
+      - name: Guard and apply corrected migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/pre.sql <<'SQL'
+          DO $guard$
+          DECLARE
+            phone_count bigint := 0;
+            telephony_count bigint := 0;
+            activation_count bigint := 0;
+          BEGIN
+            SELECT count(*) INTO phone_count FROM public.phone_numbers;
+            IF to_regclass('public.telephony_accounts') IS NOT NULL THEN
+              EXECUTE 'SELECT count(*) FROM public.telephony_accounts' INTO telephony_count;
+            END IF;
+            IF to_regclass('public.phone_agent_activations') IS NOT NULL THEN
+              EXECUTE 'SELECT count(*) FROM public.phone_agent_activations' INTO activation_count;
+            END IF;
+            IF phone_count <> 0 OR telephony_count <> 0 OR activation_count <> 0 THEN
+              RAISE EXCEPTION 'Refusing migration: production phone tables are no longer empty (% / % / %)', phone_count, telephony_count, activation_count;
+            END IF;
+          END
+          $guard$;
 
-          read -r -d '' SQL <<'SQL' || true
-          SELECT json_build_object(
-            'phone_rows', (SELECT count(*) FROM public.phone_numbers),
-            'telephony_rows', (SELECT count(*) FROM public.telephony_accounts),
-            'activation_rows', (SELECT count(*) FROM public.phone_agent_activations),
-            'provider_account_populated', (SELECT count(*) FROM public.phone_numbers WHERE provider_account_sid IS NOT NULL),
-            'setup_mode_populated', (SELECT count(*) FROM public.phone_numbers WHERE setup_mode IS NOT NULL),
-            'source_number_populated', (SELECT count(*) FROM public.phone_numbers WHERE source_number IS NOT NULL),
-            'activation_status_nondefault', (SELECT count(*) FROM public.phone_numbers WHERE activation_status IS DISTINCT FROM 'active'),
-            'twilio_subaccount_populated', (SELECT count(*) FROM public.phone_numbers WHERE twilio_subaccount_sid IS NOT NULL),
-            'knowledge_space_populated', (SELECT count(*) FROM public.phone_numbers WHERE knowledge_space_id IS NOT NULL),
-            'telephony_rls', (SELECT relrowsecurity FROM pg_class WHERE oid='public.telephony_accounts'::regclass),
-            'activations_rls', (SELECT relrowsecurity FROM pg_class WHERE oid='public.phone_agent_activations'::regclass),
-            'knowledge_spaces_exists', to_regclass('public.knowledge_spaces') IS NOT NULL
-          ) AS snapshot;
+          DROP TABLE IF EXISTS public.phone_agent_activations;
+          DROP TABLE IF EXISTS public.telephony_accounts;
+          ALTER TABLE public.phone_numbers
+            DROP COLUMN IF EXISTS provider_account_sid,
+            DROP COLUMN IF EXISTS setup_mode,
+            DROP COLUMN IF EXISTS source_number,
+            DROP COLUMN IF EXISTS activation_status;
           SQL
-          jq -n --arg query "$SQL" '{query:$query,read_only:true}' > /tmp/query.json
-          status="$(curl -sS -o /tmp/result.json -w '%{http_code}' --max-time 30 \
+          cat supabase/migrations/20260901203000_phone_agent_activation.sql >> /tmp/pre.sql
+          jq -Rs '{query:.}' /tmp/pre.sql > /tmp/query.json
+          status="$(curl -sS -o /tmp/write-result.json -w '%{http_code}' --max-time 60 \
             -X POST -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H 'Content-Type: application/json' \
             --data-binary @/tmp/query.json \
+            "https://api.supabase.com/v1/projects/$PROJECT_REF/database/query")"
+          [[ "$status" == "201" ]] || { cat /tmp/write-result.json >&2; exit 5; }
+      - name: Verify final production schema and security
+        shell: bash
+        run: |
+          set -euo pipefail
+          read -r -d '' SQL <<'SQL' || true
+          SELECT json_build_object(
+            'phone_id_type', (SELECT data_type FROM information_schema.columns WHERE table_schema='public' AND table_name='phone_numbers' AND column_name='id'),
+            'bot_id_type', (SELECT data_type FROM information_schema.columns WHERE table_schema='public' AND table_name='bots' AND column_name='id'),
+            'destination_number_type', (SELECT data_type FROM information_schema.columns WHERE table_schema='public' AND table_name='phone_agent_activations' AND column_name='destination_number_id'),
+            'activation_bot_type', (SELECT data_type FROM information_schema.columns WHERE table_schema='public' AND table_name='phone_agent_activations' AND column_name='bot_id'),
+            'twilio_subaccount_exists', EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='phone_numbers' AND column_name='twilio_subaccount_sid'),
+            'knowledge_space_exists', EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='phone_numbers' AND column_name='knowledge_space_id'),
+            'accidental_columns_remaining', (SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='phone_numbers' AND column_name IN ('provider_account_sid','setup_mode','source_number','activation_status')),
+            'telephony_rls', (SELECT relrowsecurity FROM pg_class WHERE oid='public.telephony_accounts'::regclass),
+            'activations_rls', (SELECT relrowsecurity FROM pg_class WHERE oid='public.phone_agent_activations'::regclass),
+            'browser_grants', (SELECT count(*) FROM information_schema.role_table_grants WHERE table_schema='public' AND table_name IN ('telephony_accounts','phone_agent_activations') AND grantee IN ('anon','authenticated'))
+          ) AS snapshot;
+          SQL
+          jq -n --arg query "$SQL" '{query:$query,read_only:true}' > /tmp/verify.json
+          status="$(curl -sS -o /tmp/verify-result.json -w '%{http_code}' --max-time 30 \
+            -X POST -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H 'Content-Type: application/json' \
+            --data-binary @/tmp/verify.json \
             "https://api.supabase.com/v1/projects/$PROJECT_REF/database/query/read-only")"
-          [[ "$status" == "201" ]] || { cat /tmp/result.json >&2; exit 5; }
-          jq '.' /tmp/result.json
+          [[ "$status" == "201" ]] || { cat /tmp/verify-result.json >&2; exit 6; }
+          jq '.' /tmp/verify-result.json
+          snapshot="$(jq -c '.[0].snapshot' /tmp/verify-result.json)"
+          [[ "$(jq -r '.phone_id_type' <<<"$snapshot")" == "integer" ]]
+          [[ "$(jq -r '.bot_id_type' <<<"$snapshot")" == "text" ]]
+          [[ "$(jq -r '.destination_number_type' <<<"$snapshot")" == "integer" ]]
+          [[ "$(jq -r '.activation_bot_type' <<<"$snapshot")" == "text" ]]
+          [[ "$(jq -r '.twilio_subaccount_exists' <<<"$snapshot")" == "true" ]]
+          [[ "$(jq -r '.knowledge_space_exists' <<<"$snapshot")" == "true" ]]
+          [[ "$(jq -r '.accidental_columns_remaining' <<<"$snapshot")" == "0" ]]
+          [[ "$(jq -r '.telephony_rls' <<<"$snapshot")" == "true" ]]
+          [[ "$(jq -r '.activations_rls' <<<"$snapshot")" == "true" ]]
+          [[ "$(jq -r '.browser_grants' <<<"$snapshot")" == "0" ]]
