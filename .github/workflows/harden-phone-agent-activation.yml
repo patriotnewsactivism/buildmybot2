@@ -1,0 +1,57 @@
+name: Harden phone agent activation
+
+on:
+  push:
+    branches: [feat/phone-agent-activation]
+    paths:
+      - 'scripts/harden-phone-agent-activation.py'
+      - '.github/workflows/harden-phone-agent-activation.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  harden:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/phone-agent-activation
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Apply hardening patch
+        run: python scripts/harden-phone-agent-activation.py
+      - name: Install dependencies
+        run: npm ci
+      - name: Format and lint changed source
+        run: npx --no-install biome check --write api/phone/activation.ts api/phone/tenant-twilio.ts api/voice/twilio-live.ts test/api/phone-activation.test.ts components/PhoneAgent/VoiceSetupWizard.tsx
+      - name: Run maintained tests
+        run: npm run test:run -- --exclude test/voice-agent.test.ts
+      - name: Build production client
+        run: npm run build
+      - name: Validate migration schema contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -F 'destination_number_id uuid REFERENCES public.phone_numbers(id)' supabase/migrations/20260901203000_phone_agent_activation.sql
+          grep -F 'bot_id uuid REFERENCES public.bots(id)' supabase/migrations/20260901203000_phone_agent_activation.sql
+          grep -F 'ADD COLUMN IF NOT EXISTS voice_agent_id text' supabase/migrations/20260901203000_phone_agent_activation.sql
+          grep -F 'REVOKE ALL ON TABLE public.telephony_accounts FROM anon, authenticated' supabase/migrations/20260901203000_phone_agent_activation.sql
+          grep -F 'phone_numbers_active_provider_number_uidx' supabase/migrations/20260901203000_phone_agent_activation.sql
+          ! grep -Fq 'VITE_SUPABASE_URL' api/phone/activation.ts
+          ! grep -Fq 'VITE_SUPABASE_URL' api/phone/tenant-twilio.ts
+          ! grep -Fq 'VITE_SUPABASE_URL' api/voice/twilio-live.ts
+      - name: Commit hardened implementation and remove one-use helpers
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm scripts/harden-phone-agent-activation.py .github/workflows/harden-phone-agent-activation.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Harden tenant phone activation and schema'
+          git push
