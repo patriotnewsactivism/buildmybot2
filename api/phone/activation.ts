@@ -3,7 +3,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { PLAN_LIMITS, VOICE_PLANS } from '../../constants.js';
 import { encryptSecret } from './crypto.js';
 
-const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const SESSION_JWT_SECRET = process.env.SESSION_JWT_SECRET;
 const APP_BASE_URL = process.env.APP_BASE_URL || 'https://buildmybot.app';
@@ -38,7 +38,6 @@ interface TelephonyAccount {
 interface VoiceAgentLink {
   id: string;
   botId: string;
-  knowledgeSpaceId?: string | null;
 }
 
 interface ProvisionBody {
@@ -127,6 +126,26 @@ async function sbUpdate(
     );
   }
   return response.json();
+}
+
+async function sbDelete(table: string, filters: Record<string, string>) {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(filters)) {
+    params.set(key, value);
+  }
+  const response = await fetch(
+    `${SUPABASE_URL}/rest/v1/${table}?${params.toString()}`,
+    {
+      method: 'DELETE',
+      headers: SUPABASE_HEADERS,
+    },
+  );
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '');
+    throw new Error(
+      `Supabase delete failed for ${table}: ${response.status} ${detail}`.trim(),
+    );
+  }
 }
 
 function ownerFilter(user: AuthUser): Record<string, string> {
@@ -423,15 +442,11 @@ async function ensureVoiceAgentForBot(
   user: AuthUser,
   botId: string,
 ): Promise<VoiceAgentLink> {
-  const bots = await sbSelect(
-    'bots',
-    'id,name,system_prompt,knowledge_space_id',
-    {
-      ...ownerFilter(user),
-      id: `eq.${botId}`,
-      limit: '1',
-    },
-  ).catch(() => []);
+  const bots = await sbSelect('bots', 'id,name,system_prompt', {
+    ...ownerFilter(user),
+    id: `eq.${botId}`,
+    limit: '1',
+  }).catch(() => []);
   const bot = bots?.[0];
   if (!bot?.id) {
     throw new Error('The selected knowledge workspace is not available');
@@ -444,7 +459,7 @@ async function ensureVoiceAgentForBot(
   ).catch(() => []);
   if (existing?.[0]?.id) {
     if (!existing[0].enabled || existing[0].is_active === false) {
-      await sbUpdate(
+      const updated = await sbUpdate(
         'voice_agents',
         {
           enabled: true,
@@ -452,13 +467,16 @@ async function ensureVoiceAgentForBot(
           updated_at: new Date().toISOString(),
         },
         { id: `eq.${existing[0].id}` },
-      ).catch(() => []);
+      );
+      if (
+        !updated?.[0]?.id ||
+        !updated[0].enabled ||
+        updated[0].is_active === false
+      ) {
+        throw new Error('Unable to reactivate the selected voice agent');
+      }
     }
-    return {
-      id: existing[0].id,
-      botId,
-      knowledgeSpaceId: bot.knowledge_space_id || null,
-    };
+    return { id: existing[0].id, botId };
   }
 
   const voiceAgentData = {
@@ -481,22 +499,15 @@ async function ensureVoiceAgentForBot(
   try {
     const created = await sbInsert('voice_agents', voiceAgentData);
     if (!created?.[0]?.id) throw new Error('Voice agent was not persisted');
-    return {
-      id: created[0].id,
-      botId,
-      knowledgeSpaceId: bot.knowledge_space_id || null,
-    };
+    return { id: created[0].id, botId };
   } catch (error) {
-    const raced = await sbSelect('voice_agents', 'id,bot_id', {
-      bot_id: `eq.${botId}`,
-      limit: '1',
-    }).catch(() => []);
-    if (raced?.[0]?.id) {
-      return {
-        id: raced[0].id,
-        botId,
-        knowledgeSpaceId: bot.knowledge_space_id || null,
-      };
+    const raced = await sbSelect(
+      'voice_agents',
+      'id,bot_id,enabled,is_active',
+      { bot_id: `eq.${botId}`, limit: '1' },
+    ).catch(() => []);
+    if (raced?.[0]?.id && raced[0].enabled && raced[0].is_active !== false) {
+      return { id: raced[0].id, botId };
     }
     throw error;
   }
@@ -541,27 +552,24 @@ async function purchaseDestinationNumber(options: {
     const activatedAt =
       options.setupMode === 'new' ? new Date().toISOString() : null;
     const rows = await sbInsert('phone_numbers', {
+      id: randomUUID(),
       voice_agent_id: options.voiceAgent.id,
+      bot_id: options.voiceAgent.botId,
       user_id: options.user.id,
       organization_id: options.user.organizationId || null,
       provider: 'twilio',
-      provider_number_id: purchased.sid,
-      phone_number: purchased.phoneNumber,
+      provider_number_sid: purchased.sid,
+      number: purchased.phoneNumber,
       friendly_name: purchased.friendlyName || null,
       status: 'active',
-      knowledge_space_id: options.voiceAgent.knowledgeSpaceId || null,
-      twilio_subaccount_sid: options.accountSid,
-      setup_method: options.setupMode,
-      existing_business_number: options.sourceNumber || null,
-      forwarding_mode:
-        options.setupMode === 'forward' ? 'carrier_forwarding' : null,
-      activated_at: activatedAt,
       provider_account_sid: options.accountSid,
       setup_mode: options.setupMode,
       source_number: options.sourceNumber || null,
       activation_status:
         options.setupMode === 'new' ? 'active' : 'awaiting_forwarding',
+      activated_at: activatedAt,
     });
+    if (!rows?.[0]?.id) throw new Error('Phone number was not persisted');
     return { record: rows[0], purchased };
   } catch (error) {
     try {
@@ -583,9 +591,10 @@ async function createActivationRecord(options: {
   botId: string;
   knowledgeMode: KnowledgeMode;
   sourceNumber?: string | null;
-  destinationNumberId?: number | string | null;
+  destinationNumberId?: string | null;
   carrier?: string | null;
   status: string;
+  metadata?: Record<string, unknown>;
 }) {
   const rows = await sbInsert('phone_agent_activations', {
     id: randomUUID(),
@@ -599,9 +608,61 @@ async function createActivationRecord(options: {
     knowledge_mode: options.knowledgeMode,
     carrier: options.carrier || null,
     status: options.status,
-    metadata: { created_from: '/app/phone' },
+    metadata: {
+      created_from: '/app/phone',
+      ...(options.metadata || {}),
+    },
   });
+  if (!rows?.[0]?.id) throw new Error('Activation record was not persisted');
   return rows[0];
+}
+
+async function updateActivationRecord(
+  user: AuthUser,
+  activationId: string,
+  patch: Record<string, unknown>,
+) {
+  const rows = await sbUpdate('phone_agent_activations', patch, {
+    ...ownerFilter(user),
+    id: `eq.${activationId}`,
+  });
+  if (!rows?.[0]?.id) throw new Error('Activation state update failed');
+  return rows[0];
+}
+
+async function cleanupProvisionedNumber(options: {
+  user: AuthUser;
+  accountSid: string;
+  providerNumberSid: string;
+  phoneNumberId: string;
+}): Promise<boolean> {
+  let providerReleased = false;
+  try {
+    const client = await tenantTwilioClient(options.accountSid);
+    await client.incomingPhoneNumbers(options.providerNumberSid).remove();
+    providerReleased = true;
+  } catch (error) {
+    console.error(
+      '[phone-activation] Provider cleanup failed; retaining DB row for reconciliation:',
+      error instanceof Error ? error.message : error,
+    );
+  }
+
+  if (!providerReleased) return false;
+
+  try {
+    await sbDelete('phone_numbers', {
+      ...ownerFilter(options.user),
+      id: `eq.${options.phoneNumberId}`,
+    });
+    return true;
+  } catch (error) {
+    console.error(
+      '[phone-activation] DB cleanup failed after provider release:',
+      error instanceof Error ? error.message : error,
+    );
+    return false;
+  }
 }
 
 async function provision(
@@ -619,9 +680,6 @@ async function provision(
 
   const knowledgeMode: KnowledgeMode =
     body.knowledgeMode === 'voice_only' ? 'voice_only' : 'shared';
-  const botId = await resolveKnowledgeBot(user, body.botId, knowledgeMode);
-  const voiceAgent = await ensureVoiceAgentForBot(user, botId);
-
   const sourceNumber = body.sourceNumber
     ? normalizePhoneNumber(body.sourceNumber)
     : '';
@@ -631,15 +689,26 @@ async function provision(
     });
   }
 
-  if (mode !== 'port' && !(await hasVoiceEntitlement(user))) {
+  const selectedNumber =
+    mode === 'port' ? '' : normalizePhoneNumber(body.phoneNumber || '');
+  if (mode !== 'port' && !selectedNumber) {
+    return res.status(400).json({
+      error: 'Select a valid Twilio phone number before activation',
+    });
+  }
+
+  if (!(await hasVoiceEntitlement(user))) {
     return res.status(402).json({
       error:
-        'No phone minutes are available yet. Add a voice plan before provisioning a number.',
+        'No phone minutes are available yet. Add a voice plan before provisioning or porting a number.',
       voicePlanRequired: true,
       voicePlans: VOICE_PLANS,
     });
   }
 
+  // Only mutate bot/agent/telephony state after all request preconditions pass.
+  const botId = await resolveKnowledgeBot(user, body.botId, knowledgeMode);
+  const voiceAgent = await ensureVoiceAgentForBot(user, botId);
   const account = await ensureTelephonyAccount(user);
 
   if (mode === 'port') {
@@ -671,26 +740,6 @@ async function provision(
     });
   }
 
-  const selectedNumber = normalizePhoneNumber(body.phoneNumber || '');
-  if (!selectedNumber) {
-    return res.status(400).json({
-      error: 'Select a valid Twilio phone number before activation',
-    });
-  }
-
-  const { record, purchased } = await purchaseDestinationNumber({
-    user,
-    accountSid: account.provider_account_sid,
-    phoneNumber: selectedNumber,
-    friendlyName:
-      body.friendlyName?.trim() ||
-      `BuildMyBot Voice - ${user.organizationId || user.id}`,
-    voiceAgent,
-    setupMode: mode,
-    sourceNumber: sourceNumber || undefined,
-  });
-
-  const status = mode === 'new' ? 'active' : 'awaiting_forwarding';
   const activation = await createActivationRecord({
     user,
     accountId: account.id,
@@ -698,16 +747,77 @@ async function provision(
     botId,
     knowledgeMode,
     sourceNumber: sourceNumber || null,
-    destinationNumberId: record.id,
     carrier: body.carrier?.trim() || null,
-    status,
+    status: 'provisioning',
+    metadata: { requested_number: selectedNumber },
   });
+
+  let provisioned: Awaited<ReturnType<typeof purchaseDestinationNumber>>;
+  try {
+    provisioned = await purchaseDestinationNumber({
+      user,
+      accountSid: account.provider_account_sid,
+      phoneNumber: selectedNumber,
+      friendlyName:
+        body.friendlyName?.trim() ||
+        `BuildMyBot Voice - ${user.organizationId || user.id}`,
+      voiceAgent,
+      setupMode: mode,
+      sourceNumber: sourceNumber || undefined,
+    });
+  } catch (error) {
+    await updateActivationRecord(user, activation.id, {
+      status: 'failed',
+      metadata: {
+        created_from: '/app/phone',
+        requested_number: selectedNumber,
+        failure_stage: 'provider_or_phone_persistence',
+      },
+      updated_at: new Date().toISOString(),
+    }).catch(() => null);
+    throw error;
+  }
+
+  const { record, purchased } = provisioned;
+  const finalStatus = mode === 'new' ? 'active' : 'awaiting_forwarding';
+  try {
+    await updateActivationRecord(user, activation.id, {
+      destination_number_id: record.id,
+      status: finalStatus,
+      activated_at: mode === 'new' ? new Date().toISOString() : null,
+      metadata: {
+        created_from: '/app/phone',
+        requested_number: selectedNumber,
+        provider_number_sid: purchased.sid,
+      },
+      updated_at: new Date().toISOString(),
+    });
+  } catch (error) {
+    const cleaned = await cleanupProvisionedNumber({
+      user,
+      accountSid: account.provider_account_sid,
+      providerNumberSid: purchased.sid,
+      phoneNumberId: record.id,
+    });
+    await updateActivationRecord(user, activation.id, {
+      status: cleaned ? 'failed' : 'cleanup_required',
+      metadata: {
+        created_from: '/app/phone',
+        requested_number: selectedNumber,
+        provider_number_sid: purchased.sid,
+        failure_stage: 'activation_finalize',
+        cleanup_complete: cleaned,
+      },
+      updated_at: new Date().toISOString(),
+    }).catch(() => null);
+    throw error;
+  }
 
   if (mode === 'forward') {
     return res.status(201).json({
       activationId: activation.id,
       mode,
-      status,
+      status: finalStatus,
       botId,
       phoneNumber: purchased.phoneNumber,
       twilioSid: purchased.sid,
@@ -726,7 +836,7 @@ async function provision(
   return res.status(201).json({
     activationId: activation.id,
     mode,
-    status,
+    status: finalStatus,
     botId,
     phoneNumber: purchased.phoneNumber,
     twilioSid: purchased.sid,
@@ -751,9 +861,17 @@ async function availableNumbers(
   if (areaCode && areaCode.length !== 3) {
     return res.status(400).json({ error: 'areaCode must be three digits' });
   }
+  if (!(await hasVoiceEntitlement(user))) {
+    return res.status(402).json({
+      error: 'A voice plan is required before searching provisionable numbers.',
+      voicePlanRequired: true,
+      voicePlans: VOICE_PLANS,
+    });
+  }
 
-  const account = await ensureTelephonyAccount(user);
-  const client = await tenantTwilioClient(account.provider_account_sid);
+  // Number inventory is global to Twilio. Do not create a tenant subaccount
+  // merely because a customer browsed available numbers.
+  const client = await rootTwilioClient();
   const numbers = await client.availablePhoneNumbers(countryCode).local.list({
     ...(areaCode ? { areaCode: Number(areaCode) } : {}),
     limit: 12,
@@ -770,7 +888,8 @@ async function availableNumbers(
 }
 
 async function status(res: VercelResponse, user: AuthUser) {
-  const [accounts, activations, numbers] = await Promise.all([
+  res.setHeader('Cache-Control', 'private, no-store, max-age=0');
+  const [accounts, activations, numberRows] = await Promise.all([
     sbSelect(
       'telephony_accounts',
       'id,status,provider,provider_account_sid,created_at',
@@ -783,7 +902,7 @@ async function status(res: VercelResponse, user: AuthUser) {
     }).catch(() => []),
     sbSelect(
       'phone_numbers',
-      'id,phone_number,friendly_name,voice_agent_id,status,provider_number_id,twilio_subaccount_sid,setup_method,existing_business_number,forwarding_mode,provider_account_sid,setup_mode,source_number,activation_status,activated_at,created_at',
+      'id,number,friendly_name,voice_agent_id,bot_id,status,provider_number_sid,provider_account_sid,setup_mode,source_number,activation_status,activated_at,created_at',
       {
         ...ownerFilter(user),
         status: 'eq.active',
@@ -792,6 +911,12 @@ async function status(res: VercelResponse, user: AuthUser) {
       },
     ).catch(() => []),
   ]);
+
+  const numbers = (numberRows || []).map((row: any) => ({
+    ...row,
+    phone_number: row.number,
+    provider_number_id: row.provider_number_sid,
+  }));
 
   return res.json({
     telephony: {
@@ -863,9 +988,9 @@ export async function handlePhoneActivation(
         'phone_numbers',
         {
           voice_agent_id: voiceAgent.id,
-          knowledge_space_id: voiceAgent.knowledgeSpaceId || null,
+          bot_id: botId,
         },
-        { id: `eq.${numberId}` },
+        { ...ownerFilter(user), id: `eq.${numberId}` },
       );
       return res.json({ success: true, numberId, botId });
     }

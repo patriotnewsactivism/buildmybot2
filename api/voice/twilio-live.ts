@@ -1,12 +1,13 @@
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
 import WebSocket, { type RawData } from 'ws';
+import { z } from 'zod';
 import { searchKnowledge } from '../rag.js';
 
 const GEMINI_MODEL = 'models/gemini-3.1-flash-live-preview';
 const GEMINI_WS_URL =
   'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent';
-const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 const SUPABASE_HEADERS = {
@@ -78,9 +79,13 @@ export function createTwilioStreamToken(input: {
   callSid: string;
   botId: string;
   logId: string;
+  accountSid?: string;
 }): string {
+  const material = input.accountSid
+    ? `${input.callSid}|${input.botId}|${input.logId}|${input.accountSid}`
+    : `${input.callSid}|${input.botId}|${input.logId}`;
   return createHmac('sha256', streamSigningSecret())
-    .update(`${input.callSid}|${input.botId}|${input.logId}`)
+    .update(material)
     .digest('base64url');
 }
 
@@ -89,6 +94,7 @@ function validTwilioStreamToken(input: {
   botId: string;
   logId: string;
   token: string;
+  accountSid?: string;
 }): boolean {
   try {
     const expected = Buffer.from(
@@ -96,6 +102,7 @@ function validTwilioStreamToken(input: {
         callSid: input.callSid,
         botId: input.botId,
         logId: input.logId,
+        accountSid: input.accountSid,
       }),
     );
     const received = Buffer.from(input.token);
@@ -216,21 +223,47 @@ function sendJson(socket: WebSocket, payload: unknown) {
   }
 }
 
+const streamParametersSchema = z
+  .object({
+    botId: z.string().min(1),
+    logId: z.string(),
+    token: z.string().min(1),
+    callSid: z.string().optional(),
+    accountSid: z.string().optional(),
+    callerNumber: z.string().optional(),
+    calledNumber: z.string().optional(),
+  })
+  .passthrough();
+
 async function loadSessionContext(
   start: TwilioStart,
 ): Promise<SessionContext | null> {
-  const parameters = start.customParameters || {};
-  const botId = parameters.botId || '';
-  const logId = parameters.logId || '';
+  const parsedParameters = streamParametersSchema.safeParse(
+    start.customParameters || {},
+  );
+  if (!parsedParameters.success) return null;
+  const parameters = parsedParameters.data;
+  const botId = parameters.botId;
+  const logId = parameters.logId;
   const callerNumber = parameters.callerNumber || '';
   const calledNumber = parameters.calledNumber || '';
-  const token = parameters.token || '';
+  const token = parameters.token;
   const callSid = start.callSid || parameters.callSid || '';
-  let accountSid = parameters.accountSid || '';
+  const accountSid = parameters.accountSid || '';
   const streamSid = start.streamSid || '';
 
-  if (!botId || !callSid || !streamSid || !token) return null;
-  if (!validTwilioStreamToken({ callSid, botId, logId, token })) return null;
+  if (!callSid || !streamSid) return null;
+  if (
+    !validTwilioStreamToken({
+      callSid,
+      botId,
+      logId,
+      token,
+      accountSid: accountSid || undefined,
+    })
+  ) {
+    return null;
+  }
 
   const botResult = await sbRequest(
     'bots',
@@ -244,19 +277,23 @@ async function loadSessionContext(
     typeof bot.organization_id === 'string' ? bot.organization_id : null;
 
   if (calledNumber) {
-    const numberResult = await sbRequest(
-      'phone_numbers',
-      `phone_number=eq.${encodeURIComponent(calledNumber)}&select=user_id,organization_id,twilio_subaccount_sid&limit=1`,
-    );
-    const number = asRows(numberResult.data)[0];
-    if (number) {
-      if (typeof number.user_id === 'string') userId = number.user_id;
-      if (typeof number.organization_id === 'string') {
-        organizationId = number.organization_id;
-      }
-      if (!accountSid && typeof number.twilio_subaccount_sid === 'string') {
-        accountSid = number.twilio_subaccount_sid;
-      }
+    const numberParams = accountSid
+      ? `number=eq.${encodeURIComponent(calledNumber)}&provider_account_sid=eq.${encodeURIComponent(accountSid)}&status=eq.active&select=user_id,organization_id,bot_id&limit=2`
+      : `number=eq.${encodeURIComponent(calledNumber)}&status=eq.active&select=user_id,organization_id,bot_id&limit=1`;
+    const numberResult = await sbRequest('phone_numbers', numberParams);
+    const numberRows = asRows(numberResult.data);
+    if (!numberResult.ok || numberRows.length !== 1) return null;
+    const number = numberRows[0];
+    if (
+      accountSid &&
+      typeof number.bot_id === 'string' &&
+      number.bot_id !== botId
+    ) {
+      return null;
+    }
+    if (typeof number.user_id === 'string') userId = number.user_id;
+    if (typeof number.organization_id === 'string') {
+      organizationId = number.organization_id;
     }
   }
 

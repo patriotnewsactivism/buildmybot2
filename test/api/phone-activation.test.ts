@@ -9,7 +9,7 @@ const originalEncryptionKey = process.env.ENCRYPTION_KEY;
 
 afterEach(() => {
   if (originalEncryptionKey === undefined) {
-    process.env.ENCRYPTION_KEY = undefined;
+    Reflect.deleteProperty(process.env, 'ENCRYPTION_KEY');
   } else {
     process.env.ENCRYPTION_KEY = originalEncryptionKey;
   }

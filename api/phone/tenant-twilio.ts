@@ -9,10 +9,11 @@
 
 import { createHmac } from 'node:crypto';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { z } from 'zod';
 import { createTwilioStreamToken } from '../voice/twilio-live.js';
 import { decryptSecret } from './crypto.js';
 
-const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const APP_BASE_URL = process.env.APP_BASE_URL || 'https://buildmybot.app';
 const TWILIO_WEBHOOK_BASE_URL =
@@ -24,15 +25,41 @@ const SUPABASE_HEADERS = {
   'Content-Type': 'application/json',
 };
 
-function parseBody(req: VercelRequest): Record<string, any> {
+function rawBody(req: VercelRequest): unknown {
   if (typeof req.body === 'string') {
     try {
       return JSON.parse(req.body);
     } catch {
-      return {};
+      return null;
     }
   }
-  return req.body || {};
+  return req.body;
+}
+
+const twilioBaseSchema = z
+  .object({ AccountSid: z.string().min(1) })
+  .passthrough();
+const inboundWebhookSchema = twilioBaseSchema.extend({
+  To: z.string().min(1),
+  From: z.string().min(1),
+  CallSid: z.string().min(1),
+});
+const respondWebhookSchema = twilioBaseSchema.extend({
+  CallSid: z.string().min(1),
+  SpeechResult: z.string().optional().default(''),
+});
+const statusWebhookSchema = twilioBaseSchema.extend({
+  CallSid: z.string().min(1),
+  CallStatus: z.string().min(1),
+  CallDuration: z.string().regex(/^\d+$/).optional().default('0'),
+});
+
+function parseWebhookBody<T extends z.ZodType>(
+  req: VercelRequest,
+  schema: T,
+): z.infer<T> | null {
+  const parsed = schema.safeParse(rawBody(req));
+  return parsed.success ? parsed.data : null;
 }
 
 function escapeXml(value: string): string {
@@ -46,23 +73,36 @@ function escapeXml(value: string): string {
 
 async function sbFetch(table: string, params: string, init?: RequestInit) {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return null;
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params}`, {
-    ...init,
-    headers: { ...SUPABASE_HEADERS, ...(init?.headers || {}) },
-  });
-  if (!response.ok) {
-    const detail = await response.text().catch(() => '');
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  try {
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params}`, {
+      ...init,
+      signal: controller.signal,
+      headers: { ...SUPABASE_HEADERS, ...(init?.headers || {}) },
+    });
+    if (!response.ok) {
+      const detail = await response.text().catch(() => '');
+      console.error(
+        `[tenant-twilio] Supabase ${init?.method || 'GET'} ${table} failed: ${response.status}${detail ? ` ${detail}` : ''}`,
+      );
+      return null;
+    }
+    const text = await response.text();
+    if (!text) return null;
+    try {
+      return JSON.parse(text);
+    } catch {
+      return null;
+    }
+  } catch (error) {
     console.error(
-      `[tenant-twilio] Supabase ${init?.method || 'GET'} ${table} failed: ${response.status}${detail ? ` ${detail}` : ''}`,
+      `[tenant-twilio] Supabase ${init?.method || 'GET'} ${table} transport failed:`,
+      error instanceof Error ? error.message : error,
     );
     return null;
-  }
-  const text = await response.text();
-  if (!text) return null;
-  try {
-    return JSON.parse(text);
-  } catch {
-    return null;
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
@@ -100,9 +140,9 @@ async function validateTwilioRequest(req: VercelRequest): Promise<boolean> {
   const signature = req.headers['x-twilio-signature'] as string | undefined;
   if (!signature) return false;
 
-  const body = parseBody(req);
-  const accountSid = String(body.AccountSid || '');
-  const authToken = await twilioAuthTokenForAccount(accountSid);
+  const body = parseWebhookBody(req, twilioBaseSchema);
+  if (!body) return false;
+  const authToken = await twilioAuthTokenForAccount(body.AccountSid);
   if (!authToken) return false;
 
   try {
@@ -115,7 +155,7 @@ async function validateTwilioRequest(req: VercelRequest): Promise<boolean> {
       authToken,
       signature,
       `${base}${requestPath}`,
-      body,
+      body as Record<string, string>,
     );
   } catch (error) {
     console.error(
@@ -157,12 +197,14 @@ interface ResolvedPhoneNumber {
 
 async function resolveBotForNumber(
   calledNumber: string,
+  accountSid: string,
 ): Promise<ResolvedPhoneNumber | null> {
   const numbers = await sbFetch(
     'phone_numbers',
-    `phone_number=eq.${encodeURIComponent(calledNumber)}&status=eq.active&select=id,user_id,voice_agent_id&limit=1`,
+    `number=eq.${encodeURIComponent(calledNumber)}&provider_account_sid=eq.${encodeURIComponent(accountSid)}&status=eq.active&select=id,user_id,voice_agent_id,bot_id&limit=2`,
   );
-  const row = numbers?.[0];
+  if (!Array.isArray(numbers) || numbers.length !== 1) return null;
+  const row = numbers[0];
   if (!row?.id || !row?.user_id || !row?.voice_agent_id) return null;
 
   const agents = await sbFetch(
@@ -170,19 +212,22 @@ async function resolveBotForNumber(
     `id=eq.${encodeURIComponent(row.voice_agent_id)}&select=id,bot_id,greeting&limit=1`,
   );
   const agent = agents?.[0];
-  if (!agent?.id || !agent?.bot_id) {
+  if (!agent?.id) return null;
+
+  const botId = agent.bot_id || row.bot_id;
+  if (!botId) {
     return {
       phoneNumberId: String(row.id),
       userId: String(row.user_id),
-      voiceAgentId: String(row.voice_agent_id),
-      greeting: null,
+      voiceAgentId: String(agent.id),
+      greeting: agent.greeting || null,
       bot: null,
     };
   }
 
   const bots = await sbFetch(
     'bots',
-    `id=eq.${encodeURIComponent(agent.bot_id)}&select=id,name,system_prompt&limit=1`,
+    `id=eq.${encodeURIComponent(botId)}&select=id,name,system_prompt&limit=1`,
   );
   return {
     phoneNumberId: String(row.id),
@@ -251,6 +296,7 @@ function realtimeTwiml(options: {
     callSid: options.callSid,
     botId: options.botId,
     logId: options.logId,
+    accountSid: options.accountSid,
   });
 
   return `<?xml version="1.0" encoding="UTF-8"?>
@@ -282,13 +328,16 @@ export async function tenantInboundVoiceHandler(
     return res.status(403).json({ error: 'Invalid Twilio request' });
   }
 
-  const body = parseBody(req);
-  const calledNumber = String(body.To || '');
-  const callerNumber = String(body.From || '');
-  const callSid = String(body.CallSid || '');
-  const accountSid = String(body.AccountSid || '');
+  const body = parseWebhookBody(req, inboundWebhookSchema);
+  if (!body) return res.status(400).json({ error: 'Invalid Twilio payload' });
+  const {
+    To: calledNumber,
+    From: callerNumber,
+    CallSid: callSid,
+    AccountSid: accountSid,
+  } = body;
 
-  const resolved = await resolveBotForNumber(calledNumber);
+  const resolved = await resolveBotForNumber(calledNumber, accountSid);
   const bot = resolved?.bot || null;
   const logId =
     resolved && bot
@@ -376,8 +425,9 @@ export async function tenantInboundVoiceRespond(
     return res.status(403).json({ error: 'Invalid Twilio request' });
   }
 
-  const body = parseBody(req);
-  const speechResult = String(body.SpeechResult || '');
+  const body = parseWebhookBody(req, respondWebhookSchema);
+  if (!body) return res.status(400).json({ error: 'Invalid Twilio payload' });
+  const speechResult = body.SpeechResult;
   const url = new URL(req.url || '/', 'http://localhost');
   const logId = url.searchParams.get('logId') || '';
   const botId = url.searchParams.get('botId') || '';
@@ -462,10 +512,11 @@ export async function tenantInboundStatusCallback(
     return res.status(403).json({ error: 'Invalid Twilio request' });
   }
 
-  const body = parseBody(req);
-  const callStatus = String(body.CallStatus || '');
-  const duration = Number.parseInt(String(body.CallDuration || '0'), 10);
-  const callSid = String(body.CallSid || '');
+  const body = parseWebhookBody(req, statusWebhookSchema);
+  if (!body) return res.status(400).json({ error: 'Invalid Twilio payload' });
+  const callStatus = body.CallStatus;
+  const duration = Number.parseInt(body.CallDuration, 10);
+  const callSid = body.CallSid;
 
   if (
     ['completed', 'busy', 'no-answer', 'failed', 'canceled'].includes(
