@@ -10,9 +10,12 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
  * Supported voices: alloy, echo, fable, onyx, nova, shimmer (OpenAI) | eve, ara, leo (Grok)
  */
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const CARTESIA_API_KEY = process.env.CARTESIA_API_KEY;
-const XAI_API_KEY = process.env.XAI_API_KEY;
+// Read lazily: snapshotting these at module load meant a key rotated (or set)
+// after the first import was ignored for the life of the instance, and made
+// provider configuration untestable.
+const OPENAI_API_KEY = () => process.env.OPENAI_API_KEY;
+const CARTESIA_API_KEY = () => process.env.CARTESIA_API_KEY;
+const XAI_API_KEY = () => process.env.XAI_API_KEY;
 const OPENAI_BASE = 'https://api.openai.com/v1';
 const CARTESIA_BASE = 'https://api.cartesia.ai/v1';
 const XAI_BASE = 'https://api.x.ai/v1';
@@ -54,7 +57,7 @@ interface TTSProvider {
 
 const openaiProvider: TTSProvider = {
   name: 'openai',
-  isConfigured: () => !!OPENAI_API_KEY,
+  isConfigured: () => !!OPENAI_API_KEY(),
   getDefaultVoice: () => 'shimmer',
   generateAudio: async (text: string, voice: string, speed: number) => {
     const selectedVoice = OPENAI_VOICES.includes(voice) ? voice : 'shimmer';
@@ -62,7 +65,7 @@ const openaiProvider: TTSProvider = {
     const response = await fetch(`${OPENAI_BASE}/audio/speech`, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        Authorization: `Bearer ${OPENAI_API_KEY()}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -86,7 +89,7 @@ const openaiProvider: TTSProvider = {
 
 const cartesiaProvider: TTSProvider = {
   name: 'cartesia',
-  isConfigured: () => !!CARTESIA_API_KEY,
+  isConfigured: () => !!CARTESIA_API_KEY(),
   getDefaultVoice: () => 'a0e99841-438c-4a64-b679-ae501e7d6091', // Sonia
   generateAudio: async (text: string, voice: string, speed: number) => {
     const selectedVoice = CARTESIA_VOICES.includes(voice) ? voice : 'a0e99841-438c-4a64-b679-ae501e7d6091';
@@ -94,7 +97,7 @@ const cartesiaProvider: TTSProvider = {
     const response = await fetch(`${CARTESIA_BASE}/tts`, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${CARTESIA_API_KEY}`,
+        Authorization: `Bearer ${CARTESIA_API_KEY()}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -118,7 +121,7 @@ const cartesiaProvider: TTSProvider = {
 
 const grokProvider: TTSProvider = {
   name: 'grok',
-  isConfigured: () => !!XAI_API_KEY,
+  isConfigured: () => !!XAI_API_KEY(),
   getDefaultVoice: () => 'eve',
   generateAudio: async (text: string, voice: string, _speed: number) => {
     const selectedVoice = GROK_VOICES.includes(voice) ? voice : 'eve';
@@ -126,7 +129,7 @@ const grokProvider: TTSProvider = {
     const response = await fetch(`${XAI_BASE}/tts`, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${XAI_API_KEY}`,
+        Authorization: `Bearer ${XAI_API_KEY()}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -193,18 +196,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(429).json({ error: 'Too many requests' });
   }
 
-  // Select provider
-  const selectedProviderName = providerName && providers[providerName as string]
-    ? (providerName as string)
-    : 'openai';
-  
-  const selectedProvider = providers[selectedProviderName];
-  
-  if (!selectedProvider) {
-    return res.status(400).json({ 
-      error: `Unsupported provider: ${providerName}. Supported: ${Object.keys(providers).join(', ')}` 
+  // Select provider. An explicitly requested but unknown provider is a client
+  // error -- the previous version silently fell back to OpenAI, so the 400
+  // below was unreachable and callers never learned their request was wrong.
+  if (providerName !== undefined && !providers[providerName as string]) {
+    return res.status(400).json({
+      error: `Unsupported provider: ${providerName}. Supported: ${Object.keys(providers).join(', ')}`,
     });
   }
+
+  const selectedProviderName = (providerName as string) || 'openai';
+  const selectedProvider = providers[selectedProviderName];
 
   if (!selectedProvider.isConfigured()) {
     // Try fallback providers
