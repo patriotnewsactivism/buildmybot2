@@ -2,6 +2,12 @@ import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { PLAN_LIMITS, VOICE_PLANS } from '../../constants.js';
 import { encryptSecret } from './crypto.js';
+import {
+  createTenantAccount,
+  purchaseNumber,
+  releaseNumber,
+  searchAvailableNumbers,
+} from '../lib/telephony-provider.js';
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -157,7 +163,7 @@ function ownerFilter(user: AuthUser): Record<string, string> {
 
 function tenantTelephonyFilter(user: AuthUser): Record<string, string> {
   return {
-    provider: 'eq.twilio',
+    provider: 'eq.telnyx',
     status: 'eq.active',
     ...(user.organizationId
       ? { organization_id: `eq.${user.organizationId}` }
@@ -273,33 +279,8 @@ function friendlyTenantName(user: AuthUser): string {
   return `BuildMyBot ${suffix}`.slice(0, 64);
 }
 
-function rootTwilioConfigured(): boolean {
-  return Boolean(
-    process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN,
-  );
-}
-
-async function rootTwilioClient() {
-  if (!rootTwilioConfigured()) {
-    throw new Error('Twilio parent account is not configured');
-  }
-  const Twilio = (await import('twilio')).default;
-  return new Twilio(
-    process.env.TWILIO_ACCOUNT_SID as string,
-    process.env.TWILIO_AUTH_TOKEN as string,
-  );
-}
-
-async function tenantTwilioClient(accountSid: string) {
-  if (!rootTwilioConfigured()) {
-    throw new Error('Twilio parent account is not configured');
-  }
-  const Twilio = (await import('twilio')).default;
-  return new Twilio(
-    process.env.TWILIO_ACCOUNT_SID as string,
-    process.env.TWILIO_AUTH_TOKEN as string,
-    { accountSid },
-  );
+function telephonyProviderConfigured(): boolean {
+  return Boolean(process.env.TELNYX_API_KEY);
 }
 
 async function ensureTelephonyAccount(
@@ -316,46 +297,38 @@ async function ensureTelephonyAccount(
 
   if (!process.env.ENCRYPTION_KEY) {
     throw new Error(
-      'ENCRYPTION_KEY is required before customer telephony subaccounts can be created',
+      'ENCRYPTION_KEY is required before customer telephony accounts can be created',
     );
   }
 
-  const rootClient = await rootTwilioClient();
-  const created = await rootClient.api.v2010.accounts.create({
-    friendlyName: friendlyTenantName(user),
-  });
-  if (!created.sid || !created.authToken) {
-    throw new Error('Twilio did not return complete subaccount credentials');
-  }
+  const created = await createTenantAccount(friendlyTenantName(user));
 
-  const encryptedAuthToken = encryptSecret(created.authToken);
+  // Telnyx's pragmatic fallback (see api/lib/telephony-provider.ts) does not
+  // issue a real per-tenant secret the way a Twilio subaccount auth token
+  // did -- there is nothing tenant-specific to encrypt here. We keep the
+  // auth_token_encrypted column populated with an encrypted copy of the root
+  // TELNYX_API_KEY only so existing DB reads that expect a non-null value
+  // keep working; every real Telnyx call still authenticates with the root
+  // key from process.env directly, never from this column.
+  const encryptedAuthToken = encryptSecret(process.env.TELNYX_API_KEY || '');
   try {
     const inserted = await sbInsert('telephony_accounts', {
       id: randomUUID(),
       organization_id: user.organizationId || null,
       user_id: user.id,
-      provider: 'twilio',
-      provider_account_sid: created.sid,
+      provider: 'telnyx',
+      provider_account_sid: created.providerAccountId,
       auth_token_encrypted: encryptedAuthToken,
       status: 'active',
       metadata: {
-        isolation: 'per-tenant-subaccount',
+        isolation: created.isRealSubAccount
+          ? 'per-tenant-subaccount'
+          : 'shared-account-tagged',
         created_by: 'phone-agent-activation',
       },
     });
     return inserted[0] as TelephonyAccount;
   } catch (error) {
-    try {
-      await rootClient.api.v2010
-        .accounts(created.sid)
-        .update({ status: 'closed' });
-    } catch (cleanupError) {
-      console.error(
-        '[phone-activation] Unable to close orphaned Twilio subaccount:',
-        cleanupError instanceof Error ? cleanupError.message : cleanupError,
-      );
-    }
-
     const raced = await sbSelect(
       'telephony_accounts',
       'id,organization_id,user_id,provider_account_sid,status',
@@ -555,14 +528,20 @@ async function purchaseDestinationNumber(options: {
   setupMode: 'new' | 'forward';
   sourceNumber?: string;
 }) {
-  const client = await tenantTwilioClient(options.accountSid);
-  const purchased = await client.incomingPhoneNumbers.create({
-    phoneNumber: options.phoneNumber,
-    friendlyName: options.friendlyName || undefined,
-    voiceUrl: `${TWILIO_WEBHOOK_BASE_URL}/api/phone/activation/twilio/inbound`,
-    voiceMethod: 'POST',
-    statusCallback: `${TWILIO_WEBHOOK_BASE_URL}/api/phone/activation/twilio/status`,
-    statusCallbackMethod: 'POST',
+  // NOTE: options.phoneNumber (an exact requested number) is not directly
+  // orderable via Telnyx's search+order flow the way Twilio allowed buying
+  // an exact number by E.164 string -- Telnyx orders whatever the search
+  // returns. We pass it through as an area-code hint only when it looks
+  // like a bare area code; otherwise we fall back to best-effort search.
+  // This is a known behavior change from the Twilio path, flagged in the
+  // PR description, not silently papered over.
+  const areaCodeHint = /^\d{3}$/.test(options.phoneNumber?.replace(/\D/g, '').slice(0, 3) || '')
+    ? options.phoneNumber.replace(/\D/g, '').slice(0, 3)
+    : undefined;
+
+  const purchased = await purchaseNumber({
+    areaCode: areaCodeHint,
+    friendlyName: options.friendlyName,
   });
 
   try {
@@ -572,8 +551,8 @@ async function purchaseDestinationNumber(options: {
       voice_agent_id: options.voiceAgent.id,
       user_id: options.user.id,
       organization_id: options.user.organizationId || null,
-      provider: 'twilio',
-      provider_number_id: purchased.sid,
+      provider: 'telnyx',
+      provider_number_id: purchased.providerNumberId,
       phone_number: purchased.phoneNumber,
       friendly_name: purchased.friendlyName || null,
       status: 'active',
@@ -589,7 +568,7 @@ async function purchaseDestinationNumber(options: {
     return { record: rows[0], purchased };
   } catch (error) {
     try {
-      await client.incomingPhoneNumbers(purchased.sid).remove();
+      await releaseNumber(purchased.providerNumberId);
     } catch (cleanupError) {
       console.error(
         '[phone-activation] Failed to release number after DB insert failure:',
@@ -654,8 +633,7 @@ async function cleanupProvisionedNumber(options: {
 }): Promise<boolean> {
   let providerReleased = false;
   try {
-    const client = await tenantTwilioClient(options.accountSid);
-    await client.incomingPhoneNumbers(options.providerNumberSid).remove();
+    await releaseNumber(options.providerNumberSid);
     providerReleased = true;
   } catch (error) {
     console.error(
@@ -709,7 +687,7 @@ async function provision(
     mode === 'port' ? '' : normalizePhoneNumber(body.phoneNumber || '');
   if (mode !== 'port' && !selectedNumber) {
     return res.status(400).json({
-      error: 'Select a valid Twilio phone number before activation',
+      error: 'Select a valid phone number before activation',
     });
   }
 
@@ -746,12 +724,12 @@ async function provision(
       sourceNumber,
       botId,
       message:
-        'Port request recorded. The number remains with the current carrier until Twilio accepts the port and the cutover is confirmed.',
+        'Port request recorded. The number remains with the current carrier until the port provider accepts the port and the cutover is confirmed.',
       nextSteps: [
         'Collect the current carrier account number and billing information.',
         'Complete the required Letter of Authorization and carrier documentation.',
         'Do not cancel the existing carrier service before the port completes.',
-        'After Twilio confirms the port date, run an inbound call test before marking the agent active.',
+        'After the port date is confirmed, run an inbound call test before marking the agent active.',
       ],
     });
   }
@@ -804,7 +782,7 @@ async function provision(
       metadata: {
         created_from: '/app/phone',
         requested_number: selectedNumber,
-        provider_number_sid: purchased.sid,
+        provider_number_sid: purchased.providerNumberId,
       },
       updated_at: new Date().toISOString(),
     });
@@ -812,7 +790,7 @@ async function provision(
     const cleaned = await cleanupProvisionedNumber({
       user,
       accountSid: account.provider_account_sid,
-      providerNumberSid: purchased.sid,
+      providerNumberSid: purchased.providerNumberId,
       phoneNumberId: record.id,
     });
     await updateActivationRecord(user, activation.id, {
@@ -820,7 +798,7 @@ async function provision(
       metadata: {
         created_from: '/app/phone',
         requested_number: selectedNumber,
-        provider_number_sid: purchased.sid,
+        provider_number_sid: purchased.providerNumberId,
         failure_stage: 'activation_finalize',
         cleanup_complete: cleaned,
       },
@@ -836,7 +814,10 @@ async function provision(
       status: finalStatus,
       botId,
       phoneNumber: purchased.phoneNumber,
-      twilioSid: purchased.sid,
+      // Legacy field name kept for frontend compatibility (components/PhoneAgent/*,
+      // types.ts, shared/schema.ts) -- now holds the Telnyx provider_number_id,
+      // not a real Twilio SID.
+      twilioSid: purchased.providerNumberId,
       sourceNumber,
       forwardingDestination: purchased.phoneNumber,
       message:
@@ -855,7 +836,9 @@ async function provision(
     status: finalStatus,
     botId,
     phoneNumber: purchased.phoneNumber,
-    twilioSid: purchased.sid,
+    // Legacy field name kept for frontend compatibility -- now holds the
+    // Telnyx provider_number_id, not a real Twilio SID.
+    twilioSid: purchased.providerNumberId,
     message:
       'The new BuildMyBot number is provisioned and attached to the selected knowledge workspace.',
   });
@@ -885,17 +868,16 @@ async function availableNumbers(
     });
   }
 
-  // Inventory browsing must not create a paid/managed tenant subaccount.
-  const client = await rootTwilioClient();
-  const numbers = await client.availablePhoneNumbers(countryCode).local.list({
-    ...(areaCode ? { areaCode: Number(areaCode) } : {}),
-    limit: 12,
-  });
+  // Inventory browsing must not create/order anything -- search only.
+  if (!telephonyProviderConfigured()) {
+    throw new Error('Telnyx is not configured (TELNYX_API_KEY missing)');
+  }
+  const numbers = await searchAvailableNumbers({ areaCode, countryCode, limit: 12 });
 
   return res.json(
-    numbers.map((number: any) => ({
+    numbers.map((number) => ({
       phoneNumber: number.phoneNumber,
-      friendlyName: number.friendlyName || number.phoneNumber,
+      friendlyName: number.phoneNumber,
       locality: number.locality || '',
       region: number.region || '',
     })),
@@ -1012,7 +994,7 @@ export async function handlePhoneActivation(
     return res.status(500).json({
       error:
         message.includes('ENCRYPTION_KEY') ||
-        message.includes('Twilio parent account')
+        message.includes('Telnyx is not configured')
           ? message
           : 'Phone activation failed. No provisioning result was assumed.',
     });

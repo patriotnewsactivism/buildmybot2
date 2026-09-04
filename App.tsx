@@ -44,6 +44,7 @@ import { PricingPage } from './components/Landing/pages/PricingPage';
 import { PrivacyPage } from './components/Landing/pages/PrivacyPage';
 import { LandingPageBuilder } from './components/LandingPages/LandingPageBuilder';
 import { MarketingTools } from './components/Marketing/MarketingTools';
+import { SmsMarketing } from './components/SmsMarketing/SmsMarketing';
 import { TemplateMarketplace } from './components/Marketplace/TemplateMarketplace';
 import {
   PartnerDashboardV2,
@@ -625,6 +626,10 @@ function App() {
                   }
                 />
                 <Route path="/app/marketing" element={<MarketingTools />} />
+                {/* Deliberately NOT in navConfig.tsx yet -- unpublished/hidden
+                    per Don's call (2026-09-04) until a real Telnyx account +
+                    a test 10DLC registration are verified end-to-end. */}
+                <Route path="/app/sms-marketing" element={<SmsMarketing />} />
                 <Route path="/app/website" element={<WebsiteBuilder />} />
                 <Route
                   path="/app/marketplace"

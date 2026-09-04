@@ -70,9 +70,9 @@ env:
   CARTESIA_API_KEY: ${{ secrets.CARTESIA_API_KEY }}
   VAPI_API_KEY: ${{ secrets.VAPI_API_KEY }}
   VAPI_WEBHOOK_SECRET: ${{ secrets.VAPI_WEBHOOK_SECRET }}
-  TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
-  TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
-  TWILIO_PHONE_NUMBER: ${{ secrets.TWILIO_PHONE_NUMBER }}
+  TELNYX_API_KEY: ${{ secrets.TELNYX_API_KEY }}
+  TELNYX_MESSAGING_PROFILE_ID: ${{ secrets.TELNYX_MESSAGING_PROFILE_ID }}
+  TELNYX_PUBLIC_KEY: ${{ secrets.TELNYX_PUBLIC_KEY }}
   TWILIO_WEBHOOK_BASE_URL: ${{ vars.TWILIO_WEBHOOK_BASE_URL || secrets.TWILIO_WEBHOOK_BASE_URL }}
   SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
   BASE44_SUPERAGENT_API_KEY: ${{ secrets.BASE44_SUPERAGENT_API_KEY }}
@@ -185,7 +185,7 @@ jobs:
             fi
           }
 
-          for name in ENCRYPTION_KEY TWILIO_ACCOUNT_SID TWILIO_AUTH_TOKEN GEMINI_API_KEY TWILIO_WEBHOOK_BASE_URL; do
+          for name in ENCRYPTION_KEY TELNYX_API_KEY TELNYX_MESSAGING_PROFILE_ID GEMINI_API_KEY TWILIO_WEBHOOK_BASE_URL; do
             load_cloud_run_value_if_missing "$name"
           done
 
@@ -197,7 +197,7 @@ jobs:
               --format='value(status.url)')"
             if [[ -n "$service_url" ]]; then
               echo "TWILIO_WEBHOOK_BASE_URL=$service_url" >> "$GITHUB_ENV"
-              echo "Using the actual Cloud Run service URL for Twilio activation webhooks."
+              echo "Using the actual Cloud Run service URL for phone/SMS activation webhooks."
             fi
           fi
       - name: Validate runtime secrets and phone activation prerequisites
@@ -205,14 +205,14 @@ jobs:
         run: |
           set -euo pipefail
           missing=0
-          for name in SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY SESSION_JWT_SECRET ENCRYPTION_KEY GEMINI_API_KEY TWILIO_ACCOUNT_SID TWILIO_AUTH_TOKEN TWILIO_WEBHOOK_BASE_URL; do
+          for name in SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY SESSION_JWT_SECRET ENCRYPTION_KEY GEMINI_API_KEY TELNYX_API_KEY TWILIO_WEBHOOK_BASE_URL; do
             if [[ -z "${!name:-}" ]]; then
               echo "Missing required runtime setting: $name" >&2
               missing=1
             fi
           done
           if [[ -n "${TWILIO_WEBHOOK_BASE_URL:-}" && ! "$TWILIO_WEBHOOK_BASE_URL" =~ ^https:// ]]; then
-            echo "TWILIO_WEBHOOK_BASE_URL must be an HTTPS origin reachable by Twilio." >&2
+            echo "TWILIO_WEBHOOK_BASE_URL must be an HTTPS origin reachable by the telephony provider." >&2
             missing=1
           fi
           if (( missing )); then exit 1; fi
@@ -297,7 +297,7 @@ jobs:
             TAVILY_API_KEY FIRECRAWL_API_KEY RESEND_API_KEY INBOUND_EMAIL_WEBHOOK_SECRET CRON_SECRET \
             STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET STRIPE_WHITELABEL_PRICE_ID \
             RETELL_API_KEY RETELL_WEBHOOK_SECRET CARTESIA_API_KEY VAPI_API_KEY VAPI_WEBHOOK_SECRET \
-            TWILIO_ACCOUNT_SID TWILIO_AUTH_TOKEN TWILIO_PHONE_NUMBER TWILIO_WEBHOOK_BASE_URL SENTRY_DSN BASE44_SUPERAGENT_API_KEY \
+            TELNYX_API_KEY TELNYX_MESSAGING_PROFILE_ID TELNYX_PUBLIC_KEY TWILIO_WEBHOOK_BASE_URL SENTRY_DSN BASE44_SUPERAGENT_API_KEY \
             PORTFOLIO_INTAKE_SECRET PORTFOLIO_OWNER_EMAIL; do
             value="${!name:-}"
             if [[ -z "$value" ]]; then

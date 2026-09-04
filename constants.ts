@@ -424,6 +424,61 @@ export const VOICE_AGENT_PRICING = Object.entries(VOICE_PLANS).map(
   }),
 );
 
+/**
+ * Standalone SMS marketing add-on -- flat monthly tiers, purchasable
+ * regardless of chatbot/voice plan (mirrors the VOICE_PLANS pattern above).
+ * Requires the tenant to complete 10DLC brand+campaign registration
+ * (api/sms/register.ts) before sending is unlocked -- see SmsMarketing.tsx.
+ *
+ * NOT YET PUBLISHED anywhere -- no route links to the page that renders
+ * this yet (Don's call, 2026-09-04: build it now, keep it unpublished until
+ * a real Telnyx account + registration flow is verified end-to-end).
+ *
+ * `stripePriceEnv` follows the same convention as VOICE_PLANS -- checkout
+ * resolves the real Stripe Price ID server-side, never trusts a
+ * client-supplied price.
+ */
+export const SMS_MARKETING_PLANS = {
+  SMS_STARTER: {
+    price: 39,
+    messagesIncluded: 1000,
+    overagePerMessage: 0.02,
+    name: 'SMS Marketing Starter',
+    stripePriceEnv: 'STRIPE_PRICE_SMS_STARTER',
+  },
+  SMS_GROWTH: {
+    price: 99,
+    messagesIncluded: 5000,
+    overagePerMessage: 0.018,
+    name: 'SMS Marketing Growth',
+    stripePriceEnv: 'STRIPE_PRICE_SMS_GROWTH',
+  },
+  SMS_SCALE: {
+    price: 249,
+    messagesIncluded: 20000,
+    overagePerMessage: 0.015,
+    name: 'SMS Marketing Scale',
+    stripePriceEnv: 'STRIPE_PRICE_SMS_SCALE',
+  },
+};
+
+export const SMS_MARKETING_PRICING = Object.entries(SMS_MARKETING_PLANS).map(
+  ([key, plan]) => ({
+    id: key.toLowerCase(),
+    planKey: key,
+    name: plan.name,
+    price: plan.price,
+    messagesIncluded: plan.messagesIncluded,
+    overagePerMessage: plan.overagePerMessage,
+    features: [
+      `${plan.messagesIncluded.toLocaleString()} messages/month`,
+      'Two-way SMS marketing campaigns',
+      'Built-in opt-out (STOP/HELP) compliance',
+      `$${plan.overagePerMessage.toFixed(3)}/msg overage`,
+    ],
+  }),
+);
+
 export const EXPERT_SETUP_SERVICES = [
   {
     id: 'basic_setup',
