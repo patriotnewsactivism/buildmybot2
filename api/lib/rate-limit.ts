@@ -29,6 +29,10 @@ export const RATE_LIMITS: Record<string, RateLimitRule> = {
   crawl: { bucket: 'knowledge:crawl', max: 10, windowMs: 60 * 60_000 },
   phoneProvision: { bucket: 'phone:provision', max: 3, windowMs: 60 * 60_000 },
   webhookTest: { bucket: 'webhooks:test', max: 20, windowMs: 60 * 60_000 },
+  // Public, unauthenticated /demo/scrape on the marketing site -- tighter
+  // than the authenticated tenant crawl bucket since there's no account to
+  // ban/throttle per-tenant, only a per-IP counter.
+  demoScrape: { bucket: 'public:demo-scrape', max: 5, windowMs: 60 * 60_000 },
 };
 
 interface Counter {

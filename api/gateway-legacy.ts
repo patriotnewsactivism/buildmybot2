@@ -3510,6 +3510,61 @@ function chatRateLimited(key: string, max = 30, windowMs = 60_000): boolean {
   return entry.count > max;
 }
 
+/** Public website-preview scrape for the marketing site's /demo page --
+ * anonymous visitors trying the "Website URL trainer" widget are NOT
+ * logged into buildmybot.app, so this must not require a session. Kept
+ * deliberately narrow so it can't be used as a general-purpose proxy or
+ * to seed real tenant data:
+ *  - single-page only (reuses scrapeUrlFirecrawl, same SSRF guard as the
+ *    authenticated tenant scrape path -- no multi-page Firecrawl crawl job,
+ *    no webhook, no knowledge_sources/knowledge_chunks row ever created)
+ *  - tight per-IP rate limit (RATE_LIMITS.demoScrape, 5/hour)
+ *  - response is a small truncated text preview, never raw HTML and never
+ *    the underlying scraper/SSRF error text (logged server-side instead)
+ *  - no API keys or other secrets ever touch the response body
+ */
+async function handleDemoScrape(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+  if (enforceRateLimit(req, res, RATE_LIMITS.demoScrape)) return;
+
+  const body = parseBody(req);
+  const rawUrl = typeof body.url === 'string' ? body.url.trim() : '';
+  if (!rawUrl) return res.status(400).json({ error: 'url is required' });
+
+  let target: string;
+  try {
+    target = rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`;
+    // Reject structurally invalid input before it ever reaches a fetch.
+    new URL(target);
+  } catch {
+    return res.status(400).json({ error: 'Invalid URL' });
+  }
+
+  try {
+    // SSRF: scrapeUrlFirecrawl() validates the target (and every redirect
+    // hop, and the Firecrawl-fallback path) via assertSafeOutboundUrl/
+    // safeFetch before fetching anything -- same protection the
+    // authenticated tenant /knowledge/scrape/:botId route relies on.
+    const content = await scrapeUrlFirecrawl(target);
+    if (!content || content.trim().length < 50) {
+      return res.status(422).json({
+        error: 'Could not extract meaningful content from this website.',
+      });
+    }
+    return res.status(200).json({ content: content.slice(0, 8000) });
+  } catch (err: any) {
+    console.error('[demo-scrape] failed:', err?.message || err);
+    const blocked = err instanceof SsrfBlockedError;
+    return res.status(blocked ? 400 : 502).json({
+      error: blocked
+        ? 'That URL cannot be scraped.'
+        : 'Failed to scrape website. The URL might be blocked or invalid.',
+    });
+  }
+}
+
 /** Public chat endpoint -- powers both the embedded bot widget
  * (/api/chat/bot/{botId}, real customer bots with their own system prompt +
  * knowledge base) and the generic marketing-site demo mode (/api/chat with
@@ -6421,6 +6476,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // require a session. Scoped safely: handleChat only ever reads/writes
     // the ONE bot id in the URL/body, never the caller's own tenant data.
     if (routeName === 'chat') return await handleChat(req, res, pathParts);
+
+    // Public demo-page scraper -- see handleDemoScrape for scope/limits.
+    if (routeName === 'demo' && pathParts[0] === 'scrape')
+      return await handleDemoScrape(req, res);
 
     // Public bot lookup for the shareable /chat/:botId page -- anonymous
     // visitors following a shared link are NOT logged in. Was previously

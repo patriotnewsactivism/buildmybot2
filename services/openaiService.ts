@@ -180,16 +180,16 @@ export const scrapeWebsiteContent = async (url: string): Promise<string> => {
       targetUrl = `https://${targetUrl}`;
     }
 
-    // Use server-side scraping endpoint instead of unreliable client-side proxies
-    const scrapeResponse = await fetch(
-      buildApiUrl('/knowledge/scrape-preview'),
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ url: targetUrl }),
-      },
-    );
+    // Public marketing-site demo -- unauthenticated visitors are not
+    // logged into buildmybot.app, so this deliberately does NOT send
+    // credentials/cookies and hits the narrowly-scoped public /demo/scrape
+    // endpoint rather than the authenticated tenant /knowledge/scrape/:botId
+    // route (which requires a session + bot ownership and 401s otherwise).
+    const scrapeResponse = await fetch(buildApiUrl('/demo/scrape'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: targetUrl }),
+    });
 
     if (!scrapeResponse.ok) {
       const err = await scrapeResponse.json().catch(() => ({}));
