@@ -1,6 +1,13 @@
 import crypto from 'node:crypto';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
+import {
+  PLANS,
+  SMS_MARKETING_PLANS,
+  applyCommissionSafeguard,
+  applySmsCommissionSafeguard,
+} from '../constants.js';
+
 // This is a dedicated Vercel function (not routed through gateway.ts) so we
 // can read the raw request body -- Stripe signature verification requires
 // the exact bytes Stripe signed, not a re-serialized JSON.parse round trip.
@@ -19,6 +26,44 @@ const SUPABASE_HEADERS = {
 };
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || '';
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
+
+/**
+ * Caps a computed commission dollar amount against the margin safeguard
+ * for whichever plan family `planKey` belongs to (chatbot PLANS vs. the SMS
+ * marketing add-on -- unrelated cost models, see constants.ts). Falls back
+ * to the raw, uncapped commission for anything else (e.g. VOICE_PLANS,
+ * WHITELABEL_FEE, or an unrecognized planKey) -- those don't have a margin
+ * model yet, so behavior there is UNCHANGED from before this safeguard was
+ * wired in.
+ *
+ * Added 2026-09-04: this was previously documented in constants.ts
+ * (MAX_COMMISSION_SHARE_OF_MARGIN / applyCommissionSafeguard) but never
+ * actually invoked here -- commission was computed as raw price * rate
+ * with zero margin awareness. This closes that gap for the two plan
+ * families that have a real cost model today.
+ */
+function capCommissionForPlan(
+  planKey: string,
+  computedCommissionUsd: number,
+): { cappedCommissionUsd: number; wasCapped: boolean } {
+  if (planKey in PLANS) {
+    const result = applyCommissionSafeguard(
+      planKey as keyof typeof PLANS,
+      computedCommissionUsd,
+    );
+    return { cappedCommissionUsd: result.cappedCommissionUsd, wasCapped: result.wasCapped };
+  }
+  if (planKey in SMS_MARKETING_PLANS) {
+    const result = applySmsCommissionSafeguard(
+      planKey as keyof typeof SMS_MARKETING_PLANS,
+      computedCommissionUsd,
+    );
+    return { cappedCommissionUsd: result.cappedCommissionUsd, wasCapped: result.wasCapped };
+  }
+  // No margin model for this plan family (e.g. VOICE_PLANS) -- unchanged,
+  // uncapped behavior.
+  return { cappedCommissionUsd: computedCommissionUsd, wasCapped: false };
+}
 
 async function sbSelect(
   table: string,
@@ -312,9 +357,18 @@ async function handleSubscriptionChange(subscription: any) {
           const partner = partners[0];
           const amount =
             (subscription.items?.data?.[0]?.price?.unit_amount || 0) / 100;
-          const commission = +(
+          const rawCommission = +(
             amount * (partner.commission_rate || 0.15)
           ).toFixed(2);
+          const { cappedCommissionUsd: commission, wasCapped } = capCommissionForPlan(
+            planKey,
+            rawCommission,
+          );
+          if (wasCapped) {
+            console.warn(
+              `[stripe-webhook] Partner ${partner.id} commission capped by margin safeguard on plan ${planKey}: raw $${rawCommission} -> capped $${commission}`,
+            );
+          }
           if (commission > 0) {
             await sbUpdate(
               'partners',
@@ -356,9 +410,18 @@ async function handleSubscriptionChange(subscription: any) {
           const reseller = resellers[0];
           const amount =
             (subscription.items?.data?.[0]?.price?.unit_amount || 0) / 100;
-          const commission = +(
+          const rawCommission = +(
             amount * (reseller.commission_rate || 0.2)
           ).toFixed(2);
+          const { cappedCommissionUsd: commission, wasCapped } = capCommissionForPlan(
+            planKey,
+            rawCommission,
+          );
+          if (wasCapped) {
+            console.warn(
+              `[stripe-webhook] Reseller ${reseller.id} commission capped by margin safeguard on plan ${planKey}: raw $${rawCommission} -> capped $${commission}`,
+            );
+          }
           if (commission > 0) {
             await sbUpdate(
               'resellers',
