@@ -73,12 +73,13 @@ import {
 
 const INITIAL_CHAT_LOGS: Conversation[] = [];
 
-// MASTER ADMIN CONFIGURATION - Only MasterAdmin role users should be in this list
-const MASTER_ADMINS = [
-  'mreardon@wtpnews.org',
-  'jadj19@gmail.com',
-  'patriotnewsactivism@gmail.com',
-];
+// SECURITY (P0): the hard-coded MASTER_ADMINS email list that used to live
+// here has been removed. Roles are assigned and enforced by the server
+// (users.role, verified per request in api/gateway-legacy.ts getAuthUser);
+// the client must never promote a session based on its email address --
+// it only ever renders what the server already granted. Note that even the
+// old client-side promotion was cosmetic-but-dangerous: it revealed admin
+// navigation and encouraged calls to platform-admin routes.
 
 type PartnerSignupData = {
   name: string;
@@ -166,11 +167,8 @@ function App() {
   // ── Map the authenticated session onto our User model ──
   useEffect(() => {
     if (!authLoading && isAuthenticated && authUser) {
-      const userEmail = authUser.email?.toLowerCase() || '';
-      const isMasterAdmin = MASTER_ADMINS.includes(userEmail);
-      const effectiveRole = isMasterAdmin
-        ? UserRole.MASTER_ADMIN
-        : (authUser.role as UserRole) || UserRole.OWNER;
+      // Role comes from the server record only -- never from the email.
+      const effectiveRole = (authUser.role as UserRole) || UserRole.OWNER;
 
       const mappedUser: User = {
         id: authUser.id,
@@ -248,12 +246,12 @@ function App() {
     name?: string,
     companyName?: string,
   ) => {
-    const isMasterAdmin = MASTER_ADMINS.includes(email.toLowerCase());
     const newUser: User = {
       id: `demo-user-${Date.now()}`,
       name: name || email.split('@')[0],
       email,
-      role: isMasterAdmin ? UserRole.MASTER_ADMIN : UserRole.OWNER,
+      // Demo/manual sessions are always plain org owners.
+      role: UserRole.OWNER,
       plan: PlanType.FREE,
       companyName: companyName || 'Demo Company',
       createdAt: new Date().toISOString(),
@@ -264,9 +262,7 @@ function App() {
     setJustAuthenticated(true);
     dbService.setAuthContext({ userId: newUser.id });
     setAuthModalOpen(false);
-    setNotification(
-      isMasterAdmin ? 'Welcome Master Admin' : 'Logged in successfully',
-    );
+    setNotification('Logged in successfully');
     setTimeout(() => setNotification(null), 3000);
   };
 
