@@ -2,7 +2,7 @@
  * Drizzle schema for the Express server (server/) and scripts/.
  *
  * REGENERATED 2026-07-08 by introspecting the production Supabase database
- * (project evkjlnbpntimbxklnhoz, public schema). Every table above the
+ * (project blyebndyrojmreensbxe, public schema). Every table above the
  * "NOT YET IN PRODUCTION" marker matches the live database column-for-column.
  * If you change a table here, apply the same change to production with
  * `npm run db:push` (drizzle-kit) or a SQL migration in supabase/migrations/.
