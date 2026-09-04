@@ -20,6 +20,7 @@ import { type Column, DataTable } from '../UI/DataTable';
 import { MetricCard } from '../UI/MetricCard';
 import { ReferralBanner } from '../UI/ReferralBanner';
 import { ActivationChecklist } from './ActivationChecklist';
+import { MissingAnswerInbox } from './MissingAnswerInbox';
 import { OnboardingWizard } from './OnboardingWizard';
 
 interface ClientOverviewProps {
@@ -340,6 +341,7 @@ export const ClientOverview: React.FC<ClientOverviewProps> = ({
     <div className="space-y-4 md:space-y-6 px-2 md:px-0">
       {resellerCode ? <ReferralBanner user={user as User} /> : null}
       <ActivationChecklist />
+      <MissingAnswerInbox />
       {showOnboarding && (
         <OnboardingWizard
           existingBotId={recentBots[0]?.id}

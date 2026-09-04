@@ -14,6 +14,13 @@ import {
   recordMilestone,
 } from './growth/milestones.js';
 import {
+  classifyAnswer,
+  mergeCorrection,
+  recordAnswerEvent,
+  recordFeedback,
+  summarizeInbox,
+} from './growth/answer-quality.js';
+import {
   type OveragePolicy,
   maybeSendUsageAlert,
   resolveUsageDecision,
@@ -3095,6 +3102,10 @@ async function handleChat(
 
   let systemPrompt =
     typeof body.systemPrompt === 'string' ? body.systemPrompt : '';
+  // How much business knowledge actually backed this answer. Drives the
+  // missing-answer inbox: an answer with zero retrieved chunks came from the
+  // model's priors, not from the customer's business.
+  let retrievedChunks = 0;
   let temperature = 0.7;
   let preferredModel: string | undefined;
   let bot: any = null;
@@ -3120,6 +3131,7 @@ async function handleChat(
     if (userMessage && botId) {
       try {
         const relevantChunks = await searchKnowledge(botId, userMessage, 5);
+        retrievedChunks = relevantChunks.length;
         if (relevantChunks.length > 0) {
           const kbText = relevantChunks.join('\n\n---\n\n').slice(0, 8000);
           systemPrompt += `\n\nUse the following business knowledge to answer questions. If the answer isn't in here, say you don't have that information rather than guessing:\n${kbText}`;
@@ -3171,6 +3183,7 @@ async function handleChat(
   }[] = [{ role: 'system', content: systemPrompt }, ...history];
 
   let reply: string;
+  let answerId: string | null = null;
   try {
     reply = await callLLMMessages(
       llmMessages,
@@ -3197,6 +3210,28 @@ async function handleChat(
       }).catch(() => {});
     }
 
+    // Grade the turn for the owner's missing-answer inbox, and hand the id
+    // back so the widget can attach a thumbs up/down to this exact answer.
+    const userQuestion =
+      rawHistory.at(-1)?.text || rawHistory.at(-1)?.content || '';
+    answerId = await recordAnswerEvent({
+      botId,
+      userId: bot?.user_id ?? null,
+      organizationId: bot?.organization_id ?? null,
+      sessionId,
+      question: userQuestion,
+      answer: reply,
+      classification: classifyAnswer({
+        question: userQuestion,
+        answer: reply,
+        retrievedChunks,
+        hasKnowledge:
+          retrievedChunks > 0 ||
+          (Array.isArray(bot?.knowledge_base) && bot.knowledge_base.length > 0),
+      }),
+      channel: 'chat',
+    }).catch(() => null);
+
     await sbInsert('conversations', {
       id: crypto.randomUUID(),
       bot_id: botId,
@@ -3215,7 +3250,7 @@ async function handleChat(
     ).catch(() => {});
   }
 
-  res.json({ response: reply, sessionId });
+  res.json({ response: reply, sessionId, answerId });
 }
 
 async function handleSearch(
@@ -5706,6 +5741,121 @@ async function enforceConversationQuota(
 }
 
 // ─── P2: activation checklist ─────────────────────────────────────────
+// ─── Missing-Answer Inbox & Feedback ──────────────────────────────────
+// Public: the embedded widget's thumbs up/down. The visitor is anonymous,
+// so this takes an opaque answer id and writes nothing but a rating —
+// it can't read or enumerate tenant data.
+async function handleAnswerFeedback(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST')
+    return res.status(405).json({ error: 'Method not allowed' });
+  const ip =
+    (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+    req.socket?.remoteAddress ||
+    'unknown';
+  if (chatRateLimited(`feedback:${ip}`))
+    return res.status(429).json({ error: 'Too many requests' });
+
+  const body = parseBody(req);
+  const answerId = typeof body.answerId === 'string' ? body.answerId : '';
+  const feedback = body.feedback === 'up' ? 'up' : 'down';
+  if (!answerId) return res.status(400).json({ error: 'answerId is required' });
+
+  const ok = await recordFeedback(answerId, feedback);
+  if (!ok) return res.status(404).json({ error: 'Answer not found' });
+  return res.json({ ok: true });
+}
+
+// Authenticated, tenant-scoped: the owner's inbox.
+async function handleAnswers(
+  req: VercelRequest,
+  res: VercelResponse,
+  user: AuthUser,
+  pathParts: string[],
+) {
+  const filter = ownerFilter(user);
+
+  // POST /api/answers/:id/resolve — the correction loop. This is the whole
+  // point of the inbox: a correction is appended to the bot's knowledge
+  // base, so answering a missed question actually trains the bot.
+  if (req.method === 'POST' && pathParts[0] && pathParts[1] === 'resolve') {
+    const body = parseBody(req);
+    const corrected =
+      typeof body.answer === 'string' ? body.answer.trim() : '';
+    if (!corrected)
+      return res.status(400).json({ error: 'answer is required' });
+
+    const rows = await sbSelect('answer_events', '*', {
+      id: `eq.${pathParts[0]}`,
+      ...filter,
+    }).catch(() => []);
+    const row = rows[0];
+    if (!row) return res.status(404).json({ error: 'Answer not found' });
+
+    const bots = await sbSelect('bots', '*', {
+      id: `eq.${row.bot_id}`,
+      ...filter,
+    }).catch(() => []);
+    const bot = bots[0];
+    if (!bot) return res.status(404).json({ error: 'Bot not found' });
+
+    const merged = mergeCorrection(bot.knowledge_base, row.question, corrected);
+    await sbUpdate('bots', { knowledge_base: merged }, {
+      id: `eq.${bot.id}`,
+    });
+    await sbUpdate(
+      'answer_events',
+      {
+        corrected_answer: corrected,
+        resolved: true,
+        resolved_at: new Date().toISOString(),
+      },
+      { id: `eq.${row.id}` },
+    );
+    return res.json({ ok: true, knowledgeEntries: merged.length });
+  }
+
+  if (req.method !== 'GET')
+    return res.status(405).json({ error: 'Method not allowed' });
+
+  const url = new URL(req.url || '', 'http://localhost');
+  const status = url.searchParams.get('status') || 'open';
+  const query: Record<string, string> = {
+    ...filter,
+    order: 'created_at.desc',
+    limit: '100',
+  };
+  if (status === 'open') {
+    query.status = 'eq.unanswered';
+    query.resolved = 'eq.false';
+  } else if (status === 'resolved') {
+    query.resolved = 'eq.true';
+  }
+
+  const [rows, all] = await Promise.all([
+    sbSelect('answer_events', '*', query).catch(() => []),
+    sbSelect('answer_events', 'status,resolved', {
+      ...filter,
+      limit: '1000',
+    }).catch(() => []),
+  ]);
+
+  return res.json({
+    items: (rows || []).map((r: any) => ({
+      id: r.id,
+      botId: r.bot_id,
+      question: r.question,
+      answer: r.answer,
+      reason: r.reason,
+      confidence: r.confidence,
+      feedback: r.feedback,
+      resolved: r.resolved,
+      channel: r.channel,
+      createdAt: r.created_at,
+    })),
+    summary: summarizeInbox(all || []),
+  });
+}
+
 async function handleActivation(
   req: VercelRequest,
   res: VercelResponse,
@@ -5901,6 +6051,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // shared bot link. Only ever returns a bot that its owner explicitly
     // marked is_public, and only the fields the public chat UI needs --
     // never system_prompt/model/knowledge_base/user_id/organization_id.
+    // Public: widget feedback buttons post from a visitor's browser with
+    // no session, same as the chat endpoint itself.
+    if (routeName === 'answers' && pathParts[0] === 'feedback')
+      return await handleAnswerFeedback(req, res);
+
     if (routeName === 'public' && pathParts[0] === 'bots' && pathParts[1])
       return await handlePublicBotById(req, res, pathParts[1]);
 
@@ -5975,6 +6130,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return await handleTrial(req, res, user);
       case 'quota':
         return await handleQuota(req, res, user);
+      case 'answers':
+        return await handleAnswers(req, res, user, pathParts);
       case 'activation':
         return await handleActivation(req, res, user);
       case 'integrations':

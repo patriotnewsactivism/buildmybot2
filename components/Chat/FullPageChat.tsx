@@ -3,7 +3,8 @@ import type React from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { API_BASE } from '../../services/apiConfig';
 import { dbService } from '../../services/dbService';
-import { generateBotResponseWithKnowledge } from '../../services/openaiService';
+import { generateBotAnswer } from '../../services/openaiService';
+import { AnswerFeedback } from './AnswerFeedback';
 import type { Bot as BotType, LeadCaptureSettings } from '../../types';
 
 interface FullPageChatProps {
@@ -20,7 +21,7 @@ const DEFAULT_PROMPT_AFTER = 3;
 
 export const FullPageChat: React.FC<FullPageChatProps> = ({ botId }) => {
   const [messages, setMessages] = useState<
-    { role: 'user' | 'model'; text: string }[]
+    { role: 'user' | 'model'; text: string; answerId?: string | null }[]
   >([]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -247,7 +248,7 @@ export const FullPageChat: React.FC<FullPageChatProps> = ({ botId }) => {
     }
 
     try {
-      const response = await generateBotResponseWithKnowledge(
+      const answer = await generateBotAnswer(
         botId,
         messages,
         userMsg.text,
@@ -257,7 +258,10 @@ export const FullPageChat: React.FC<FullPageChatProps> = ({ botId }) => {
       const delay = bot.responseDelay || 1000;
 
       setTimeout(() => {
-        setMessages((prev) => [...prev, { role: 'model', text: response }]);
+        setMessages((prev) => [
+          ...prev,
+          { role: 'model', text: answer.text, answerId: answer.answerId },
+        ]);
         setIsTyping(false);
       }, delay);
     } catch (e) {
@@ -401,6 +405,9 @@ export const FullPageChat: React.FC<FullPageChatProps> = ({ botId }) => {
                 }`}
               >
                 {msg.text}
+                {msg.role === 'model' && msg.answerId && (
+                  <AnswerFeedback answerId={msg.answerId} />
+                )}
               </div>
             </div>
           ))}
@@ -491,6 +498,9 @@ export const FullPageChat: React.FC<FullPageChatProps> = ({ botId }) => {
                 }`}
               >
                 {msg.text}
+                {msg.role === 'model' && msg.answerId && (
+                  <AnswerFeedback answerId={msg.answerId} />
+                )}
               </div>
             </div>
           ))}

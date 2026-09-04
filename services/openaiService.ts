@@ -59,6 +59,53 @@ export const generateBotResponse = async (
   }
 };
 
+export interface BotAnswer {
+  text: string;
+  /**
+   * Server-side id for this exact answer, used to attach visitor feedback.
+   * Null when the answer came from an error path (nothing to rate).
+   */
+  answerId: string | null;
+}
+
+/**
+ * Same call as generateBotResponseWithKnowledge, but keeps the answer id the
+ * API now returns so the UI can show thumbs up/down on the message.
+ */
+export const generateBotAnswer = async (
+  botId: string,
+  history: { role: 'user' | 'model'; text: string }[],
+  lastMessage: string,
+  modelName?: string,
+): Promise<BotAnswer> => {
+  const text = await generateBotResponseWithKnowledge(
+    botId,
+    history,
+    lastMessage,
+    modelName,
+  );
+  return { text, answerId: lastAnswerId };
+};
+
+/** Set by the most recent bot chat call. */
+let lastAnswerId: string | null = null;
+
+export const sendAnswerFeedback = async (
+  answerId: string,
+  feedback: 'up' | 'down',
+): Promise<boolean> => {
+  try {
+    const res = await fetch(buildApiUrl('/answers/feedback'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ answerId, feedback }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+};
+
 export const generateBotResponseWithKnowledge = async (
   botId: string,
   history: { role: 'user' | 'model'; text: string }[],
@@ -66,6 +113,8 @@ export const generateBotResponseWithKnowledge = async (
   modelName?: string,
 ): Promise<string> => {
   const messages = [...history, { role: 'user' as const, text: lastMessage }];
+
+  lastAnswerId = null;
 
   try {
     const response = await fetch(buildApiUrl(`/chat/bot/${botId}`), {
@@ -100,8 +149,10 @@ export const generateBotResponseWithKnowledge = async (
     }
 
     const data = await response.json();
+    lastAnswerId = typeof data.answerId === 'string' ? data.answerId : null;
     return data.response || '';
   } catch (error: any) {
+    lastAnswerId = null;
     console.error('Bot Chat Service Error:', error);
     return "I'm having trouble connecting right now. Please try again.";
   }
