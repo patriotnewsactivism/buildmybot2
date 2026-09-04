@@ -11,6 +11,16 @@ import { callLLMMessages, trackAnalyticsEvent } from './ai-team/lib.js';
 import { isPlatformAdmin } from './security/authz.js';
 import { SsrfBlockedError, assertSafeOutboundUrl, safeFetch } from './security/ssrf.js';
 import {
+  computeActivation,
+  listMilestones,
+  recordMilestone,
+} from './growth/milestones.js';
+import {
+  type OveragePolicy,
+  maybeSendUsageAlert,
+  resolveUsageDecision,
+} from './growth/usage-alerts.js';
+import {
   ingestKnowledgeSource,
   ingestPageChunks,
   scrapeUrl,
@@ -1019,6 +1029,11 @@ async function handleLeadCapture(req: VercelRequest, res: VercelResponse) {
         userId: owners[0].id,
         eventData: { source: body.source || 'donmatthews.live' },
       });
+      recordMilestone({
+        milestone: 'first_lead',
+        userId: owners[0].id,
+        metadata: { source: body.source || 'donmatthews.live' },
+      }).catch(() => {});
       return res.status(201).json({ success: true, leadId: r[0]?.id });
     } catch (err) {
       console.error('[handleLeadCapture] portfolio insert failed:', err);
@@ -1061,6 +1076,12 @@ async function handleLeadCapture(req: VercelRequest, res: VercelResponse) {
       userId: ownerUserId,
       eventData: { score },
     });
+    recordMilestone({
+      milestone: 'first_lead',
+      userId: ownerUserId,
+      botId: body.botId,
+      metadata: { score },
+    }).catch(() => {});
 
     // Instant Alerts: notify the bot owner immediately for hot leads (score
     // > 75, matching the CRM's own "hot" threshold/styling) instead of them
@@ -3379,6 +3400,11 @@ async function handleChat(
     }
   }
 
+  if (bot) {
+    const blocked = await enforceConversationQuota(bot);
+    if (blocked) return res.status(blocked.status).json(blocked.body);
+  }
+
   if (!systemPrompt) systemPrompt = 'You are a helpful assistant.';
 
   // Normalize incoming history (frontend uses Gemini-style role: 'user' | 'model')
@@ -3412,6 +3438,17 @@ async function handleChat(
   }
 
   if (botId) {
+    // First-value tracking: the first real answer this tenant's bot ever
+    // gave. Idempotent, best-effort, never blocks the reply.
+    if (bot?.user_id) {
+      recordMilestone({
+        milestone: 'first_chat',
+        userId: bot.user_id,
+        organizationId: bot.organization_id ?? null,
+        botId,
+      }).catch(() => {});
+    }
+
     await sbInsert('conversations', {
       id: crypto.randomUUID(),
       bot_id: botId,
@@ -5837,6 +5874,148 @@ async function handleTrial(
   return res.status(405).json({ error: 'Method not allowed' });
 }
 
+
+// ─── P2: usage alerts + hard caps ─────────────────────────────────────
+async function getOveragePolicy(userId: string): Promise<OveragePolicy> {
+  const rows = await sbSelect('users', 'overage_policy', {
+    id: `eq.${userId}`,
+  }).catch(() => []);
+  return rows?.[0]?.overage_policy === 'allow_overage'
+    ? 'allow_overage'
+    : 'hard_cap';
+}
+
+/** Claim an alert row; false means this threshold was already sent this period. */
+async function claimUsageAlert(row: Record<string, unknown>): Promise<boolean> {
+  try {
+    await sbInsert('usage_alerts', row);
+    return true;
+  } catch {
+    // Unique-index violation = already alerted. Any other failure also
+    // returns false so we err on the side of not spamming the customer.
+    return false;
+  }
+}
+
+async function ownerEmailFor(userId: string): Promise<string | null> {
+  const rows = await sbSelect('users', 'email', { id: `eq.${userId}` }).catch(
+    () => [],
+  );
+  return rows?.[0]?.email || null;
+}
+
+function usageAlertDeps(userId: string) {
+  return {
+    claimAlert: claimUsageAlert,
+    ownerEmail: () => ownerEmailFor(userId),
+    sendEmail: (opts: { to: string; subject: string; text: string }) =>
+      sendEmail({
+        from: process.env.EMAIL_FROM || 'noreply@buildmybot.app',
+        fromName: 'BuildMyBot',
+        to: opts.to,
+        subject: opts.subject,
+        text: opts.text,
+      }),
+  };
+}
+
+/**
+ * Enforce the monthly conversation limit for a bot's owner.
+ * Returns null when the message may proceed, or an error payload to return.
+ *
+ * This limit was advertised on every plan but never enforced anywhere —
+ * checkQuota('conversations') had no callers.
+ */
+async function enforceConversationQuota(
+  bot: any,
+): Promise<{ status: number; body: Record<string, unknown> } | null> {
+  if (!bot?.user_id) return null;
+  try {
+    const rows = await sbSelect('users', 'id,email,plan,organization_id', {
+      id: `eq.${bot.user_id}`,
+    }).catch(() => []);
+    const owner = rows?.[0];
+    if (!owner) return null;
+    const asAuthUser: AuthUser = {
+      id: owner.id,
+      email: owner.email,
+      role: 'OWNER',
+      organizationId: owner.organization_id || undefined,
+      plan: owner.plan,
+    };
+    const trial = await checkAndApplyTrial(asAuthUser);
+    if (trial.active) return null; // trials get Professional-level headroom
+
+    const quota = await checkQuota(asAuthUser, 'conversations');
+    const policy = await getOveragePolicy(owner.id);
+    const decision = resolveUsageDecision(quota.current, quota.limit, policy);
+
+    maybeSendUsageAlert(
+      {
+        userId: owner.id,
+        resource: 'conversations',
+        current: quota.current,
+        limit: quota.limit,
+        policy,
+      },
+      usageAlertDeps(owner.id),
+    ).catch(() => {});
+
+    if (!decision.allowed) {
+      return {
+        status: 429,
+        body: {
+          error:
+            'This assistant has reached its monthly conversation limit. Please try again later.',
+          code: 'quota_exceeded',
+        },
+      };
+    }
+    return null;
+  } catch (err) {
+    // Never take the public chat down because usage bookkeeping failed.
+    console.error('[quota] conversation check failed:', err);
+    return null;
+  }
+}
+
+// ─── P2: activation checklist ─────────────────────────────────────────
+async function handleActivation(
+  req: VercelRequest,
+  res: VercelResponse,
+  user: AuthUser,
+) {
+  if (req.method !== 'GET')
+    return res.status(405).json({ error: 'Method not allowed' });
+
+  const filter = ownerFilter(user);
+  const [bots, integrations, phoneNumbers, milestones] = await Promise.all([
+    sbSelect('bots', '*', filter).catch(() => []),
+    sbSelect('integrations', '*', filter).catch(() => []),
+    sbSelect('phone_numbers', '*', filter).catch(() => []),
+    listMilestones(user.id).catch(() => ({})),
+  ]);
+
+  const botIds = (bots || []).map((b: any) => b.id);
+  let knowledgeSourceCount = 0;
+  if (botIds.length) {
+    const sources = await sbSelect('knowledge_sources', 'id', {
+      bot_id: `in.(${botIds.join(',')})`,
+    }).catch(() => []);
+    knowledgeSourceCount = (sources || []).length;
+  }
+
+  return res.json(
+    computeActivation({
+      bots: bots || [],
+      knowledgeSourceCount,
+      integrations: integrations || [],
+      phoneNumbers: phoneNumbers || [],
+      milestones: milestones || {},
+    }),
+  );
+}
+
 // ─── Quota Check ──────────────────────────────────────────────────────
 async function handleQuota(
   req: VercelRequest,
@@ -5849,31 +6028,71 @@ async function handleQuota(
   const effectivePlan = trial.active ? TRIAL_PLAN : planKey;
   const effectiveLimits = trial.active ? getPlanLimits(TRIAL_PLAN) : limits;
 
-  const [bots, leads, phoneMinutes] = await Promise.all([
+  const [bots, leads, phoneMinutes, conversations, policy] = await Promise.all([
     checkQuota(user, 'bots'),
     checkQuota(user, 'leads'),
     checkQuota(user, 'phone_minutes'),
+    checkQuota(user, 'conversations'),
+    getOveragePolicy(user.id),
   ]);
+
+  // Fire 70/90/100% alerts off the read the dashboard already performs.
+  // Deduped per threshold per month at the DB level.
+  for (const [resource, q] of [
+    ['conversations', conversations],
+    ['leads', leads],
+    ['phone_minutes', phoneMinutes],
+  ] as const) {
+    maybeSendUsageAlert(
+      {
+        userId: user.id,
+        resource,
+        current: q.current,
+        limit: q.limit,
+        policy,
+      },
+      usageAlertDeps(user.id),
+    ).catch(() => {});
+  }
+
+  const withUsage = (q: { current: number; limit: number }, limit: number) => {
+    const d = resolveUsageDecision(q.current, limit, policy);
+    return {
+      current: q.current,
+      limit,
+      percent: d.percent,
+      threshold: d.threshold,
+      overage: d.overage,
+      blocked: !d.allowed,
+    };
+  };
 
   return res.json({
     plan: effectivePlan,
     trial,
     limits: effectiveLimits,
+    overagePolicy: policy,
     usage: {
-      bots: {
-        current: bots.current,
-        limit: trial.active ? getPlanLimits(TRIAL_PLAN).bots : bots.limit,
-      },
-      leads: {
-        current: leads.current,
-        limit: trial.active ? getPlanLimits(TRIAL_PLAN).leads : leads.limit,
-      },
-      phoneMinutes: {
-        current: phoneMinutes.current,
-        limit: trial.active
+      bots: withUsage(
+        bots,
+        trial.active ? getPlanLimits(TRIAL_PLAN).bots : bots.limit,
+      ),
+      leads: withUsage(
+        leads,
+        trial.active ? getPlanLimits(TRIAL_PLAN).leads : leads.limit,
+      ),
+      conversations: withUsage(
+        conversations,
+        trial.active
+          ? getPlanLimits(TRIAL_PLAN).conversations_per_month
+          : conversations.limit,
+      ),
+      phoneMinutes: withUsage(
+        phoneMinutes,
+        trial.active
           ? getPlanLimits(TRIAL_PLAN).phone_minutes
           : phoneMinutes.limit,
-      },
+      ),
     },
   });
 }
@@ -6030,6 +6249,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return await handleTrial(req, res, user);
       case 'quota':
         return await handleQuota(req, res, user);
+      case 'activation':
+        return await handleActivation(req, res, user);
       case 'integrations':
         return await handleIntegrations(req, res, user, pathParts);
       case 'channels':
