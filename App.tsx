@@ -73,12 +73,11 @@ import {
 
 const INITIAL_CHAT_LOGS: Conversation[] = [];
 
-// MASTER ADMIN CONFIGURATION - Only MasterAdmin role users should be in this list
-const MASTER_ADMINS = [
-  'mreardon@wtpnews.org',
-  'jadj19@gmail.com',
-  'patriotnewsactivism@gmail.com',
-];
+// P0-1 FIX (2026-09-03): removed the client-side MASTER_ADMINS email list.
+// Frontend must never grant admin/MasterAdmin UI based on an email address --
+// the server is the sole source of truth for role (getAuthUser() re-fetches
+// the live DB row on every request; see api/gateway-legacy.ts). The frontend
+// now just reflects whatever role the server actually returned.
 
 type PartnerSignupData = {
   name: string;
@@ -166,11 +165,7 @@ function App() {
   // ── Map the authenticated session onto our User model ──
   useEffect(() => {
     if (!authLoading && isAuthenticated && authUser) {
-      const userEmail = authUser.email?.toLowerCase() || '';
-      const isMasterAdmin = MASTER_ADMINS.includes(userEmail);
-      const effectiveRole = isMasterAdmin
-        ? UserRole.MASTER_ADMIN
-        : (authUser.role as UserRole) || UserRole.OWNER;
+      const effectiveRole = (authUser.role as UserRole) || UserRole.OWNER;
 
       const mappedUser: User = {
         id: authUser.id,
@@ -248,12 +243,11 @@ function App() {
     name?: string,
     companyName?: string,
   ) => {
-    const isMasterAdmin = MASTER_ADMINS.includes(email.toLowerCase());
     const newUser: User = {
       id: `demo-user-${Date.now()}`,
       name: name || email.split('@')[0],
       email,
-      role: isMasterAdmin ? UserRole.MASTER_ADMIN : UserRole.OWNER,
+      role: UserRole.OWNER,
       plan: PlanType.FREE,
       companyName: companyName || 'Demo Company',
       createdAt: new Date().toISOString(),
@@ -264,9 +258,7 @@ function App() {
     setJustAuthenticated(true);
     dbService.setAuthContext({ userId: newUser.id });
     setAuthModalOpen(false);
-    setNotification(
-      isMasterAdmin ? 'Welcome Master Admin' : 'Logged in successfully',
-    );
+    setNotification('Logged in successfully');
     setTimeout(() => setNotification(null), 3000);
   };
 

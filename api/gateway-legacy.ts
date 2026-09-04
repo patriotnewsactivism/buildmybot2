@@ -170,6 +170,33 @@ async function sbSelect(
   return resp.json();
 }
 
+// P0-1 FIX (2026-09-03): centralized platform-admin predicate.
+//
+// Previously ~14 call sites across handleAdmin/handleConversations/
+// handleAudit/handleAiEmployees/handleEmail/handleBotErrors/handleUsers used
+// an inline `['admin','ADMIN','owner','OWNER'].includes(user.role)` (or a
+// bare `!isPlatformAdmin(user)`) check. Including 'owner'/'OWNER' there meant
+// every ordinary paying customer -- whose role is legitimately OWNER, the
+// correct role for a customer account owner -- was silently treated as a
+// PLATFORM administrator with full cross-tenant access to every other
+// customer's conversations, audit logs, AI-employee admin, and email
+// administration. OWNER means "owns their own org," nothing more.
+//
+// isPlatformAdmin() is the ONLY function that may grant platform-admin
+// access. It recognizes real platform-admin role values (current + known
+// legacy DB values -- see types.ts UserRole: ADMIN, 'Admin' (ADMIN_LEGACY),
+// MasterAdmin) case-insensitively, and NEVER treats OWNER as admin under any
+// spelling/casing. Platform admins must be provisioned via the database/
+// admin tooling -- never via public signup (see api/auth/signup.ts fix,
+// same date) and never via a client-supplied token claim (getAuthUser()
+// already re-fetches the live DB role per request, ignoring token claims).
+const PLATFORM_ADMIN_ROLES = new Set(['ADMIN', 'MASTERADMIN']);
+export function isPlatformAdmin(user: AuthUser | null | undefined): boolean {
+  if (!user?.role) return false;
+  const normalized = user.role.toUpperCase().replace(/[^A-Z]/g, '');
+  return PLATFORM_ADMIN_ROLES.has(normalized);
+}
+
 export function ownerFilter(user: AuthUser): Record<string, string> {
   // SECURITY: never return an empty filter here -- an empty {} means "no
   // WHERE clause", i.e. every row in the table across every tenant. Users
@@ -1032,7 +1059,7 @@ async function handleAdmin(
   user: AuthUser,
   pathParts: string[],
 ) {
-  if (!['admin', 'ADMIN', 'owner', 'OWNER'].includes(user.role))
+  if (!isPlatformAdmin(user))
     return res.status(403).json({ error: 'Admin access required' });
   const sub = pathParts[0] || '';
 
@@ -1483,7 +1510,7 @@ async function handleConversations(
   }
   const url = new URL(req.url || '', 'http://localhost');
   const userId = url.searchParams.get('userId');
-  const isAdmin = ['admin', 'ADMIN', 'owner', 'OWNER'].includes(user.role);
+  const isAdmin = isPlatformAdmin(user);
 
   // Non-admins may only ever see their own conversations.
   if (userId && !isAdmin && userId !== user.id) {
@@ -1650,7 +1677,7 @@ async function handleVoice(
         // Check if user has access to this bot's organization
         if (
           user.organizationId !== bot.organization_id &&
-          user.role !== 'admin'
+          !isPlatformAdmin(user)
         ) {
           return res.status(403).json({ error: 'Access denied' });
         }
@@ -1705,7 +1732,7 @@ async function handleVoice(
       const bot = botCheck[0];
       if (
         user.organizationId !== bot.organization_id &&
-        user.role !== 'admin'
+        !isPlatformAdmin(user)
       ) {
         return res.status(403).json({ error: 'Access denied' });
       }
@@ -1795,7 +1822,7 @@ async function handleVoice(
       // Check if user has access to this bot's organization
       if (
         user.organizationId !== agent.organization_id &&
-        user.role !== 'admin'
+        !isPlatformAdmin(user)
       ) {
         return res.status(403).json({ error: 'Access denied' });
       }
@@ -1840,7 +1867,7 @@ async function handleVoice(
       // Check if user has access to this bot's organization
       if (
         user.organizationId !== agent.organization_id &&
-        user.role !== 'admin'
+        !isPlatformAdmin(user)
       ) {
         return res.status(403).json({ error: 'Access denied' });
       }
@@ -3540,7 +3567,7 @@ async function handleBotErrors(
   // documented schema (no migration defines it, table is empty in prod),
   // so rather than guess at a filter column that may not exist, restrict
   // this operational/system view to platform admins only.
-  if (!['admin', 'ADMIN', 'owner', 'OWNER'].includes(user.role)) {
+  if (!isPlatformAdmin(user)) {
     return res.status(403).json({ error: 'Admin access required' });
   }
   if (pathParts[0] === 'recent') {
@@ -3687,7 +3714,7 @@ async function handleUsers(
     // every "Save Configuration" click (phone/voice setup among others)
     // silently did nothing against production.
     const targetId = pathParts[0];
-    if (targetId !== user.id && user.role !== 'admin') {
+    if (targetId !== user.id && !isPlatformAdmin(user)) {
       return res.status(403).json({ error: 'Access denied' });
     }
     const body = parseBody(req);
@@ -3729,7 +3756,7 @@ async function handleAudit(
   // logged-in user got every tenant's audit log. audit_logs has a real
   // organization_id/user_id (confirmed via schema check), so scope
   // non-admins to their own tenant; platform admins keep the global view.
-  const isAdmin = ['admin', 'ADMIN', 'owner', 'OWNER'].includes(user.role);
+  const isAdmin = isPlatformAdmin(user);
   const filter = isAdmin ? {} : ownerFilter(user);
   res.json(
     (
@@ -3809,7 +3836,7 @@ async function handleAiEmployees(
 
   // Live roster + activity monitoring -- admin/owner only, read-only.
   if (sub === '' && req.method === 'GET') {
-    if (!['admin', 'ADMIN', 'owner', 'OWNER'].includes(user.role))
+    if (!isPlatformAdmin(user))
       return res.status(403).json({ error: 'Admin access required' });
     const employees = await sbSelect(
       'AiEmployee',
@@ -3819,7 +3846,7 @@ async function handleAiEmployees(
   }
 
   if (sub === 'logs' && req.method === 'GET') {
-    if (!['admin', 'ADMIN', 'owner', 'OWNER'].includes(user.role))
+    if (!isPlatformAdmin(user))
       return res.status(403).json({ error: 'Admin access required' });
     const limitParam = Number((req.query?.limit as string) || 30);
     const limit = Number.isFinite(limitParam)
@@ -3833,7 +3860,7 @@ async function handleAiEmployees(
   }
 
   if (sub === 'escalations' && req.method === 'GET') {
-    if (!['admin', 'ADMIN', 'owner', 'OWNER'].includes(user.role))
+    if (!isPlatformAdmin(user))
       return res.status(403).json({ error: 'Admin access required' });
     const escalations = await sbSelect('escalations', '*', {
       order: 'created_at.desc',
@@ -3845,7 +3872,7 @@ async function handleAiEmployees(
   // Voice briefing — converts the latest Marcus executive summary to audio
   // via OpenAI TTS so Don can listen instead of reading.
   if (sub === 'briefing' && pathParts[1] === 'audio' && req.method === 'GET') {
-    if (!['admin', 'ADMIN', 'owner', 'OWNER'].includes(user.role))
+    if (!isPlatformAdmin(user))
       return res.status(403).json({ error: 'Admin access required' });
     const openaiKey = process.env.OPENAI_API_KEY;
     if (!openaiKey)
@@ -3904,7 +3931,7 @@ async function handleAiEmployees(
 
   // Text briefing — returns the latest Marcus summary as JSON
   if (sub === 'briefing' && req.method === 'GET') {
-    if (!['admin', 'ADMIN', 'owner', 'OWNER'].includes(user.role))
+    if (!isPlatformAdmin(user))
       return res.status(403).json({ error: 'Admin access required' });
     const today = new Date().toISOString().slice(0, 10);
     const summaryRows = await sbSelect(
@@ -5242,7 +5269,7 @@ async function handleEmail(
   user: AuthUser,
   pathParts: string[],
 ) {
-  if (!['admin', 'ADMIN', 'owner', 'OWNER'].includes(user.role)) {
+  if (!isPlatformAdmin(user)) {
     return res.status(403).json({ error: 'Admin access required' });
   }
   const sub = pathParts[0] || '';
