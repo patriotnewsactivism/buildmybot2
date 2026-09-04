@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import type React from 'react';
 import { useRef, useState } from 'react';
+import { DEFAULT_CHAT_MODEL } from '../../constants';
 import { buildApiUrl } from '../../services/apiConfig';
 
 // --- Types ---
@@ -45,7 +46,7 @@ const INITIAL_DATA: BotFormData = {
   welcomeMessage: 'Hello! How can I help you today?',
   systemPrompt: 'You are a helpful AI assistant.',
   tone: 'professional',
-  model: 'grok-4-1-fast-reasoning',
+  model: DEFAULT_CHAT_MODEL,
   temperature: 0.7,
   knowledgeSources: [],
   isPublic: false,
@@ -368,11 +369,12 @@ export default function SimplifiedBotWizard({
                         onChange={(e) => updateField('model', e.target.value)}
                         className="w-full px-4 py-3 rounded-lg border border-gray-200 outline-none"
                       >
-                        <option value="grok-4-1-fast-reasoning">
-                          Grok 4.1 Fast Reasoning (Recommended)
+                        <option value={DEFAULT_CHAT_MODEL}>
+                          MiniMax M3 (Recommended)
                         </option>
-                        <option value="gpt-4o-mini">GPT-4o Mini</option>
-                        <option value="gpt-4o">GPT-4o (Most Capable)</option>
+                        <option value="openrouter-nemotron-ultra">
+                          Nemotron Ultra (Complex answers)
+                        </option>
                       </select>
                     </div>
                   </div>

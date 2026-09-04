@@ -51,7 +51,7 @@ export const PLANS = {
       'Multi-page training (URLs, PDFs)',
       '750 conversations/month',
       '500MB knowledge base storage',
-      'Grok 4.1 Fast Reasoning model',
+      'MiniMax M3 reasoning model',
       'Lead capture via email & SMS alerts',
       'Office-hours & scheduling rules',
       'Basic analytics dashboard',
@@ -146,21 +146,48 @@ export const PLANS = {
  * previously-published prices, they're a starting point pending a real
  * pricing decision.
  */
+/**
+ * ⚠️ SINGLE SOURCE OF TRUTH for standalone voice/receptionist pricing.
+ *
+ * Before P1 there were three disagreeing tables: VOICE_PLANS ($49/$129/$199),
+ * VOICE_AGENT_PRICING ($79/$174/$279/$549) and hard-coded tiers on the landing
+ * page ($79/$174/$279). The published prices (VOICE_AGENT_PRICING, which the
+ * live pricing page renders) are now authoritative; every other table and the
+ * marketing pages derive from this object.
+ *
+ * `stripePriceEnv` names the env var holding the Stripe Price ID for that tier,
+ * so checkout can never be handed a client-supplied price. Stripe products must
+ * also carry metadata.planKey matching these keys (api/stripe-webhook.ts
+ * resolves entitlements from product metadata).
+ */
 export const VOICE_PLANS = {
   VOICE_BASIC: {
-    price: 49,
+    price: 79,
     minutes: 150,
+    overagePerMinute: 0.5,
     name: 'Voice Basic',
+    stripePriceEnv: 'STRIPE_PRICE_VOICE_BASIC',
   },
   VOICE_STANDARD: {
-    price: 129,
+    price: 174,
     minutes: 450,
+    overagePerMinute: 0.5,
     name: 'Voice Standard',
+    stripePriceEnv: 'STRIPE_PRICE_VOICE_STANDARD',
   },
   VOICE_PROFESSIONAL: {
-    price: 199,
+    price: 279,
     minutes: 1000,
+    overagePerMinute: 0.5,
     name: 'Voice Professional',
+    stripePriceEnv: 'STRIPE_PRICE_VOICE_PROFESSIONAL',
+  },
+  VOICE_ENTERPRISE: {
+    price: 549,
+    minutes: 2500,
+    overagePerMinute: 0.5,
+    name: 'Voice Enterprise',
+    stripePriceEnv: 'STRIPE_PRICE_VOICE_ENTERPRISE',
   },
 };
 
@@ -327,89 +354,75 @@ export const REFERRAL_REWARDS = {
   ],
 };
 
+/**
+ * Models the backend can ACTUALLY route to. Production inference goes through
+ * OpenRouter (api/ai-team/lib.ts PROVIDER_CONFIG); the previous
+ * 'grok-4-1-fast-reasoning' / 'gpt-4o' entries were dead options — selecting
+ * them silently fell back to the default provider.
+ */
 export const AVAILABLE_MODELS = [
   {
-    id: 'grok-4-1-fast-reasoning',
-    name: 'Grok 4.1 Fast Reasoning',
-    description: 'Fast, intelligent reasoning. Recommended for most chatbots.',
+    id: 'openrouter-minimax-m3',
+    name: 'MiniMax M3',
+    description:
+      'Fast, high-quality general reasoning. Recommended for most chatbots.',
   },
   {
-    id: 'gpt-4o-mini',
-    name: 'GPT-4o Mini',
-    description: 'Fast, cost-effective OpenAI model.',
-  },
-  {
-    id: 'gpt-4o',
-    name: 'GPT-4o',
-    description: 'High reasoning. Best for complex tasks and coding.',
+    id: 'openrouter-nemotron-ultra',
+    name: 'Nemotron Ultra',
+    description: 'Larger model used as automatic fallback for complex answers.',
   },
 ];
 
-export const VOICE_AGENT_PRICING = [
-  {
-    id: 'voice_basic',
-    name: 'Voice Basic',
-    price: 79,
-    minutesIncluded: 150,
-    overagePerMinute: 0.5,
+export const DEFAULT_CHAT_MODEL = 'openrouter-minimax-m3';
+
+// Display-layer view of VOICE_PLANS — feature copy only. Prices and minutes
+// are derived so the pricing page can never drift from what is charged.
+const VOICE_PLAN_FEATURES: Record<string, string[]> = {
+  VOICE_BASIC: [
+    'Cartesia ultra-realistic voice',
+    'Basic call routing',
+    'Call transcripts',
+    'Email support',
+  ],
+  VOICE_STANDARD: [
+    'All Cartesia voices',
+    'Advanced call routing',
+    'Call transfers',
+    'Scheduling workflows',
+    'Analytics dashboard',
+  ],
+  VOICE_PROFESSIONAL: [
+    'CRM integration',
+    'Call transfers & scheduling',
+    'Advanced analytics',
+    'Priority routing rules',
+    'API webhooks',
+  ],
+  VOICE_ENTERPRISE: [
+    'Multi-language support',
+    'Dedicated priority support',
+    'White-label ready',
+    'Full API access',
+    'Custom integrations',
+  ],
+};
+
+export const VOICE_AGENT_PRICING = Object.entries(VOICE_PLANS).map(
+  ([key, plan]) => ({
+    id: key.toLowerCase(),
+    planKey: key,
+    name: plan.name,
+    price: plan.price,
+    minutesIncluded: plan.minutes,
+    overagePerMinute: plan.overagePerMinute,
     features: [
-      '150 minutes/month',
-      'Cartesia ultra-realistic voice',
-      'Basic call routing',
-      'Call transcripts',
-      'Email support',
-      '$0.50/min overage',
+      `${plan.minutes.toLocaleString()} minutes/month`,
+      ...(VOICE_PLAN_FEATURES[key] || []),
+      `$${plan.overagePerMinute.toFixed(2)}/min overage`,
     ],
-  },
-  {
-    id: 'voice_standard',
-    name: 'Voice Standard',
-    price: 174,
-    minutesIncluded: 450,
-    overagePerMinute: 0.5,
-    features: [
-      '450 minutes/month',
-      'All Cartesia voices',
-      'Advanced call routing',
-      'Call transfers',
-      'Scheduling workflows',
-      'Analytics dashboard',
-      '$0.50/min overage',
-    ],
-  },
-  {
-    id: 'voice_professional',
-    name: 'Voice Professional',
-    price: 279,
-    minutesIncluded: 1000,
-    overagePerMinute: 0.5,
-    features: [
-      '1,000 minutes/month',
-      'CRM integration',
-      'Call transfers & scheduling',
-      'Advanced analytics',
-      'Priority routing rules',
-      'API webhooks',
-      '$0.50/min overage',
-    ],
-  },
-  {
-    id: 'voice_enterprise',
-    name: 'Voice Enterprise',
-    price: 549,
-    minutesIncluded: 2500,
-    overagePerMinute: 0.5,
-    features: [
-      '2,500 minutes/month',
-      'Multi-language support',
-      'Dedicated priority support',
-      'White-label ready',
-      'Full API access',
-      'Custom integrations',
-      '$0.50/min overage',
-    ],
-  },
-];
+  }),
+);
 
 export const EXPERT_SETUP_SERVICES = [
   {

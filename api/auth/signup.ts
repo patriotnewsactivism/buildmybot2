@@ -1,4 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { sendVerificationEmail } from '../lib/auth-tokens.js';
+import { RATE_LIMITS, enforceRateLimit } from '../lib/rate-limit.js';
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -29,6 +31,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
+    if (enforceRateLimit(req, res, RATE_LIMITS.signup)) return;
     const { email, password, name, companyName, referredBy } = req.body || {};
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
@@ -80,6 +83,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         company_name: companyName || null,
         referred_by: referredBy || null,
         preferences: {},
+        email_verified: false,
         referral_credits: 0,
         reseller_client_count: 0,
         whitelabel_enabled: false,
@@ -116,10 +120,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       `bmb_session=${token}; HttpOnly; Secure; SameSite=Lax; Path=/`,
     );
 
+    // Send the verification email. Signup itself still succeeds if the
+    // mail provider is down — the account is simply left unverified and
+    // the user can request a new link from /api/auth/resend-verification.
+    let verificationSent = false;
+    try {
+      const result = await sendVerificationEmail(
+        userId,
+        email.toLowerCase(),
+        name,
+      );
+      verificationSent = result.sent;
+    } catch (err) {
+      console.error('[signup] verification email failed:', err);
+    }
+
     const { password_hash, ...safeUser } = newUser;
-    return res
-      .status(201)
-      .json({ user: safeUser, message: 'Account created successfully' });
+    return res.status(201).json({
+      user: safeUser,
+      emailVerified: false,
+      verificationSent,
+      message: 'Account created successfully. Please verify your email.',
+    });
   } catch (error: any) {
     console.error('Signup error:', error);
     return res.status(500).json({ error: 'Signup failed' });

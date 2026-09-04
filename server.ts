@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import cookieParser from 'cookie-parser';
 import express from 'express';
+import helmet from 'helmet';
 import { WebSocketServer } from 'ws';
 
 import loginHandler from './api/auth/login.js';
@@ -11,6 +12,11 @@ import signupHandler from './api/auth/signup.js';
 import userHandler from './api/auth/user.js';
 import cronHandler from './api/cron/[job].js';
 import gatewayHandler from './api/gateway.js';
+import {
+  corsMiddleware,
+  embedFrameMiddleware,
+  helmetOptions,
+} from './api/lib/security.js';
 import stripeWebhookHandler from './api/stripe-webhook.js';
 import liveTokenHandler from './api/voice/live-token.js';
 import { handleTwilioMediaConnection } from './api/voice/twilio-live.js';
@@ -45,6 +51,24 @@ server.on('upgrade', (request, socket, head) => {
   });
 });
 
+// ── Security middleware — MUST run before every API route ───────────
+// Previously the header middleware sat AFTER all /api routes, so no API
+// response ever carried them. Helmet + strict CORS now run first.
+app.disable('x-powered-by');
+app.set('trust proxy', 1);
+app.use(helmet(helmetOptions()));
+app.use(embedFrameMiddleware);
+app.use(corsMiddleware);
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader(
+    'Permissions-Policy',
+    'geolocation=(), microphone=(self), camera=()',
+  );
+  next();
+});
+
 // Stripe webhook needs raw body for signature verification
 app.post(
   '/api/stripe-webhook',
@@ -65,13 +89,19 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 
 // Lightweight production health/provenance endpoint used by Cloud Run deploy verification.
-app.get('/health', (_req, res) => {
-  res.status(200).json({
-    status: 'ok',
-    service: 'buildmybot2',
-    build: { sha: process.env.BUILD_SHA || 'unknown' },
-  });
+const healthPayload = () => ({
+  status: 'ok',
+  service: 'buildmybot2',
+  timestamp: new Date().toISOString(),
+  build: {
+    sha: process.env.BUILD_SHA || process.env.K_REVISION || 'unknown',
+    deployedAt: process.env.BUILD_TIME || null,
+  },
 });
+app.get('/health', (_req, res) => res.status(200).json(healthPayload()));
+// /api/health must report the same provenance — deploy verification and
+// external monitors both check the public /api path.
+app.get('/api/health', (_req, res) => res.status(200).json(healthPayload()));
 
 // Auth routes — file-system routing equivalents from Vercel
 app.all('/api/auth/login', async (req, res) => {
@@ -119,21 +149,11 @@ app.all('/api/{*path}', async (req, res) => {
   await gatewayHandler(req as any, res as any);
 });
 
-// Response headers that used to come from `_headers`.
+// Static asset caching for the embeddable widget (headers themselves are
+// set by the security middleware above).
 app.use((req, res, next) => {
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-XSS-Protection', '1; mode=block');
-  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-
-  if (req.path === '/embed.js') {
-    res.setHeader('Access-Control-Allow-Origin', '*');
+  if (req.path === '/embed.js')
     res.setHeader('Cache-Control', 'public, max-age=3600');
-  }
-
-  if (req.path.startsWith('/chat/')) {
-    res.setHeader('Content-Security-Policy', 'frame-ancestors *');
-  }
-
   next();
 });
 

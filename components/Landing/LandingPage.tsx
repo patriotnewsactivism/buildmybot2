@@ -59,6 +59,7 @@ import {
   PLANS,
   TEMPLATE_MARKETPLACE_PRICING,
   VOICE_AGENT_PRICING,
+  VOICE_PLANS,
 } from '../../constants';
 import { buildApiUrl } from '../../services/apiConfig';
 import {
@@ -893,8 +894,7 @@ export const LandingPage: React.FC<LandingProps> = ({
                 4.1
               </span>
               <span className="flex items-center gap-2">
-                <Mic size={14} className="text-purple-500" /> Grok Neural
-                Voice
+                <Mic size={14} className="text-purple-500" /> Grok Neural Voice
               </span>
               <span className="flex items-center gap-2">
                 <Shield size={14} className="text-emerald-500" />{' '}
@@ -1013,7 +1013,7 @@ export const LandingPage: React.FC<LandingProps> = ({
                       className="text-emerald-500 shrink-0"
                       size={20}
                     />{' '}
-                    Instant responses powered by Grok 4.1 Fast
+                    Instant responses powered by MiniMax M3
                   </li>
                   <li className="flex items-center gap-3 text-slate-700">
                     <CheckCircle
@@ -1445,7 +1445,7 @@ export const LandingPage: React.FC<LandingProps> = ({
                   Don't need a chatbot? No problem. Get a standalone AI
                   receptionist that answers your phones 24/7, qualifies leads,
                   books appointments, and transfers calls — for less than
-                  $3/day.
+                  $2/day.
                 </p>
               </div>
 
@@ -1453,11 +1453,15 @@ export const LandingPage: React.FC<LandingProps> = ({
                 {[
                   {
                     name: 'Lite',
-                    price: 79,
-                    minutes: '150',
+                    // Prices/minutes come from VOICE_PLANS (constants.ts) so
+                    // the marketing page can never drift from what is
+                    // charged and enforced. Previously hard-coded at
+                    // $79/$174/$279 while billing used $49/$129/$199.
+                    price: VOICE_PLANS.VOICE_BASIC.price,
+                    minutes: VOICE_PLANS.VOICE_BASIC.minutes.toLocaleString(),
                     subtitle: 'Solopreneurs & Side Hustles',
                     features: [
-                      '150 minutes/month',
+                      `${VOICE_PLANS.VOICE_BASIC.minutes} minutes/month`,
                       'Ultra-realistic AI voice',
                       'Basic call routing',
                       'Call transcripts',
@@ -1467,12 +1471,13 @@ export const LandingPage: React.FC<LandingProps> = ({
                   },
                   {
                     name: 'Pro',
-                    price: 174,
-                    minutes: '450',
+                    price: VOICE_PLANS.VOICE_STANDARD.price,
+                    minutes:
+                      VOICE_PLANS.VOICE_STANDARD.minutes.toLocaleString(),
                     subtitle: 'Small Businesses',
                     popular: true,
                     features: [
-                      '450 minutes/month',
+                      `${VOICE_PLANS.VOICE_STANDARD.minutes} minutes/month`,
                       'All premium voices',
                       'Advanced call routing',
                       'Call transfers',
@@ -1483,11 +1488,12 @@ export const LandingPage: React.FC<LandingProps> = ({
                   },
                   {
                     name: 'Max',
-                    price: 279,
-                    minutes: '1,000',
+                    price: VOICE_PLANS.VOICE_PROFESSIONAL.price,
+                    minutes:
+                      VOICE_PLANS.VOICE_PROFESSIONAL.minutes.toLocaleString(),
                     subtitle: 'Multi-Location Businesses',
                     features: [
-                      '1,000 minutes/month',
+                      `${VOICE_PLANS.VOICE_PROFESSIONAL.minutes} minutes/month`,
                       'CRM integration',
                       'Priority routing rules',
                       'API webhooks',

@@ -8,6 +8,18 @@ import {
   formatPricingForPrompt,
 } from '../constants.js';
 import { callLLMMessages, trackAnalyticsEvent } from './ai-team/lib.js';
+import { bucketByDay } from './lib/analytics.js';
+import {
+  appBaseUrl,
+  consumeAuthToken,
+  issueAuthToken,
+  sendVerificationEmail,
+} from './lib/auth-tokens.js';
+import { verifyIntegration } from './lib/integration-verify.js';
+import { sendEmail } from './lib/mailer.js';
+import { guardedFetch } from './lib/outbound.js';
+import { RATE_LIMITS, enforceRateLimit } from './lib/rate-limit.js';
+import { isAllowedOrigin, isPublicEmbedPath } from './lib/security.js';
 import {
   ingestKnowledgeSource,
   ingestPageChunks,
@@ -254,9 +266,17 @@ export async function checkQuota(
       break;
     }
     case 'knowledge_sources': {
-      const sources = await sbSelect('knowledge_sources', 'id', {
-        bot_id: 'not.is.null', // only count real sources
-      }).catch(() => []);
+      // TENANT SCOPE: previously this counted knowledge sources across
+      // EVERY tenant, so one large customer exhausted everyone's quota.
+      // Knowledge sources hang off bots, so scope by this tenant's bots.
+      const ownBots = await sbSelect('bots', 'id', orgFilter).catch(() => []);
+      const ownBotIds = (ownBots || []).map((b: any) => b.id).filter(Boolean);
+      let sources: any[] = [];
+      if (ownBotIds.length) {
+        sources = await sbSelect('knowledge_sources', 'id', {
+          bot_id: `in.(${ownBotIds.join(',')})`,
+        }).catch(() => []);
+      }
       current = sources.length;
       limit = limits.knowledge_sources;
       break;
@@ -396,17 +416,27 @@ async function sbDelete(table: string, filters: Record<string, string>) {
   return { success: true };
 }
 
-function setCors(res: VercelResponse) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+function setCors(res: VercelResponse, req?: VercelRequest) {
+  // Credentialed API responses are restricted to an origin allowlist;
+  // `*` with credentials is both unsafe and rejected by browsers.
+  const origin = (req?.headers?.origin as string | undefined) || '';
+  const pathname = (req?.url || '').split('?')[0];
+  if (isAllowedOrigin(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  } else if (isPublicEmbedPath(pathname)) {
+    // Anonymous, cookie-free endpoints (embedded widget, lead capture).
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  }
   res.setHeader(
     'Access-Control-Allow-Methods',
     'GET,POST,PUT,PATCH,DELETE,OPTIONS',
   );
   res.setHeader(
     'Access-Control-Allow-Headers',
-    'Content-Type, Authorization, Cookie',
+    'Content-Type, Authorization, X-Requested-With',
   );
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
 }
 
 function parseBody(req: VercelRequest): any {
@@ -488,6 +518,15 @@ async function handleHealth(_req: VercelRequest, res: VercelResponse) {
     timestamp: new Date().toISOString(),
     service: 'buildmybot-api',
     version: '2.0.0',
+    // Deploy provenance — CI asserts this equals the SHA it deployed.
+    build: {
+      sha:
+        process.env.BUILD_SHA ||
+        process.env.GITHUB_SHA ||
+        process.env.K_REVISION ||
+        'unknown',
+      deployedAt: process.env.BUILD_TIME || null,
+    },
   });
 }
 
@@ -607,31 +646,35 @@ async function handleAnalytics(
   if (sub === 'quick-metrics' || sub === 'metrics') {
     const [bots, leads, convs] = await Promise.all([
       sbSelect('bots', 'id,status', orgFilter).catch(() => []),
-      sbSelect('leads', 'id,status', orgFilter).catch(() => []),
-      sbSelect('conversations', 'id,timestamp', orgFilter).catch(() => []),
+      sbSelect('leads', 'id,status,created_at', orgFilter).catch(() => []),
+      sbSelect('conversations', 'id,timestamp,created_at', orgFilter).catch(
+        () => [],
+      ),
     ]);
+    // REAL aggregates. The previous implementation synthesised the two
+    // trend series by multiplying the current total by a fixed ramp
+    // (0.15, 0.20, ...), which produced convincing but entirely invented
+    // charts. Both series are now bucketed from actual row timestamps.
     res.json({
       activeBots: bots.filter((b: any) => b.active !== false).length,
       totalBots: bots.length,
       newLeads: leads.filter((l: any) => l.status === 'new').length,
       totalLeads: leads.length,
       totalConversations: convs.length,
-      conversationsTrend: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].map((d, i) => ({
-        date: d,
-        count: Math.floor(convs.length * (0.15 + i * 0.05)),
-      })),
-      leadsTrend: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].map((d, i) => ({
-        date: d,
-        count: Math.floor(leads.length * (0.15 + i * 0.05)),
-      })),
+      conversationsTrend: bucketByDay(convs, 7),
+      leadsTrend: bucketByDay(leads, 7),
     });
   } else if (
     sub === 'conversations' ||
     sub === 'leads' ||
     sub === 'satisfaction'
   ) {
+    // Never trust a client-supplied organization id: an id that is not
+    // the caller's own tenant is rejected rather than queried.
     const orgId = pathParts[1];
-    const f = orgId ? { organization_id: `eq.${orgId}` } : orgFilter;
+    if (orgId && orgId !== user.organizationId)
+      return res.status(403).json({ error: 'Forbidden' });
+    const f = orgFilter;
     const table =
       sub === 'conversations'
         ? 'conversations'
@@ -654,8 +697,12 @@ async function handleAnalytics(
       res.json(data);
     }
   } else if (sub === 'trends') {
+    // Never trust a client-supplied organization id: an id that is not
+    // the caller's own tenant is rejected rather than queried.
     const orgId = pathParts[1];
-    const f = orgId ? { organization_id: `eq.${orgId}` } : orgFilter;
+    if (orgId && orgId !== user.organizationId)
+      return res.status(403).json({ error: 'Forbidden' });
+    const f = orgFilter;
     const conversations = await sbSelect('conversations', 'timestamp', f).catch(
       () => [],
     );
@@ -673,8 +720,12 @@ async function handleAnalytics(
     }
     res.json(days);
   } else if (sub === 'performance') {
+    // Never trust a client-supplied organization id: an id that is not
+    // the caller's own tenant is rejected rather than queried.
     const orgId = pathParts[1];
-    const f = orgId ? { organization_id: `eq.${orgId}` } : orgFilter;
+    if (orgId && orgId !== user.organizationId)
+      return res.status(403).json({ error: 'Forbidden' });
+    const f = orgFilter;
     res.json(await sbSelect('bot_performance_daily', '*', f).catch(() => []));
   } else {
     res.json(
@@ -1669,6 +1720,7 @@ async function handleVoice(
       res.status(500).json({ error: 'Failed to retrieve voice agents' });
     }
   } else if (req.method === 'POST' && botId && pathParts[2] === 'provision') {
+    if (enforceRateLimit(req, res, RATE_LIMITS.phoneProvision, user.id)) return;
     try {
       const body = parseBody(req);
 
@@ -2142,9 +2194,13 @@ async function handleKnowledge(
         botId,
         scrapedContent,
       );
-      res
-        .status(201)
-        .json({ id: sourceId, success: true, mode: 'single-page', ...result });
+      // Honest status: a partial/failed persist must not read as success.
+      res.status(result.status === 'ready' ? 201 : 502).json({
+        ...result,
+        id: sourceId,
+        success: result.status === 'ready',
+        mode: 'single-page',
+      });
     } catch (err: any) {
       await sbUpdate(
         'knowledge_sources',
@@ -2187,12 +2243,27 @@ async function handleKnowledge(
         file.mimetype,
       );
       const result = await ingestKnowledgeSource(sourceId, botId, content);
-      if (result.chunksCreated === 0) {
+      if (result.status !== 'ready') {
         await sbUpdate(
           'knowledge_sources',
-          { status: 'failed', last_error: 'No extractable text in document' },
+          {
+            status: result.status,
+            last_error:
+              result.error ||
+              (result.chunksAttempted === 0
+                ? 'No extractable text in document'
+                : 'Chunk persistence incomplete'),
+          },
           { id: `eq.${sourceId}` },
         ).catch(() => {});
+        return res.status(502).json({
+          id: sourceId,
+          success: false,
+          status: result.status,
+          error:
+            result.error ||
+            'Document could not be indexed — no chunks were stored',
+        });
       }
     } catch (err: any) {
       console.error('[knowledge] ingest failed for upload:', err.message);
@@ -2363,7 +2434,72 @@ async function handleWebhooks(
       res.status(201).json(r[0]);
     }
   } else if (pathParts[1] === 'test') {
-    res.json({ success: true });
+    if (enforceRateLimit(req, res, RATE_LIMITS.webhookTest, user.id)) return;
+    // Previously this returned {success:true} without contacting the
+    // endpoint at all. It now sends a real HMAC-signed POST through the
+    // SSRF guard and reports the true response.
+    const rows = await sbSelect('webhooks', '*', {
+      id: `eq.${wid}`,
+      ...orgF,
+    }).catch(() => []);
+    const webhook = rows?.[0];
+    if (!webhook) return res.status(404).json({ error: 'Webhook not found' });
+
+    const timestamp = Math.floor(Date.now() / 1000).toString();
+    const payload = JSON.stringify({
+      id: crypto.randomUUID(),
+      type: 'webhook.test',
+      created_at: new Date().toISOString(),
+      organization_id: user.organizationId || null,
+      data: { message: 'BuildMyBot test event' },
+    });
+    const nodeCrypto = await import('node:crypto');
+    const signature = nodeCrypto.default
+      .createHmac('sha256', String(webhook.secret || ''))
+      .update(`${timestamp}.${payload}`)
+      .digest('hex');
+
+    const result = await guardedFetch(String(webhook.url || ''), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-BuildMyBot-Event': 'webhook.test',
+        'X-BuildMyBot-Timestamp': timestamp,
+        'X-BuildMyBot-Signature': `t=${timestamp},v1=${signature}`,
+        'User-Agent': 'BuildMyBot-Webhooks/1.0',
+      },
+      body: payload,
+      timeoutMs: 10_000,
+    });
+
+    await sbInsert('webhook_logs', {
+      id: crypto.randomUUID(),
+      webhook_id: wid,
+      organization_id: user.organizationId || null,
+      event: 'webhook.test',
+      status_code: result.status ?? null,
+      success: result.ok,
+      error: result.error || null,
+      duration_ms: result.durationMs,
+      created_at: new Date().toISOString(),
+    }).catch(() => {});
+
+    return res.status(result.ok ? 200 : 502).json({
+      success: result.ok,
+      delivered: result.ok,
+      request: {
+        url: webhook.url,
+        method: 'POST',
+        signatureHeader: 'X-BuildMyBot-Signature',
+      },
+      response: {
+        status: result.status ?? null,
+        statusText: result.statusText ?? null,
+        durationMs: result.durationMs,
+        body: result.body ?? null,
+      },
+      error: result.error || null,
+    });
   } else if (pathParts[1] === 'logs') {
     res.json(
       await sbSelect('webhook_logs', '*', { webhook_id: `eq.${wid}` }).catch(
@@ -2503,7 +2639,21 @@ async function handleIntegrations(
 ) {
   const sub = pathParts[0] || '';
   if (sub === 'providers') {
-    res.json([
+    // `connected` now reflects rows that were actually verified, instead
+    // of always being reported as false/optimistic client-side state.
+    const existing = await sbSelect(
+      'integrations',
+      'provider,status,verified_at',
+      {
+        organization_id: `eq.${user.organizationId}`,
+      },
+    ).catch(() => []);
+    const connectedProviders = new Set(
+      (existing || [])
+        .filter((r: any) => r.status === 'connected' && r.verified_at)
+        .map((r: any) => r.provider),
+    );
+    const providers = [
       {
         id: 'salesforce',
         name: 'Salesforce',
@@ -2537,17 +2687,60 @@ async function handleIntegrations(
         connected: false,
       },
       { id: 'twilio', name: 'Twilio', category: 'Voice/SMS', connected: false },
-    ]);
+    ];
+    res.json(
+      providers.map((p) => ({
+        ...p,
+        connected: connectedProviders.has(p.id),
+      })),
+    );
   } else if (sub === 'connect') {
-    const body = parseBody(req);
-    const r = await sbInsert('integrations', {
-      id: crypto.randomUUID(),
-      organization_id: user.organizationId,
-      provider: body.provider,
-      status: 'connected',
-      config: body.config || {},
-    }).catch(() => [{ id: 'ok', success: true }]);
-    res.status(201).json(r[0]);
+    const body = parseBody(req) || {};
+    const provider = String(body.provider || '');
+    if (!provider)
+      return res.status(400).json({ error: 'provider is required' });
+
+    // A row may only be written as `connected` when a live call to the
+    // provider actually succeeded with these credentials. Previously the
+    // status was hard-coded to 'connected' (and any DB failure was
+    // swallowed into a fake success), so the UI showed Connected for
+    // integrations that had never authenticated.
+    const verification = await verifyIntegration(provider, body.config || {});
+    if (!verification.verified) {
+      return res.status(400).json({
+        success: false,
+        connected: false,
+        provider,
+        error: 'Integration verification failed',
+        detail: verification.detail,
+        providerStatus: verification.status,
+      });
+    }
+
+    try {
+      const row = await sbInsert('integrations', {
+        id: crypto.randomUUID(),
+        organization_id: user.organizationId,
+        provider,
+        status: 'connected',
+        config: body.config || {},
+        verified_at: new Date().toISOString(),
+        verification_detail: {
+          detail: verification.detail,
+          account: verification.account || null,
+          providerStatus: verification.status,
+        },
+      });
+      return res.status(201).json({ ...row[0], connected: true, verification });
+    } catch (err: any) {
+      console.error('[integrations] persist failed:', err);
+      return res.status(502).json({
+        success: false,
+        connected: false,
+        error: 'Verified with provider but could not save the connection',
+        detail: String(err?.message || err),
+      });
+    }
   } else if (sub === 'disconnect') {
     const body = parseBody(req);
     await sbDelete('integrations', {
@@ -2700,6 +2893,7 @@ async function handlePhone(
       res.status(500).json({ error: 'Failed to search available numbers' });
     }
   } else if (pathParts[0] === 'purchase' && req.method === 'POST') {
+    if (enforceRateLimit(req, res, RATE_LIMITS.phoneProvision, user.id)) return;
     if (!twilioConfigured()) {
       return res.status(503).json({
         error:
@@ -2724,14 +2918,14 @@ async function handlePhone(
     }
     try {
       const botId = await findOrCreateVoiceBot(user);
-      const appBaseUrl = process.env.APP_BASE_URL || 'https://buildmybot.app';
+      const publicBaseUrl = appBaseUrl();
       const client = await getTwilioClient();
       const purchased = await client.incomingPhoneNumbers.create({
         phoneNumber: body.phoneNumber,
         friendlyName: body.friendlyName || undefined,
-        voiceUrl: `${appBaseUrl}/api/twilio/inbound-voice-handler`,
+        voiceUrl: `${publicBaseUrl}/api/twilio/inbound-voice-handler`,
         voiceMethod: 'POST',
-        statusCallback: `${appBaseUrl}/api/twilio/inbound-status-callback`,
+        statusCallback: `${publicBaseUrl}/api/twilio/inbound-status-callback`,
         statusCallbackMethod: 'POST',
       });
       const inserted = await sbInsert('phone_numbers', {
@@ -3066,6 +3260,8 @@ async function handleChat(
     Array.isArray(body.messages) ? body.messages : [];
   const sessionId = body.sessionId || crypto.randomUUID();
 
+  // Shared limiter (P1) plus the pre-existing per-bot counter.
+  if (enforceRateLimit(req, res, RATE_LIMITS.publicAi, botId || 'demo')) return;
   if (chatRateLimited(`${ip}:${botId || 'demo'}`)) {
     return res
       .status(429)
@@ -3490,16 +3686,145 @@ async function handleAuthExtra(
   res: VercelResponse,
   pathParts: string[],
 ) {
-  if (pathParts[0] === 'forgot-password' && req.method === 'POST') {
-    const body = parseBody(req);
-    await sbSelect('users', 'id,email', { email: `eq.${body.email}` }).catch(
-      () => [],
-    );
-    res.json({
+  const sub = pathParts[0] || '';
+
+  // ── Forgot password ────────────────────────────────────────────────
+  if (sub === 'forgot-password' && req.method === 'POST') {
+    if (enforceRateLimit(req, res, RATE_LIMITS.forgotPassword)) return;
+    const body = parseBody(req) || {};
+    const email = String(body.email || '')
+      .trim()
+      .toLowerCase();
+    // Always answer identically so the endpoint cannot enumerate accounts.
+    const genericResponse = {
       success: true,
       message: 'If that email exists, a reset link has been sent',
-    });
-  } else res.status(404).json({ error: 'Not found' });
+    };
+    if (!email) return res.json(genericResponse);
+
+    const users = await sbSelect('users', 'id,email,name', {
+      email: `eq.${email}`,
+      limit: '1',
+    }).catch(() => []);
+    const user = users?.[0];
+    if (!user) return res.json(genericResponse);
+
+    try {
+      const { token, expiresAt } = await issueAuthToken(
+        user.id,
+        'password_reset',
+      );
+      const link = `${appBaseUrl()}/reset-password?token=${encodeURIComponent(token)}`;
+      const sent = await sendEmail({
+        from: process.env.AUTH_FROM_EMAIL || 'no-reply@buildmybot.app',
+        fromName: 'BuildMyBot',
+        to: user.email,
+        subject: 'Reset your BuildMyBot password',
+        text: [
+          `${`Hi ${user.name || ''}`.trim()},`,
+          '',
+          'Use the link below to set a new password. It can only be used once and expires in 1 hour:',
+          link,
+          '',
+          'If you did not request this, you can safely ignore this email — your password will not change.',
+        ].join('\n'),
+      });
+      if (!sent.sent) {
+        console.error('[auth] reset email not delivered:', sent.reason);
+      }
+      if (process.env.NODE_ENV !== 'production') {
+        return res.json({ ...genericResponse, devToken: token, expiresAt });
+      }
+    } catch (err) {
+      console.error('[auth] forgot-password failed:', err);
+    }
+    return res.json(genericResponse);
+  }
+
+  // ── Reset password (consume single-use token) ──────────────────────
+  if (sub === 'reset-password' && req.method === 'POST') {
+    if (enforceRateLimit(req, res, RATE_LIMITS.resetPassword)) return;
+    const body = parseBody(req) || {};
+    const token = String(body.token || '');
+    const password = String(body.password || '');
+    if (!token || password.length < 8) {
+      return res.status(400).json({
+        error:
+          'A valid token and a password of at least 8 characters are required',
+      });
+    }
+
+    const result = await consumeAuthToken(token, 'password_reset');
+    if (!result.ok || !result.userId) {
+      return res
+        .status(400)
+        .json({ error: 'This reset link is invalid, expired or already used' });
+    }
+
+    const bcrypt = (await import('bcryptjs')).default;
+    const passwordHash = await bcrypt.hash(password, 12);
+    await sbUpdate(
+      'users',
+      {
+        password_hash: passwordHash,
+        // A successful reset proves control of the mailbox.
+        email_verified: true,
+        email_verified_at: new Date().toISOString(),
+      },
+      { id: `eq.${result.userId}` },
+    );
+    return res.json({ success: true, message: 'Password updated' });
+  }
+
+  // ── Email verification ─────────────────────────────────────────────
+  if (
+    sub === 'verify-email' &&
+    (req.method === 'POST' || req.method === 'GET')
+  ) {
+    if (enforceRateLimit(req, res, RATE_LIMITS.verifyEmail)) return;
+    const body = req.method === 'POST' ? parseBody(req) || {} : {};
+    const url = new URL(req.url || '/', 'http://localhost');
+    const token = String(body.token || url.searchParams.get('token') || '');
+    const result = await consumeAuthToken(token, 'email_verification');
+    if (!result.ok || !result.userId) {
+      return res.status(400).json({
+        error: 'This verification link is invalid, expired or already used',
+      });
+    }
+    await sbUpdate(
+      'users',
+      { email_verified: true, email_verified_at: new Date().toISOString() },
+      { id: `eq.${result.userId}` },
+    );
+    return res.json({ success: true, message: 'Email verified' });
+  }
+
+  if (sub === 'resend-verification' && req.method === 'POST') {
+    if (enforceRateLimit(req, res, RATE_LIMITS.verifyEmail)) return;
+    const body = parseBody(req) || {};
+    const email = String(body.email || '')
+      .trim()
+      .toLowerCase();
+    const generic = {
+      success: true,
+      message: 'If that account needs verification, an email has been sent',
+    };
+    if (!email) return res.json(generic);
+    const users = await sbSelect('users', 'id,email,name,email_verified', {
+      email: `eq.${email}`,
+      limit: '1',
+    }).catch(() => []);
+    const user = users?.[0];
+    if (!user || user.email_verified) return res.json(generic);
+    try {
+      await sendVerificationEmail(user.id, user.email, user.name);
+    } catch (err) {
+      console.error('[auth] resend-verification failed:', err);
+    }
+    return res.json(generic);
+  }
+
+  return res.status(404).json({ error: 'Not found' });
 }
 
 async function handleBotHealth(
@@ -4388,91 +4713,7 @@ async function getEmployeeByAddress(address: string) {
  * success: if no transport is configured the result says so and the caller
  * records status 'no_transport'.
  */
-async function sendEmail(opts: {
-  from: string;
-  fromName?: string;
-  to: string;
-  subject: string;
-  text: string;
-  replyTo?: string;
-  scheduledAt?: string; // ISO timestamp — Resend holds and sends it later
-}): Promise<{ sent: boolean; providerId?: string; reason?: string }> {
-  const fromHeader = opts.fromName
-    ? `${opts.fromName} <${opts.from}>`
-    : opts.from;
-
-  if (process.env.RESEND_API_KEY) {
-    const resp = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: fromHeader,
-        to: [opts.to],
-        subject: opts.subject,
-        text: opts.text,
-        reply_to: opts.replyTo,
-        ...(opts.scheduledAt ? { scheduled_at: opts.scheduledAt } : {}),
-      }),
-    });
-    if (!resp.ok) {
-      const detail = await resp.text().catch(() => '');
-      console.error('[email] Resend send failed:', resp.status, detail);
-      return { sent: false, reason: `resend_${resp.status}` };
-    }
-    const data = await resp.json().catch(() => ({}));
-    return { sent: true, providerId: data.id };
-  }
-
-  if (process.env.SMTP_HOST) {
-    try {
-      const nodemailer = (await import('nodemailer')).default;
-
-      // Each AI-employee mailbox authenticates as ITSELF, not a shared
-      // account. cPanel/Exim rewrites the From header to match whichever
-      // account authenticated the SMTP session (anti-spoofing), so sending
-      // everything through one shared login silently overwrote every
-      // employee's From address with that one account's address. Look up
-      // this specific sender's own SMTP password by local-part; fall back
-      // to the legacy shared SMTP_USER/SMTP_PASS only if no per-mailbox
-      // credential is configured for that address yet.
-      const localPart = String(opts.from).split('@')[0].toUpperCase();
-      const perMailboxPass = process.env[`MAILBOX_PASS_${localPart}`];
-      const smtpUser = perMailboxPass ? opts.from : process.env.SMTP_USER;
-      const smtpPass = perMailboxPass || process.env.SMTP_PASS;
-      if (!perMailboxPass) {
-        console.warn(
-          `[email] No MAILBOX_PASS_${localPart} configured — falling back to shared SMTP_USER for ${opts.from}. From header may be rewritten by the mail server.`,
-        );
-      }
-
-      const transport = nodemailer.createTransport({
-        host: process.env.SMTP_HOST,
-        port: Number(process.env.SMTP_PORT || 587),
-        secure: process.env.SMTP_SECURE === 'true',
-        auth: smtpUser ? { user: smtpUser, pass: smtpPass } : undefined,
-      });
-      const info = await transport.sendMail({
-        from: fromHeader,
-        to: opts.to,
-        subject: opts.subject,
-        text: opts.text,
-        replyTo: opts.replyTo,
-      });
-      return { sent: true, providerId: info.messageId };
-    } catch (err) {
-      console.error('[email] SMTP send failed:', err);
-      return { sent: false, reason: 'smtp_error' };
-    }
-  }
-
-  console.warn(
-    '[email] No email transport configured (set RESEND_API_KEY or SMTP_*)',
-  );
-  return { sent: false, reason: 'no_transport' };
-}
+// sendEmail now lives in api/lib/mailer.ts (shared with the auth flows).
 
 /** Ask OpenAI, as a specific employee, to handle an email. Returns a
  * structured decision; throws on API failure (callers log honestly). */
@@ -5610,8 +5851,8 @@ async function handleQuota(
 const _origHandleAgency = handleAgency;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  setCors(res);
-  if (req.method === 'OPTIONS') return res.status(200).end();
+  setCors(res, req);
+  if (req.method === 'OPTIONS') return res.status(204).end();
 
   if (!SUPABASE_SERVICE_KEY || !SESSION_JWT_SECRET) {
     return res.status(500).json({

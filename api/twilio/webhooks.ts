@@ -179,8 +179,11 @@ export async function voiceRespond(req: VercelRequest, res: VercelResponse) {
   const voice = url.searchParams.get('voice') || 'eve';
   const turn = Number.parseInt(url.searchParams.get('turn') || '1');
 
-  // Cap conversation at 10 turns to keep costs reasonable
-  if (turn > 10 || !speechResult) {
+  // Cap conversation at 10 turns to keep costs reasonable. `turn` is the
+  // turn about to start, so turn 10 is the last one that is answered and
+  // the wrap-up plays on turn 10's callback (previously off by one: the
+  // call ran an 11th turn).
+  if (turn >= 10 || !speechResult) {
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   ${speakLine("Thank you so much for your time today. We'll send you a follow-up email with more details. Have a wonderful day!", voice)}

@@ -59,6 +59,7 @@ import { AITeamDashboard } from './components/Team/AITeamDashboard';
 import { ErrorBoundary } from './components/UI/ErrorBoundary';
 import { VoiceAgentPage } from './components/VoiceAgent/VoiceAgentPage';
 import { WebsiteBuilder } from './components/WebsiteBuilder/WebsiteBuilder';
+import { DEFAULT_CHAT_MODEL } from './constants';
 import { useAuth } from './hooks/useAuth';
 import { DashboardProvider } from './hooks/useDashboardContext';
 import { dbService } from './services/dbService';
@@ -364,7 +365,7 @@ function App() {
       name: template.name,
       type: category === 'All' ? 'Custom' : category,
       systemPrompt: `You are a helpful assistant specialized in ${category}. ${description}. Act professionally and help the user achieve their goals.`,
-      model: 'grok-4-1-fast-reasoning',
+      model: DEFAULT_CHAT_MODEL,
       temperature: 0.7,
       knowledgeBase: [],
       active: true,
