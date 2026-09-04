@@ -50,7 +50,11 @@ function isRateLimited(ip: string): boolean {
 
 interface TTSProvider {
   name: string;
-  generateAudio: (text: string, voice: string, speed: number) => Promise<{ audioBuffer: ArrayBuffer; contentType: string }>;
+  generateAudio: (
+    text: string,
+    voice: string,
+    speed: number,
+  ) => Promise<{ audioBuffer: ArrayBuffer; contentType: string }>;
   isConfigured: () => boolean;
   getDefaultVoice: () => string;
 }
@@ -61,7 +65,7 @@ const openaiProvider: TTSProvider = {
   getDefaultVoice: () => 'shimmer',
   generateAudio: async (text: string, voice: string, speed: number) => {
     const selectedVoice = OPENAI_VOICES.includes(voice) ? voice : 'shimmer';
-    
+
     const response = await fetch(`${OPENAI_BASE}/audio/speech`, {
       method: 'POST',
       headers: {
@@ -79,7 +83,9 @@ const openaiProvider: TTSProvider = {
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`OpenAI TTS error: ${response.status} - ${errorText.slice(0, 200)}`);
+      throw new Error(
+        `OpenAI TTS error: ${response.status} - ${errorText.slice(0, 200)}`,
+      );
     }
 
     const audioBuffer = await response.arrayBuffer();
@@ -92,8 +98,10 @@ const cartesiaProvider: TTSProvider = {
   isConfigured: () => !!CARTESIA_API_KEY(),
   getDefaultVoice: () => 'a0e99841-438c-4a64-b679-ae501e7d6091', // Sonia
   generateAudio: async (text: string, voice: string, speed: number) => {
-    const selectedVoice = CARTESIA_VOICES.includes(voice) ? voice : 'a0e99841-438c-4a64-b679-ae501e7d6091';
-    
+    const selectedVoice = CARTESIA_VOICES.includes(voice)
+      ? voice
+      : 'a0e99841-438c-4a64-b679-ae501e7d6091';
+
     const response = await fetch(`${CARTESIA_BASE}/tts`, {
       method: 'POST',
       headers: {
@@ -111,7 +119,9 @@ const cartesiaProvider: TTSProvider = {
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Cartesia TTS error: ${response.status} - ${errorText.slice(0, 200)}`);
+      throw new Error(
+        `Cartesia TTS error: ${response.status} - ${errorText.slice(0, 200)}`,
+      );
     }
 
     const audioBuffer = await response.arrayBuffer();
@@ -142,7 +152,9 @@ const grokProvider: TTSProvider = {
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Grok TTS error: ${response.status} - ${errorText.slice(0, 200)}`);
+      throw new Error(
+        `Grok TTS error: ${response.status} - ${errorText.slice(0, 200)}`,
+      );
     }
 
     const audioBuffer = await response.arrayBuffer();
@@ -182,15 +194,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (typeof speed !== 'number' || speed < 0.5 || speed > 2.0) {
-    return res
-      .status(400)
-      .json({ error: 'Speed must be between 0.5 and 2.0' });
+    return res.status(400).json({ error: 'Speed must be between 0.5 and 2.0' });
   }
 
   // Rate limit
   const ip =
     (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
-    req.headers['x-real-ip'] as string ||
+    (req.headers['x-real-ip'] as string) ||
     'unknown';
   if (isRateLimited(ip)) {
     return res.status(429).json({ error: 'Too many requests' });
@@ -210,37 +220,51 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (!selectedProvider.isConfigured()) {
     // Try fallback providers
-    const availableProviders = Object.values(providers).filter(p => p.isConfigured());
+    const availableProviders = Object.values(providers).filter((p) =>
+      p.isConfigured(),
+    );
     if (availableProviders.length === 0) {
-      return res.status(500).json({ 
-        error: 'No TTS provider configured. Please set OPENAI_API_KEY or CARTESIA_API_KEY' 
+      return res.status(500).json({
+        error:
+          'No TTS provider configured. Please set OPENAI_API_KEY or CARTESIA_API_KEY',
       });
     }
     // Use first available provider as fallback
     const fallbackProvider = availableProviders[0];
-    console.warn(`[voice-preview] ${selectedProviderName} not configured, falling back to ${fallbackProvider.name}`);
-    
+    console.warn(
+      `[voice-preview] ${selectedProviderName} not configured, falling back to ${fallbackProvider.name}`,
+    );
+
     try {
-      const { audioBuffer, contentType } = await fallbackProvider.generateAudio(text, voice || fallbackProvider.getDefaultVoice(), speed);
-      
+      const { audioBuffer, contentType } = await fallbackProvider.generateAudio(
+        text,
+        voice || fallbackProvider.getDefaultVoice(),
+        speed,
+      );
+
       res.setHeader('Content-Type', contentType);
       res.setHeader('Content-Length', audioBuffer.byteLength.toString());
       res.setHeader('Cache-Control', 'public, max-age=3600');
       res.setHeader('X-TTS-Provider', fallbackProvider.name);
-      
+
       return res.send(Buffer.from(audioBuffer));
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Unknown error';
-      console.error(`[voice-preview] Fallback provider ${fallbackProvider.name} failed:`, message);
-      return res.status(500).json({ error: `TTS generation failed: ${message}` });
+      console.error(
+        `[voice-preview] Fallback provider ${fallbackProvider.name} failed:`,
+        message,
+      );
+      return res
+        .status(500)
+        .json({ error: `TTS generation failed: ${message}` });
     }
   }
 
   try {
     const { audioBuffer, contentType } = await selectedProvider.generateAudio(
-      text, 
-      voice || selectedProvider.getDefaultVoice(), 
-      speed
+      text,
+      voice || selectedProvider.getDefaultVoice(),
+      speed,
     );
 
     res.setHeader('Content-Type', contentType);
@@ -252,27 +276,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     console.error(`[voice-preview] ${selectedProvider.name} failed:`, message);
-    
+
     // Try fallback providers if primary fails
-    const fallbackProviders = Object.values(providers).filter(p => p !== selectedProvider && p.isConfigured());
+    const fallbackProviders = Object.values(providers).filter(
+      (p) => p !== selectedProvider && p.isConfigured(),
+    );
     for (const fallbackProvider of fallbackProviders) {
       try {
-        console.warn(`[voice-preview] Trying fallback provider: ${fallbackProvider.name}`);
-        const { audioBuffer, contentType } = await fallbackProvider.generateAudio(text, voice || fallbackProvider.getDefaultVoice(), speed);
-        
+        console.warn(
+          `[voice-preview] Trying fallback provider: ${fallbackProvider.name}`,
+        );
+        const { audioBuffer, contentType } =
+          await fallbackProvider.generateAudio(
+            text,
+            voice || fallbackProvider.getDefaultVoice(),
+            speed,
+          );
+
         res.setHeader('Content-Type', contentType);
         res.setHeader('Content-Length', audioBuffer.byteLength.toString());
         res.setHeader('Cache-Control', 'public, max-age=3600');
         res.setHeader('X-TTS-Provider', fallbackProvider.name);
         res.setHeader('X-TTS-Fallback', 'true');
-        
+
         return res.send(Buffer.from(audioBuffer));
       } catch (fallbackErr) {
-        console.error(`[voice-preview] Fallback ${fallbackProvider.name} also failed:`, fallbackErr);
-        continue;
+        console.error(
+          `[voice-preview] Fallback ${fallbackProvider.name} also failed:`,
+          fallbackErr,
+        );
       }
     }
-    
-    return res.status(500).json({ error: `All TTS providers failed: ${message}` });
+
+    return res
+      .status(500)
+      .json({ error: `All TTS providers failed: ${message}` });
   }
 }

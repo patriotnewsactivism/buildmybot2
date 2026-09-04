@@ -69,12 +69,31 @@ async function signToken(payload: Record<string, unknown>): Promise<string> {
 }
 
 describe('api/gateway.ts — CORS + basic dispatch', () => {
-  it('handles OPTIONS preflight with CORS headers and no auth required', async () => {
-    const req = mockReq({ method: 'OPTIONS' });
+  it('answers OPTIONS preflight without auth and echoes an allowlisted origin', async () => {
+    const req = mockReq({
+      method: 'OPTIONS',
+      headers: { origin: 'https://buildmybot.app' },
+    });
     const res: any = mockRes();
     await handler(req, res);
-    expect(res.statusCode).toBe(200);
-    expect(res.headers['Access-Control-Allow-Origin']).toBe('*');
+    // P1: preflight is 204, and credentialed CORS is allowlisted rather
+    // than the previous wildcard `*` with credentials.
+    expect(res.statusCode).toBe(204);
+    expect(res.headers['Access-Control-Allow-Origin']).toBe(
+      'https://buildmybot.app',
+    );
+    expect(res.headers['Access-Control-Allow-Credentials']).toBe('true');
+  });
+
+  it('does not grant CORS to an unknown origin on a private route', async () => {
+    const req = mockReq({
+      method: 'GET',
+      url: '/api/bots',
+      headers: { origin: 'https://evil.example.com' },
+    });
+    const res: any = mockRes();
+    await handler(req, res);
+    expect(res.headers['Access-Control-Allow-Origin']).toBeUndefined();
   });
 
   it('health check is public and returns 200 without a session', async () => {

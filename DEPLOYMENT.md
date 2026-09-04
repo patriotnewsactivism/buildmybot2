@@ -1,10 +1,15 @@
 # BuildMyBot — Official Deployment & Operations
 
-_Last updated: 2026-09-01. This document describes the supported production topology and the phone-agent activation rollout._
+_Last updated: 2026-09-04 (P1 production hardening). This document describes the supported production topology and the phone-agent activation rollout._
 
-> **Allowed hosting targets:** Google Cloud Run, Cloudflare, and Netlify.
+> **Current production path (the only supported one):**
+> **Cloudflare Pages (SPA + `/api/*` proxy) → Google Cloud Run (Express API) → Supabase (Postgres).**
 >
-> **Do not restore Vercel, Railway, or AWS as BuildMyBot production hosts.**
+> Netlify (`netlify.toml`) and any Vercel artefacts in this repository are
+> historical compatibility leftovers, not deployment authority. Do not deploy
+> production from them.
+>
+> **Do not restore Vercel, Railway, Netlify or AWS as BuildMyBot production hosts.**
 > Old references may remain in history or compatibility code, but they are not
 > deployment authority.
 
@@ -47,6 +52,25 @@ curl -s -o /dev/null -w '%{http_code}\n' https://www.buildmybot.app/pricing
 ```
 
 `/api/health` must be answered by BuildMyBot/Cloud Run, not Railway.
+
+### Health and deploy provenance
+
+Both `/health` and `/api/health` return the same payload, including the build
+SHA that is actually running:
+
+```json
+{ "status": "ok", "service": "buildmybot2", "build": { "sha": "<git sha>" } }
+```
+
+`BUILD_SHA` must be injected at deploy time (`--set-env-vars BUILD_SHA=$GITHUB_SHA`).
+A health response with `build.sha` of `unknown` means the running revision was
+not deployed by the workflow and must not be treated as production-healthy.
+
+### Container entrypoint
+
+`server.ts` is the single production entrypoint (`npx tsx server.ts`). All
+runtime dependencies — including `cookie-parser` — are pinned in
+`package.json`; the Dockerfile no longer installs anything with `--no-save`.
 
 ## 2. Cloud Run deployment
 

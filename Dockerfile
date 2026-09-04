@@ -16,8 +16,6 @@ WORKDIR /app
 ENV NODE_ENV=production
 COPY package*.json ./
 RUN npm ci --omit=dev --legacy-peer-deps
-# cookie-parser is imported by server.ts but is not yet pinned in package.json.
-RUN npm install --no-save --legacy-peer-deps cookie-parser
 COPY --from=builder /app/dist ./dist
 COPY api/ ./api/
 COPY shared/ ./shared/

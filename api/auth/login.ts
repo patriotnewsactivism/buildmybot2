@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { RATE_LIMITS, enforceRateLimit } from '../lib/rate-limit.js';
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -24,6 +25,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const { email, password } = req.body || {};
+    // Brute-force protection: limited per IP and, separately, per account.
+    if (enforceRateLimit(req, res, RATE_LIMITS.login)) return;
+    if (
+      email &&
+      enforceRateLimit(req, res, RATE_LIMITS.login, String(email).toLowerCase())
+    )
+      return;
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
     }

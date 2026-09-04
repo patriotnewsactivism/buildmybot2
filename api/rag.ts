@@ -104,10 +104,23 @@ export async function ingestKnowledgeSource(
   sourceId: string,
   botId: string,
   content: string,
-): Promise<{ chunksCreated: number; embedded: boolean }> {
+): Promise<{
+  chunksCreated: number;
+  embedded: boolean;
+  status: 'ready' | 'partial' | 'failed';
+  chunksAttempted: number;
+  error: string | null;
+}> {
   // 1. Chunk the content
   const chunks = chunkText(content);
-  if (chunks.length === 0) return { chunksCreated: 0, embedded: false };
+  if (chunks.length === 0)
+    return {
+      chunksCreated: 0,
+      embedded: false,
+      status: 'failed',
+      chunksAttempted: 0,
+      error: 'No extractable text content',
+    };
 
   // 2. Delete existing chunks for this source (re-ingestion)
   await fetch(
@@ -160,18 +173,45 @@ export async function ingestKnowledgeSource(
     );
   }
 
-  // 5. Update source status
+  // 5. Update source status.
+  // A source is only "ready" when EVERY chunk was actually persisted.
+  // Previously the status was set to 'ready' unconditionally, so a source
+  // whose inserts all 400'd still showed as Ready in the UI while the bot
+  // had zero retrievable knowledge.
+  const allPersisted = insertedCount === rows.length && insertedCount > 0;
+  const status = allPersisted
+    ? 'ready'
+    : insertedCount > 0
+      ? 'partial'
+      : 'failed';
+  const errorMessage = allPersisted
+    ? null
+    : `Only ${insertedCount}/${rows.length} chunks were persisted`;
+
   await fetch(`${SUPABASE_URL}/rest/v1/knowledge_sources?id=eq.${sourceId}`, {
     method: 'PATCH',
     headers: { ...SUPABASE_HEADERS, Prefer: 'return=minimal' },
     body: JSON.stringify({
-      status: 'ready',
+      status,
       last_processed_at: new Date().toISOString(),
-      processing_state: { chunks: chunks.length, embedded: hasEmbeddings },
+      error_message: errorMessage,
+      processing_state: {
+        chunks: chunks.length,
+        chunksPersisted: insertedCount,
+        embedded: hasEmbeddings,
+        status,
+        ...(errorMessage ? { error: errorMessage } : {}),
+      },
     }),
   });
 
-  return { chunksCreated: chunks.length, embedded: hasEmbeddings };
+  return {
+    chunksCreated: insertedCount,
+    embedded: hasEmbeddings,
+    status,
+    chunksAttempted: rows.length,
+    error: errorMessage,
+  };
 }
 
 // ─── Retrieval ────────────────────────────────────────────────────────

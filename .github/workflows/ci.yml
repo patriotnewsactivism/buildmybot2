@@ -48,12 +48,11 @@ jobs:
       - name: Run maintained test suite
         run: npm run test:run -- --exclude test/voice-agent.test.ts
 
-      - name: Report legacy voice test debt
-        continue-on-error: true
+      - name: Flagship voice agent tests (blocking)
         run: npm run test:run -- test/voice-agent.test.ts
-        # This pre-existing suite has a broken response mock that snapshots
-        # status/body before handlers run (plus `vi.spyOn(any, ...)`). Keep it
-        # visible without letting unrelated legacy test debt mask regressions.
+        # P1: the broken response mock (which snapshotted status/body before
+        # the handler ran) is fixed, so this flagship suite is now a hard
+        # gate instead of continue-on-error advisory output.
 
       - name: Build
         run: npm run build
