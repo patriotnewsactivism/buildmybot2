@@ -253,3 +253,139 @@ export async function sendSms(options: {
     status: result.data?.to?.[0]?.status || 'unknown',
   };
 }
+
+// ---------------------------------------------------------------------------
+// 10DLC brand + campaign registration (api/sms/register.ts).
+//
+// Every business sending SMS at real volume must be registered with The
+// Campaign Registry (TCR) -- this is a carrier requirement, not a Telnyx
+// quirk, and cannot be skipped or made instant by any provider. Telnyx's
+// API lets us register both directly (native brand/campaign), which is
+// what BuildMyBot does today: each tenant gets a "LOW_VOLUME" campaign
+// (simplified registration, covers <6,000 msgs/mo -- the overwhelming
+// majority of BuildMyBot tenants). A larger "ISV/reseller shared campaign"
+// architecture exists at Telnyx if BuildMyBot ever needs to resell at real
+// scale -- not implemented here; see PR description.
+//
+// Carrier approval is NOT instant even though registration submission is --
+// Telnyx's own docs put typical turnaround at 1-7 business days. The tenant
+// stays fully inside buildmybot.app the whole time (this module is the only
+// thing that talks to Telnyx); the UI just needs to show a pending status.
+// ---------------------------------------------------------------------------
+
+export interface BrandRegistrationInput {
+  companyName: string;
+  ein: string;
+  einIssuingCountry?: string;
+  phone: string;
+  street: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country?: string;
+  email: string;
+  website?: string;
+  vertical?: string;
+  entityType?: string;
+}
+
+export interface BrandRegistrationResult {
+  telnyxBrandId: string;
+  status: string;
+}
+
+export async function registerBrand(
+  input: BrandRegistrationInput,
+): Promise<BrandRegistrationResult> {
+  const result = await telnyxRequest<{ data: { brandId: string; status?: string } }>(
+    '/10dlc/brand',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        entityType: input.entityType || 'PRIVATE_PROFIT',
+        companyName: input.companyName,
+        ein: input.ein,
+        einIssuingCountry: input.einIssuingCountry || 'US',
+        phone: input.phone,
+        street: input.street,
+        city: input.city,
+        state: input.state,
+        postalCode: input.postalCode,
+        country: input.country || 'US',
+        email: input.email,
+        website: input.website || undefined,
+        vertical: input.vertical || 'TECHNOLOGY',
+        displayName: input.companyName,
+      }),
+    },
+  );
+  return {
+    telnyxBrandId: result.data?.brandId,
+    status: result.data?.status || 'pending',
+  };
+}
+
+export interface CampaignRegistrationInput {
+  brandId: string;
+  description: string;
+  sample1: string;
+  sample2: string;
+  messageFlow: string;
+  helpMessage: string;
+}
+
+export interface CampaignRegistrationResult {
+  telnyxCampaignId: string;
+  status: string;
+}
+
+export async function registerLowVolumeCampaign(
+  input: CampaignRegistrationInput,
+): Promise<CampaignRegistrationResult> {
+  const result = await telnyxRequest<{ data: { campaignId: string; status?: string } }>(
+    '/10dlc/campaignBuilder',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        brandId: input.brandId,
+        usecase: 'LOW_VOLUME',
+        description: input.description,
+        sample1: input.sample1,
+        sample2: input.sample2,
+        messageFlow: input.messageFlow,
+        helpMessage: input.helpMessage,
+        optinKeywords: 'START, YES, SUBSCRIBE',
+        optoutKeywords: 'STOP, UNSUBSCRIBE, CANCEL, QUIT',
+        helpKeywords: 'HELP, INFO',
+      }),
+    },
+  );
+  return {
+    telnyxCampaignId: result.data?.campaignId,
+    status: result.data?.status || 'pending',
+  };
+}
+
+export async function getBrandStatus(
+  telnyxBrandId: string,
+): Promise<{ status: string; vettingScore?: number; failureReason?: string }> {
+  const result = await telnyxRequest<{
+    data: { status?: string; identityStatus?: string; failureReasons?: string[] };
+  }>(`/10dlc/brand/${encodeURIComponent(telnyxBrandId)}`);
+  return {
+    status: result.data?.identityStatus || result.data?.status || 'pending',
+    failureReason: result.data?.failureReasons?.join('; ') || undefined,
+  };
+}
+
+export async function getCampaignStatus(
+  telnyxCampaignId: string,
+): Promise<{ status: string; failureReason?: string }> {
+  const result = await telnyxRequest<{
+    data: { status?: string; failureReasons?: string[] };
+  }>(`/10dlc/campaign/${encodeURIComponent(telnyxCampaignId)}`);
+  return {
+    status: result.data?.status || 'pending',
+    failureReason: result.data?.failureReasons?.join('; ') || undefined,
+  };
+}
