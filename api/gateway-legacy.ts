@@ -8,6 +8,16 @@ import {
   formatPricingForPrompt,
 } from '../constants.js';
 import { callLLMMessages, trackAnalyticsEvent } from './ai-team/lib.js';
+import {
+  computeActivation,
+  listMilestones,
+  recordMilestone,
+} from './growth/milestones.js';
+import {
+  type OveragePolicy,
+  maybeSendUsageAlert,
+  resolveUsageDecision,
+} from './growth/usage-alerts.js';
 import { bucketByDay } from './lib/analytics.js';
 import {
   appBaseUrl,
@@ -20,18 +30,6 @@ import { sendEmail } from './lib/mailer.js';
 import { guardedFetch } from './lib/outbound.js';
 import { RATE_LIMITS, enforceRateLimit } from './lib/rate-limit.js';
 import { isAllowedOrigin, isPublicEmbedPath } from './lib/security.js';
-import { isPlatformAdmin } from './security/authz.js';
-import { SsrfBlockedError, assertSafeOutboundUrl, safeFetch } from './security/ssrf.js';
-import {
-  computeActivation,
-  listMilestones,
-  recordMilestone,
-} from './growth/milestones.js';
-import {
-  type OveragePolicy,
-  maybeSendUsageAlert,
-  resolveUsageDecision,
-} from './growth/usage-alerts.js';
 import {
   ingestKnowledgeSource,
   ingestPageChunks,
@@ -40,6 +38,12 @@ import {
   searchKnowledge,
   startFirecrawlCrawl,
 } from './rag.js';
+import { isPlatformAdmin } from './security/authz.js';
+import {
+  SsrfBlockedError,
+  assertSafeOutboundUrl,
+  safeFetch,
+} from './security/ssrf.js';
 
 // Initialize Sentry for production error monitoring
 if (process.env.SENTRY_DSN) {
@@ -1710,7 +1714,11 @@ async function handleRevenue(
     // ownership check -- one tenant could revoke another tenant's API keys
     // and read their request logs. API keys are now always resolved inside
     // the caller's own organization first.
-    if (pathParts[2] === 'revoke' || pathParts[2] === 'logs' || pathParts[2] === 'stats') {
+    if (
+      pathParts[2] === 'revoke' ||
+      pathParts[2] === 'logs' ||
+      pathParts[2] === 'stats'
+    ) {
       const keyId = pathParts[1];
       const keyFilter: Record<string, string> = isPlatformAdmin(user)
         ? { id: `eq.${keyId}` }
@@ -1719,7 +1727,11 @@ async function handleRevenue(
       if (!owned.length)
         return res.status(404).json({ error: 'API key not found' });
       if (pathParts[2] === 'revoke') {
-        await sbUpdate('api_keys', { status: 'revoked' }, { id: `eq.${keyId}` });
+        await sbUpdate(
+          'api_keys',
+          { status: 'revoked' },
+          { id: `eq.${keyId}` },
+        );
         return res.json({ success: true });
       }
       const l = await sbSelect('api_request_logs', '*', {
@@ -1933,26 +1945,60 @@ async function handleVoice(
       // move the agent into another organization. Only behavioural config
       // is writable here; entitlements move only via verified Stripe events.
       const VOICE_AGENT_WRITABLE = new Set([
-        'voice_id', 'voiceId', 'voice_name', 'voiceName', 'voice_model',
-        'voiceModel', 'provider', 'language', 'system_prompt', 'systemPrompt',
-        'greeting', 'business_hours', 'businessHours', 'after_hours_message',
-        'afterHoursMessage', 'end_call_phrase', 'endCallPhrase',
-        'end_call_phrases', 'endCallPhrases', 'transfer_enabled',
-        'transferEnabled', 'transfer_number', 'transferNumber',
-        'transfer_triggers', 'transferTriggers', 'lead_capture_enabled',
-        'leadCaptureEnabled', 'calendar_booking_url', 'calendarBookingUrl',
-        'max_call_duration', 'maxCallDuration', 'record_calls', 'recordCalls',
-        'escalation_rules', 'escalationRules', 'is_active', 'enabled',
+        'voice_id',
+        'voiceId',
+        'voice_name',
+        'voiceName',
+        'voice_model',
+        'voiceModel',
+        'provider',
+        'language',
+        'system_prompt',
+        'systemPrompt',
+        'greeting',
+        'business_hours',
+        'businessHours',
+        'after_hours_message',
+        'afterHoursMessage',
+        'end_call_phrase',
+        'endCallPhrase',
+        'end_call_phrases',
+        'endCallPhrases',
+        'transfer_enabled',
+        'transferEnabled',
+        'transfer_number',
+        'transferNumber',
+        'transfer_triggers',
+        'transferTriggers',
+        'lead_capture_enabled',
+        'leadCaptureEnabled',
+        'calendar_booking_url',
+        'calendarBookingUrl',
+        'max_call_duration',
+        'maxCallDuration',
+        'record_calls',
+        'recordCalls',
+        'escalation_rules',
+        'escalationRules',
+        'is_active',
+        'enabled',
       ]);
       const CAMEL_TO_SNAKE: Record<string, string> = {
-        voiceId: 'voice_id', voiceName: 'voice_name', voiceModel: 'voice_model',
-        systemPrompt: 'system_prompt', businessHours: 'business_hours',
-        afterHoursMessage: 'after_hours_message', endCallPhrase: 'end_call_phrase',
-        endCallPhrases: 'end_call_phrases', transferEnabled: 'transfer_enabled',
-        transferNumber: 'transfer_number', transferTriggers: 'transfer_triggers',
+        voiceId: 'voice_id',
+        voiceName: 'voice_name',
+        voiceModel: 'voice_model',
+        systemPrompt: 'system_prompt',
+        businessHours: 'business_hours',
+        afterHoursMessage: 'after_hours_message',
+        endCallPhrase: 'end_call_phrase',
+        endCallPhrases: 'end_call_phrases',
+        transferEnabled: 'transfer_enabled',
+        transferNumber: 'transfer_number',
+        transferTriggers: 'transfer_triggers',
         leadCaptureEnabled: 'lead_capture_enabled',
         calendarBookingUrl: 'calendar_booking_url',
-        maxCallDuration: 'max_call_duration', recordCalls: 'record_calls',
+        maxCallDuration: 'max_call_duration',
+        recordCalls: 'record_calls',
         escalationRules: 'escalation_rules',
       };
       const updateData: Record<string, unknown> = {
@@ -2072,7 +2118,8 @@ async function handleFirecrawlWebhook(req: VercelRequest, res: VercelResponse) {
     const a = Buffer.from(provided);
     const b = Buffer.from(expected);
     const ok =
-      a.length === b.length && (await import('node:crypto')).timingSafeEqual(a, b);
+      a.length === b.length &&
+      (await import('node:crypto')).timingSafeEqual(a, b);
     if (!ok) {
       return res.status(401).json({ error: 'Invalid webhook secret' });
     }
@@ -2234,7 +2281,9 @@ async function handleKnowledge(
     if (req.method === 'GET') {
       const scope = botId
         ? { bot_id: `eq.${botId}` }
-        : { bot_id: `in.(${(await accessibleBotIds(user)).join(',') || 'none'})` };
+        : {
+            bot_id: `in.(${(await accessibleBotIds(user)).join(',') || 'none'})`,
+          };
       const rows = await sbSelect('knowledge_sources', '*', scope).catch(
         () => [],
       );
@@ -2658,7 +2707,8 @@ async function handleWebhooks(
     ? { id: `eq.${wid}` }
     : { id: `eq.${wid}`, ...orgF };
   const owned = await sbSelect('webhooks', '*', scoped).catch(() => []);
-  if (!owned.length) return res.status(404).json({ error: 'Webhook not found' });
+  if (!owned.length)
+    return res.status(404).json({ error: 'Webhook not found' });
   const webhook = owned[0];
 
   if (pathParts[1] === 'test') {
@@ -2776,13 +2826,13 @@ async function handleAgency(
             'Wallet recharge now requires a completed payment. Start a Stripe checkout via POST /api/stripe/checkout; credit is applied when Stripe confirms the payment.',
           code: 'PAYMENT_REQUIRED',
         });
-      } else res.status(405).json({ error: 'Method not allowed' });
-    } else {
-      const w = await sbSelect('usage_wallets', '*', {
-        organization_id: `eq.${user.organizationId}`,
-      }).catch(() => []);
-      res.json(w[0] || { balance: 0, currency: 'usd' });
+      }
+      return res.status(405).json({ error: 'Method not allowed' });
     }
+    const w = await sbSelect('usage_wallets', '*', {
+      organization_id: `eq.${user.organizationId}`,
+    }).catch(() => []);
+    res.json(w[0] || { balance: 0, currency: 'usd' });
   } else if (sub === 'pricing') {
     res.json(await sbSelect('agency_pricing_tiers', '*', {}).catch(() => []));
   } else if (sub === 'client-usage') {
@@ -4360,9 +4410,11 @@ async function handleSupport(
     const ticketScope: Record<string, string> = isPlatformAdmin(user)
       ? { id: `eq.${tid}` }
       : { id: `eq.${tid}`, user_id: `eq.${user.id}` };
-    const ownedTicket = await sbSelect('support_tickets', 'id', ticketScope).catch(
-      () => [],
-    );
+    const ownedTicket = await sbSelect(
+      'support_tickets',
+      'id',
+      ticketScope,
+    ).catch(() => []);
     if (!ownedTicket.length)
       return res.status(404).json({ error: 'Ticket not found' });
     if (req.method === 'GET') {
@@ -6076,7 +6128,6 @@ async function handleTrial(
   }
   return res.status(405).json({ error: 'Method not allowed' });
 }
-
 
 // ─── P2: usage alerts + hard caps ─────────────────────────────────────
 async function getOveragePolicy(userId: string): Promise<OveragePolicy> {
