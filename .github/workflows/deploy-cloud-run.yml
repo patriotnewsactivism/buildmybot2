@@ -472,10 +472,23 @@ jobs:
                 setup: { model: `models/${payload.model}` },
               }));
             });
-            socket.addEventListener('message', (event) => {
+            socket.addEventListener('message', async (event) => {
+              let raw = event.data;
+              try {
+                if (raw && typeof raw.text === 'function') {
+                  raw = await raw.text();
+                } else if (raw instanceof ArrayBuffer) {
+                  raw = Buffer.from(raw).toString('utf8');
+                } else if (typeof raw !== 'string') {
+                  raw = String(raw);
+                }
+              } catch (error) {
+                finish(error);
+                return;
+              }
               let message;
               try {
-                message = JSON.parse(String(event.data));
+                message = JSON.parse(raw);
               } catch (error) {
                 finish(error);
                 return;
