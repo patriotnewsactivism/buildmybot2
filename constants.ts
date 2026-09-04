@@ -438,29 +438,108 @@ export const VOICE_AGENT_PRICING = Object.entries(VOICE_PLANS).map(
  * resolves the real Stripe Price ID server-side, never trusts a
  * client-supplied price.
  */
+/**
+ * ⚠️ PRICING DERIVATION -- do not change these three numbers without
+ * re-running this math (see estimateSmsPlanMarginUsd/applySmsCommissionSafeguard
+ * below). Don's direction 2026-09-04: price so the company can pay a
+ * partner/reseller up to the existing 50% top commission tier (RESELLER_TIERS
+ * Platinum / WHITELABEL_FEE, both 0.5) on every tier and still stay inside
+ * the SAME MAX_COMMISSION_SHARE_OF_MARGIN=0.7 safeguard already documented
+ * above for chatbot plans -- i.e. a 50% payout must not exceed 70% of
+ * estimated margin, same rule, same number, applied to this product too.
+ *
+ * Cost model (estimates, not measurements -- no real SMS volume yet):
+ * - Telnyx US A2P long-code send: ~$0.0035/message (COST_PER_SMS_ESTIMATE_USD)
+ * - 10DLC campaign carrier fee (LOW_VOLUME use case, blended AT&T/T-Mobile/
+ *   Verizon pass-through via Telnyx): ~$11/mo per registered campaign
+ *   (SMS_CAMPAIGN_FIXED_COST_USD)
+ *
+ * Solving margin >= (0.5 * price) / 0.7 for price gives price >= cost * 3.5.
+ * Starter: cost $14.50 -> floor $50.75, priced $59 (~+16% buffer)
+ * Growth:  cost $28.50 -> floor $99.75, priced $129 (~+29% buffer)
+ * Scale:   cost $81.00 -> floor $283.50, priced $349 (~+23% buffer)
+ *
+ * Overage rates were NOT changed -- 0.02/0.018/0.015 already clear the same
+ * 50%-commission-vs-70%-margin bar on a per-message basis with room to
+ * spare (worst case, Scale's $0.015: 50% commission $0.0075 <= 70% margin
+ * $0.00805).
+ *
+ * ⚠️ Same caveat as MAX_COMMISSION_SHARE_OF_MARGIN above: this safeguard
+ * model is NOT currently invoked by the real commission-payout code
+ * (api/stripe-webhook.ts computes commission as raw price * partner's
+ * stored commission_rate, no margin awareness at all, for both chatbot
+ * plans and this one). Getting the advertised PRICE right is therefore the
+ * only real protection today -- wiring the actual safeguard into the
+ * webhook is separate, not-yet-done work.
+ */
 export const SMS_MARKETING_PLANS = {
   SMS_STARTER: {
-    price: 39,
+    price: 59,
     messagesIncluded: 1000,
     overagePerMessage: 0.02,
     name: 'SMS Marketing Starter',
     stripePriceEnv: 'STRIPE_PRICE_SMS_STARTER',
   },
   SMS_GROWTH: {
-    price: 99,
+    price: 129,
     messagesIncluded: 5000,
     overagePerMessage: 0.018,
     name: 'SMS Marketing Growth',
     stripePriceEnv: 'STRIPE_PRICE_SMS_GROWTH',
   },
   SMS_SCALE: {
-    price: 249,
+    price: 349,
     messagesIncluded: 20000,
     overagePerMessage: 0.015,
     name: 'SMS Marketing Scale',
     stripePriceEnv: 'STRIPE_PRICE_SMS_SCALE',
   },
 };
+
+/** Per-message Telnyx send cost estimate -- see pricing derivation comment
+ * above. Not a measurement; no real production SMS volume exists yet. */
+export const COST_PER_SMS_ESTIMATE_USD = 0.0035;
+
+/** Fixed monthly 10DLC campaign carrier fee estimate, per tenant campaign --
+ * see pricing derivation comment above. */
+export const SMS_CAMPAIGN_FIXED_COST_USD = 11.0;
+
+/** Estimate variable+fixed cost for an SMS plan at full message-quota
+ * utilization -- the worst case a payout safeguard needs to survive. */
+export function estimateSmsPlanCostUsd(plan: keyof typeof SMS_MARKETING_PLANS): number {
+  const messages = SMS_MARKETING_PLANS[plan]?.messagesIncluded || 0;
+  return SMS_CAMPAIGN_FIXED_COST_USD + messages * COST_PER_SMS_ESTIMATE_USD;
+}
+
+/** Estimated gross margin for an SMS plan at full quota utilization (can be
+ * negative -- that's the point of surfacing it). */
+export function estimateSmsPlanMarginUsd(plan: keyof typeof SMS_MARKETING_PLANS): number {
+  const price = SMS_MARKETING_PLANS[plan]?.price || 0;
+  return price - estimateSmsPlanCostUsd(plan);
+}
+
+/** Same safeguard as applyCommissionSafeguard() above (identical
+ * MAX_COMMISSION_SHARE_OF_MARGIN cap), scoped to SMS_MARKETING_PLANS instead
+ * of PLANS since the two cost models are unrelated (per-message vs.
+ * per-conversation). Not currently called by any live payout code -- see
+ * caveat in the pricing derivation comment above. */
+export function applySmsCommissionSafeguard(
+  plan: keyof typeof SMS_MARKETING_PLANS,
+  computedCommissionUsd: number,
+): {
+  cappedCommissionUsd: number;
+  wasCapped: boolean;
+  estimatedMarginUsd: number;
+} {
+  const estimatedMarginUsd = estimateSmsPlanMarginUsd(plan);
+  const maxSafeCommissionUsd = Math.max(0, estimatedMarginUsd) * MAX_COMMISSION_SHARE_OF_MARGIN;
+  const cappedCommissionUsd = Math.min(computedCommissionUsd, maxSafeCommissionUsd);
+  return {
+    cappedCommissionUsd,
+    wasCapped: cappedCommissionUsd < computedCommissionUsd,
+    estimatedMarginUsd,
+  };
+}
 
 export const SMS_MARKETING_PRICING = Object.entries(SMS_MARKETING_PLANS).map(
   ([key, plan]) => ({
