@@ -3,6 +3,7 @@ import type { IncomingMessage } from 'node:http';
 import WebSocket, { type RawData } from 'ws';
 import { z } from 'zod';
 import { searchKnowledge } from '../rag.js';
+import { recordMilestone } from '../growth/milestones.js';
 
 const GEMINI_MODEL = 'models/gemini-3.1-flash-live-preview';
 const GEMINI_WS_URL =
@@ -681,6 +682,17 @@ async function requestAppointment(
         success: false,
         reason: `Scheduling service returned HTTP ${response.status}`,
       };
+    }
+    // First-value tracking: only on a real accepted booking, never on a
+    // failed/unconfigured one.
+    if (context.userId) {
+      recordMilestone({
+        milestone: 'first_appointment',
+        userId: context.userId,
+        organizationId: context.organizationId,
+        botId: context.botId,
+        metadata: { callSid: context.callSid },
+      }).catch(() => {});
     }
     return { success: true, result: text.slice(0, 1000) || 'accepted' };
   } catch (error: unknown) {
