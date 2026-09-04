@@ -9,13 +9,13 @@ const JWT_SECRET = process.env.SESSION_JWT_SECRET;
 // JWT's own exp also caps replay of a copied cookie value at 24h even if
 // the browser session somehow lives longer.
 const SESSION_JWT_TTL = 24 * 60 * 60;
-// P0-1 FIX (2026-09-03): removed the MASTER_ADMINS email-allowlist signup
-// escalation entirely. Public signup must NEVER grant platform-admin status
-// based on an email address -- that's a standing backdoor if the list ever
-// leaks, gets guessed, or someone else registers a similar-looking address
-// first. Every signup gets the ordinary customer role (OWNER) and FREE plan,
-// full stop. Legitimate platform administrators are provisioned directly in
-// the database/admin tooling, never through this endpoint.
+// SECURITY (P0): signup used to promote three hard-coded email addresses to
+// role ADMIN + plan ENTERPRISE. Anyone who could receive mail at (or spoof a
+// signup for) one of those addresses got platform-wide admin, and the list
+// was duplicated in the client bundle where it was publicly readable.
+// Self-service signup now ALWAYS creates a plain customer account; staff
+// access is granted out-of-band by an existing platform admin
+// (scripts/setAdminPermissions.ts) against the database.
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'OPTIONS') return res.status(204).end();
@@ -73,6 +73,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         email: email.toLowerCase(),
         name: name || email.split('@')[0],
         password_hash: passwordHash,
+        // OWNER = owner of THIS customer organization. It is not, and must
+        // not be treated as, a platform-wide admin role.
         role: 'OWNER',
         plan: 'FREE',
         status: 'Active',

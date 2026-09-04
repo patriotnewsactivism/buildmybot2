@@ -289,7 +289,12 @@ describe('Standalone voice plans — purchasable independent of chatbot plan', (
     expect(res.body.voicePlans.VOICE_BASIC.minutes).toBe(150);
   });
 
-  it('lets a FREE-chatbot-plan user unlock purchase by selecting a standalone voice plan', async () => {
+  it('refuses to grant a standalone voice plan without a verified payment (402)', async () => {
+    // P0 BILLING FIX: this endpoint used to write users.voice_plan directly,
+    // so any authenticated user could self-grant a paid voice plan (and its
+    // minutes) for free. Entitlements now come only from a verified Stripe
+    // event (api/stripe-webhook.ts). The route must therefore never PATCH
+    // users.voice_plan, and must tell the caller to go through checkout.
     const token = await signToken({ sub: 'user-1' });
     let savedVoicePlan: string | null = null;
 
@@ -313,7 +318,6 @@ describe('Standalone voice plans — purchasable independent of chatbot plan', (
       }),
     );
 
-    // Select the standalone plan.
     const selectReq = {
       method: 'POST',
       url: '/api/phone/voice-plan',
@@ -323,10 +327,11 @@ describe('Standalone voice plans — purchasable independent of chatbot plan', (
     const selectRes = mockRes();
     await handler(selectReq, selectRes);
 
-    expect(selectRes.statusCode).toBe(200);
-    expect(savedVoicePlan).toBe('VOICE_BASIC');
+    expect(selectRes.statusCode).toBe(402);
+    expect(selectRes.body.code).toBe('PAYMENT_REQUIRED');
+    expect(savedVoicePlan).toBeNull();
 
-    // A FREE-plan user with a standalone voice plan should now pass the gate.
+    // ...and the entitlement really is absent afterwards.
     const req = {
       method: 'GET',
       url: '/api/phone/voice-plans',
@@ -335,10 +340,25 @@ describe('Standalone voice plans — purchasable independent of chatbot plan', (
     } as unknown as VercelRequest;
     const res = mockRes();
     await handler(req, res);
-
     expect(res.statusCode).toBe(200);
-    expect(res.body.currentVoicePlan).toBe('VOICE_BASIC');
-    expect(res.body.bundledMinutes).toBe(0);
+    expect(res.body.currentVoicePlan).toBeNull();
+  });
+
+  it('still rejects an unknown voice plan key with 400', async () => {
+    const token = await signToken({ sub: 'user-1' });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, json: async () => [AUTH_USER_ROW] }),
+    );
+    const req = {
+      method: 'POST',
+      url: '/api/phone/voice-plan',
+      headers: { cookie: `bmb_session=${token}` },
+      body: { voicePlan: 'NOT_A_PLAN' },
+    } as unknown as VercelRequest;
+    const res = mockRes();
+    await handler(req, res);
+    expect(res.statusCode).toBe(400);
   });
 });
 

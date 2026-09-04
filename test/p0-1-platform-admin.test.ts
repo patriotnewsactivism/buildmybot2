@@ -20,7 +20,10 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { isPlatformAdmin } from '../api/gateway-legacy.js';
+// The predicate moved to its own module in #84 (api/security/authz.ts).
+// Importing it directly also keeps this suite free of gateway-legacy's
+// import-time side effects.
+import { isPlatformAdmin } from '../api/security/authz.js';
 
 const repoRoot = path.resolve(__dirname, '..');
 

@@ -2,19 +2,22 @@
 
 ## ⚠️ ACTION REQUIRED: rotate leaked credentials
 
-The following credentials were found committed to this repository (now
-removed from the working tree, but **still present in git history**). They
-must be treated as compromised and rotated immediately:
+The following credentials were found committed to this repository (removed
+from the working tree, but **still present in git history** — commits
+`58847d0` and `9eb649e`). Rotation status below was verified live on
+2026-09-04 by probing each provider with the leaked value:
 
-| Credential | Where it leaked | Rotation |
-|---|---|---|
-| OpenAI API key (`sk-proj-Pvfo…`) | `attached_assets/Pasted-*.txt` (removed) | https://platform.openai.com/api-keys — revoke + reissue |
-| Cartesia API key (`sk_car_CDBn…`) | `attached_assets/Pasted-*.txt` (removed) | Cartesia dashboard — revoke + reissue |
-| Supabase Postgres password (project `qjwwkcore…`) | `FIX_AUTH_ISSUE.md`, `VERCEL_DEPLOYMENT.md` (redacted) | Supabase dashboard → Settings → Database → Reset password |
-| `SESSION_SECRET` (base64, `2NtQ…`) | `FIX_AUTH_ISSUE.md` (redacted) | Generate new: `openssl rand -base64 64`; invalidates active sessions |
+| Credential | Where it leaked | Verified status (2026-09-04) | Action |
+|---|---|---|---|
+| OpenAI API key (`sk-proj-Pvfo…`) | `attached_assets/Pasted-*.txt` | ✅ **ROTATED** — provider returns `401 Incorrect API key provided` | none |
+| Cartesia API key (`sk_car_CDBn…`) | `attached_assets/Pasted-*.txt` | 🚨 **STILL LIVE** — `GET https://api.cartesia.ai/voices` returned `200` with this org's voice list | **Revoke in the Cartesia dashboard immediately and reissue** |
+| Supabase Postgres password (project `qjwwkcore…`) | `FIX_AUTH_ISSUE.md`, `VERCEL_DEPLOYMENT.md` | ❓ **UNVERIFIED** — cannot be probed without attempting a DB login from an allowed network | Reset: Supabase → Settings → Database → Reset password, then confirm the old value fails |
+| `SESSION_SECRET` (base64, `2NtQ…`) | `FIX_AUTH_ISSUE.md` | ❓ **UNVERIFIED** — cannot be tested externally | Compare the deployed `SESSION_JWT_SECRET` against the leaked value; if equal, regenerate (`openssl rand -base64 64`). Any session token signed with the leaked secret is forgeable, which is a full authentication bypass |
 
 Because these values remain in git history, rotation is the only real
-remediation — do not rely on the file removals alone.
+remediation — file removal does not help. A history rewrite
+(`git filter-repo`) would remove them permanently but needs a coordinated
+force-push.
 
 ## Supabase Row Level Security (RLS)
 
@@ -39,6 +42,51 @@ enforce tenancy themselves:
 
 Never expose the service-role key with a `VITE_`/`NEXT_PUBLIC_` prefix and
 never hardcode it as a fallback in source.
+
+## Authorization model (OWNER vs ADMIN)
+
+`api/security/authz.ts` is the single source of truth:
+
+- **OWNER** (also `ORG_OWNER`, `ACCOUNT_OWNER`) — the customer who owns an
+  organization. Full rights inside their own tenant, **zero** platform-wide
+  rights. `api/auth/signup.ts` gives every self-service signup this role.
+- **ADMIN / MasterAdmin / SUPER_ADMIN / PLATFORM_ADMIN / STAFF** — BuildMyBot
+  staff. Platform-wide access.
+
+Never write `['admin','ADMIN','owner','OWNER'].includes(user.role)` again —
+that pattern (removed in this pass) handed every customer platform-admin
+access to `/api/admin/*`, `/api/audit`, `/api/bots/errors`, `/api/ai-employees`
+and `/api/email/*`. Use `isPlatformAdmin(user)` / `denyIfNotPlatformAdmin()`.
+
+Self-service signup must never promote by email address. The hard-coded
+`MASTER_ADMINS` lists in `api/auth/signup.ts` and `App.tsx` have been removed;
+staff access is granted out-of-band against the database
+(`scripts/setAdminPermissions.ts`).
+
+## Billing integrity
+
+- Entitlements (plan, voice plan, phone minutes, wallet credit, usage pools)
+  are written **only** by `api/stripe-webhook.ts` after a signature-verified
+  Stripe event. `POST /api/phone/voice-plan` and
+  `POST /api/agency/wallet/(auto-)recharge` now return `402 PAYMENT_REQUIRED`.
+- `POST /api/stripe/checkout|portal|whitelabel/checkout` take identity from
+  the session only. Client-supplied `userId`, `organizationId`, plan limits,
+  `minutes` and `credits` are ignored.
+- Stripe signature verification needs the **exact bytes**. `server.ts`
+  preserves them on `req.rawBody` (Cloud Run/Express previously consumed and
+  re-serialized the body, so every webhook silently failed verification).
+- Duplicate/retried events have exactly one effect, enforced by the unique
+  `stripe_webhook_events.event_id` claim
+  (`supabase-migrations/20260904_stripe_webhook_idempotency.sql`).
+
+## SSRF
+
+Any customer-controlled outbound URL (website scraping, webhook delivery and
+webhook tests, booking callbacks) must go through
+`assertSafeOutboundUrl()` / `safeFetch()` in `api/security/ssrf.ts`, which
+rejects non-http(s) schemes, embedded credentials, `localhost`,
+`*.internal`, the cloud metadata endpoints and all loopback / RFC1918 /
+link-local / CGNAT ranges — re-validating every redirect hop.
 
 ## Route authentication map
 
@@ -70,11 +118,12 @@ deployed topology, that header should be dropped from the client too.
 
 ## Known gaps (accepted for now)
 
-- **Twilio webhook signature validation** is not enabled on
-  `/api/webhooks/voice/twilio`. Enabling `twilio.webhook()` requires correct
-  public-URL reconstruction behind Vercel/proxies; until then, the endpoint
-  only returns TwiML and creates call log rows, but it can be spoofed.
-  Enable validation once the deployed URL is stable.
+- ~~Twilio webhook signature validation~~ — **fixed**. `api/twilio/webhooks.ts`
+  and `api/twilio/inbound.ts` now validate `X-Twilio-Signature` against the
+  full public URL (`APP_BASE_URL`, plus the `x-forwarded-host` variant) and
+  **fail closed** in production. The old code fell back to "does the body
+  contain a `CallSid`?" whenever the token was missing, the header was
+  absent, or validation threw — all trivially forgeable.
 - **Secrets in git history**: rotating (above) mitigates; a history rewrite
   (`git filter-repo`) would remove them permanently but requires
   coordinating a force-push with all collaborators.

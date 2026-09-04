@@ -13,6 +13,7 @@
  */
 
 import { salesAutomationDryRun, trackAnalyticsEvent } from '../ai-team/lib.js';
+import { recordMilestone } from '../growth/milestones.js';
 
 const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
@@ -218,6 +219,29 @@ export async function logCallOutcome(opts: {
     : `Call ${opts.status} (${opts.duration}s). No transcript available.`;
 
   const now = new Date().toISOString();
+
+  // First-value tracking: a call that was actually answered and lasted
+  // long enough to be a real conversation. 'completed' alone isn't enough —
+  // Twilio reports a 1-second voicemail hangup as completed too.
+  if (opts.status === 'completed' && opts.duration > 5 && opts.logId) {
+    try {
+      const logRows = await sbSelect('call_logs', 'user_id,bot_id,organization_id', {
+        id: `eq.${opts.logId}`,
+      });
+      const log = logRows?.[0];
+      if (log?.user_id) {
+        await recordMilestone({
+          milestone: 'first_answered_call',
+          userId: log.user_id,
+          organizationId: log.organization_id ?? null,
+          botId: log.bot_id ?? null,
+          metadata: { callSid: opts.callSid, duration: opts.duration },
+        });
+      }
+    } catch (err) {
+      console.error('[milestones] first_answered_call failed:', err);
+    }
+  }
 
   // Update call_logs
   if (opts.logId) {

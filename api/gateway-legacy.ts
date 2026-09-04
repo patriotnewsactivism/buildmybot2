@@ -8,6 +8,18 @@ import {
   formatPricingForPrompt,
 } from '../constants.js';
 import { callLLMMessages, trackAnalyticsEvent } from './ai-team/lib.js';
+import { isPlatformAdmin } from './security/authz.js';
+import { SsrfBlockedError, assertSafeOutboundUrl, safeFetch } from './security/ssrf.js';
+import {
+  computeActivation,
+  listMilestones,
+  recordMilestone,
+} from './growth/milestones.js';
+import {
+  type OveragePolicy,
+  maybeSendUsageAlert,
+  resolveUsageDecision,
+} from './growth/usage-alerts.js';
 import {
   ingestKnowledgeSource,
   ingestPageChunks,
@@ -170,33 +182,6 @@ async function sbSelect(
   return resp.json();
 }
 
-// P0-1 FIX (2026-09-03): centralized platform-admin predicate.
-//
-// Previously ~14 call sites across handleAdmin/handleConversations/
-// handleAudit/handleAiEmployees/handleEmail/handleBotErrors/handleUsers used
-// an inline `['admin','ADMIN','owner','OWNER'].includes(user.role)` (or a
-// bare `!isPlatformAdmin(user)`) check. Including 'owner'/'OWNER' there meant
-// every ordinary paying customer -- whose role is legitimately OWNER, the
-// correct role for a customer account owner -- was silently treated as a
-// PLATFORM administrator with full cross-tenant access to every other
-// customer's conversations, audit logs, AI-employee admin, and email
-// administration. OWNER means "owns their own org," nothing more.
-//
-// isPlatformAdmin() is the ONLY function that may grant platform-admin
-// access. It recognizes real platform-admin role values (current + known
-// legacy DB values -- see types.ts UserRole: ADMIN, 'Admin' (ADMIN_LEGACY),
-// MasterAdmin) case-insensitively, and NEVER treats OWNER as admin under any
-// spelling/casing. Platform admins must be provisioned via the database/
-// admin tooling -- never via public signup (see api/auth/signup.ts fix,
-// same date) and never via a client-supplied token claim (getAuthUser()
-// already re-fetches the live DB role per request, ignoring token claims).
-const PLATFORM_ADMIN_ROLES = new Set(['ADMIN', 'MASTERADMIN']);
-export function isPlatformAdmin(user: AuthUser | null | undefined): boolean {
-  if (!user?.role) return false;
-  const normalized = user.role.toUpperCase().replace(/[^A-Z]/g, '');
-  return PLATFORM_ADMIN_ROLES.has(normalized);
-}
-
 export function ownerFilter(user: AuthUser): Record<string, string> {
   // SECURITY: never return an empty filter here -- an empty {} means "no
   // WHERE clause", i.e. every row in the table across every tenant. Users
@@ -206,6 +191,32 @@ export function ownerFilter(user: AuthUser): Record<string, string> {
   return user.organizationId
     ? { organization_id: `eq.${user.organizationId}` }
     : { user_id: `eq.${user.id}` };
+}
+
+/**
+ * SECURITY: resolves a bot the caller is actually allowed to touch.
+ * Returns null when the bot does not exist OR belongs to another tenant --
+ * callers must treat null as 404 so bot ids can't be enumerated. Platform
+ * admins (BuildMyBot staff) bypass tenant scoping deliberately.
+ */
+async function getAccessibleBot(
+  user: AuthUser,
+  botId: string,
+  select = 'id,user_id,organization_id',
+): Promise<any | null> {
+  if (!botId) return null;
+  const filter: Record<string, string> = isPlatformAdmin(user)
+    ? { id: `eq.${botId}` }
+    : { id: `eq.${botId}`, ...ownerFilter(user) };
+  const rows = await sbSelect('bots', select, filter).catch(() => []);
+  return rows[0] || null;
+}
+
+/** Ids of every bot in the caller's tenant -- for scoping child tables
+ * (tools, knowledge, call logs, health) that only carry a bot_id. */
+async function accessibleBotIds(user: AuthUser): Promise<string[]> {
+  const rows = await sbSelect('bots', 'id', ownerFilter(user)).catch(() => []);
+  return (rows || []).map((b: any) => b.id);
 }
 
 // ─── Plan Limits & Usage Enforcement ──────────────────────────────────
@@ -540,7 +551,9 @@ async function handleBots(
     const newBot = await sbInsert('bots', {
       id: crypto.randomUUID(),
       user_id: user.id,
-      organization_id: user.organizationId || body.organizationId || null,
+      // SECURITY: never accept a client-supplied organizationId -- that let a
+      // tenant plant rows inside another tenant's organization.
+      organization_id: user.organizationId || null,
       name: body.name || 'New Bot',
       type: body.type || 'general',
       system_prompt:
@@ -590,6 +603,10 @@ async function handleBotById(
       return res.status(404).json({ error: 'Bot not found' });
     res.json(updated[0]);
   } else if (req.method === 'DELETE') {
+    // Confirm ownership first so a cross-tenant delete attempt 404s instead
+    // of returning a misleading success.
+    const owned = await sbSelect('bots', 'id', filter).catch(() => []);
+    if (!owned.length) return res.status(404).json({ error: 'Bot not found' });
     await sbDelete('bots', filter);
     res.json({ success: true });
   } else {
@@ -620,6 +637,20 @@ async function handlePublicBotById(
     leadCapture: b.lead_capture,
     responseDelay: b.response_delay,
   });
+}
+
+/** Returns the Supabase filter to use for an analytics request, or null
+ * when the caller asked for an organization that isn't theirs. */
+function analyticsScope(
+  user: AuthUser,
+  requestedOrgId: string | undefined,
+  fallback: Record<string, string>,
+): Record<string, string> | null {
+  if (!requestedOrgId) return fallback;
+  if (isPlatformAdmin(user)) return { organization_id: `eq.${requestedOrgId}` };
+  if (requestedOrgId === user.organizationId)
+    return { organization_id: `eq.${requestedOrgId}` };
+  return null;
 }
 
 async function handleAnalytics(
@@ -657,8 +688,11 @@ async function handleAnalytics(
     sub === 'leads' ||
     sub === 'satisfaction'
   ) {
-    const orgId = pathParts[1];
-    const f = orgId ? { organization_id: `eq.${orgId}` } : orgFilter;
+    // SECURITY: the :orgId path segment used to be trusted verbatim, so any
+    // authenticated user could read any tenant's analytics. It is now only
+    // honored when it is the caller's own org (or the caller is staff).
+    const f = analyticsScope(user, pathParts[1], orgFilter);
+    if (!f) return res.status(403).json({ error: 'Access denied' });
     const table =
       sub === 'conversations'
         ? 'conversations'
@@ -681,8 +715,11 @@ async function handleAnalytics(
       res.json(data);
     }
   } else if (sub === 'trends') {
-    const orgId = pathParts[1];
-    const f = orgId ? { organization_id: `eq.${orgId}` } : orgFilter;
+    // SECURITY: the :orgId path segment used to be trusted verbatim, so any
+    // authenticated user could read any tenant's analytics. It is now only
+    // honored when it is the caller's own org (or the caller is staff).
+    const f = analyticsScope(user, pathParts[1], orgFilter);
+    if (!f) return res.status(403).json({ error: 'Access denied' });
     const conversations = await sbSelect('conversations', 'timestamp', f).catch(
       () => [],
     );
@@ -700,8 +737,11 @@ async function handleAnalytics(
     }
     res.json(days);
   } else if (sub === 'performance') {
-    const orgId = pathParts[1];
-    const f = orgId ? { organization_id: `eq.${orgId}` } : orgFilter;
+    // SECURITY: the :orgId path segment used to be trusted verbatim, so any
+    // authenticated user could read any tenant's analytics. It is now only
+    // honored when it is the caller's own org (or the caller is staff).
+    const f = analyticsScope(user, pathParts[1], orgFilter);
+    if (!f) return res.status(403).json({ error: 'Access denied' });
     res.json(await sbSelect('bot_performance_daily', '*', f).catch(() => []));
   } else {
     res.json(
@@ -813,6 +853,14 @@ async function handleLeads(
       return res.json({ lead_id: leadId, events });
     }
     if (pathParts[1] === 'email' && req.method === 'POST') {
+      // SECURITY: nurture steps were written by lead id with no ownership
+      // check -- any tenant could append CRM activity to another tenant's lead.
+      const ownedLead = await sbSelect('leads', 'id', {
+        id: `eq.${leadId}`,
+        ...orgFilter,
+      }).catch(() => []);
+      if (!ownedLead.length)
+        return res.status(404).json({ error: 'Lead not found' });
       const body = parseBody(req);
       await sbInsert('nurture_steps', {
         id: crypto.randomUUID(),
@@ -827,12 +875,19 @@ async function handleLeads(
     // SECURITY: scope by tenant too -- id alone let any authenticated user
     // read/edit/delete ANY tenant's lead by guessing/enumerating UUIDs.
     const filter = { id: `eq.${leadId}`, ...orgFilter };
+    // A cross-tenant (or unknown) id must be a real 404, not a 200 whose body
+    // happens to say "Not found" / "success" -- the old shape made an IDOR
+    // attempt indistinguishable from a successful no-op.
+    const existing = await sbSelect('leads', '*', filter).catch(() => []);
+    if (!existing.length)
+      return res.status(404).json({ error: 'Lead not found' });
     if (req.method === 'GET') {
-      const l = await sbSelect('leads', '*', filter);
-      res.json(l[0] || { error: 'Not found' });
+      res.json(existing[0]);
     } else if (req.method === 'PATCH') {
-      const u = await sbUpdate('leads', parseBody(req), filter);
-      res.json(u[0] || { error: 'Not found' });
+      const { organization_id, organizationId, user_id, userId, id, ...patch } =
+        parseBody(req) || {};
+      const u = await sbUpdate('leads', patch, filter);
+      res.json(u[0]);
     } else if (req.method === 'DELETE') {
       await sbDelete('leads', filter);
       res.json({ success: true });
@@ -846,7 +901,9 @@ async function handleLeads(
     const r = await sbInsert('leads', {
       id: crypto.randomUUID(),
       user_id: user.id,
-      organization_id: user.organizationId || body.organizationId || null,
+      // SECURITY: never accept a client-supplied organizationId -- that let a
+      // tenant plant rows inside another tenant's organization.
+      organization_id: user.organizationId || null,
       source_bot_id: body.botId || null,
       name: body.name || '',
       email: body.email || '',
@@ -972,6 +1029,11 @@ async function handleLeadCapture(req: VercelRequest, res: VercelResponse) {
         userId: owners[0].id,
         eventData: { source: body.source || 'donmatthews.live' },
       });
+      recordMilestone({
+        milestone: 'first_lead',
+        userId: owners[0].id,
+        metadata: { source: body.source || 'donmatthews.live' },
+      }).catch(() => {});
       return res.status(201).json({ success: true, leadId: r[0]?.id });
     } catch (err) {
       console.error('[handleLeadCapture] portfolio insert failed:', err);
@@ -1014,6 +1076,12 @@ async function handleLeadCapture(req: VercelRequest, res: VercelResponse) {
       userId: ownerUserId,
       eventData: { score },
     });
+    recordMilestone({
+      milestone: 'first_lead',
+      userId: ownerUserId,
+      botId: body.botId,
+      metadata: { score },
+    }).catch(() => {});
 
     // Instant Alerts: notify the bot owner immediately for hot leads (score
     // > 75, matching the CRM's own "hot" threshold/styling) instead of them
@@ -1556,7 +1624,12 @@ async function handleRevenue(
 ) {
   const sub = pathParts[0] || '';
   if (sub === 'usage' && pathParts[1]) {
+    // SECURITY: :orgId was trusted verbatim -- any authenticated user could
+    // read any organization's credit pools and usage ledger.
     const orgId = pathParts[1];
+    if (!isPlatformAdmin(user) && orgId !== user.organizationId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
     const [pools, ledger] = await Promise.all([
       sbSelect('usage_pools', '*', { organization_id: `eq.${orgId}` }).catch(
         () => [],
@@ -1594,34 +1667,45 @@ async function handleRevenue(
       res.status(201).json(r[0]);
     }
   } else if (sub === 'api-keys') {
-    const orgId = pathParts[1] || user.organizationId;
-    if (pathParts[2] === 'revoke') {
-      await sbUpdate(
-        'api_keys',
-        { status: 'revoked' },
-        { id: `eq.${pathParts[1]}` },
-      );
-      res.json({ success: true });
-    } else if (pathParts[2] === 'logs') {
-      res.json(
-        await sbSelect('api_request_logs', '*', {
-          api_key_id: `eq.${pathParts[1]}`,
-        }).catch(() => []),
-      );
-    } else if (pathParts[2] === 'stats') {
+    // SECURITY: every branch here used to act on a caller-supplied id with no
+    // ownership check -- one tenant could revoke another tenant's API keys
+    // and read their request logs. API keys are now always resolved inside
+    // the caller's own organization first.
+    if (pathParts[2] === 'revoke' || pathParts[2] === 'logs' || pathParts[2] === 'stats') {
+      const keyId = pathParts[1];
+      const keyFilter: Record<string, string> = isPlatformAdmin(user)
+        ? { id: `eq.${keyId}` }
+        : { id: `eq.${keyId}`, organization_id: `eq.${user.organizationId}` };
+      const owned = await sbSelect('api_keys', 'id', keyFilter).catch(() => []);
+      if (!owned.length)
+        return res.status(404).json({ error: 'API key not found' });
+      if (pathParts[2] === 'revoke') {
+        await sbUpdate('api_keys', { status: 'revoked' }, { id: `eq.${keyId}` });
+        return res.json({ success: true });
+      }
       const l = await sbSelect('api_request_logs', '*', {
-        api_key_id: `eq.${pathParts[1]}`,
+        api_key_id: `eq.${keyId}`,
       }).catch(() => []);
-      res.json({ totalRequests: l.length, logs: l.slice(-50) });
-    } else {
-      res.json(
-        await sbSelect('api_keys', '*', {
-          organization_id: `eq.${orgId}`,
-        }).catch(() => []),
-      );
+      if (pathParts[2] === 'logs') return res.json(l);
+      return res.json({ totalRequests: l.length, logs: l.slice(-50) });
     }
-  } else if (sub === 'branding') {
     const orgId = pathParts[1] || user.organizationId;
+    if (!isPlatformAdmin(user) && orgId !== user.organizationId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    res.json(
+      await sbSelect('api_keys', '*', {
+        organization_id: `eq.${orgId}`,
+      }).catch(() => []),
+    );
+  } else if (sub === 'branding') {
+    // SECURITY: :orgId was trusted verbatim -- any tenant could read AND
+    // overwrite another tenant's white-label branding.
+    const orgId = pathParts[1] || user.organizationId;
+    if (!isPlatformAdmin(user) && orgId !== user.organizationId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    if (!orgId) return res.status(400).json({ error: 'No organization' });
     if (req.method === 'GET') {
       const d = await sbSelect('organization_branding', '*', {
         organization_id: `eq.${orgId}`,
@@ -1664,22 +1748,13 @@ async function handleVoice(
   if (req.method === 'GET') {
     try {
       if (botId) {
-        // Check if user has access to this bot
-        const botCheck = await sbSelect('bots', 'id,organization_id', {
-          id: `eq.${botId}`,
-        }).catch(() => []);
-
-        if (!botCheck.length) {
+        // SECURITY: resolve the bot inside the caller's own tenant. The old
+        // check compared organization_id fields directly, which passed for
+        // every orgless user (undefined === null) and denied legitimate
+        // solo accounts.
+        const bot = await getAccessibleBot(user, botId);
+        if (!bot) {
           return res.status(404).json({ error: 'Bot not found' });
-        }
-
-        const bot = botCheck[0];
-        // Check if user has access to this bot's organization
-        if (
-          user.organizationId !== bot.organization_id &&
-          !isPlatformAdmin(user)
-        ) {
-          return res.status(403).json({ error: 'Access denied' });
         }
 
         const d = await sbSelect('voice_agents', '*', {
@@ -1720,21 +1795,10 @@ async function handleVoice(
         });
       }
 
-      // Check if bot exists and user has access
-      const botCheck = await sbSelect('bots', 'id,organization_id', {
-        id: `eq.${botId}`,
-      }).catch(() => []);
-
-      if (!botCheck.length) {
+      // SECURITY: tenant-scoped bot lookup (see getAccessibleBot).
+      const bot = await getAccessibleBot(user, botId);
+      if (!bot) {
         return res.status(404).json({ error: 'Bot not found' });
-      }
-
-      const bot = botCheck[0];
-      if (
-        user.organizationId !== bot.organization_id &&
-        !isPlatformAdmin(user)
-      ) {
-        return res.status(403).json({ error: 'Access denied' });
       }
 
       // Check if voice agent already exists for this bot
@@ -1778,9 +1842,12 @@ async function handleVoice(
         max_call_duration: body.maxCallDuration || 30, // minutes
         record_calls: body.recordCalls !== false, // default true
         escalation_rules: body.escalationRules || null,
-        plan: body.plan || 'standard',
+        // SECURITY/BILLING: plan + minute allowance are entitlements. They
+        // are derived server-side from the user's paid plan, never from the
+        // request body (which previously let anyone self-grant minutes).
+        plan: getUserPlanKey(user).toLowerCase(),
         minutes_used: 0,
-        minutes_limit: body.minutesLimit || 1000, // default 1000 minutes
+        minutes_limit: await getPhoneMinutesLimit(user),
         billing_cycle: new Date().toISOString(),
         is_active: true,
         enabled: true,
@@ -1809,29 +1876,52 @@ async function handleVoice(
     try {
       const body = parseBody(req);
 
-      // Check if voice agent exists and user has access
+      // SECURITY: tenant-scope through the owning bot.
+      const ownerBot = await getAccessibleBot(user, botId);
+      if (!ownerBot) {
+        return res.status(404).json({ error: 'Voice agent not found' });
+      }
       const existing = await sbSelect('voice_agents', '*', {
         bot_id: `eq.${botId}`,
       }).catch(() => []);
-
       if (!existing.length) {
         return res.status(404).json({ error: 'Voice agent not found' });
       }
 
-      const agent = existing[0];
-      // Check if user has access to this bot's organization
-      if (
-        user.organizationId !== agent.organization_id &&
-        !isPlatformAdmin(user)
-      ) {
-        return res.status(403).json({ error: 'Access denied' });
-      }
-
-      // Update voice agent
-      const updateData = {
-        ...body,
+      // SECURITY/BILLING: PATCH used to spread the whole body into the row,
+      // so a customer could raise their own minutes_limit, change plan, or
+      // move the agent into another organization. Only behavioural config
+      // is writable here; entitlements move only via verified Stripe events.
+      const VOICE_AGENT_WRITABLE = new Set([
+        'voice_id', 'voiceId', 'voice_name', 'voiceName', 'voice_model',
+        'voiceModel', 'provider', 'language', 'system_prompt', 'systemPrompt',
+        'greeting', 'business_hours', 'businessHours', 'after_hours_message',
+        'afterHoursMessage', 'end_call_phrase', 'endCallPhrase',
+        'end_call_phrases', 'endCallPhrases', 'transfer_enabled',
+        'transferEnabled', 'transfer_number', 'transferNumber',
+        'transfer_triggers', 'transferTriggers', 'lead_capture_enabled',
+        'leadCaptureEnabled', 'calendar_booking_url', 'calendarBookingUrl',
+        'max_call_duration', 'maxCallDuration', 'record_calls', 'recordCalls',
+        'escalation_rules', 'escalationRules', 'is_active', 'enabled',
+      ]);
+      const CAMEL_TO_SNAKE: Record<string, string> = {
+        voiceId: 'voice_id', voiceName: 'voice_name', voiceModel: 'voice_model',
+        systemPrompt: 'system_prompt', businessHours: 'business_hours',
+        afterHoursMessage: 'after_hours_message', endCallPhrase: 'end_call_phrase',
+        endCallPhrases: 'end_call_phrases', transferEnabled: 'transfer_enabled',
+        transferNumber: 'transfer_number', transferTriggers: 'transfer_triggers',
+        leadCaptureEnabled: 'lead_capture_enabled',
+        calendarBookingUrl: 'calendar_booking_url',
+        maxCallDuration: 'max_call_duration', recordCalls: 'record_calls',
+        escalationRules: 'escalation_rules',
+      };
+      const updateData: Record<string, unknown> = {
         updated_at: new Date().toISOString(),
       };
+      for (const [k, v] of Object.entries(body || {})) {
+        if (!VOICE_AGENT_WRITABLE.has(k)) continue;
+        updateData[CAMEL_TO_SNAKE[k] || k] = v;
+      }
 
       const u = await sbUpdate('voice_agents', updateData, {
         bot_id: `eq.${botId}`,
@@ -1854,22 +1944,16 @@ async function handleVoice(
     }
   } else if (req.method === 'DELETE' && botId) {
     try {
-      // Check if voice agent exists and user has access
-      const existing = await sbSelect('voice_agents', '*', {
-        bot_id: `eq.${botId}`,
-      }).catch(() => []);
-
-      if (!existing.length) {
+      // SECURITY: tenant-scope through the owning bot.
+      const ownedBot = await getAccessibleBot(user, botId);
+      if (!ownedBot) {
         return res.status(404).json({ error: 'Voice agent not found' });
       }
-
-      const agent = existing[0];
-      // Check if user has access to this bot's organization
-      if (
-        user.organizationId !== agent.organization_id &&
-        !isPlatformAdmin(user)
-      ) {
-        return res.status(403).json({ error: 'Access denied' });
+      const existing = await sbSelect('voice_agents', 'id', {
+        bot_id: `eq.${botId}`,
+      }).catch(() => []);
+      if (!existing.length) {
+        return res.status(404).json({ error: 'Voice agent not found' });
       }
 
       // Soft delete - mark as inactive
@@ -1931,9 +2015,25 @@ async function handleFirecrawlWebhook(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
-  if (FIRECRAWL_WEBHOOK_SECRET) {
-    const provided = req.headers['x-webhook-secret'];
-    if (provided !== FIRECRAWL_WEBHOOK_SECRET) {
+  // SECURITY: fail CLOSED. Previously, if FIRECRAWL_WEBHOOK_SECRET was unset
+  // (which it is on any environment that forgot it) this endpoint accepted
+  // anonymous POSTs that write into knowledge_sources / knowledge_chunks for
+  // an attacker-chosen sourceId+botId -- i.e. poison any tenant's bot
+  // knowledge base, or mark their crawls failed.
+  if (!FIRECRAWL_WEBHOOK_SECRET) {
+    console.error(
+      '[firecrawl-webhook] FIRECRAWL_WEBHOOK_SECRET is not configured — rejecting',
+    );
+    return res.status(503).json({ error: 'Webhook not configured' });
+  }
+  {
+    const provided = String(req.headers['x-webhook-secret'] || '');
+    const expected = FIRECRAWL_WEBHOOK_SECRET;
+    const a = Buffer.from(provided);
+    const b = Buffer.from(expected);
+    const ok =
+      a.length === b.length && (await import('node:crypto')).timingSafeEqual(a, b);
+    if (!ok) {
       return res.status(401).json({ error: 'Invalid webhook secret' });
     }
   }
@@ -1943,6 +2043,24 @@ async function handleFirecrawlWebhook(req: VercelRequest, res: VercelResponse) {
   const metadata = body.metadata || {};
   const sourceId: string | undefined = metadata.sourceId;
   const botId: string | undefined = metadata.botId;
+
+  // The sourceId/botId pair is attacker-influencable metadata; only accept it
+  // when the source really exists AND really belongs to that bot.
+  if (sourceId && botId) {
+    const rows = await sbSelect('knowledge_sources', 'id,bot_id', {
+      id: `eq.${sourceId}`,
+      bot_id: `eq.${botId}`,
+    }).catch(() => []);
+    if (!rows.length) {
+      console.error(
+        '[firecrawl-webhook] sourceId/botId pair does not exist — ignoring',
+        { sourceId, botId },
+      );
+      return res
+        .status(200)
+        .json({ received: true, warning: 'unknown source' });
+    }
+  }
 
   if (!sourceId || !botId) {
     console.error(
@@ -2038,6 +2156,21 @@ function toKnowledgeSourceDTO(row: any, chunkCount = 0) {
   };
 }
 
+/** Tenant-scoped knowledge-source lookup (via its owning bot). */
+async function getAccessibleKnowledgeSource(
+  user: AuthUser,
+  sourceId: string,
+): Promise<any | null> {
+  if (!sourceId) return null;
+  const rows = await sbSelect('knowledge_sources', '*', {
+    id: `eq.${sourceId}`,
+  }).catch(() => []);
+  const source = rows[0];
+  if (!source) return null;
+  if (isPlatformAdmin(user)) return source;
+  return (await getAccessibleBot(user, source.bot_id)) ? source : null;
+}
+
 async function handleKnowledge(
   req: VercelRequest,
   res: VercelResponse,
@@ -2053,17 +2186,23 @@ async function handleKnowledge(
     );
   } else if (sub === 'sources') {
     const botId = pathParts[1];
+    // SECURITY: bot_id came straight from the URL with no ownership check,
+    // and omitting it returned EVERY tenant's knowledge sources.
+    if (botId && !(await getAccessibleBot(user, botId))) {
+      return res.status(404).json({ error: 'Bot not found' });
+    }
     if (req.method === 'GET') {
-      const rows = await sbSelect(
-        'knowledge_sources',
-        '*',
-        botId ? { bot_id: `eq.${botId}` } : {},
-      ).catch(() => []);
+      const scope = botId
+        ? { bot_id: `eq.${botId}` }
+        : { bot_id: `in.(${(await accessibleBotIds(user)).join(',') || 'none'})` };
+      const rows = await sbSelect('knowledge_sources', '*', scope).catch(
+        () => [],
+      );
       // Chunk counts per source, for the dashboard's chunkCount column
       const chunkCounts: Record<string, number> = {};
       if (rows.length > 0) {
         const chunkRows = await sbSelect('knowledge_chunks', 'source_id', {
-          bot_id: `eq.${botId}`,
+          source_id: `in.(${rows.map((r: any) => r.id).join(',')})`,
         }).catch(() => []);
         for (const c of chunkRows) {
           chunkCounts[c.source_id] = (chunkCounts[c.source_id] || 0) + 1;
@@ -2097,6 +2236,9 @@ async function handleKnowledge(
     }
   } else if (sub === 'scrape') {
     const botId = pathParts[1];
+    if (!(await getAccessibleBot(user, botId))) {
+      return res.status(404).json({ error: 'Bot not found' });
+    }
     const body = parseBody(req);
     const sourceId = crypto.randomUUID();
     const url = body.url || '';
@@ -2106,6 +2248,19 @@ async function handleKnowledge(
 
     if (!url) {
       return res.status(400).json({ error: 'url is required' });
+    }
+    // SSRF: the scrape target is fully customer-controlled. Reject
+    // localhost / RFC1918 / link-local (169.254.169.254 metadata) targets
+    // BEFORE any fetch, and before Firecrawl is asked to fetch it for us.
+    try {
+      await assertSafeOutboundUrl(url);
+    } catch (err: any) {
+      return res.status(400).json({
+        error:
+          err instanceof SsrfBlockedError
+            ? `Blocked URL: ${err.message}`
+            : 'Invalid URL',
+      });
     }
 
     // Create the source record immediately so the dashboard can show "processing"
@@ -2182,6 +2337,9 @@ async function handleKnowledge(
     }
   } else if (sub === 'upload') {
     const botId = pathParts[1];
+    if (!(await getAccessibleBot(user, botId))) {
+      return res.status(404).json({ error: 'Bot not found' });
+    }
     const sourceId = crypto.randomUUID();
 
     let file: Express.Multer.File | undefined;
@@ -2230,18 +2388,20 @@ async function handleKnowledge(
       ).catch(() => {});
     }
     res.status(201).json({ ...(r[0] || {}), id: sourceId });
-  } else if (sub === 'refresh') {
-    await sbUpdate(
-      'knowledge_sources',
-      { status: 'refreshing' },
-      { id: `eq.${pathParts[1]}` },
-    ).catch(() => {});
-    res.json({ success: true });
-  } else if (sub === 'preview') {
-    const d = await sbSelect('knowledge_sources', '*', {
-      id: `eq.${pathParts[1]}`,
-    }).catch(() => []);
-    res.json(d[0] ? toKnowledgeSourceDTO(d[0]) : {});
+  } else if (sub === 'refresh' || sub === 'preview') {
+    // SECURITY: both operated on any source id with no ownership check.
+    const source = await getAccessibleKnowledgeSource(user, pathParts[1]);
+    if (!source)
+      return res.status(404).json({ error: 'Knowledge source not found' });
+    if (sub === 'refresh') {
+      await sbUpdate(
+        'knowledge_sources',
+        { status: 'refreshing' },
+        { id: `eq.${source.id}` },
+      ).catch(() => {});
+      return res.json({ success: true });
+    }
+    return res.json(toKnowledgeSourceDTO(source));
   } else res.status(404).json({ error: 'Not found' });
 }
 
@@ -2320,50 +2480,82 @@ async function handleTemplates(
   } else res.status(405).json({ error: 'Method not allowed' });
 }
 
+/** Tenant-scoped tool lookup (bot_tools only carries bot_id). */
+async function getAccessibleTool(
+  user: AuthUser,
+  toolId: string,
+): Promise<any | null> {
+  if (!toolId) return null;
+  const rows = await sbSelect('bot_tools', '*', { id: `eq.${toolId}` }).catch(
+    () => [],
+  );
+  const tool = rows[0];
+  if (!tool) return null;
+  if (isPlatformAdmin(user)) return tool;
+  return (await getAccessibleBot(user, tool.bot_id)) ? tool : null;
+}
+
 async function handleTools(
   req: VercelRequest,
   res: VercelResponse,
-  _user: AuthUser,
+  user: AuthUser,
   pathParts: string[],
 ) {
+  // SECURITY: this handler previously ignored the caller entirely -- listing,
+  // reading, toggling and stat'ing ANY tenant's tools by id, and listing all
+  // tools of all tenants when no botId was supplied.
   const toolId = pathParts[0];
   const botId = new URL(req.url, 'http://localhost').searchParams.get('botId');
   if (!toolId) {
-    res.json(
-      await sbSelect(
-        'bot_tools',
-        '*',
-        botId ? { bot_id: `eq.${botId}` } : {},
-      ).catch(() => []),
+    if (botId) {
+      if (!(await getAccessibleBot(user, botId)))
+        return res.status(404).json({ error: 'Bot not found' });
+      return res.json(
+        await sbSelect('bot_tools', '*', { bot_id: `eq.${botId}` }).catch(
+          () => [],
+        ),
+      );
+    }
+    const ids = await accessibleBotIds(user);
+    if (!ids.length) return res.json([]);
+    return res.json(
+      await sbSelect('bot_tools', '*', {
+        bot_id: `in.(${ids.join(',')})`,
+      }).catch(() => []),
     );
-  } else if (toolId === 'execute') {
+  }
+  if (toolId === 'execute') {
     const body = parseBody(req);
+    const tool = await getAccessibleTool(user, body.toolId);
+    if (!tool) return res.status(404).json({ error: 'Tool not found' });
     await sbInsert('action_execution_log', {
       id: crypto.randomUUID(),
-      tool_id: body.toolId,
+      tool_id: tool.id,
       status: 'executed',
       input: body.input || {},
       output: { result: 'Tool execution simulated' },
     }).catch(() => {});
-    res.json({ success: true });
-  } else if (pathParts[1] === 'toggle') {
+    return res.json({ success: true });
+  }
+
+  const tool = await getAccessibleTool(user, toolId);
+  if (!tool) return res.status(404).json({ error: 'Tool not found' });
+
+  if (pathParts[1] === 'toggle') {
     await sbUpdate(
       'bot_tools',
       { is_active: parseBody(req).active },
       { id: `eq.${toolId}` },
     ).catch(() => {});
-    res.json({ success: true });
-  } else if (pathParts[1] === 'stats') {
+    return res.json({ success: true });
+  }
+  if (pathParts[1] === 'stats') {
     const l = await sbSelect('action_execution_log', '*', {
       tool_id: `eq.${toolId}`,
     }).catch(() => []);
-    res.json({ totalExecutions: l.length, logs: l.slice(-20) });
-  } else {
-    const d = await sbSelect('bot_tools', '*', { id: `eq.${toolId}` }).catch(
-      () => [],
-    );
-    res.json(d[0] || {});
+    return res.json({ totalExecutions: l.length, logs: l.slice(-20) });
   }
+  return res.json(tool);
 }
 
 async function handleWebhooks(
@@ -2379,38 +2571,91 @@ async function handleWebhooks(
       res.json(await sbSelect('webhooks', '*', orgF).catch(() => []));
     } else if (req.method === 'POST') {
       const body = parseBody(req);
+      // SSRF: the delivery URL is customer-controlled and we will POST to it
+      // from inside the VPC. Validate before it is ever persisted.
+      try {
+        await assertSafeOutboundUrl(body.url || '');
+      } catch (err: any) {
+        return res.status(400).json({ error: `Blocked URL: ${err.message}` });
+      }
       const r = await sbInsert('webhooks', {
         id: crypto.randomUUID(),
         organization_id: user.organizationId,
-        url: body.url || '',
+        user_id: user.organizationId ? undefined : user.id,
+        url: body.url,
         event: body.event || '*',
         is_active: true,
         secret: crypto.randomUUID(),
       });
       res.status(201).json(r[0]);
-    }
-  } else if (pathParts[1] === 'test') {
-    res.json({ success: true });
-  } else if (pathParts[1] === 'logs') {
-    res.json(
-      await sbSelect('webhook_logs', '*', { webhook_id: `eq.${wid}` }).catch(
-        () => [],
-      ),
-    );
-  } else {
-    if (req.method === 'DELETE') {
-      await sbDelete('webhooks', { id: `eq.${wid}` });
-      res.json({ success: true });
-    } else if (req.method === 'PATCH') {
-      const u = await sbUpdate('webhooks', parseBody(req), { id: `eq.${wid}` });
-      res.json(u[0]);
-    } else {
-      const d = await sbSelect('webhooks', '*', { id: `eq.${wid}` }).catch(
-        () => [],
-      );
-      res.json(d[0] || {});
+    } else res.status(405).json({ error: 'Method not allowed' });
+    return;
+  }
+
+  // SECURITY: every by-id branch below used to act on any webhook id with no
+  // ownership check -- cross-tenant read (including the signing secret),
+  // update (redirect a competitor's events to your own endpoint) and delete.
+  const scoped: Record<string, string> = isPlatformAdmin(user)
+    ? { id: `eq.${wid}` }
+    : { id: `eq.${wid}`, ...orgF };
+  const owned = await sbSelect('webhooks', '*', scoped).catch(() => []);
+  if (!owned.length) return res.status(404).json({ error: 'Webhook not found' });
+  const webhook = owned[0];
+
+  if (pathParts[1] === 'test') {
+    if (req.method !== 'POST')
+      return res.status(405).json({ error: 'Method not allowed' });
+    // SSRF: re-validate at send time (DNS may have been re-pointed at an
+    // internal address after creation) and follow no unvalidated redirects.
+    try {
+      const resp = await safeFetch(webhook.url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'webhook.test',
+          webhookId: webhook.id,
+          sentAt: new Date().toISOString(),
+        }),
+        timeoutMs: 8000,
+      });
+      return res.json({ success: resp.ok, status: resp.status });
+    } catch (err: any) {
+      return res.status(400).json({
+        success: false,
+        error:
+          err instanceof SsrfBlockedError
+            ? `Blocked URL: ${err.message}`
+            : `Delivery failed: ${err.message}`,
+      });
     }
   }
+  if (pathParts[1] === 'logs') {
+    return res.json(
+      await sbSelect('webhook_logs', '*', {
+        webhook_id: `eq.${webhook.id}`,
+      }).catch(() => []),
+    );
+  }
+  if (req.method === 'DELETE') {
+    await sbDelete('webhooks', scoped);
+    return res.json({ success: true });
+  }
+  if (req.method === 'PATCH') {
+    const body = parseBody(req) || {};
+    if (typeof body.url === 'string') {
+      try {
+        await assertSafeOutboundUrl(body.url);
+      } catch (err: any) {
+        return res.status(400).json({ error: `Blocked URL: ${err.message}` });
+      }
+    }
+    // organization_id/user_id are never client-writable.
+    const { organization_id, organizationId, user_id, userId, id, ...patch } =
+      body;
+    const u = await sbUpdate('webhooks', patch, scoped);
+    return res.json(u[0]);
+  }
+  return res.json(webhook);
 }
 
 async function handleAgency(
@@ -2423,18 +2668,16 @@ async function handleAgency(
   if (sub === 'wallet') {
     if (pathParts[1] === 'recharge' || pathParts[1] === 'auto-recharge') {
       if (req.method === 'POST') {
-        const body = parseBody(req);
-        await sbInsert('usage_ledger', {
-          id: crypto.randomUUID(),
-          organization_id: user.organizationId,
-          type: 'credit',
-          amount: body.amount || 0,
-          description:
-            pathParts[1] === 'auto-recharge'
-              ? 'Auto-recharge'
-              : 'Wallet recharge',
-        }).catch(() => {});
-        res.json({ success: true });
+        // P0 BILLING FIX: this endpoint minted wallet credit for any
+        // caller-supplied amount with no payment whatsoever -- free money.
+        // Credit is now only ever created by api/stripe-webhook.ts after a
+        // verified `checkout.session.completed`. The route stays mounted so
+        // the UI gets a clear, honest error instead of a silent 404.
+        return res.status(402).json({
+          error:
+            'Wallet recharge now requires a completed payment. Start a Stripe checkout via POST /api/stripe/checkout; credit is applied when Stripe confirms the payment.',
+          code: 'PAYMENT_REQUIRED',
+        });
       } else res.status(405).json({ error: 'Method not allowed' });
     } else {
       const w = await sbSelect('usage_wallets', '*', {
@@ -2656,23 +2899,23 @@ async function handlePhone(
       bundledMinutes: getPlanLimits(getUserPlanKey(user)).phone_minutes,
     });
   } else if (pathParts[0] === 'voice-plan' && req.method === 'POST') {
-    // Selects a standalone voice-plan add-on. NOTE: does not collect payment
-    // yet — Stripe billing isn't live for this SKU (see CLAUDE.md's billing
-    // status note); this records the selection so phone provisioning can
-    // unblock immediately, same "honest, not faked" pattern as the rest of
-    // this codebase's not-yet-live billing surfaces.
+    // P0 BILLING FIX: this used to write users.voice_plan directly, so any
+    // authenticated user could self-grant a paid voice plan (and its phone
+    // minutes) for free by POSTing {"voicePlan":"..."}. Entitlements are
+    // now only ever written by api/stripe-webhook.ts after Stripe confirms
+    // payment. This route returns 402 with the checkout path to use.
     const body = parseBody(req);
     if (!body.voicePlan || !(body.voicePlan in VOICE_PLANS)) {
       return res.status(400).json({
         error: `voicePlan must be one of: ${Object.keys(VOICE_PLANS).join(', ')}`,
       });
     }
-    await sbUpdate(
-      'users',
-      { voice_plan: body.voicePlan },
-      { id: `eq.${user.id}` },
-    ).catch(() => null);
-    res.json({ success: true, voicePlan: body.voicePlan });
+    return res.status(402).json({
+      error:
+        'Voice plans now require a completed Stripe payment. Start checkout via POST /api/stripe/checkout with the voice plan price id; the entitlement is granted when Stripe confirms the payment.',
+      code: 'PAYMENT_REQUIRED',
+      voicePlan: body.voicePlan,
+    });
   } else if (pathParts[0] === 'voice-bot' && req.method === 'GET') {
     // Lets the UI get (or lazily create) the answering bot's id up front —
     // e.g. to upload knowledge/PDFs before a phone number is purchased —
@@ -3036,10 +3279,13 @@ async function handleClients(
   } else if (cid === 'events') {
     res.json({ success: true });
   } else {
-    const d = await sbSelect('partner_clients', '*', { id: `eq.${cid}` }).catch(
-      () => [],
-    );
-    res.json(d[0] || {});
+    // SECURITY: partner clients were readable by id across partners.
+    const scoped: Record<string, string> = isPlatformAdmin(user)
+      ? { id: `eq.${cid}` }
+      : { id: `eq.${cid}`, partner_id: `eq.${user.id}` };
+    const d = await sbSelect('partner_clients', '*', scoped).catch(() => []);
+    if (!d.length) return res.status(404).json({ error: 'Client not found' });
+    res.json(d[0]);
   }
 }
 
@@ -3154,6 +3400,11 @@ async function handleChat(
     }
   }
 
+  if (bot) {
+    const blocked = await enforceConversationQuota(bot);
+    if (blocked) return res.status(blocked.status).json(blocked.body);
+  }
+
   if (!systemPrompt) systemPrompt = 'You are a helpful assistant.';
 
   // Normalize incoming history (frontend uses Gemini-style role: 'user' | 'model')
@@ -3187,6 +3438,17 @@ async function handleChat(
   }
 
   if (botId) {
+    // First-value tracking: the first real answer this tenant's bot ever
+    // gave. Idempotent, best-effort, never blocks the reply.
+    if (bot?.user_id) {
+      recordMilestone({
+        milestone: 'first_chat',
+        userId: bot.user_id,
+        organizationId: bot.organization_id ?? null,
+        botId,
+      }).catch(() => {});
+    }
+
     await sbInsert('conversations', {
       id: crypto.randomUUID(),
       bot_id: botId,
@@ -3353,10 +3615,17 @@ async function handleStripe(
 
   if (sub === 'checkout' && req.method === 'POST') {
     const body = parseBody(req) || {};
-    const { priceId, mode, metadata, organizationId } = body;
-    const userId = body.userId || user?.id;
+    const { priceId, mode } = body;
+    // P0 BILLING FIX: userId/organizationId/plan limits/minutes/credits used
+    // to be read from the request body and copied into Stripe metadata --
+    // which the webhook then trusts to grant entitlements. A customer could
+    // therefore check out a $0 price while writing another user's id (or a
+    // huge `minutes`/`credits` value) into metadata. Identity now comes only
+    // from the authenticated session, and quantity metadata comes only from
+    // the Stripe Price/Product itself.
+    const userId = user.id;
+    const organizationId = user.organizationId || '';
     if (!priceId) return res.status(400).json({ error: 'priceId is required' });
-    if (!userId) return res.status(400).json({ error: 'userId is required' });
 
     try {
       const customerId = await getOrCreateStripeCustomer(userId);
@@ -3367,18 +3636,11 @@ async function handleStripe(
         line_items: [{ price: priceId, quantity: 1 }],
         success_url: `${APP_BASE_URL}/billing?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${APP_BASE_URL}/billing?checkout=cancelled`,
-        metadata: {
-          userId,
-          organizationId: organizationId || user?.organizationId || '',
-          ...(metadata || {}),
-        },
+        metadata: { userId, organizationId },
         ...(sessionMode === 'subscription'
           ? {
               subscription_data: {
-                metadata: {
-                  userId,
-                  organizationId: organizationId || user?.organizationId || '',
-                },
+                metadata: { userId, organizationId },
               },
             }
           : {}),
@@ -3393,9 +3655,10 @@ async function handleStripe(
   }
 
   if (sub === 'portal' && (req.method === 'POST' || req.method === 'GET')) {
-    const body = req.method === 'POST' ? parseBody(req) || {} : {};
-    const userId = body.userId || user?.id;
-    if (!userId) return res.status(400).json({ error: 'userId is required' });
+    // P0 BILLING FIX: the portal used to open for a client-supplied userId,
+    // handing any authenticated user full billing-portal control (cancel,
+    // change plan, read invoices, saved cards) over any other account.
+    const userId = user.id;
     try {
       const customerId = await getOrCreateStripeCustomer(userId);
       const session = await stripeRequest('POST', '/billing_portal/sessions', {
@@ -3416,15 +3679,13 @@ async function handleStripe(
     pathParts[1] === 'checkout' &&
     req.method === 'POST'
   ) {
-    const body = parseBody(req) || {};
-    const userId = body.userId || user?.id;
+    const userId = user.id; // never client-supplied
     const whitelabelPriceId = process.env.STRIPE_WHITELABEL_PRICE_ID;
     if (!whitelabelPriceId) {
       return res
         .status(500)
         .json({ error: 'STRIPE_WHITELABEL_PRICE_ID not configured' });
     }
-    if (!userId) return res.status(400).json({ error: 'userId is required' });
     try {
       const customerId = await getOrCreateStripeCustomer(userId);
       const session = await stripeRequest('POST', '/checkout/sessions', {
@@ -3486,7 +3747,8 @@ async function handleNotifications(
       const body = parseBody(req);
       const r = await sbInsert('notifications', {
         id: crypto.randomUUID(),
-        created_by: body.userId || user.id,
+        // SECURITY: created_by is the authenticated user, never body.userId.
+        created_by: user.id,
         title: body.title || '',
         body: body.message || '',
         priority:
@@ -3500,15 +3762,18 @@ async function handleNotifications(
       res.status(201).json(r[0]);
     }
   } else {
+    // SECURITY: notifications were mutable/deletable by id across tenants.
+    const scoped = { id: `eq.${nid}`, created_by: `eq.${user.id}` };
+    const owned = await sbSelect('notifications', 'id', scoped).catch(() => []);
+    if (!owned.length)
+      return res.status(404).json({ error: 'Notification not found' });
     if (req.method === 'PATCH') {
-      const u = await sbUpdate('notifications', parseBody(req), {
-        id: `eq.${nid}`,
-      });
+      const u = await sbUpdate('notifications', parseBody(req), scoped);
       res.json(u[0]);
     } else if (req.method === 'DELETE') {
-      await sbDelete('notifications', { id: `eq.${nid}` });
+      await sbDelete('notifications', scoped);
       res.json({ success: true });
-    }
+    } else res.status(405).json({ error: 'Method not allowed' });
   }
 }
 
@@ -3532,15 +3797,19 @@ async function handleAuthExtra(
 async function handleBotHealth(
   _req: VercelRequest,
   res: VercelResponse,
-  _user: AuthUser,
+  user: AuthUser,
   pathParts: string[],
 ) {
   const botId = pathParts[0];
-  const [bot, errors, convs] = await Promise.all([
-    sbSelect('bots', '*', { id: `eq.${botId}` }).catch(() => []),
+  // SECURITY: this returned any tenant's full bot row (system prompt,
+  // model, knowledge base) plus their error logs, for any bot id.
+  const ownedBot = await getAccessibleBot(user, botId, '*');
+  if (!ownedBot) return res.status(404).json({ error: 'Bot not found' });
+  const [errors, convs] = await Promise.all([
     sbSelect('error_logs', '*', { bot_id: `eq.${botId}` }).catch(() => []),
     sbSelect('conversations', 'id', { bot_id: `eq.${botId}` }).catch(() => []),
   ]);
+  const bot = [ownedBot];
   res.json({
     bot: bot[0],
     status: bot[0]?.status || 'unknown',
@@ -3657,28 +3926,31 @@ async function handleLandingPages(
       });
       res.status(201).json(r[0]);
     }
-  } else if (pathParts[1] === 'publish') {
-    await sbUpdate(
-      'landing_pages',
-      { status: 'published' },
-      { id: `eq.${pid}` },
-    ).catch(() => {});
-    res.json({ success: true });
   } else {
-    if (req.method === 'GET') {
-      const d = await sbSelect('landing_pages', '*', { id: `eq.${pid}` }).catch(
-        () => [],
+    // SECURITY: landing pages were readable/editable/publishable/deletable
+    // by id across tenants.
+    const scoped: Record<string, string> = isPlatformAdmin(user)
+      ? { id: `eq.${pid}` }
+      : { id: `eq.${pid}`, ...orgF };
+    const owned = await sbSelect('landing_pages', '*', scoped).catch(() => []);
+    if (!owned.length) return res.status(404).json({ error: 'Not found' });
+    if (pathParts[1] === 'publish') {
+      await sbUpdate('landing_pages', { status: 'published' }, scoped).catch(
+        () => {},
       );
-      res.json(d[0] || {});
+      return res.json({ success: true });
+    }
+    if (req.method === 'GET') {
+      res.json(owned[0]);
     } else if (req.method === 'PUT' || req.method === 'PATCH') {
-      const u = await sbUpdate('landing_pages', parseBody(req), {
-        id: `eq.${pid}`,
-      });
+      const { organization_id, organizationId, id, ...patch } =
+        parseBody(req) || {};
+      const u = await sbUpdate('landing_pages', patch, scoped);
       res.json(u[0]);
     } else if (req.method === 'DELETE') {
-      await sbDelete('landing_pages', { id: `eq.${pid}` });
+      await sbDelete('landing_pages', scoped);
       res.json({ success: true });
-    }
+    } else res.status(405).json({ error: 'Method not allowed' });
   }
 }
 
@@ -3796,6 +4068,16 @@ async function handleSupport(
       res.status(201).json(r[0]);
     }
   } else if (pathParts[1] === 'messages') {
+    // SECURITY: ticket threads were readable/writable by ticket id across
+    // tenants -- support conversations are frequently sensitive.
+    const ticketScope: Record<string, string> = isPlatformAdmin(user)
+      ? { id: `eq.${tid}` }
+      : { id: `eq.${tid}`, user_id: `eq.${user.id}` };
+    const ownedTicket = await sbSelect('support_tickets', 'id', ticketScope).catch(
+      () => [],
+    );
+    if (!ownedTicket.length)
+      return res.status(404).json({ error: 'Ticket not found' });
     if (req.method === 'GET') {
       res.json(
         await sbSelect('support_ticket_messages', '*', {
@@ -3813,10 +4095,12 @@ async function handleSupport(
       res.status(201).json(r[0]);
     }
   } else {
-    const d = await sbSelect('support_tickets', '*', { id: `eq.${tid}` }).catch(
-      () => [],
-    );
-    res.json(d[0] || {});
+    const scoped: Record<string, string> = isPlatformAdmin(user)
+      ? { id: `eq.${tid}` }
+      : { id: `eq.${tid}`, user_id: `eq.${user.id}` };
+    const d = await sbSelect('support_tickets', '*', scoped).catch(() => []);
+    if (!d.length) return res.status(404).json({ error: 'Ticket not found' });
+    res.json(d[0]);
   }
 }
 
@@ -5590,6 +5874,148 @@ async function handleTrial(
   return res.status(405).json({ error: 'Method not allowed' });
 }
 
+
+// ─── P2: usage alerts + hard caps ─────────────────────────────────────
+async function getOveragePolicy(userId: string): Promise<OveragePolicy> {
+  const rows = await sbSelect('users', 'overage_policy', {
+    id: `eq.${userId}`,
+  }).catch(() => []);
+  return rows?.[0]?.overage_policy === 'allow_overage'
+    ? 'allow_overage'
+    : 'hard_cap';
+}
+
+/** Claim an alert row; false means this threshold was already sent this period. */
+async function claimUsageAlert(row: Record<string, unknown>): Promise<boolean> {
+  try {
+    await sbInsert('usage_alerts', row);
+    return true;
+  } catch {
+    // Unique-index violation = already alerted. Any other failure also
+    // returns false so we err on the side of not spamming the customer.
+    return false;
+  }
+}
+
+async function ownerEmailFor(userId: string): Promise<string | null> {
+  const rows = await sbSelect('users', 'email', { id: `eq.${userId}` }).catch(
+    () => [],
+  );
+  return rows?.[0]?.email || null;
+}
+
+function usageAlertDeps(userId: string) {
+  return {
+    claimAlert: claimUsageAlert,
+    ownerEmail: () => ownerEmailFor(userId),
+    sendEmail: (opts: { to: string; subject: string; text: string }) =>
+      sendEmail({
+        from: process.env.EMAIL_FROM || 'noreply@buildmybot.app',
+        fromName: 'BuildMyBot',
+        to: opts.to,
+        subject: opts.subject,
+        text: opts.text,
+      }),
+  };
+}
+
+/**
+ * Enforce the monthly conversation limit for a bot's owner.
+ * Returns null when the message may proceed, or an error payload to return.
+ *
+ * This limit was advertised on every plan but never enforced anywhere —
+ * checkQuota('conversations') had no callers.
+ */
+async function enforceConversationQuota(
+  bot: any,
+): Promise<{ status: number; body: Record<string, unknown> } | null> {
+  if (!bot?.user_id) return null;
+  try {
+    const rows = await sbSelect('users', 'id,email,plan,organization_id', {
+      id: `eq.${bot.user_id}`,
+    }).catch(() => []);
+    const owner = rows?.[0];
+    if (!owner) return null;
+    const asAuthUser: AuthUser = {
+      id: owner.id,
+      email: owner.email,
+      role: 'OWNER',
+      organizationId: owner.organization_id || undefined,
+      plan: owner.plan,
+    };
+    const trial = await checkAndApplyTrial(asAuthUser);
+    if (trial.active) return null; // trials get Professional-level headroom
+
+    const quota = await checkQuota(asAuthUser, 'conversations');
+    const policy = await getOveragePolicy(owner.id);
+    const decision = resolveUsageDecision(quota.current, quota.limit, policy);
+
+    maybeSendUsageAlert(
+      {
+        userId: owner.id,
+        resource: 'conversations',
+        current: quota.current,
+        limit: quota.limit,
+        policy,
+      },
+      usageAlertDeps(owner.id),
+    ).catch(() => {});
+
+    if (!decision.allowed) {
+      return {
+        status: 429,
+        body: {
+          error:
+            'This assistant has reached its monthly conversation limit. Please try again later.',
+          code: 'quota_exceeded',
+        },
+      };
+    }
+    return null;
+  } catch (err) {
+    // Never take the public chat down because usage bookkeeping failed.
+    console.error('[quota] conversation check failed:', err);
+    return null;
+  }
+}
+
+// ─── P2: activation checklist ─────────────────────────────────────────
+async function handleActivation(
+  req: VercelRequest,
+  res: VercelResponse,
+  user: AuthUser,
+) {
+  if (req.method !== 'GET')
+    return res.status(405).json({ error: 'Method not allowed' });
+
+  const filter = ownerFilter(user);
+  const [bots, integrations, phoneNumbers, milestones] = await Promise.all([
+    sbSelect('bots', '*', filter).catch(() => []),
+    sbSelect('integrations', '*', filter).catch(() => []),
+    sbSelect('phone_numbers', '*', filter).catch(() => []),
+    listMilestones(user.id).catch(() => ({})),
+  ]);
+
+  const botIds = (bots || []).map((b: any) => b.id);
+  let knowledgeSourceCount = 0;
+  if (botIds.length) {
+    const sources = await sbSelect('knowledge_sources', 'id', {
+      bot_id: `in.(${botIds.join(',')})`,
+    }).catch(() => []);
+    knowledgeSourceCount = (sources || []).length;
+  }
+
+  return res.json(
+    computeActivation({
+      bots: bots || [],
+      knowledgeSourceCount,
+      integrations: integrations || [],
+      phoneNumbers: phoneNumbers || [],
+      milestones: milestones || {},
+    }),
+  );
+}
+
 // ─── Quota Check ──────────────────────────────────────────────────────
 async function handleQuota(
   req: VercelRequest,
@@ -5602,31 +6028,71 @@ async function handleQuota(
   const effectivePlan = trial.active ? TRIAL_PLAN : planKey;
   const effectiveLimits = trial.active ? getPlanLimits(TRIAL_PLAN) : limits;
 
-  const [bots, leads, phoneMinutes] = await Promise.all([
+  const [bots, leads, phoneMinutes, conversations, policy] = await Promise.all([
     checkQuota(user, 'bots'),
     checkQuota(user, 'leads'),
     checkQuota(user, 'phone_minutes'),
+    checkQuota(user, 'conversations'),
+    getOveragePolicy(user.id),
   ]);
+
+  // Fire 70/90/100% alerts off the read the dashboard already performs.
+  // Deduped per threshold per month at the DB level.
+  for (const [resource, q] of [
+    ['conversations', conversations],
+    ['leads', leads],
+    ['phone_minutes', phoneMinutes],
+  ] as const) {
+    maybeSendUsageAlert(
+      {
+        userId: user.id,
+        resource,
+        current: q.current,
+        limit: q.limit,
+        policy,
+      },
+      usageAlertDeps(user.id),
+    ).catch(() => {});
+  }
+
+  const withUsage = (q: { current: number; limit: number }, limit: number) => {
+    const d = resolveUsageDecision(q.current, limit, policy);
+    return {
+      current: q.current,
+      limit,
+      percent: d.percent,
+      threshold: d.threshold,
+      overage: d.overage,
+      blocked: !d.allowed,
+    };
+  };
 
   return res.json({
     plan: effectivePlan,
     trial,
     limits: effectiveLimits,
+    overagePolicy: policy,
     usage: {
-      bots: {
-        current: bots.current,
-        limit: trial.active ? getPlanLimits(TRIAL_PLAN).bots : bots.limit,
-      },
-      leads: {
-        current: leads.current,
-        limit: trial.active ? getPlanLimits(TRIAL_PLAN).leads : leads.limit,
-      },
-      phoneMinutes: {
-        current: phoneMinutes.current,
-        limit: trial.active
+      bots: withUsage(
+        bots,
+        trial.active ? getPlanLimits(TRIAL_PLAN).bots : bots.limit,
+      ),
+      leads: withUsage(
+        leads,
+        trial.active ? getPlanLimits(TRIAL_PLAN).leads : leads.limit,
+      ),
+      conversations: withUsage(
+        conversations,
+        trial.active
+          ? getPlanLimits(TRIAL_PLAN).conversations_per_month
+          : conversations.limit,
+      ),
+      phoneMinutes: withUsage(
+        phoneMinutes,
+        trial.active
           ? getPlanLimits(TRIAL_PLAN).phone_minutes
           : phoneMinutes.limit,
-      },
+      ),
     },
   });
 }
@@ -5783,6 +6249,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return await handleTrial(req, res, user);
       case 'quota':
         return await handleQuota(req, res, user);
+      case 'activation':
+        return await handleActivation(req, res, user);
       case 'integrations':
         return await handleIntegrations(req, res, user, pathParts);
       case 'channels':

@@ -73,11 +73,13 @@ import {
 
 const INITIAL_CHAT_LOGS: Conversation[] = [];
 
-// P0-1 FIX (2026-09-03): removed the client-side MASTER_ADMINS email list.
-// Frontend must never grant admin/MasterAdmin UI based on an email address --
-// the server is the sole source of truth for role (getAuthUser() re-fetches
-// the live DB row on every request; see api/gateway-legacy.ts). The frontend
-// now just reflects whatever role the server actually returned.
+// SECURITY (P0): the hard-coded MASTER_ADMINS email list that used to live
+// here has been removed. Roles are assigned and enforced by the server
+// (users.role, verified per request in api/gateway-legacy.ts getAuthUser);
+// the client must never promote a session based on its email address --
+// it only ever renders what the server already granted. Note that even the
+// old client-side promotion was cosmetic-but-dangerous: it revealed admin
+// navigation and encouraged calls to platform-admin routes.
 
 type PartnerSignupData = {
   name: string;
@@ -165,6 +167,7 @@ function App() {
   // ── Map the authenticated session onto our User model ──
   useEffect(() => {
     if (!authLoading && isAuthenticated && authUser) {
+      // Role comes from the server record only -- never from the email.
       const effectiveRole = (authUser.role as UserRole) || UserRole.OWNER;
 
       const mappedUser: User = {
@@ -247,6 +250,7 @@ function App() {
       id: `demo-user-${Date.now()}`,
       name: name || email.split('@')[0],
       email,
+      // Demo/manual sessions are always plain org owners.
       role: UserRole.OWNER,
       plan: PlanType.FREE,
       companyName: companyName || 'Demo Company',
