@@ -4,6 +4,7 @@ import WebSocket, { type RawData } from 'ws';
 import { z } from 'zod';
 import { searchKnowledge } from '../rag.js';
 import { recordMilestone } from '../growth/milestones.js';
+import { sendSms, telnyxConfigured } from '../lib/telephony-provider.js';
 
 const GEMINI_MODEL = 'models/gemini-3.1-flash-live-preview';
 const GEMINI_WS_URL =
@@ -488,13 +489,40 @@ async function sendHotLeadAlert(
     return { success: false, reason: 'No hot-lead alert number is configured' };
   }
 
+  const name = String(details.name || 'Caller').slice(0, 120);
+  const phone = String(details.phone || context.callerNumber || 'unknown');
+  const score = String(details.score || '');
+  const summary = String(details.summary || '').slice(0, 600);
+  const body = `BuildMyBot hot lead${score ? ` (${score}/100)` : ''}: ${name} ${phone}${summary ? ` — ${summary}` : ''}`;
+
+  // Telnyx first (the number was provisioned there going forward -- see
+  // api/lib/telephony-provider.ts / PR "Twilio -> Telnyx migration"), with a
+  // Twilio fallback for any tenant still on a legacy Twilio-purchased number
+  // (TWILIO_ACCOUNT_SID/AUTH_TOKEN still configured). This is a single
+  // transactional text, not the live-call audio pipeline, so it was safe to
+  // move ahead of the full "part 2" webhook migration.
+  if (telnyxConfigured()) {
+    try {
+      const sent = await sendSms({
+        to: alertNumber,
+        from: context.calledNumber || undefined,
+        text: body,
+      });
+      return { success: true, messageSid: sent.id };
+    } catch (error: unknown) {
+      const reason = error instanceof Error ? error.message : 'Telnyx SMS alert failed';
+      console.error('[voice-live] Hot-lead SMS via Telnyx failed:', reason);
+      return { success: false, reason };
+    }
+  }
+
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
   const authToken = process.env.TWILIO_AUTH_TOKEN;
   const fromNumber = context.accountSid
     ? context.calledNumber
     : process.env.TWILIO_PHONE_NUMBER || context.calledNumber;
   if (!accountSid || !authToken || !fromNumber) {
-    return { success: false, reason: 'Twilio messaging is not configured' };
+    return { success: false, reason: 'No SMS provider is configured (Telnyx or Twilio)' };
   }
 
   try {
@@ -502,19 +530,15 @@ async function sendHotLeadAlert(
     const client = context.accountSid
       ? twilio(accountSid, authToken, { accountSid: context.accountSid })
       : twilio(accountSid, authToken);
-    const name = String(details.name || 'Caller').slice(0, 120);
-    const phone = String(details.phone || context.callerNumber || 'unknown');
-    const score = String(details.score || '');
-    const summary = String(details.summary || '').slice(0, 600);
     const message = await client.messages.create({
       to: alertNumber,
       from: fromNumber,
-      body: `BuildMyBot hot lead${score ? ` (${score}/100)` : ''}: ${name} ${phone}${summary ? ` — ${summary}` : ''}`,
+      body,
     });
     return { success: true, messageSid: message.sid };
   } catch (error: unknown) {
-    const reason = error instanceof Error ? error.message : 'SMS alert failed';
-    console.error('[voice-live] Hot-lead SMS failed:', reason);
+    const reason = error instanceof Error ? error.message : 'Twilio SMS alert failed';
+    console.error('[voice-live] Hot-lead SMS via Twilio failed:', reason);
     return { success: false, reason };
   }
 }
