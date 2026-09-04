@@ -70,15 +70,19 @@ app.use((_req, res, next) => {
 });
 
 // Stripe webhook needs raw body for signature verification
+// P0 FIX: this used to JSON.parse the raw buffer and REPLACE req.body with
+// the parsed object before calling the handler. The handler then tried to
+// re-read the (already consumed) stream, got zero bytes, and every Stripe
+// signature check failed on Cloud Run -- i.e. no subscription, plan or
+// credit event was ever applied in production. The exact bytes Stripe signed
+// are now preserved on req.rawBody (and left on req.body as a Buffer), which
+// is what api/stripe-webhook.ts verifies against.
 app.post(
   '/api/stripe-webhook',
-  express.raw({ type: 'application/json' }),
+  express.raw({ type: '*/*' }),
   async (req, res) => {
-    try {
-      (req as any).body = JSON.parse(req.body.toString());
-    } catch {
-      (req as any).body = {};
-    }
+    const raw = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+    (req as any).rawBody = raw;
     await stripeWebhookHandler(req as any, res as any);
   },
 );

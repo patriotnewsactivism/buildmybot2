@@ -50,6 +50,16 @@ async function sbUpdate(
   return resp.json();
 }
 
+async function sbInsert(table: string, data: any) {
+  const resp = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
+    method: 'POST',
+    headers: { ...SUPABASE_HEADERS, Prefer: 'return=representation' },
+    body: JSON.stringify(data),
+  });
+  if (!resp.ok) throw new Error(`Supabase insert error: ${resp.status}`);
+  return resp.json();
+}
+
 async function sbUpsert(table: string, data: any, onConflict: string) {
   const resp = await fetch(
     `${SUPABASE_URL}/rest/v1/${table}?on_conflict=${onConflict}`,
@@ -73,6 +83,29 @@ async function stripeGet(path: string) {
   });
   if (!resp.ok) throw new Error(`Stripe error ${resp.status}`);
   return resp.json();
+}
+
+/**
+ * Stripe signs the exact bytes it sent. On Vercel `bodyParser: false` leaves
+ * the stream unread, but on Cloud Run the Express app in server.ts has
+ * ALREADY consumed the stream (express.raw) before this handler runs -- so
+ * streaming here returned an empty Buffer and EVERY webhook failed signature
+ * verification (silently dropping all billing events). We now prefer the raw
+ * bytes the framework captured, and only fall back to reading the stream.
+ */
+export function getRawBody(req: VercelRequest): Promise<Buffer> {
+  const anyReq = req as any;
+  const captured = anyReq.rawBody ?? anyReq.body;
+  if (Buffer.isBuffer(captured)) return Promise.resolve(captured);
+  if (typeof captured === 'string' && captured.length > 0) {
+    return Promise.resolve(Buffer.from(captured, 'utf8'));
+  }
+  if (anyReq.readableEnded || anyReq.complete) {
+    // Stream already consumed and no raw bytes were preserved -- refuse
+    // rather than "verify" a re-serialized body that can never match.
+    return Promise.resolve(Buffer.alloc(0));
+  }
+  return readRawBody(req);
 }
 
 function readRawBody(req: VercelRequest): Promise<Buffer> {
@@ -113,9 +146,17 @@ function verifyStripeSignature(
     .update(signedPayload, 'utf8')
     .digest('hex');
 
-  return signatures.some((sig) =>
-    crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected)),
-  );
+  // timingSafeEqual throws on length mismatch -- a forged short signature
+  // would previously raise, escape verifyStripeSignature and 500 instead of
+  // cleanly rejecting.
+  const expectedBuf = Buffer.from(expected, 'utf8');
+  return signatures.some((sig) => {
+    const sigBuf = Buffer.from(sig, 'utf8');
+    return (
+      sigBuf.length === expectedBuf.length &&
+      crypto.timingSafeEqual(sigBuf, expectedBuf)
+    );
+  });
 }
 
 /** Look up the planKey for a Stripe price by fetching its product's metadata. */
@@ -162,6 +203,47 @@ async function creditUsagePool(
       'organization_id,resource_type',
     );
   }
+}
+
+/**
+ * Idempotency: Stripe retries webhooks (and can deliver the same event more
+ * than once). Without this, a retried `checkout.session.completed` credited
+ * the wallet twice and a retried subscription event re-ran commission
+ * payouts. `stripe_webhook_events.event_id` has a UNIQUE constraint (see
+ * supabase-migrations/20260904_stripe_webhook_idempotency.sql), so the insert
+ * below is the atomic claim: exactly one delivery can win.
+ *
+ * Returns true when this process claimed the event and should handle it.
+ */
+async function claimEvent(event: any): Promise<boolean> {
+  const resp = await fetch(`${SUPABASE_URL}/rest/v1/stripe_webhook_events`, {
+    method: 'POST',
+    headers: { ...SUPABASE_HEADERS, Prefer: 'return=representation' },
+    body: JSON.stringify({
+      event_id: event.id,
+      event_type: event.type,
+      status: 'processing',
+      received_at: new Date().toISOString(),
+    }),
+  });
+  if (resp.ok) return true;
+  // 409 Conflict = unique violation = already claimed by an earlier delivery.
+  if (resp.status === 409) return false;
+  const text = await resp.text().catch(() => '');
+  if (/duplicate key|23505/i.test(text)) return false;
+  throw new Error(`Idempotency claim failed: ${resp.status} ${text}`);
+}
+
+async function markEvent(eventId: string, status: string, error?: string) {
+  await sbUpdate(
+    'stripe_webhook_events',
+    {
+      status,
+      processed_at: new Date().toISOString(),
+      last_error: error ? String(error).slice(0, 500) : null,
+    },
+    { event_id: `eq.${eventId}` },
+  ).catch(() => {});
 }
 
 async function handleSubscriptionChange(subscription: any) {
@@ -384,6 +466,15 @@ async function handlePaymentFailed(invoice: any) {
 }
 
 async function handleOneTimeCheckout(session: any) {
+  // Only a genuinely paid session may create credit.
+  if (session.payment_status !== 'paid') {
+    console.warn(
+      '[stripe-webhook] checkout session not paid, no credit granted',
+      session.id,
+      session.payment_status,
+    );
+    return;
+  }
   const meta = session.metadata || {};
   const { type, organizationId } = meta;
   if (!type || !organizationId) {
@@ -413,7 +504,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: 'Webhook not configured' });
   }
 
-  const rawBody = await readRawBody(req);
+  const rawBody = await getRawBody(req);
+  if (!rawBody.length) {
+    console.error('[stripe-webhook] empty raw body — cannot verify signature');
+    return res.status(400).json({ error: 'Missing raw body' });
+  }
   const sig = req.headers['stripe-signature'] as string | undefined;
   if (!sig || !verifyStripeSignature(rawBody, sig, STRIPE_WEBHOOK_SECRET)) {
     console.error('[stripe-webhook] signature verification failed');
@@ -425,6 +520,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     event = JSON.parse(rawBody.toString('utf8'));
   } catch {
     return res.status(400).json({ error: 'Invalid JSON' });
+  }
+
+  if (!event?.id) return res.status(400).json({ error: 'Malformed event' });
+
+  // Exactly-once: claim before doing anything with a financial effect.
+  let claimed: boolean;
+  try {
+    claimed = await claimEvent(event);
+  } catch (err: any) {
+    console.error('[stripe-webhook] idempotency store unavailable:', err.message);
+    // Fail closed: 500 makes Stripe retry rather than risk a double effect.
+    return res.status(500).json({ error: 'Idempotency store unavailable' });
+  }
+  if (!claimed) {
+    console.log('[stripe-webhook] duplicate event ignored:', event.id);
+    return res.status(200).json({ received: true, duplicate: true });
   }
 
   try {
@@ -452,6 +563,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // Unhandled event types are fine to no-op on.
         break;
     }
+    await markEvent(event.id, 'processed');
     return res.status(200).json({ received: true });
   } catch (err: any) {
     console.error(
@@ -459,6 +571,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       event.type,
       err.message,
     );
+    // Release the claim so Stripe's retry can actually re-run the handler.
+    await sbUpdate(
+      'stripe_webhook_events',
+      { status: 'failed', last_error: String(err.message).slice(0, 500) },
+      { event_id: `eq.${event.id}` },
+    ).catch(() => {});
+    await fetch(
+      `${SUPABASE_URL}/rest/v1/stripe_webhook_events?event_id=eq.${event.id}`,
+      { method: 'DELETE', headers: SUPABASE_HEADERS },
+    ).catch(() => {});
     // Return 500 so Stripe retries -- our own bug shouldn't silently drop the event.
     return res.status(500).json({ error: 'Webhook handler failed' });
   }

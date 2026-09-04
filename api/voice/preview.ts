@@ -10,9 +10,9 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
  * Supported voices: alloy, echo, fable, onyx, nova, shimmer (OpenAI) | eve, ara, leo (Grok)
  */
 
-// Keys are read at CALL time, not module load. Caching them at import
-// meant a key rotation (or a missing key at cold start) was pinned for the
-// life of the container and made provider fallback untestable.
+// Read lazily: snapshotting these at module load meant a key rotated (or set)
+// after the first import was ignored for the life of the instance, and made
+// provider configuration untestable.
 const OPENAI_API_KEY = () => process.env.OPENAI_API_KEY;
 const CARTESIA_API_KEY = () => process.env.CARTESIA_API_KEY;
 const XAI_API_KEY = () => process.env.XAI_API_KEY;
@@ -206,21 +206,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(429).json({ error: 'Too many requests' });
   }
 
-  // Select provider. An explicitly requested but unknown provider is a
-  // client error — it must NOT be silently swapped for the default.
-  if (providerName && !providers[providerName as string]) {
+  // Select provider. An explicitly requested but unknown provider is a client
+  // error -- the previous version silently fell back to OpenAI, so the 400
+  // below was unreachable and callers never learned their request was wrong.
+  if (providerName !== undefined && !providers[providerName as string]) {
     return res.status(400).json({
       error: `Unsupported provider: ${providerName}. Supported: ${Object.keys(providers).join(', ')}`,
     });
   }
+
   const selectedProviderName = (providerName as string) || 'openai';
   const selectedProvider = providers[selectedProviderName];
-
-  if (!selectedProvider) {
-    return res.status(400).json({
-      error: `Unsupported provider: ${providerName}. Supported: ${Object.keys(providers).join(', ')}`,
-    });
-  }
 
   if (!selectedProvider.isConfigured()) {
     // Try fallback providers

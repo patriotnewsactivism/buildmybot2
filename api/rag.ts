@@ -1,4 +1,5 @@
 // RAG Pipeline — Chunking, Embedding, and Vector Search
+import { assertSafeOutboundUrl, safeFetch } from './security/ssrf.js';
 // Uses OpenAI embeddings (text-embedding-3-small, 1536 dims) to match
 // the existing knowledge_chunks.embedding vector(1536) column.
 // Falls back to keyword search if no embedding API key is available.
@@ -284,12 +285,16 @@ export async function searchKnowledge(
 
 export async function scrapeUrl(url: string): Promise<string> {
   try {
-    const resp = await fetch(url, {
+    // SSRF: `url` is customer-supplied. safeFetch validates the target (and
+    // every redirect hop) against loopback/private/link-local ranges so a
+    // knowledge source can't be pointed at 169.254.169.254 (cloud metadata),
+    // 127.0.0.1 or anything inside the VPC.
+    const resp = await safeFetch(url, {
       headers: {
         'User-Agent': 'BuildMyBot-KnowledgeBot/1.0',
         Accept: 'text/html,application/xhtml+xml,text/plain',
       },
-      signal: AbortSignal.timeout(15000),
+      timeoutMs: 15000,
     });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const html = await resp.text();
@@ -328,6 +333,10 @@ const FIRECRAWL_WEBHOOK_SECRET = process.env.FIRECRAWL_WEBHOOK_SECRET || '';
 
 /** Single-page scrape via Firecrawl (JS-rendered, clean markdown). */
 export async function scrapeUrlFirecrawl(url: string): Promise<string> {
+  // SSRF: validate before handing the URL to Firecrawl too -- Firecrawl will
+  // happily fetch an internal address if it can reach one, and either way we
+  // must not treat customer input as trusted.
+  await assertSafeOutboundUrl(url);
   if (!FIRECRAWL_API_KEY) return scrapeUrl(url);
   try {
     const resp = await fetch(`${FIRECRAWL_BASE}/scrape`, {
@@ -368,6 +377,7 @@ export async function startFirecrawlCrawl(opts: {
 }): Promise<{ jobId: string } | null> {
   if (!FIRECRAWL_API_KEY) return null;
   const { url, sourceId, botId, organizationId, limit = 40 } = opts;
+  await assertSafeOutboundUrl(url); // SSRF guard on customer-supplied crawl root
   try {
     const resp = await fetch(`${FIRECRAWL_BASE}/crawl`, {
       method: 'POST',

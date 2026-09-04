@@ -34,36 +34,54 @@ function parseBody(req: VercelRequest): any {
 
 /**
  * Validate Twilio request signature (prevents spoofed callbacks).
- * Falls back to checking for expected Twilio fields if auth token isn't set.
+ *
+ * P0 FIX: this used to FAIL OPEN in three separate ways -- no auth token
+ * configured, no signature header, or any thrown error all fell back to
+ * "does the body contain a CallSid field?", which any attacker can satisfy.
+ * That let anyone drive TwiML generation, write call logs and burn Twilio
+ * spend. It now fails closed in production; the field-shape fallback only
+ * survives for local development (NODE_ENV !== 'production').
  */
 async function validateTwilioRequest(req: VercelRequest): Promise<boolean> {
   const authToken = process.env.TWILIO_AUTH_TOKEN;
-  const accountSid = process.env.TWILIO_ACCOUNT_SID;
+  const isProduction = process.env.NODE_ENV === 'production';
 
-  if (!authToken || !accountSid) {
-    // In development, just check for Twilio fields
+  if (!authToken) {
+    if (isProduction) {
+      console.error(
+        '[twilio] TWILIO_AUTH_TOKEN not configured — rejecting webhook (fail closed)',
+      );
+      return false;
+    }
     const body = parseBody(req);
     return !!(body.CallSid || body.AccountSid || body.RecordingSid);
   }
 
+  const signature = req.headers['x-twilio-signature'] as string | undefined;
+  if (!signature) return false;
+
   try {
-    // In production, validate the signature
     const twilio = (await import('twilio')).default;
-    const url = req.url || '/api/twilio';
     const body = parseBody(req);
-    const signature = req.headers['x-twilio-signature'] as string;
+    // Twilio signs the FULL public URL, not the path -- signing over
+    // `req.url` alone could never validate.
+    const baseUrl = (
+      process.env.APP_BASE_URL || 'https://buildmybot.app'
+    ).replace(/\/$/, '');
+    const candidates = [
+      `${baseUrl}${req.url || ''}`,
+      // Behind a proxy the forwarded host is the URL Twilio actually called.
+      req.headers['x-forwarded-host']
+        ? `https://${req.headers['x-forwarded-host']}${req.url || ''}`
+        : null,
+    ].filter(Boolean) as string[];
 
-    if (!signature) {
-      // Fallback: check for Twilio fields
-      return !!(body.CallSid || body.AccountSid || body.RecordingSid);
-    }
-
-    const isValid = twilio.validateRequest(authToken, signature, url, body);
-    return isValid;
-  } catch {
-    // If validation fails, fall back to checking for Twilio fields
-    const body = parseBody(req);
-    return !!(body.CallSid || body.AccountSid || body.RecordingSid);
+    return candidates.some((url) =>
+      twilio.validateRequest(authToken, signature, url, body),
+    );
+  } catch (error) {
+    console.error('[twilio] signature validation threw:', error);
+    return false; // fail closed
   }
 }
 

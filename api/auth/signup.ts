@@ -11,12 +11,13 @@ const JWT_SECRET = process.env.SESSION_JWT_SECRET;
 // JWT's own exp also caps replay of a copied cookie value at 24h even if
 // the browser session somehow lives longer.
 const SESSION_JWT_TTL = 24 * 60 * 60;
-// Single-sourced admin list — also keep App.tsx's MASTER_ADMINS in sync
-const MASTER_ADMINS = [
-  'mreardon@wtpnews.org',
-  'jadj19@gmail.com',
-  'patriotnewsactivism@gmail.com',
-];
+// SECURITY (P0): signup used to promote three hard-coded email addresses to
+// role ADMIN + plan ENTERPRISE. Anyone who could receive mail at (or spoof a
+// signup for) one of those addresses got platform-wide admin, and the list
+// was duplicated in the client bundle where it was publicly readable.
+// Self-service signup now ALWAYS creates a plain customer account; staff
+// access is granted out-of-band by an existing platform admin
+// (scripts/setAdminPermissions.ts) against the database.
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'OPTIONS') return res.status(204).end();
@@ -61,8 +62,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const crypto = await import('node:crypto');
     const userId = crypto.default.randomUUID();
 
-    const isAdmin = MASTER_ADMINS.includes(email.toLowerCase());
-
     // Create user
     const createRes = await fetch(`${SUPABASE_URL}/rest/v1/users`, {
       method: 'POST',
@@ -77,8 +76,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         email: email.toLowerCase(),
         name: name || email.split('@')[0],
         password_hash: passwordHash,
-        role: isAdmin ? 'ADMIN' : 'OWNER',
-        plan: isAdmin ? 'ENTERPRISE' : 'FREE',
+        // OWNER = owner of THIS customer organization. It is not, and must
+        // not be treated as, a platform-wide admin role.
+        role: 'OWNER',
+        plan: 'FREE',
         status: 'Active',
         company_name: companyName || null,
         referred_by: referredBy || null,
