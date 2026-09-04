@@ -42,6 +42,14 @@ async function validateTwilioRequest(req: VercelRequest): Promise<boolean> {
   const authToken = process.env.TWILIO_AUTH_TOKEN;
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
   if (!authToken || !accountSid) {
+    // P0 FIX: fail closed in production instead of accepting any body that
+    // merely looks Twilio-shaped.
+    if (process.env.NODE_ENV === 'production') {
+      console.error(
+        '[twilio][inbound] Twilio credentials not configured — rejecting webhook',
+      );
+      return false;
+    }
     const body = parseBody(req);
     return !!(body.CallSid || body.AccountSid);
   }
