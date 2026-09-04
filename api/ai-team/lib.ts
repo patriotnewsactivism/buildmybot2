@@ -1,10 +1,18 @@
 // Shared AI Team runtime for BuildMyBot2.
-// Production inference is routed through a high-capability OpenRouter free tier.
+// Operator policy 2026-09-04: FREE models first (most-reasoning until
+// exhausted), then CHEAPEST high-reasoning PAID models as last resort.
+// No sole paid usage without explicit operator authorization.
 
 const SUPABASE_URL = process.env.SUPABASE_URL!;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-type Provider = 'openrouter-minimax-m3' | 'openrouter-nemotron-ultra';
+type Provider =
+  | 'openrouter-minimax-m3'
+  | 'openrouter-nemotron-ultra'
+  | 'openrouter-glm-5-2-free'
+  | 'openrouter-nemotron-super'
+  | 'openrouter-gpt-oss-120b-paid'
+  | 'openrouter-deepseek-v3-paid';
 
 interface ProviderConfig {
   baseURL: string;
@@ -12,29 +20,61 @@ interface ProviderConfig {
   keyEnvs: string[];
 }
 
+// Free-tier key order: new-account free key first, then the old-account
+// backup (still serves :free models), then the legacy alias.
+const FREE_KEY_ENVS = [
+  'OPENROUTER_FREE_API_KEY',
+  'OPENROUTER_API_KEY_2',
+  'OPENROUTER_API_KEY',
+];
+// Paid keys back ONLY the paid tail (last resort).
+const PAID_KEY_ENVS = ['OPENROUTER_API_KEY_3'];
+
 const PROVIDER_CONFIG: Record<Provider, ProviderConfig> = {
   'openrouter-minimax-m3': {
     baseURL: 'https://openrouter.ai/api/v1/chat/completions',
     model: 'minimax/minimax-m3:free',
-    keyEnvs: ['OPENROUTER_API_KEY_2', 'OPENROUTER_API_KEY'],
+    keyEnvs: FREE_KEY_ENVS,
   },
   'openrouter-nemotron-ultra': {
     baseURL: 'https://openrouter.ai/api/v1/chat/completions',
     model: 'nvidia/nemotron-3-ultra-550b-a55b:free',
-    keyEnvs: ['OPENROUTER_API_KEY_2', 'OPENROUTER_API_KEY'],
+    keyEnvs: FREE_KEY_ENVS,
+  },
+  'openrouter-glm-5-2-free': {
+    baseURL: 'https://openrouter.ai/api/v1/chat/completions',
+    model: 'z-ai/glm-5.2:free',
+    keyEnvs: FREE_KEY_ENVS,
+  },
+  'openrouter-nemotron-super': {
+    baseURL: 'https://openrouter.ai/api/v1/chat/completions',
+    model: 'nvidia/nemotron-3-super-120b-a12b:free',
+    keyEnvs: FREE_KEY_ENVS,
+  },
+  'openrouter-gpt-oss-120b-paid': {
+    // Cheapest high-reasoning paid model on OpenRouter ($0.037/M in).
+    baseURL: 'https://openrouter.ai/api/v1/chat/completions',
+    model: 'openai/gpt-oss-120b',
+    keyEnvs: PAID_KEY_ENVS,
+  },
+  'openrouter-deepseek-v3-paid': {
+    baseURL: 'https://openrouter.ai/api/v1/chat/completions',
+    model: 'deepseek/deepseek-v3.2',
+    keyEnvs: PAID_KEY_ENVS,
   },
 };
 
 const FALLBACK_ORDER: Provider[] = [
   'openrouter-minimax-m3',
   'openrouter-nemotron-ultra',
+  'openrouter-glm-5-2-free',
+  'openrouter-nemotron-super',
+  'openrouter-gpt-oss-120b-paid',
+  'openrouter-deepseek-v3-paid',
 ];
 
 function resolveOpenRouterKey(config?: ProviderConfig): string | undefined {
-  const envNames = config?.keyEnvs ?? [
-    'OPENROUTER_API_KEY_2',
-    'OPENROUTER_API_KEY',
-  ];
+  const envNames = config?.keyEnvs ?? FREE_KEY_ENVS;
   for (const envName of envNames) {
     const value = process.env[envName];
     if (value) return value;
@@ -112,8 +152,8 @@ export async function callLLM(
 
 async function providerChainExhausted(errors: string[]): Promise<Error> {
   const message = errors.length
-    ? `All OpenRouter free agent models failed: ${errors.join(' | ')}`
-    : 'No OpenRouter credential is configured. Set OPENROUTER_API_KEY_2 or OPENROUTER_API_KEY.';
+    ? `All OpenRouter agent models failed: ${errors.join(' | ')}`
+    : 'No OpenRouter credential is configured. Set OPENROUTER_FREE_API_KEY (or OPENROUTER_API_KEY_2) for free-tier, OPENROUTER_API_KEY_3 for the paid tail.';
   await logAgentError({
     source: 'llm-provider-chain',
     message,
