@@ -234,7 +234,7 @@ jobs:
 
           check_supabase_shape 'telephony_accounts?select=id,provider_account_sid,auth_token_encrypted&limit=1' telephony_accounts
           check_supabase_shape 'phone_agent_activations?select=id,telephony_account_id,destination_number_id,bot_id,knowledge_mode&limit=1' phone_agent_activations
-          check_supabase_shape 'phone_numbers?select=id,provider_account_sid,setup_mode,source_number,activation_status,activated_at&limit=1' phone_numbers
+          check_supabase_shape 'phone_numbers?select=id,twilio_subaccount_sid,setup_method,knowledge_space_id,activated_at&limit=1' phone_numbers
           check_supabase_shape 'users?select=id,voice_plan&limit=1' users.voice_plan
       - name: Configure Docker auth
         run: gcloud auth configure-docker "$GCP_REGION-docker.pkg.dev" --quiet
