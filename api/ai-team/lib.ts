@@ -73,13 +73,15 @@ const FALLBACK_ORDER: Provider[] = [
   'openrouter-deepseek-v3-paid',
 ];
 
-function resolveOpenRouterKey(config?: ProviderConfig): string | undefined {
+function resolveOpenRouterKeys(config?: ProviderConfig): string[] {
   const envNames = config?.keyEnvs ?? FREE_KEY_ENVS;
+  const keys: string[] = [];
   for (const envName of envNames) {
     const value = process.env[envName];
-    if (value) return value;
+    // Ignore placeholder/garbage values (real OpenRouter keys are long).
+    if (value && value.length >= 40 && !keys.includes(value)) keys.push(value);
   }
-  return undefined;
+  return keys;
 }
 
 export function salesAutomationDryRun(): boolean {
@@ -138,12 +140,15 @@ export async function callLLM(
   const errors: string[] = [];
   for (const provider of FALLBACK_ORDER) {
     const config = PROVIDER_CONFIG[provider];
-    const apiKey = resolveOpenRouterKey(config);
-    if (!apiKey) continue;
-    try {
-      return await callWithConfig(config, apiKey, systemPrompt, userPrompt);
-    } catch (error: any) {
-      errors.push(`${provider}: ${error.message}`);
+    // Try every configured key for this provider tier before moving on —
+    // a single exhausted key (daily free-model caps) must not strand the
+    // whole provider when a second live key exists.
+    for (const apiKey of resolveOpenRouterKeys(config)) {
+      try {
+        return await callWithConfig(config, apiKey, systemPrompt, userPrompt);
+      } catch (error: any) {
+        errors.push(`${provider}: ${error.message}`);
+      }
     }
   }
 
@@ -177,17 +182,20 @@ export async function callLLMMessages(
 
   for (const provider of order) {
     const config = PROVIDER_CONFIG[provider];
-    const apiKey = resolveOpenRouterKey(config);
-    if (!apiKey) continue;
-    try {
-      return await callWithConfigMessages(
-        config,
-        apiKey,
-        messages,
-        temperature,
-      );
-    } catch (error: any) {
-      errors.push(`${provider}: ${error.message}`);
+    // Try every configured key for this provider tier before moving on —
+    // a single exhausted key (daily free-model caps) must not strand the
+    // whole provider when a second live key exists.
+    for (const apiKey of resolveOpenRouterKeys(config)) {
+      try {
+        return await callWithConfigMessages(
+          config,
+          apiKey,
+          messages,
+          temperature,
+        );
+      } catch (error: any) {
+        errors.push(`${provider}: ${error.message}`);
+      }
     }
   }
 
