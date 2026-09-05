@@ -711,6 +711,12 @@ export const LandingPage: React.FC<LandingProps> = ({
                 Voice Agent
               </a>
               <a
+                href="/sms-marketing"
+                className="hover:text-emerald-700 transition-colors font-bold text-emerald-600"
+              >
+                SMS Marketing
+              </a>
+              <a
                 href="#pricing"
                 className="hover:text-blue-700 transition-colors"
               >
@@ -771,6 +777,13 @@ export const LandingPage: React.FC<LandingProps> = ({
                 className="text-lg font-bold text-blue-700 hover:text-blue-800 py-3 border-b border-slate-100"
               >
                 🎙️ Voice Agent
+              </a>
+              <a
+                href="/sms-marketing"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="text-lg font-bold text-emerald-600 hover:text-emerald-700 py-3 border-b border-slate-100"
+              >
+                💬 SMS Marketing
               </a>
               <a
                 href="#pricing"
@@ -1005,6 +1018,81 @@ export const LandingPage: React.FC<LandingProps> = ({
                 >
                   Get Your AI Receptionist <ArrowRight size={20} />
                 </button>
+              </div>
+            </div>
+          </section>
+
+          {/* ──── 4b. SMS MARKETING SHOWCASE — Condensed ──── */}
+          <section
+            id="sms"
+            className="relative bg-gradient-to-br from-slate-900 via-emerald-950 to-teal-900 rounded-2xl sm:rounded-3xl p-6 sm:p-10 md:p-16 text-white shadow-2xl overflow-hidden"
+          >
+            <div className="absolute inset-0 opacity-5">
+              <div className="absolute top-10 left-10 w-72 h-72 bg-emerald-400 rounded-full blur-3xl" />
+              <div className="absolute bottom-10 right-10 w-96 h-96 bg-teal-500 rounded-full blur-3xl" />
+            </div>
+            <div className="relative z-10 grid gap-10 lg:grid-cols-2 lg:items-center">
+              <div>
+                <div className="inline-flex items-center gap-2 bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 px-4 py-2 rounded-full text-sm font-bold mb-6">
+                  <Smartphone size={16} /> ⭐ Flagship Feature: SMS Marketing
+                </div>
+                <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-4 leading-tight">
+                  Texts So On-Brand,
+                  <br className="hidden sm:block" />{' '}
+                  <span className="bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-transparent">
+                    Customers Reply Like You Sent Them
+                  </span>
+                </h2>
+                <p className="text-slate-300 text-lg leading-relaxed">
+                  Two-way campaigns, keyword auto-replies, Text-to-Win contests,
+                  birthday clubs, and appointment reminders — on your own
+                  business number, sharing the same knowledge base and CRM as
+                  your chatbot and voice receptionist. No separate tool. No
+                  separate lead list.
+                </p>
+                <div className="mt-8 flex flex-wrap gap-3">
+                  <a
+                    href="/sms-marketing"
+                    className="inline-flex items-center gap-2 bg-emerald-600 text-white px-6 py-3.5 rounded-xl font-bold hover:bg-emerald-500 transition-all shadow-xl shadow-emerald-600/30"
+                  >
+                    Explore SMS Marketing <ArrowRight size={18} />
+                  </a>
+                  <button
+                    type="button"
+                    onClick={onLogin}
+                    className="inline-flex items-center gap-2 bg-white/10 border border-white/20 text-white px-6 py-3.5 rounded-xl font-bold hover:bg-white/20 transition-all"
+                  >
+                    Start Free
+                  </button>
+                </div>
+              </div>
+
+              <div className="relative mx-auto w-full max-w-sm rounded-[2rem] border border-white/10 bg-white/[0.07] p-5 shadow-2xl backdrop-blur-xl sm:p-6">
+                <div className="flex items-center gap-3 border-b border-white/10 pb-4">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-300">
+                    <MessageSquare size={18} />
+                  </span>
+                  <div>
+                    <p className="font-bold">Your Business</p>
+                    <p className="text-xs text-slate-400">(555) 010-0142</p>
+                  </div>
+                </div>
+                <div className="mt-5 space-y-3">
+                  <div className="ml-auto max-w-[85%] rounded-2xl rounded-br-md bg-emerald-600 px-4 py-2.5 text-sm">
+                    Hi! Reply BOOK to grab this week's opening, or STOP to opt
+                    out.
+                  </div>
+                  <div className="max-w-[85%] rounded-2xl rounded-bl-md bg-white/10 px-4 py-2.5 text-sm">
+                    BOOK
+                  </div>
+                  <div className="ml-auto max-w-[85%] rounded-2xl rounded-br-md bg-emerald-600 px-4 py-2.5 text-sm">
+                    You're booked for Thursday at 2pm. We'll text a reminder the
+                    day before.
+                  </div>
+                </div>
+                <p className="mt-4 text-center text-xs text-slate-500">
+                  Illustrative example — sent and answered automatically.
+                </p>
               </div>
             </div>
           </section>

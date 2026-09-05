@@ -53,6 +53,7 @@ import { PhoneAgent } from './components/PhoneAgent/PhoneAgent';
 import { ServiceCatalog } from './components/Services/ServiceCatalog';
 import { Settings } from './components/Settings/Settings';
 import { SmsMarketing } from './components/SmsMarketing/SmsMarketing';
+import { SmsMarketingLandingPage } from './components/SmsMarketing/SmsMarketingLandingPage';
 import { StatusPage } from './components/Status/StatusPage';
 import { HelpCenter } from './components/Support/HelpCenter';
 import { SupportTicketSystem } from './components/Support/SupportTicketSystem';
@@ -515,6 +516,7 @@ function App() {
         <Route path="/status" element={<StatusPage />} />
         <Route path="/chat/:botId" element={<ChatRoute />} />
         <Route path="/voice-agent" element={<VoiceAgentPage />} />
+        <Route path="/sms-marketing" element={<SmsMarketingLandingPage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/blog" element={<BlogPage />} />
         <Route path="/blog/:articleId" element={<ArticleRoute />} />
