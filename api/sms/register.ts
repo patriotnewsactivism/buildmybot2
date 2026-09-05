@@ -1,338 +1,96 @@
-// 10DLC brand + campaign registration -- lets a BuildMyBot tenant register
-// for SMS marketing entirely from inside buildmybot.app (they never see
-// Telnyx). See api/lib/telephony-provider.ts for the "why" and the carrier
-// context (this is a real regulatory requirement, not a Telnyx quirk).
-//
-// Auth pattern duplicated from api/sms/send.ts / api/phone/activation.ts --
-// this codebase does not export a shared auth helper across route files.
-//
-// GET  -> current brand/campaign status for the authenticated tenant,
-//         refreshing from Telnyx first if a registration is still pending.
-// POST -> submit business info, registers brand then campaign.
-
-import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import {
-  getBrandStatus,
-  getCampaignStatus,
-  registerBrand,
-  registerLowVolumeCampaign,
-} from '../lib/telephony-provider.js';
+import { z } from 'zod';
+import { telnyxRequest } from '../lib/telephony-provider.js';
+import { accountFor, ensureAccount } from './runtime.js';
+import { authenticate, db, requireLaunch, scoped, SmsError } from './store.js';
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const SESSION_JWT_SECRET = process.env.SESSION_JWT_SECRET;
+const registration = z.object({
+  companyName: z.string().trim().min(2).max(100), ein: z.string().regex(/^\d{2}-?\d{7}$/),
+  phone: z.string().regex(/^\+1\d{10}$/), email: z.email(), website: z.url(),
+  street: z.string().min(3), city: z.string().min(2), state: z.string().length(2), postalCode: z.string().regex(/^\d{5}(-\d{4})?$/),
+  description: z.string().min(40).max(4096), sample1: z.string().min(20).max(1024), sample2: z.string().min(20).max(1024),
+  messageFlow: z.string().min(40).max(4096), helpMessage: z.string().min(20).max(1024),
+  vertical: z.string().min(2).max(50), entityType: z.enum(['PRIVATE_PROFIT','PUBLIC_PROFIT','NON_PROFIT']),
+  usecase: z.enum(['MIXED', 'SWEEPSTAKES']).default('MIXED'),
+  privacyPolicyLink: z.url(), termsAndConditionsLink: z.url(), areaCode: z.string().regex(/^\d{3}$/),
+});
+type Registration = z.infer<typeof registration>;
+interface Provisioning { tenant_key: string; status: string; step: string; provider_brand_id: string | null; provider_campaign_id: string | null; provider_order_id: string | null; sender: string | null; request: Registration; last_error: string | null; }
+function unwrap(value: Record<string, any>) { return value.data || value; }
+async function patch(tenant: string, values: Record<string, unknown>) { return db(`sms_provisioning?${scoped(tenant)}`, 'PATCH', { ...values, updated_at: new Date().toISOString() }); }
 
-const SUPABASE_HEADERS = {
-  apikey: SUPABASE_SERVICE_KEY || '',
-  Authorization: `Bearer ${SUPABASE_SERVICE_KEY || ''}`,
-  'Content-Type': 'application/json',
-};
-
-interface AuthUser {
-  id: string;
-  organizationId?: string;
-}
-
-function parseCookies(cookieHeader: string | undefined): Record<string, string> {
-  const cookies: Record<string, string> = {};
-  if (!cookieHeader) return cookies;
-  cookieHeader.split(';').forEach((cookie) => {
-    const [name, ...rest] = cookie.trim().split('=');
-    if (name) cookies[name.trim()] = decodeURIComponent(rest.join('=').trim());
-  });
-  return cookies;
-}
-
-async function getAuthUser(req: VercelRequest): Promise<AuthUser | null> {
-  if (!SESSION_JWT_SECRET || !SUPABASE_SERVICE_KEY || !SUPABASE_URL) return null;
-  const authHeader = req.headers.authorization;
-  let token: string | null = null;
-  if (authHeader?.startsWith('Bearer ')) {
-    token = authHeader.slice(7);
-  } else {
-    const cookies = parseCookies(req.headers.cookie);
-    token = cookies.bmb_session || cookies.session || null;
+export async function advanceProvisioning(tenant: string) {
+  requireLaunch();
+  const account = await accountFor(tenant);
+  if (!account.paid_until || new Date(account.paid_until) <= new Date()) throw new SmsError(402, 'Pay the first month before registration and number provisioning');
+  const [p] = await db<Provisioning[]>(`sms_provisioning?${scoped(tenant)}`);
+  if (!p || p.status === 'ready' || p.status === 'working' || p.status === 'unknown') return;
+  const cost = Number(process.env.SMS_PROVISIONING_RESERVE_USD);
+  if (!Number.isFinite(cost) || cost <= 0) throw new SmsError(503, 'Provider setup cost reserve has not been configured');
+  const balance = unwrap(await telnyxRequest('/balance'));
+  if (balance.currency !== 'USD' || !Number.isFinite(Number(balance.balance)) || Number(balance.balance) < cost) {
+    await patch(tenant, { status: 'waiting_funding', last_error: 'Paid first month received; waiting for sufficient provider funding' }); return;
   }
-  if (!token) return null;
+  // A durable conditional claim precedes any provider side effect. Unknown
+  // outcomes are never retried blindly; support reconciles the provider ID.
+  const claimed = await db<Provisioning[]>(`sms_provisioning?${scoped(tenant, { status: `eq.${p.status}`, step: `eq.${p.step}` })}`, 'PATCH', { status: 'working' });
+  if (!claimed.length) return;
+  let sideEffect = false;
   try {
-    const [encoded, signature, extra] = token.split('.');
-    if (!encoded || !signature || extra) return null;
-    const expected = createHmac('sha256', SESSION_JWT_SECRET).update(encoded).digest('base64url');
-    const expectedBuffer = Buffer.from(expected);
-    const signatureBuffer = Buffer.from(signature);
-    if (expectedBuffer.length !== signatureBuffer.length || !timingSafeEqual(expectedBuffer, signatureBuffer)) {
-      return null;
+    const input = p.request;
+    if (!p.provider_brand_id) {
+      sideEffect = true;
+      const brand = unwrap(await telnyxRequest('/10dlc/brand', { method: 'POST', body: JSON.stringify({ entityType: input.entityType, companyName: input.companyName, displayName: input.companyName, ein: input.ein, einIssuingCountry: 'US', phone: input.phone, email: input.email, website: input.website, street: input.street, city: input.city, state: input.state, postalCode: input.postalCode, country: 'US', vertical: input.vertical }) }));
+      if (!brand.brandId) throw new Error('Brand ID missing');
+      await patch(tenant, { provider_brand_id: brand.brandId, status: 'pending', step: 'campaign', last_error: null }); return;
     }
-    const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'));
-    if (!payload.sub) return null;
-    if (payload.exp && Date.now() > Number(payload.exp) * 1000) return null;
-    return { id: payload.sub, organizationId: payload.org || undefined };
-  } catch {
-    return null;
-  }
-}
-
-function tenantFilter(user: AuthUser): string {
-  // Mirrors the unique index in the migration: org scope if present, else
-  // user scope.
-  return user.organizationId
-    ? `organization_id=eq.${encodeURIComponent(user.organizationId)}`
-    : `user_id=eq.${encodeURIComponent(user.id)}`;
-}
-
-interface BrandRow {
-  id: string;
-  telnyx_brand_id: string | null;
-  company_name: string;
-  status: string;
-  vetting_score: number | null;
-  failure_reason: string | null;
-}
-
-interface CampaignRow {
-  id: string;
-  brand_row_id: string;
-  telnyx_campaign_id: string | null;
-  usecase: string;
-  status: string;
-  failure_reason: string | null;
-}
-
-async function fetchBrandRow(user: AuthUser): Promise<BrandRow | null> {
-  const params = new URLSearchParams({ select: '*', limit: '1' });
-  const response = await fetch(
-    `${SUPABASE_URL}/rest/v1/sms_10dlc_brands?${tenantFilter(user)}&${params.toString()}`,
-    { headers: SUPABASE_HEADERS },
-  );
-  if (!response.ok) return null;
-  const rows = (await response.json()) as BrandRow[];
-  return rows[0] || null;
-}
-
-async function fetchCampaignRow(brandRowId: string): Promise<CampaignRow | null> {
-  const params = new URLSearchParams({
-    select: '*',
-    brand_row_id: `eq.${brandRowId}`,
-    limit: '1',
-  });
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/sms_10dlc_campaigns?${params.toString()}`, {
-    headers: SUPABASE_HEADERS,
-  });
-  if (!response.ok) return null;
-  const rows = (await response.json()) as CampaignRow[];
-  return rows[0] || null;
-}
-
-async function patchRow(table: string, id: string, data: Record<string, unknown>): Promise<void> {
-  await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, {
-    method: 'PATCH',
-    headers: { ...SUPABASE_HEADERS, Prefer: 'return=minimal' },
-    body: JSON.stringify({ ...data, updated_at: new Date().toISOString() }),
-  }).catch((error) => {
-    console.error(`[sms-register] Failed to patch ${table}:`, error instanceof Error ? error.message : error);
-  });
-}
-
-/** Pulls the latest status from Telnyx for a still-pending registration and
- * persists any change. Best-effort -- a refresh failure just means the UI
- * shows the last-known status, never blocks the response. */
-async function refreshStatus(brand: BrandRow, campaign: CampaignRow | null): Promise<{
-  brand: BrandRow;
-  campaign: CampaignRow | null;
-}> {
-  if (brand.telnyx_brand_id && brand.status !== 'APPROVED' && brand.status !== 'FAILED') {
-    try {
-      const latest = await getBrandStatus(brand.telnyx_brand_id);
-      if (latest.status !== brand.status) {
-        await patchRow('sms_10dlc_brands', brand.id, {
-          status: latest.status,
-          failure_reason: latest.failureReason || null,
-        });
-        brand = { ...brand, status: latest.status, failure_reason: latest.failureReason || null };
-      }
-    } catch (error) {
-      console.error('[sms-register] Brand status refresh failed:', error instanceof Error ? error.message : error);
+    if (!p.provider_campaign_id) {
+      const brand = unwrap(await telnyxRequest(`/10dlc/brand/${encodeURIComponent(p.provider_brand_id)}`));
+      if (!['VERIFIED','VETTED_VERIFIED','APPROVED'].includes(String(brand.identityStatus || brand.status).toUpperCase())) { await patch(tenant, { status: 'pending', last_error: 'Waiting for brand verification' }); return; }
+      await telnyxRequest(`/10dlc/campaignBuilder/brand/${encodeURIComponent(p.provider_brand_id)}/usecase/${input.usecase}`);
+      sideEffect = true;
+      const campaign = unwrap(await telnyxRequest('/10dlc/campaignBuilder', { method: 'POST', body: JSON.stringify({ brandId: p.provider_brand_id, usecase: input.usecase, ...(input.usecase === 'MIXED' ? { subUsecases: ['MARKETING','CUSTOMER_CARE','ACCOUNT_NOTIFICATION'] } : {}), description: input.description, sample1: input.sample1, sample2: input.sample2, messageFlow: input.messageFlow, helpMessage: input.helpMessage, optinKeywords: 'START,YES,SUBSCRIBE', optoutKeywords: 'STOP,STOPALL,UNSUBSCRIBE,CANCEL,END,QUIT', helpKeywords: 'HELP,INFO', optinMessage: `${input.companyName}: you have subscribed. Reply HELP for help or STOP to stop. Message and data rates may apply.`, optoutMessage: `${input.companyName}: you have unsubscribed and will receive no more messages.`, privacyPolicyLink: input.privacyPolicyLink, termsAndConditionsLink: input.termsAndConditionsLink }) }));
+      if (!campaign.campaignId) throw new Error('Campaign ID missing');
+      await patch(tenant, { provider_campaign_id: campaign.campaignId, status: 'pending', step: 'number', last_error: null }); return;
     }
-  }
-
-  if (
-    campaign?.telnyx_campaign_id &&
-    campaign.status !== 'APPROVED' &&
-    campaign.status !== 'FAILED'
-  ) {
-    try {
-      const latest = await getCampaignStatus(campaign.telnyx_campaign_id);
-      if (latest.status !== campaign.status) {
-        await patchRow('sms_10dlc_campaigns', campaign.id, {
-          status: latest.status,
-          failure_reason: latest.failureReason || null,
-        });
-        campaign = { ...campaign, status: latest.status, failure_reason: latest.failureReason || null };
-      }
-    } catch (error) {
-      console.error('[sms-register] Campaign status refresh failed:', error instanceof Error ? error.message : error);
+    const campaign = unwrap(await telnyxRequest(`/10dlc/campaignBuilder/${encodeURIComponent(p.provider_campaign_id)}`));
+    if (!['ACTIVE','APPROVED'].includes(String(campaign.status).toUpperCase())) { await patch(tenant, { status: 'pending', last_error: `Carrier campaign status: ${String(campaign.status || 'pending').slice(0,80)}` }); return; }
+    if (!p.provider_order_id) {
+      const inventory = await telnyxRequest<{ data: Array<{phone_number:string}> }>(`/available_phone_numbers?${new URLSearchParams({ 'filter[phone_number][country_code]': 'US', 'filter[national_destination_code]': input.areaCode, 'filter[features][]': 'sms', 'filter[limit]': '1' })}`);
+      const candidate = inventory.data?.[0]?.phone_number;
+      if (!candidate) { await patch(tenant, { status: 'pending', last_error: 'No available SMS number in this area code' }); return; }
+      sideEffect = true;
+      const order = unwrap(await telnyxRequest('/number_orders', { method: 'POST', body: JSON.stringify({ phone_numbers: [{ phone_number: candidate }], messaging_profile_id: process.env.TELNYX_MESSAGING_PROFILE_ID, connection_id: process.env.TELNYX_CONNECTION_ID }) }));
+      if (!order.id) throw new Error('Number order ID missing');
+      await patch(tenant, { provider_order_id: order.id, sender: candidate, status: 'pending', step: 'assignment' }); return;
     }
-  }
-
-  return { brand, campaign };
-}
-
-async function handleGet(req: VercelRequest, res: VercelResponse, user: AuthUser) {
-  const brand = await fetchBrandRow(user);
-  if (!brand) {
-    return res.status(200).json({ registered: false });
-  }
-  const campaign = await fetchCampaignRow(brand.id);
-  const refreshed = await refreshStatus(brand, campaign);
-  return res.status(200).json({
-    registered: true,
-    brand: {
-      companyName: refreshed.brand.company_name,
-      status: refreshed.brand.status,
-      failureReason: refreshed.brand.failure_reason,
-    },
-    campaign: refreshed.campaign
-      ? {
-          usecase: refreshed.campaign.usecase,
-          status: refreshed.campaign.status,
-          failureReason: refreshed.campaign.failure_reason,
-        }
-      : null,
-    smsReady: refreshed.brand.status === 'APPROVED' && refreshed.campaign?.status === 'APPROVED',
-  });
-}
-
-interface RegisterBody {
-  companyName?: string;
-  ein?: string;
-  phone?: string;
-  street?: string;
-  city?: string;
-  state?: string;
-  postalCode?: string;
-  email?: string;
-  website?: string;
-  description?: string;
-  sample1?: string;
-  sample2?: string;
-  messageFlow?: string;
-  helpMessage?: string;
-}
-
-const REQUIRED_FIELDS: Array<keyof RegisterBody> = [
-  'companyName',
-  'ein',
-  'phone',
-  'street',
-  'city',
-  'state',
-  'postalCode',
-  'email',
-  'description',
-  'sample1',
-  'sample2',
-  'messageFlow',
-  'helpMessage',
-];
-
-async function handlePost(req: VercelRequest, res: VercelResponse, user: AuthUser) {
-  if (!process.env.TELNYX_API_KEY) {
-    return res.status(503).json({ error: 'SMS registration is not configured (TELNYX_API_KEY missing)' });
-  }
-
-  const existing = await fetchBrandRow(user);
-  if (existing) {
-    return res.status(409).json({
-      error: 'A brand is already registered for this account',
-      status: existing.status,
-    });
-  }
-
-  const body = (req.body || {}) as RegisterBody;
-  const missing = REQUIRED_FIELDS.filter((field) => !body[field]?.trim?.());
-  if (missing.length > 0) {
-    return res.status(400).json({ error: `Missing required fields: ${missing.join(', ')}` });
-  }
-
-  let brandRowId: string | null = null;
-
-  try {
-    const brandResult = await registerBrand({
-      companyName: body.companyName!.trim(),
-      ein: body.ein!.trim(),
-      phone: body.phone!.trim(),
-      street: body.street!.trim(),
-      city: body.city!.trim(),
-      state: body.state!.trim(),
-      postalCode: body.postalCode!.trim(),
-      email: body.email!.trim(),
-      website: body.website?.trim(),
-    });
-
-    const insertedBrand = await fetch(`${SUPABASE_URL}/rest/v1/sms_10dlc_brands`, {
-      method: 'POST',
-      headers: { ...SUPABASE_HEADERS, Prefer: 'return=representation' },
-      body: JSON.stringify({
-        organization_id: user.organizationId || null,
-        user_id: user.organizationId ? null : user.id,
-        telnyx_brand_id: brandResult.telnyxBrandId,
-        company_name: body.companyName!.trim(),
-        status: brandResult.status,
-      }),
-    });
-    const brandRows = (await insertedBrand.json()) as BrandRow[];
-    brandRowId = brandRows[0]?.id || null;
-    if (!brandRowId) throw new Error('Failed to persist brand registration');
-
-    const campaignResult = await registerLowVolumeCampaign({
-      brandId: brandResult.telnyxBrandId,
-      description: body.description!.trim(),
-      sample1: body.sample1!.trim(),
-      sample2: body.sample2!.trim(),
-      messageFlow: body.messageFlow!.trim(),
-      helpMessage: body.helpMessage!.trim(),
-    });
-
-    await fetch(`${SUPABASE_URL}/rest/v1/sms_10dlc_campaigns`, {
-      method: 'POST',
-      headers: { ...SUPABASE_HEADERS, Prefer: 'return=minimal' },
-      body: JSON.stringify({
-        brand_row_id: brandRowId,
-        organization_id: user.organizationId || null,
-        user_id: user.organizationId ? null : user.id,
-        telnyx_campaign_id: campaignResult.telnyxCampaignId,
-        usecase: 'LOW_VOLUME',
-        status: campaignResult.status,
-      }),
-    });
-
-    return res.status(201).json({
-      registered: true,
-      brandStatus: brandResult.status,
-      campaignStatus: campaignResult.status,
-      note: 'Submitted. Carrier approval typically takes 1-7 business days -- check back on this page for status.',
-    });
+    const order = unwrap(await telnyxRequest(`/number_orders/${encodeURIComponent(p.provider_order_id)}`));
+    if (!['success','completed'].includes(String(order.status).toLowerCase())) { await patch(tenant, { status: 'pending', last_error: 'Number order is processing' }); return; }
+    // PUT is idempotent for an exact phone/campaign assignment.
+    await telnyxRequest(`/10dlc/phone_number_campaigns/${encodeURIComponent(p.sender || '')}`, { method: 'PUT', body: JSON.stringify({ campaignId: p.provider_campaign_id }) });
+    const assignment = unwrap(await telnyxRequest(`/10dlc/phone_number_campaigns/${encodeURIComponent(p.sender || '')}`));
+    if (!['ASSIGNED','ACTIVE','APPROVED'].includes(String(assignment.assignmentStatus || assignment.status).toUpperCase())) { await patch(tenant, { status: 'pending', last_error: 'Waiting for carrier number assignment' }); return; }
+    await db(`sms_accounts?${scoped(tenant)}`, 'PATCH', { sender: p.sender, messaging_profile_id: process.env.TELNYX_MESSAGING_PROFILE_ID, campaign_id: p.provider_campaign_id, campaign_usecase: input.usecase, ready: true });
+    await patch(tenant, { status: 'ready', step: 'complete', last_error: null });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Registration failed';
-    console.error('[sms-register] Registration failed:', message);
-    if (brandRowId) {
-      await patchRow('sms_10dlc_brands', brandRowId, { status: 'FAILED', failure_reason: message });
-    }
-    return res.status(502).json({ error: `Telnyx registration failed: ${message}` });
+    await patch(tenant, { status: sideEffect ? 'unknown' : 'pending', last_error: sideEffect ? 'Provider result uncertain; support must reconcile before retrying' : 'Provider status check failed; will retry' });
+    if (sideEffect) throw new SmsError(502, 'Provider setup needs reconciliation; no duplicate purchase will be attempted');
   }
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  if (req.method === 'OPTIONS') return res.status(204).end();
-
-  const user = await getAuthUser(req);
-  if (!user) return res.status(401).json({ error: 'Authentication required' });
-
-  if (req.method === 'GET') return handleGet(req, res, user);
-  if (req.method === 'POST') return handlePost(req, res, user);
-  return res.status(405).json({ error: 'Method not allowed' });
+  try {
+    const user = await authenticate(req); const a = await ensureAccount(user);
+    if (req.method === 'POST') {
+      requireLaunch();
+      if (!a.paid_until || new Date(a.paid_until) <= new Date()) throw new SmsError(402, 'The first month must be paid before registration');
+      const input = registration.parse(req.body);
+      await db('sms_provisioning?on_conflict=tenant_key', 'POST', { tenant_key: user.tenant, request: input }, 'resolution=ignore-duplicates,return=minimal');
+      await advanceProvisioning(user.tenant);
+    } else if (req.method !== 'GET') throw new SmsError(405, 'Method not allowed');
+    const [p] = await db<Provisioning[]>(`sms_provisioning?${scoped(user.tenant)}`);
+    return res.json({ registered: Boolean(p), status: p?.status || 'not_registered', step: p?.step, error: p?.last_error, smsReady: (await accountFor(user.tenant)).ready });
+  } catch (error) {
+    return res.status(error instanceof SmsError ? error.status : error instanceof z.ZodError ? 400 : 500).json({ error: error instanceof z.ZodError ? error.issues.map(i => i.message).join('; ') : error instanceof SmsError ? error.message : 'Registration failed' });
+  }
 }

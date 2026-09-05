@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { handleSmsBillingEvent } from './sms/billing.js';
 
 // This is a dedicated Vercel function (not routed through gateway.ts) so we
 // can read the raw request body -- Stripe signature verification requires
@@ -539,6 +540,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
+    if (await handleSmsBillingEvent(event)) {
+      await markEvent(event.id, 'processed');
+      return res.status(200).json({ received: true });
+    }
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object;

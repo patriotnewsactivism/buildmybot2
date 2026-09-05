@@ -18,6 +18,7 @@ import {
   helmetOptions,
 } from './api/lib/security.js';
 import stripeWebhookHandler from './api/stripe-webhook.js';
+import smsWebhookHandler from './api/sms/webhooks.js';
 import liveTokenHandler from './api/voice/live-token.js';
 import { handleTwilioMediaConnection } from './api/voice/twilio-live.js';
 
@@ -86,6 +87,10 @@ app.post(
     await stripeWebhookHandler(req as any, res as any);
   },
 );
+
+app.post('/api/sms/webhooks', express.raw({ type: '*/*', limit: '1mb' }), async (req, res) => {
+  await smsWebhookHandler(req as any, res as any);
+});
 
 // Body parsing for all other routes
 app.use(express.json({ limit: '10mb' }));
