@@ -699,6 +699,12 @@ export const LandingPage: React.FC<LandingProps> = ({
                 How It Works
               </a>
               <a
+                href="/features"
+                className="hover:text-blue-700 transition-colors"
+              >
+                Features
+              </a>
+              <a
                 href="#voice"
                 className="hover:text-blue-700 transition-colors font-bold text-blue-700"
               >
@@ -751,6 +757,13 @@ export const LandingPage: React.FC<LandingProps> = ({
                 className="text-lg font-medium text-slate-700 hover:text-blue-700 py-3 border-b border-slate-100"
               >
                 How It Works
+              </a>
+              <a
+                href="/features"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="text-lg font-medium text-slate-700 hover:text-blue-700 py-3 border-b border-slate-100"
+              >
+                Features
               </a>
               <a
                 href="#voice"
