@@ -1,114 +1,124 @@
 # BuildMyBot.app
 
-The ultimate white-label AI chatbot platform for businesses and agencies. Build, deploy, and resell intelligent bots with zero coding.
+BuildMyBot is a white-label AI customer-engagement platform for web chat, voice, CRM, lead automation, SMS marketing, and agency/reseller workflows.
 
-## Overview
+Production site: `https://www.buildmybot.app`
 
-BuildMyBot is an all-in-one AI Operating System that empowers businesses to automate customer interactions across text, web, and voice. It includes a comprehensive suite of tools for lead generation, customer support, and marketing automation.
+## Current architecture
 
-## Key Features
+The repository is no longer Vercel-only and Railway is not prohibited.
 
-### AI Bot Builder
-- **Specialized Personas:** tailored roles for City Government, Recruitment, Travel, Real Estate, and more.
-- **RAG Knowledge Base:** Train bots on PDFs, Website URLs, and text data.
-- **Visual Editor:** No-code customization of identity, tone, and behavior.
+```text
+buildmybot.app / www.buildmybot.app
+        |
+        v
+Cloudflare Pages + Pages Functions
+        |
+        +--> Railway: buildmybot2-web (PRIMARY application/API origin)
+        |
+        +--> Google Cloud Run: buildmybot2 (GET/HEAD fallback)
+        |
+        v
+Supabase project blyebndyrojmreensbxe
+```
 
-### AI Phone Agent
-- **24/7 Receptionist:** Handles incoming calls, books appointments, and routes urgent issues.
-- **Human-like Voice:** Powered by advanced neural speech synthesis.
-- **Call Logging:** Transcripts automatically saved to the CRM.
+The production application is a Node/Express container (`server.ts`, `Dockerfile`) that also serves the built Vite SPA. Cloudflare keeps browser traffic on the public BuildMyBot domain while proxying to Railway. Cloud Run remains a warm fallback for idempotent reads; mutating requests are never automatically replayed to a second backend.
 
-### Lead CRM
-- **Hot Lead Detection:** Automatically scores leads (0-100) based on conversation intent.
-- **Pipeline Management:** Kanban and List views to manage deal flow.
-- **Instant Alerts:** SMS/Email notifications for high-priority leads.
+The Railway service domain is `https://buildmybot2-web-production.up.railway.app`. The Cloud Run fallback is `https://buildmybot2-fq5disxp2a-uc.a.run.app`.
 
-### Marketing Studio
-- **Viral Content Generator:** Create high-engagement Twitter/X threads and LinkedIn posts.
-- **Instant Website Builder:** Generate industry-specific landing pages in seconds.
+See `DEPLOYMENT.md` for the authoritative deployment/runbook details.
 
-### Reseller & Partner Portal
-- **White-label Ready:** Agencies can resell the platform under their own brand.
-- **Commission Tracking:** Real-time dashboard for earnings, payouts, and client management.
-- **Tiered System:** Bronze, Silver, Gold, and Platinum tiers with increasing commission rates.
+## Production database safety hold
 
-## Deployment topology (read this first)
+The active Supabase project is `blyebndyrojmreensbxe`.
 
-This repo has a single production path:
+The September 5, 2026 production audit found existing BuildMyBot application relations but no usable Supabase CLI migration-history baseline. Therefore **do not run `supabase db push` against production until repository history and the live schema are reconciled**.
 
-**Vercel** — the Vite client plus the serverless functions in `api/`
-(`api/gateway.ts` handles all `/api/*` routes, `api/auth/*.ts` handles
-login/signup/session). These talk to Supabase over its REST API.
-`vercel.json` builds with `npm run build:client`. Required env vars:
-`SUPABASE_SERVICE_ROLE_KEY`, `SESSION_JWT_SECRET`, `VITE_SUPABASE_URL`
-(see `.env.example`).
+The production migration workflow is intentionally audit-only. Follow `docs/MIGRATION_BASELINE_RECONCILIATION.md` before re-enabling migration writes.
 
-There is no Express server, Dockerfile, or Railway config in this repo —
-an earlier local-dev Express path (`server/`) was planned but never
-actually committed (it depended on Drizzle tables and a `shared/types`
-module that don't exist here), so there is nothing to run or deploy
-outside of the Vercel path above. Note: `package.json` still has a few
-stray scripts (`dev`, `server`, `start`, `check:server`, several
-`seed:*`) referencing that non-existent `server/` — they will fail if
-run, and cleaning them up is a separate, not-yet-done task.
+## Product areas
 
-## Tech Stack
+### AI chatbot and knowledge
 
-- **Frontend:** React, TypeScript, Vite, Tailwind CSS
-- **Backend:** Express.js API server
-- **Database:** Postgres (Neon or Supabase) with Drizzle ORM
-- **AI Models:** OpenAI GPT-5o Mini (default) / GPT-4o / GPT-4o Mini
-- **Voice:** Cartesia (ultra-realistic voice synthesis)
-- **Icons:** Lucide React
+- No-code bot/persona configuration.
+- PDF, website, and text knowledge ingestion.
+- RAG retrieval using `knowledge_chunks` with embeddings and keyword fallback.
+- Firecrawl-backed website scraping/crawling with SSRF protections.
+- Shared business knowledge can be reused by chat, SMS, and voice paths.
 
-## Getting Started
+### AI phone agent
 
-### Prerequisites
-- Node.js 18+
-- PostgreSQL Database
-- OpenAI API Key
-- (Optional) Cartesia API Key for voice features
-- (Optional) Stripe Account for payments
+- Customer activation flow for a new number, forwarding an existing number, or porting a number.
+- Gemini Live is the realtime voice engine.
+- Shared chatbot/voice knowledge by default, with channel-specific knowledge modes supported by the activation model.
+- Twilio remains the current realtime bidirectional media-stream implementation in `api/voice/twilio-live.ts`.
+- Telnyx is used by the newer telephony/SMS provisioning path. Full replacement of the legacy Twilio realtime voice bridge is still a separate migration and must not be claimed complete until an inbound Telnyx call passes end-to-end.
 
-### Installation
+### SMS marketing and automation
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/patriotnewsactivism/buildmybot2.git
-   cd buildmybot2
-   ```
+The backend includes Telnyx-oriented SMS accounts, contacts, campaigns, keywords, sequences, welcome/after-hours automation, birthday clubs, appointment reminders, Text-to-Win contest records/draws, consent/STOP handling, spend controls, provisioning, and worker queues.
 
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
+`/app/sms-marketing` exists, but customer-facing launch/visibility remains gated by production database reconciliation and real provider verification. Do not advertise a feature as live merely because its backend code or migration exists in Git.
 
-3. Configure Environment:
-   Create a `.env` file and add your keys:
-   ```env
-   # OpenAI
-   OPENAI_API_KEY=sk-...
+### CRM, leads, billing, and AI workforce
 
-   # Cartesia (for voice agent)
-   CARTESIA_API_KEY=...
+- Lead scoring and CRM workflows.
+- Hot-lead notification paths.
+- Stripe billing/webhook integration.
+- AI employee/research workflows and scheduled jobs.
+- Reseller/partner tooling.
 
-   # Database (PostgreSQL)
-   DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/DATABASE?sslmode=require
+## Firecrawl contract note
 
-   # Session Secret
-   SESSION_SECRET=your_random_secret_here
+For Firecrawl crawl requests, `webhook.events` uses the short event filters such as `page`, `completed`, and `failed`. Firecrawl webhook payloads use qualified `type` values such as `crawl.page`, `crawl.completed`, and `crawl.failed`. Do not replace the request filter names with payload type names.
 
-   # App base URL (used for Stripe redirects/webhooks)
-   APP_BASE_URL=https://your-domain.com
+## Local development
 
-   # Stripe (optional)
-   STRIPE_SECRET_KEY=sk_live_...
-   STRIPE_PUBLISHABLE_KEY=pk_live_...
-   ```
+Prerequisites: Node.js 22+ and the required environment variables from `.env.example`.
 
-   
-   Ensure to check the README for all necessary environment variables and details on deployment processes.
+```bash
+npm ci
+npm run dev
+```
 
-## Additional Notes
+Release gates:
 
-To successfully run the local server, ensure you also initialize your database and test the API endpoints through `npm run server`. For production deployment on Vercel, refer to the Vercel guide and ensure all environmental variables are correctly set up according to the `.env.example` file.
+```bash
+npm run lint
+npm run test:run
+npm run build
+```
+
+Production container:
+
+```bash
+docker build -t buildmybot2 .
+docker run --rm -p 8080:8080 --env-file .env buildmybot2
+```
+
+Health/provenance endpoints:
+
+```text
+GET /health
+GET /api/health
+```
+
+Both report the deployed Git SHA. Railway uses its injected `RAILWAY_GIT_COMMIT_SHA`; Cloud Run receives `BUILD_SHA` from its deployment workflow.
+
+## Environment and secrets
+
+Never commit real credentials. Server secrets belong in Railway/GitHub production secrets and, for the Cloud Run fallback, Google Secret Manager or its existing deployment bindings. `VITE_*` variables are public build-time values and must never contain service-role or private provider credentials.
+
+Core server configuration includes Supabase, session signing, encryption, AI provider credentials, Stripe, Firecrawl, Telnyx, Gemini, email, and scheduled-worker secrets. See `.env.example` for the annotated list.
+
+## Deployment rule
+
+A commit is not considered released merely because it is on `main`. Verify the exact SHA on:
+
+1. GitHub `main`;
+2. CI;
+3. Railway `/api/health`;
+4. the public `https://www.buildmybot.app/api/health` route with `x-buildmybot-origin: railway`;
+5. Cloudflare Pages for the frontend/origin function when those files changed.
+
+Cloud Run is the fallback, not a reason to silently report a failed Railway release as successful.
