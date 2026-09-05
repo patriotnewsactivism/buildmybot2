@@ -12,8 +12,7 @@ interface PagesContext {
 
 const DEFAULT_RAILWAY_ORIGIN =
   'https://buildmybot2-web-production.up.railway.app';
-const DEFAULT_CLOUD_RUN_ORIGIN =
-  'https://buildmybot2-fq5disxp2a-uc.a.run.app';
+const DEFAULT_CLOUD_RUN_ORIGIN = 'https://buildmybot2-fq5disxp2a-uc.a.run.app';
 
 function buildUpstreamRequest(request: Request, origin: string): Request {
   const incomingUrl = new URL(request.url);
@@ -66,7 +65,9 @@ export async function onRequest(context: PagesContext): Promise<Response> {
   const mayFallback = (method === 'GET' || method === 'HEAD') && !isWebSocket;
 
   try {
-    const response = await fetch(buildUpstreamRequest(context.request, primary));
+    const response = await fetch(
+      buildUpstreamRequest(context.request, primary),
+    );
     if (!mayFallback || response.status < 500) {
       return withOriginHeader(response, 'railway');
     }
