@@ -921,7 +921,7 @@ export const LandingPage: React.FC<LandingProps> = ({
             <div className="mt-6 pt-6 border-t border-slate-100 flex flex-wrap justify-center gap-4 sm:gap-8 text-xs text-slate-400">
               <span className="flex items-center gap-2">
                 <Sparkles size={14} className="text-blue-500" /> Powered by
-                MiniMax M3
+                frontier AI
               </span>
               <span className="flex items-center gap-2">
                 <Mic size={14} className="text-purple-500" /> Realtime Two-Way
@@ -1120,7 +1120,7 @@ export const LandingPage: React.FC<LandingProps> = ({
                       className="text-emerald-500 shrink-0"
                       size={20}
                     />{' '}
-                    Instant responses powered by MiniMax M3
+                    Instant AI responses around the clock
                   </li>
                   <li className="flex items-center gap-3 text-slate-700">
                     <CheckCircle

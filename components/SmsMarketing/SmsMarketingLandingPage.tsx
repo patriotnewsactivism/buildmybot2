@@ -77,7 +77,7 @@ export function SmsMarketingLandingPage() {
         description={SEOConfig.smsMarketing.description}
         keywords={SEOConfig.smsMarketing.keywords}
       />
-      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_15%_5%,_rgba(16,185,129,0.20),_transparent_35%),radial-gradient(circle_at_90%_20%,_rgba(37,99,235,0.16),_transparent_30%),radial-gradient(circle_at_50%_100%,_rgba(20,184,166,0.14),_transparent_36%)]" />
+      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_15%_5%,_rgba(37,99,235,0.18),_transparent_35%),radial-gradient(circle_at_90%_20%,_rgba(37,99,235,0.16),_transparent_30%),radial-gradient(circle_at_50%_100%,_rgba(14,165,233,0.12),_transparent_36%)]" />
 
       <div className="relative">
         <header className="border-b border-white/10 bg-slate-950/80 backdrop-blur-xl">
@@ -86,7 +86,7 @@ export function SmsMarketingLandingPage() {
               to="/"
               className="flex items-center gap-3 font-black tracking-tight"
             >
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 shadow-lg shadow-emerald-600/25">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 shadow-lg shadow-blue-600/25">
                 <Bot size={22} />
               </span>
               <span className="text-xl">BuildMyBot</span>
@@ -111,7 +111,7 @@ export function SmsMarketingLandingPage() {
               </Link>
               <Link
                 to="/?auth=signup"
-                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold shadow-lg shadow-emerald-600/25 transition hover:bg-emerald-500"
+                className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold shadow-lg shadow-blue-600/25 transition hover:bg-blue-700"
               >
                 Start free <ArrowRight size={16} />
               </Link>
@@ -127,12 +127,12 @@ export function SmsMarketingLandingPage() {
             >
               <ArrowLeft size={16} /> Back to BuildMyBot
             </Link>
-            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-emerald-400/25 bg-emerald-400/10 px-4 py-2 text-sm font-semibold text-emerald-200">
+            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-blue-400/25 bg-blue-400/10 px-4 py-2 text-sm font-semibold text-blue-200">
               <Sparkles size={16} /> Flagship Feature: SMS Marketing
             </div>
             <h1 className="max-w-4xl text-5xl font-black leading-[1.02] tracking-tight sm:text-6xl lg:text-7xl">
               The channel your customers{' '}
-              <span className="bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-blue-400 to-sky-300 bg-clip-text text-transparent">
                 actually open.
               </span>
             </h1>
@@ -162,7 +162,7 @@ export function SmsMarketingLandingPage() {
             <div className="mt-9 flex flex-col gap-3 sm:flex-row">
               <Link
                 to="/?auth=signup"
-                className="inline-flex items-center justify-center gap-3 rounded-2xl bg-emerald-600 px-7 py-4 text-base font-bold shadow-xl shadow-emerald-600/25 transition hover:bg-emerald-500"
+                className="inline-flex items-center justify-center gap-3 rounded-2xl bg-blue-600 px-7 py-4 text-base font-bold shadow-xl shadow-blue-600/25 transition hover:bg-blue-700"
               >
                 <MessageSquare size={20} /> Start texting your customers
               </Link>
@@ -176,10 +176,10 @@ export function SmsMarketingLandingPage() {
           </div>
 
           <div className="relative">
-            <div className="absolute -inset-8 rounded-[3rem] bg-emerald-600/10 blur-3xl" />
-            <div className="relative mx-auto max-w-sm rounded-[2rem] border border-white/10 bg-white/[0.07] p-5 shadow-2xl shadow-emerald-950/50 backdrop-blur-xl sm:p-6">
+            <div className="absolute -inset-8 rounded-[3rem] bg-blue-600/10 blur-3xl" />
+            <div className="relative mx-auto max-w-sm rounded-[2rem] border border-white/10 bg-white/[0.07] p-5 shadow-2xl shadow-slate-950/50 backdrop-blur-xl sm:p-6">
               <div className="flex items-center gap-3 border-b border-white/10 pb-4">
-                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-300">
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-500/20 text-blue-300">
                   <MessageSquare size={18} />
                 </span>
                 <div>
@@ -188,21 +188,21 @@ export function SmsMarketingLandingPage() {
                 </div>
               </div>
               <div className="mt-5 space-y-3">
-                <div className="ml-auto max-w-[85%] rounded-2xl rounded-br-md bg-emerald-600 px-4 py-2.5 text-sm">
+                <div className="ml-auto max-w-[85%] rounded-2xl rounded-br-md bg-blue-600 px-4 py-2.5 text-sm">
                   🎉 Text WIN to enter this week's giveaway. Reply STOP to opt
                   out anytime.
                 </div>
                 <div className="max-w-[85%] rounded-2xl rounded-bl-md bg-white/10 px-4 py-2.5 text-sm">
                   WIN
                 </div>
-                <div className="ml-auto max-w-[85%] rounded-2xl rounded-br-md bg-emerald-600 px-4 py-2.5 text-sm">
+                <div className="ml-auto max-w-[85%] rounded-2xl rounded-br-md bg-blue-600 px-4 py-2.5 text-sm">
                   You're entered! We'll text the winner Friday. Want 15% off
                   today too? Reply YES.
                 </div>
                 <div className="max-w-[85%] rounded-2xl rounded-bl-md bg-white/10 px-4 py-2.5 text-sm">
                   YES
                 </div>
-                <div className="ml-auto max-w-[85%] rounded-2xl rounded-br-md bg-emerald-600 px-4 py-2.5 text-sm">
+                <div className="ml-auto max-w-[85%] rounded-2xl rounded-br-md bg-blue-600 px-4 py-2.5 text-sm">
                   Awesome — here's your code: SAVE15. See you soon!
                 </div>
               </div>
@@ -236,7 +236,7 @@ export function SmsMarketingLandingPage() {
           className="mx-auto max-w-7xl px-5 py-24 sm:px-8"
         >
           <div className="max-w-3xl">
-            <p className="text-sm font-bold uppercase tracking-[0.22em] text-emerald-400">
+            <p className="text-sm font-bold uppercase tracking-[0.22em] text-blue-400">
               More than a broadcast list
             </p>
             <h2 className="mt-4 text-4xl font-black tracking-tight sm:text-5xl">
@@ -253,9 +253,9 @@ export function SmsMarketingLandingPage() {
             {CAPABILITIES.map(({ icon: Icon, title, description }) => (
               <article
                 key={title}
-                className="rounded-3xl border border-white/10 bg-white/[0.04] p-6 transition hover:-translate-y-1 hover:border-emerald-400/25 hover:bg-white/[0.06]"
+                className="rounded-3xl border border-white/10 bg-white/[0.04] p-6 transition hover:-translate-y-1 hover:border-blue-400/25 hover:bg-white/[0.06]"
               >
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-300">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-500/10 text-blue-300">
                   <Icon size={23} />
                 </div>
                 <h3 className="mt-5 text-xl font-bold">{title}</h3>
@@ -266,7 +266,7 @@ export function SmsMarketingLandingPage() {
         </section>
 
         <section id="crm" className="mx-auto max-w-7xl px-5 pb-24 sm:px-8">
-          <div className="overflow-hidden rounded-[2rem] border border-blue-400/20 bg-gradient-to-br from-blue-500/10 via-slate-900 to-emerald-500/10 p-7 sm:p-10 lg:p-12">
+          <div className="overflow-hidden rounded-[2rem] border border-blue-400/20 bg-gradient-to-br from-blue-500/10 via-slate-900 to-blue-500/10 p-7 sm:p-10 lg:p-12">
             <div className="grid gap-10 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
               <div>
                 <div className="inline-flex items-center gap-2 rounded-full border border-blue-400/25 bg-blue-400/10 px-4 py-2 text-sm font-semibold text-blue-200">
@@ -311,7 +311,7 @@ export function SmsMarketingLandingPage() {
           <div className="mx-auto max-w-7xl px-5 py-24 sm:px-8">
             <div className="grid gap-10 lg:grid-cols-[0.8fr_1.2fr] lg:items-start">
               <div>
-                <p className="text-sm font-bold uppercase tracking-[0.22em] text-emerald-400">
+                <p className="text-sm font-bold uppercase tracking-[0.22em] text-blue-400">
                   Built for repeat business
                 </p>
                 <h2 className="mt-4 text-4xl font-black tracking-tight">
@@ -338,7 +338,7 @@ export function SmsMarketingLandingPage() {
 
         <section id="pricing" className="mx-auto max-w-7xl px-5 py-24 sm:px-8">
           <div className="mx-auto max-w-3xl text-center">
-            <p className="text-sm font-bold uppercase tracking-[0.22em] text-emerald-400">
+            <p className="text-sm font-bold uppercase tracking-[0.22em] text-blue-400">
               Simple, standalone pricing
             </p>
             <h2 className="mt-4 text-4xl font-black tracking-tight sm:text-5xl">
@@ -386,7 +386,7 @@ export function SmsMarketingLandingPage() {
         </section>
 
         <section className="mx-auto max-w-5xl px-5 py-24 text-center sm:px-8 sm:py-28">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-600 shadow-xl shadow-emerald-600/30">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600 shadow-xl shadow-blue-600/30">
             <Bell size={26} />
           </div>
           <h2 className="mt-7 text-4xl font-black tracking-tight sm:text-5xl">
@@ -399,7 +399,7 @@ export function SmsMarketingLandingPage() {
           <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row">
             <Link
               to="/?auth=signup"
-              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-7 py-4 font-bold shadow-xl shadow-emerald-600/25 transition hover:bg-emerald-500"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-7 py-4 font-bold shadow-xl shadow-blue-600/25 transition hover:bg-blue-700"
             >
               Start building free <ArrowRight size={18} />
             </Link>
