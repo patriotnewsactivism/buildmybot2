@@ -58,7 +58,7 @@ The production migration workflow is intentionally audit-only. Follow `docs/MIGR
 
 The backend includes Telnyx-oriented SMS accounts, contacts, campaigns, keywords, sequences, welcome/after-hours automation, birthday clubs, appointment reminders, Text-to-Win contest records/draws, consent/STOP handling, spend controls, provisioning, and worker queues.
 
-`/app/sms-marketing` exists, but customer-facing launch/visibility remains gated by production database reconciliation and real provider verification. Do not advertise a feature as live merely because its backend code or migration exists in Git.
+`/app/sms-marketing` is linked from the client dashboard nav (`navConfig.tsx`) and presented on the public pricing/features pages as of the 2026-09-05 product-surface refresh. Actual message sending still gates on each tenant completing Telnyx 10DLC brand+campaign registration (`api/sms/register.ts`) — that is a carrier compliance requirement, not a BuildMyBot-side hold, so it does not block advertising or linking the feature. This is unrelated to the production database migration-write hold above.
 
 ### CRM, leads, billing, and AI workforce
 

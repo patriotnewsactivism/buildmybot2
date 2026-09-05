@@ -44,7 +44,6 @@ import { PricingPage } from './components/Landing/pages/PricingPage';
 import { PrivacyPage } from './components/Landing/pages/PrivacyPage';
 import { LandingPageBuilder } from './components/LandingPages/LandingPageBuilder';
 import { MarketingTools } from './components/Marketing/MarketingTools';
-import { SmsMarketing } from './components/SmsMarketing/SmsMarketing';
 import { TemplateMarketplace } from './components/Marketplace/TemplateMarketplace';
 import {
   PartnerDashboardV2,
@@ -53,6 +52,7 @@ import {
 import { PhoneAgent } from './components/PhoneAgent/PhoneAgent';
 import { ServiceCatalog } from './components/Services/ServiceCatalog';
 import { Settings } from './components/Settings/Settings';
+import { SmsMarketing } from './components/SmsMarketing/SmsMarketing';
 import { StatusPage } from './components/Status/StatusPage';
 import { HelpCenter } from './components/Support/HelpCenter';
 import { SupportTicketSystem } from './components/Support/SupportTicketSystem';
@@ -626,9 +626,12 @@ function App() {
                   }
                 />
                 <Route path="/app/marketing" element={<MarketingTools />} />
-                {/* Deliberately NOT in navConfig.tsx yet -- unpublished/hidden
-                    per Don's call (2026-09-04) until a real Telnyx account +
-                    a test 10DLC registration are verified end-to-end. */}
+                {/* Linked from navConfig.tsx client nav as of the 2026-09-05
+                    product-surface refresh. Actual sending still gates on
+                    each tenant completing Telnyx 10DLC brand+campaign
+                    registration -- a carrier compliance requirement, not a
+                    reason to hide the feature. See SMS_MARKETING_PLANS in
+                    constants.ts. */}
                 <Route path="/app/sms-marketing" element={<SmsMarketing />} />
                 <Route path="/app/website" element={<WebsiteBuilder />} />
                 <Route

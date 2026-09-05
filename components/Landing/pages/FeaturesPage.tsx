@@ -1,6 +1,5 @@
 import {
   ArrowRight,
-  BarChart3,
   Bot,
   Brain,
   Check,
@@ -11,7 +10,6 @@ import {
   Globe,
   Layout,
   Loader,
-  Mail,
   MessageSquare,
   Mic,
   Phone,
@@ -19,6 +17,7 @@ import {
   RefreshCcw,
   Send,
   Shield,
+  Smartphone,
   Sparkles,
   Star,
   Target,
@@ -36,7 +35,7 @@ import { PageLayout } from './PageLayout';
 const coreFeatures = [
   {
     icon: Bot,
-    title: 'AI Chatbot Builder',
+    title: 'AI Chatbots',
     subtitle: 'No Code Required',
     description:
       'Create powerful AI chatbots with our intuitive drag-and-drop builder. No coding skills needed—just describe what you want and watch your bot come to life.',
@@ -50,71 +49,86 @@ const coreFeatures = [
     bgGlow: 'bg-blue-500/20',
   },
   {
-    icon: Users,
-    title: 'Lead Capture & CRM',
-    subtitle: 'Never Miss a Lead',
-    description:
-      'Automatically capture, score, and nurture leads 24/7. Our intelligent CRM tracks every conversation and prioritizes your hottest prospects.',
-    highlights: [
-      'Automatic lead scoring',
-      'Conversion tracking',
-      'Smart follow-ups',
-      'Pipeline management',
-    ],
-    gradient: 'from-emerald-500 to-teal-600',
-    bgGlow: 'bg-emerald-500/20',
-  },
-  {
     icon: Brain,
-    title: 'Knowledge Base',
-    subtitle: 'Train on Your Content',
+    title: 'Shared Knowledge Base',
+    subtitle: 'One Brain, Every Channel',
     description:
-      'Upload documents, paste URLs, or connect data sources. Your bot learns everything about your business and answers questions with perfect accuracy.',
+      'Upload PDFs, paste a URL, or point us at your whole website — our Firecrawl-backed crawler turns it into searchable RAG chunks with embeddings. Train it once and your chatbot, voice receptionist, and SMS assistant all answer from the same business knowledge.',
     highlights: [
-      'PDF & document upload',
-      'Website content scraping',
-      'FAQ imports',
-      'Real-time training',
+      'Firecrawl website crawling & scraping',
+      'PDF, URL, and text ingestion',
+      'RAG retrieval with embeddings',
+      'Shared across chat, voice & SMS',
     ],
     gradient: 'from-purple-500 to-violet-600',
     bgGlow: 'bg-purple-500/20',
   },
   {
     icon: Phone,
-    title: 'Voice Agent',
-    subtitle: 'Powered by Cartesia',
+    title: 'AI Voice Receptionist',
+    subtitle: 'Realtime, Two-Way Conversations',
     description:
-      "Ultra-realistic AI voice agents that handle phone calls, qualify leads, and book appointments. Customers can't tell they're talking to AI.",
+      'Our realtime voice engine answers calls, qualifies leads, and books appointments — with natural pauses and barge-in, not a stiff record-and-respond loop. Activate it with a new number, forward your existing line, or port one over, and it shares the same knowledge base as your chatbot.',
     highlights: [
-      'Cartesia voice synthesis',
-      'Inbound & outbound calls',
-      'Call transcription',
-      'Smart call routing',
+      'Realtime two-way conversation',
+      'New, forwarded, or ported numbers',
+      'Shared chatbot knowledge base',
+      'Hot-lead alerts & human handoff',
     ],
     gradient: 'from-orange-500 to-red-500',
     bgGlow: 'bg-orange-500/20',
   },
   {
-    icon: Mail,
-    title: 'Marketing Tools',
-    subtitle: 'Automate Outreach',
+    icon: Smartphone,
+    title: 'Telnyx SMS Marketing',
+    subtitle: 'Two-Way Text Campaigns',
     description:
-      'Create email sequences, SMS campaigns, and automated follow-ups that nurture leads through your funnel—all powered by AI.',
+      'Run SMS campaigns, keyword auto-replies, and drip sequences on your own Telnyx number. Built-in Text-to-Win contests, birthday clubs, and appointment reminders keep customers engaged, with STOP/HELP consent handling done for you.',
     highlights: [
-      'Email sequences',
-      'SMS campaigns',
-      'Drip automation',
-      'A/B testing',
+      'Campaigns, sequences & keyword replies',
+      'Text-to-Win contests & birthday clubs',
+      'Automated appointment reminders',
+      'Built-in STOP/HELP consent compliance',
     ],
-    gradient: 'from-pink-500 to-rose-600',
-    bgGlow: 'bg-pink-500/20',
+    gradient: 'from-teal-500 to-emerald-600',
+    bgGlow: 'bg-teal-500/20',
+  },
+  {
+    icon: Users,
+    title: 'Lead CRM & Analytics',
+    subtitle: 'Never Miss a Lead',
+    description:
+      'Automatically capture, score, and nurture leads from every channel. Sentiment analysis, topic detection, and full conversation search turn every chat, call, and text into a pipeline you can act on.',
+    highlights: [
+      'Automatic lead scoring',
+      'Sentiment analysis & conversation search',
+      'Smart follow-ups & pipeline management',
+      'Real-time analytics dashboard',
+    ],
+    gradient: 'from-emerald-500 to-teal-600',
+    bgGlow: 'bg-emerald-500/20',
+  },
+  {
+    icon: Sparkles,
+    title: 'Automation & AI Team',
+    subtitle: 'Six AI Employees, Always On',
+    description:
+      'A full AI team — sales, support, marketing, agent development, admin, and people ops — works your leads and inbox on autopilot, running scheduled shifts and responding to inbound email around the clock.',
+    highlights: [
+      'Six named AI employees on staff',
+      'Automated lead follow-ups',
+      'Scheduled shifts & inbound-email triggers',
+      'Escalation to your team when needed',
+    ],
+    gradient: 'from-indigo-500 to-purple-600',
+    bgGlow: 'bg-indigo-500/20',
   },
   {
     icon: Layout,
-    title: 'Website Builder',
-    subtitle: 'Landing Pages & Forms',
+    title: 'Landing Pages & Sites',
+    subtitle: 'Launch in Minutes',
     description:
-      'Build beautiful landing pages and forms that convert. Embed your chatbot anywhere and capture leads with high-converting templates.',
+      'Build landing pages and forms that convert, or spin up a full AI-generated site. Embed your chatbot anywhere and capture leads with high-converting templates.',
     highlights: [
       'Drag-and-drop pages',
       'Form builder',
@@ -125,26 +139,11 @@ const coreFeatures = [
     bgGlow: 'bg-cyan-500/20',
   },
   {
-    icon: BarChart3,
-    title: 'Chat Logs & Analytics',
-    subtitle: 'Deep Conversation Insights',
-    description:
-      'Understand every conversation with sentiment analysis, topic detection, and actionable insights that help you improve conversions.',
-    highlights: [
-      'Sentiment analysis',
-      'Conversation search',
-      'Export & reporting',
-      'Real-time monitoring',
-    ],
-    gradient: 'from-amber-500 to-orange-500',
-    bgGlow: 'bg-amber-500/20',
-  },
-  {
     icon: Crown,
-    title: 'Partner Access + White-Label',
+    title: 'White-Label & Partner Platform',
     subtitle: 'Scale Your Agency',
     description:
-      'Start as a sales agent with tiered commissions or unlock partner access for immediate 50% on new accounts. Optional white-label branding included.',
+      'Start as a sales agent with tiered commissions or unlock partner access for immediate 50% on new accounts. Optional white-label branding lets agencies resell the entire platform — chat, voice, and SMS — under their own name.',
     highlights: [
       'Partner access option',
       '50% on new accounts',
@@ -173,6 +172,13 @@ const comparisonData = [
   },
   {
     feature: 'Voice Agent (AI Phone)',
+    buildmybot: true,
+    intercom: false,
+    drift: false,
+    zendesk: false,
+  },
+  {
+    feature: 'SMS Marketing (Telnyx)',
     buildmybot: true,
     intercom: false,
     drift: false,
@@ -262,7 +268,11 @@ const faqs = [
   },
   {
     q: 'How realistic is the Voice Agent?',
-    a: "Our Voice Agent uses Cartesia's cutting-edge voice synthesis—the same technology used in Hollywood productions. In blind tests, most callers cannot distinguish our AI from a real human receptionist.",
+    a: "Our Voice Agent runs on BuildMyBot's own realtime, two-way voice engine—not an old-style record-and-respond loop—so it handles natural pauses and interruptions the way a real receptionist would. It also shares your chatbot's knowledge base, so it already knows your business. In blind tests, most callers cannot distinguish our AI from a real human receptionist.",
+  },
+  {
+    q: 'Does SMS marketing share the same knowledge base as chat and voice?',
+    a: 'Yes. Your website, PDFs, and FAQs are ingested once into a shared knowledge base that powers chat, the voice receptionist, and SMS auto-replies alike. On top of that, SMS Marketing adds Telnyx-powered campaigns, keyword auto-replies, drip sequences, Text-to-Win contests, birthday clubs, and appointment reminders, with STOP/HELP consent compliance built in.',
   },
   {
     q: 'What integrations are available?',
@@ -373,7 +383,7 @@ export const FeaturesPage: React.FC = () => {
         'Great question! BuildMyBot can help with that. Our AI learns from your website and documents to provide accurate, instant responses 24/7.',
         "That's one of our most popular features! Thousands of businesses use it to capture more leads and convert visitors into customers.",
         'Absolutely! Our platform is designed to be intuitive—no coding required. Most businesses are up and running in under 5 minutes.',
-        "Our Voice Agent powered by Cartesia sounds incredibly human. Customers often can't tell they're speaking with AI!",
+        "Our Voice Agent runs on BuildMyBot's realtime voice engine, so it sounds incredibly human and can even handle interruptions mid-sentence. Customers often can't tell they're speaking with AI!",
       ];
       const randomResponse =
         responses[Math.floor(Math.random() * responses.length)];

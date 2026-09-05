@@ -334,7 +334,7 @@ export const LandingPage: React.FC<LandingProps> = ({
     },
     {
       q: 'How realistic does the voice agent actually sound?',
-      a: "This is our biggest differentiator. We use Grok's cutting-edge neural voice synthesis — the same caliber of technology used in Hollywood productions. In real-world calls, the vast majority of callers cannot tell they're speaking with AI. It has natural inflection, appropriate pauses, and emotional warmth. It's not the robotic voice you've heard from other services.",
+      a: "This is our biggest differentiator. Calls run on BuildMyBot's own realtime, two-way voice engine — not an old-school record-transcribe-respond loop — so it handles natural pauses, interruptions, and barge-in the way a real receptionist would. In real-world calls, the vast majority of callers cannot tell they're speaking with AI. It has natural inflection, appropriate pauses, and emotional warmth. It's not the robotic voice you've heard from other services.",
     },
     {
       q: 'How quickly can I get started?',
@@ -354,7 +354,11 @@ export const LandingPage: React.FC<LandingProps> = ({
     },
     {
       q: 'How is this different from other AI chatbot/phone services?',
-      a: "Most AI solutions use basic text-to-speech that sounds obviously robotic. BuildMyBot uses Grok's state-of-the-art voice synthesis with sub-second latency, natural breathing patterns, and human-like inflection. Combined with advanced AI understanding, our voice agents have real conversations — not scripted responses. Plus you get both chatbot AND voice agent in one platform.",
+      a: "Most AI solutions use basic text-to-speech that sounds obviously robotic and reply in a slow ask-then-wait loop. BuildMyBot's voice receptionist runs on our own realtime voice engine with sub-second latency, natural breathing patterns, and human-like inflection — callers can even interrupt it mid-sentence like they would a real person. Combined with advanced AI understanding and the same knowledge base your chatbot uses, our voice agents have real conversations — not scripted responses. Plus you get chatbot, voice, and SMS marketing in one shared-knowledge platform.",
+    },
+    {
+      q: 'Do you offer SMS marketing too?',
+      a: 'Yes. Beyond chat and voice, BuildMyBot includes Telnyx-powered SMS marketing on your own business number — two-way campaigns, keyword auto-replies, drip sequences, Text-to-Win contests, birthday clubs, and appointment reminders, with STOP/HELP consent handling built in. It shares the same knowledge base as your chatbot and voice agent, so every channel knows your business.',
     },
     {
       q: 'Is there a free trial?',
@@ -890,11 +894,12 @@ export const LandingPage: React.FC<LandingProps> = ({
             </div>
             <div className="mt-6 pt-6 border-t border-slate-100 flex flex-wrap justify-center gap-4 sm:gap-8 text-xs text-slate-400">
               <span className="flex items-center gap-2">
-                <Sparkles size={14} className="text-blue-500" /> Powered by Grok
-                4.1
+                <Sparkles size={14} className="text-blue-500" /> Powered by
+                MiniMax M3
               </span>
               <span className="flex items-center gap-2">
-                <Mic size={14} className="text-purple-500" /> Grok Neural Voice
+                <Mic size={14} className="text-purple-500" /> Realtime Two-Way
+                Voice
               </span>
               <span className="flex items-center gap-2">
                 <Shield size={14} className="text-emerald-500" />{' '}
@@ -969,9 +974,10 @@ export const LandingPage: React.FC<LandingProps> = ({
                   </span>
                 </h2>
                 <p className="text-slate-300 text-lg max-w-3xl mx-auto leading-relaxed">
-                  Powered by next-generation neural voice synthesis — the same
-                  technology used in Hollywood. Answers calls, qualifies leads,
-                  books appointments, and transfers when needed. No scripts. No
+                  Powered by BuildMyBot's own realtime, two-way voice engine —
+                  not an old-school record-and-respond loop. Answers calls,
+                  qualifies leads, books appointments, and transfers when
+                  needed, with natural pauses and barge-in. No scripts. No
                   robots.
                 </p>
               </div>

@@ -18,6 +18,7 @@ import {
   PREMIUM_ADDONS,
   PREMIUM_SERVICES,
   SALES_AGENT_TIERS,
+  SMS_MARKETING_PRICING,
   TEMPLATE_MARKETPLACE_PRICING,
   VOICE_AGENT_PRICING,
 } from '../../../constants';
@@ -415,6 +416,55 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onLogin }) => {
               </ul>
             </div>
           </div>
+        </section>
+
+        {/* ── SMS Marketing Add-On ── */}
+        <section className="space-y-8">
+          <div className="text-center space-y-3">
+            <h2 className="text-3xl font-bold text-slate-900">
+              Telnyx SMS Marketing Add-On
+            </h2>
+            <p className="text-lg text-slate-600 max-w-3xl mx-auto">
+              Two-way SMS campaigns, keyword auto-replies, sequences,
+              Text-to-Win contests, birthday clubs, and appointment reminders —
+              on your own Telnyx number, sharing the same knowledge base as your
+              chatbot and voice agent.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {SMS_MARKETING_PRICING.map((plan) => (
+              <div
+                key={plan.id}
+                className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm"
+              >
+                <h3 className="font-bold text-lg text-slate-900 mb-1">
+                  {plan.name}
+                </h3>
+                <div className="text-2xl font-bold text-slate-900 mb-4">
+                  ${plan.price}
+                  <span className="text-sm font-normal text-slate-500">
+                    /mo
+                  </span>
+                </div>
+                <ul className="space-y-2 text-sm text-slate-600">
+                  {plan.features.map((feature) => (
+                    <li key={feature} className="flex items-start gap-2">
+                      <CheckCircle
+                        size={16}
+                        className="text-emerald-500 shrink-0 mt-0.5"
+                      />
+                      <span>{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+          <p className="text-center text-sm text-slate-500 max-w-2xl mx-auto">
+            Sending unlocks once your organization completes Telnyx 10DLC brand
+            and campaign registration — a standard carrier requirement for any
+            business texting platform, not a BuildMyBot limitation.
+          </p>
         </section>
 
         {/* ── High-Ticket Professional Services ── */}

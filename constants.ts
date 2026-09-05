@@ -380,13 +380,13 @@ export const DEFAULT_CHAT_MODEL = 'openrouter-minimax-m3';
 // are derived so the pricing page can never drift from what is charged.
 const VOICE_PLAN_FEATURES: Record<string, string[]> = {
   VOICE_BASIC: [
-    'Cartesia ultra-realistic voice',
+    'Realtime, two-way AI voice',
     'Basic call routing',
     'Call transcripts',
     'Email support',
   ],
   VOICE_STANDARD: [
-    'All Cartesia voices',
+    'Shared chatbot + voice knowledge base',
     'Advanced call routing',
     'Call transfers',
     'Scheduling workflows',
@@ -430,9 +430,11 @@ export const VOICE_AGENT_PRICING = Object.entries(VOICE_PLANS).map(
  * Requires the tenant to complete 10DLC brand+campaign registration
  * (api/sms/register.ts) before sending is unlocked -- see SmsMarketing.tsx.
  *
- * NOT YET PUBLISHED anywhere -- no route links to the page that renders
- * this yet (Don's call, 2026-09-04: build it now, keep it unpublished until
- * a real Telnyx account + registration flow is verified end-to-end).
+ * Published in navConfig.tsx client nav and on the pricing/features pages
+ * as of the 2026-09-05 product-surface refresh. Actual sending still gates
+ * on each tenant completing Telnyx 10DLC brand+campaign registration --
+ * that is a carrier compliance requirement, not a BuildMyBot-side hold, so
+ * it does not block advertising or linking the feature.
  *
  * `stripePriceEnv` follows the same convention as VOICE_PLANS -- checkout
  * resolves the real Stripe Price ID server-side, never trusts a

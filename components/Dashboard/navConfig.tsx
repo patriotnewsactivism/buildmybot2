@@ -26,6 +26,7 @@ import {
   Server,
   Settings,
   ShoppingBag,
+  Smartphone,
   Sparkles,
   UserCog,
   Users,
@@ -177,6 +178,11 @@ export const NAV: Record<NavRole, NavGroup[]> = {
         { label: 'Dashboard', to: '/app', icon: LayoutDashboard, end: true },
         { label: 'My Bots', to: '/app/bots', icon: Bot },
         { label: 'Voice Receptionist', to: '/app/phone', icon: Phone },
+        {
+          label: 'SMS Marketing',
+          to: '/app/sms-marketing',
+          icon: Smartphone,
+        },
         {
           label: 'Conversations',
           to: '/app/conversations',
