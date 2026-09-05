@@ -96,13 +96,13 @@ const coreFeatures = [
   {
     icon: Users,
     title: 'Lead CRM & Analytics',
-    subtitle: 'Never Miss a Lead',
+    subtitle: 'One Pipeline, Every Channel',
     description:
-      'Automatically capture, score, and nurture leads from every channel. Sentiment analysis, topic detection, and full conversation search turn every chat, call, and text into a pipeline you can act on.',
+      'Chat, voice, and SMS all feed the same CRM. Set the buying signals or triggers that matter to your business, and the moment the AI hears one — on any channel — it scores the lead and hands it to the right person instantly, with full context.',
     highlights: [
-      'Automatic lead scoring',
+      'Automatic lead scoring across chat, voice & SMS',
+      'Instant handoff on buying signals you define',
       'Sentiment analysis & conversation search',
-      'Smart follow-ups & pipeline management',
       'Real-time analytics dashboard',
     ],
     gradient: 'from-emerald-500 to-teal-600',
@@ -426,9 +426,9 @@ export const FeaturesPage: React.FC = () => {
               </h1>
 
               <p className="text-xl text-blue-100/80 max-w-3xl mx-auto leading-relaxed">
-                From chatbots to voice agents, lead capture to marketing
-                automation—BuildMyBot gives you everything to convert visitors
-                into customers, 24/7.
+                Chatbot, voice receptionist, and SMS marketing all trained on
+                one shared knowledge base and feeding one CRM—so every buying
+                signal, on any channel, reaches the right person instantly.
               </p>
 
               <div className="flex flex-wrap justify-center gap-4 pt-4">

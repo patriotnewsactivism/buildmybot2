@@ -188,6 +188,13 @@ export const SEOConfig = {
     keywords:
       'chatbot features, ai voice receptionist, sms marketing, sms marketing campaigns, shared knowledge base, lead capture, CRM integration, customer engagement',
   },
+  smsMarketing: {
+    title: 'SMS Marketing | Two-Way Text Campaigns for Your Business',
+    description:
+      'Two-way SMS campaigns, keyword auto-replies, Text-to-Win contests, birthday clubs, and appointment reminders on your own business number — connected to the same CRM as your chatbot and voice receptionist.',
+    keywords:
+      'sms marketing, text message marketing, keyword auto-reply, text to win, sms campaigns, appointment reminders, business texting',
+  },
   marketplace: {
     title: 'Template Marketplace - Pre-built AI Chatbot Templates',
     description:
