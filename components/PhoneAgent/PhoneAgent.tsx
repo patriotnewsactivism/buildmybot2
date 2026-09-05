@@ -193,12 +193,12 @@ export const PhoneAgent: React.FC<PhoneAgentProps> = ({ user, onUpdate }) => {
         </div>
         <div>
           <p className="font-semibold text-slate-800 text-sm">
-            Powered by Gemini Live
+            Powered by Realtime AI Voice
           </p>
           <p className="text-sm text-slate-600 mt-0.5">
-            Production phone calls use a realtime two-way Gemini Live session
-            with natural pauses, barge-in, business knowledge, tool actions,
-            hot-lead alerts, and optional human handoff.
+            Production phone calls use a realtime, two-way AI voice session with
+            natural pauses, barge-in, business knowledge, tool actions, hot-lead
+            alerts, and optional human handoff.
           </p>
         </div>
       </div>
@@ -238,8 +238,8 @@ export const PhoneAgent: React.FC<PhoneAgentProps> = ({ user, onUpdate }) => {
                   Realtime Call Actions
                 </h3>
                 <p className="text-xs text-slate-500">
-                  Configure the actions Gemini Live is allowed to perform on
-                  real calls.
+                  Configure the actions your voice agent is allowed to perform
+                  on real calls.
                 </p>
               </div>
             </div>
@@ -247,7 +247,7 @@ export const PhoneAgent: React.FC<PhoneAgentProps> = ({ user, onUpdate }) => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <label className="text-sm text-slate-700">
                 <span className="block font-medium mb-1">
-                  Gemini Live voice
+                  Receptionist voice
                 </span>
                 <select
                   value={geminiVoice}

@@ -436,7 +436,7 @@ export function VoiceAgentPage() {
     }
 
     setCallState('connecting');
-    setStatus('Starting your limited Gemini Live demo');
+    setStatus('Starting your limited live voice demo');
     setErrorMessage('');
     setInputTranscript('');
     setOutputTranscript('');
@@ -473,7 +473,7 @@ export function VoiceAgentPage() {
         track.enabled = true;
       }
       streamRef.current = microphoneStream;
-      setStatus('Microphone ready — connecting to Gemini Live');
+      setStatus('Microphone ready — connecting to your voice receptionist');
 
       const tokenResponse = await fetch('/api/voice/live-token', {
         method: 'POST',
@@ -494,7 +494,7 @@ export function VoiceAgentPage() {
       socketRef.current = socket;
 
       socket.onopen = () => {
-        setStatus('Connecting to Gemini Live');
+        setStatus('Connecting to your voice receptionist');
         const model = tokenPayload.model || GEMINI_MODEL;
         // Voice, VAD, thinking, transcription and system instructions are
         // locked into the short-lived token on the server.
@@ -609,7 +609,7 @@ export function VoiceAgentPage() {
               <ArrowLeft size={16} /> Back to BuildMyBot
             </Link>
             <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-blue-400/25 bg-blue-400/10 px-4 py-2 text-sm font-semibold text-blue-200">
-              <Sparkles size={16} /> Gemini Live AI Receptionist
+              <Sparkles size={16} /> Realtime AI Receptionist
             </div>
             <h1 className="max-w-4xl text-5xl font-black leading-[1.02] tracking-tight sm:text-6xl lg:text-7xl">
               An AI receptionist that can actually{' '}
@@ -656,8 +656,8 @@ export function VoiceAgentPage() {
               </Link>
             </div>
             <p className="mt-4 text-sm text-slate-500">
-              No prerecorded clip. This opens a real two-way Gemini Live session
-              with a warm natural voice, then ends automatically to control demo
+              No prerecorded clip. This opens a real two-way voice session with
+              a warm natural voice, then ends automatically to control demo
               cost.
             </p>
           </div>
@@ -770,9 +770,9 @@ export function VoiceAgentPage() {
                 </span>
               </div>
               <p className="mt-3 text-center text-xs leading-5 text-slate-500">
-                Real two-way Gemini Live audio — not a recording. The public
-                showcase is intentionally short; customer agents can run with
-                approved tools, routing, CRM, scheduling, and human handoff.
+                Real two-way voice audio — not a recording. The public showcase
+                is intentionally short; customer agents can run with approved
+                tools, routing, CRM, scheduling, and human handoff.
               </p>
             </div>
           </div>
@@ -808,9 +808,9 @@ export function VoiceAgentPage() {
               A voice agent built to do business, not just answer questions.
             </h2>
             <p className="mt-5 text-lg leading-8 text-slate-400">
-              Gemini Live handles the conversation layer. BuildMyBot connects
-              that conversation to the business systems that make the call
-              valuable.
+              BuildMyBot's realtime voice engine handles the conversation layer
+              and connects it directly to the business systems that make the
+              call valuable.
             </p>
           </div>
 

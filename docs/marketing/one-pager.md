@@ -7,7 +7,7 @@
 # BuildMyBot One-Pager
 
 ## What it is
-BuildMyBot is a white-label AI chatbot and voice agent platform that captures leads, answers FAQs, and automates follow-up 24/7.
+BuildMyBot is a white-label AI platform built on one shared business knowledge base that powers a chatbot, a realtime voice receptionist, and SMS marketing — capturing leads, answering FAQs, and automating follow-up 24/7 across every channel.
 
 ## Who it helps
 - Local businesses that miss leads after hours
@@ -18,20 +18,23 @@ BuildMyBot is a white-label AI chatbot and voice agent platform that captures le
 - Missed leads due to delayed responses
 - Repetitive questions taking staff time
 - Limited lead capture on high traffic pages
+- Leads that fall through the cracks between phone, text, and web chat
 
 ## Key benefits
-- Instant responses for visitors
+- Instant responses for visitors, callers, and text subscribers alike
+- One knowledge base trains your chatbot, voice agent, and SMS replies together
 - More captured leads from existing traffic
 - Simple setup without developers
 - Clear analytics and chat logs
 
 ## How it works (3 steps)
-1) Train on your website and FAQs
-2) Configure branding and lead capture rules
-3) Install one script and go live
+1) Train once on your website, PDFs, and FAQs
+2) Configure branding, lead capture rules, and which channels to turn on
+3) Install one script and go live on chat, voice, and SMS
 
 ## Optional upgrades
-- Voice agent for phone calls
+- AI voice receptionist for phone calls — realtime, two-way conversation with barge-in, on a new, forwarded, or ported number
+- Telnyx SMS marketing — two-way campaigns, keyword auto-replies, sequences, Text-to-Win contests, birthday clubs, and appointment reminders, with STOP/HELP consent handling built in
 - White-label branding and custom domain
 - Advanced analytics and integrations
 
