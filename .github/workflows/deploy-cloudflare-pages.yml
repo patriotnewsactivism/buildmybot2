@@ -1,27 +1,5 @@
 name: Deploy BuildMyBot Frontend to Cloudflare Pages
 
-# Why this workflow exists (2026-08-30)
-#
-# DEPLOYMENT.md documents the Pages project as auto-deploying from
-# patriotnewsactivism/buildmybot2@main, but production drifted badly behind
-# the branch: www.buildmybot.app was serving an older bundle than the one
-# `npm run build` produces on main, and its /api/* route still resolved to
-# the retired Railway app, answering
-#   {"status":"error","code":404,"message":"Application not found"}
-# for every request — including /api/cron/*, which is how the AI employees
-# are driven. The Pages Function that proxies /api/* to Cloud Run
-# (functions/api/[[path]].ts) has been committed on main the whole time; it
-# had simply never reached a production Pages deployment.
-#
-# Relying on Cloudflare's git integration left no signal when it stopped
-# firing. This makes the frontend release explicit, versioned with the
-# commit, and verified against the live domain afterwards.
-#
-# OPT-IN: the deploy is skipped (not failed) unless all three of
-# CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_PAGES_PROJECT
-# are configured, so this cannot break CI before those are set. The token
-# needs the "Cloudflare Pages — Edit" permission.
-
 on:
   push:
     branches: [main]
@@ -54,12 +32,12 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       PAGES_PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT || secrets.CLOUDFLARE_PAGES_PROJECT }}
       PUBLIC_SITE_URL: ${{ vars.BUILDMYBOT_PUBLIC_URL || 'https://www.buildmybot.app' }}
+      RAILWAY_ORIGIN: https://buildmybot2-web-production.up.railway.app
 
     steps:
       - uses: actions/checkout@v4
@@ -73,19 +51,9 @@ jobs:
           [[ -n "${CLOUDFLARE_API_TOKEN:-}" ]] || missing+=(CLOUDFLARE_API_TOKEN)
           [[ -n "${CLOUDFLARE_ACCOUNT_ID:-}" ]] || missing+=(CLOUDFLARE_ACCOUNT_ID)
           [[ -n "${PAGES_PROJECT:-}" ]] || missing+=(CLOUDFLARE_PAGES_PROJECT)
-
           if (( ${#missing[@]} )); then
             echo "configured=false" >> "$GITHUB_OUTPUT"
-            {
-              echo "### Cloudflare Pages deploy skipped"
-              echo
-              echo "Not configured: \`${missing[*]}\`."
-              echo
-              echo "Until these are set, the frontend still deploys only through"
-              echo "Cloudflare's own git integration, and \`/api/*\` on the public"
-              echo "domain keeps whatever route it has today."
-            } >> "$GITHUB_STEP_SUMMARY"
-            echo "Skipping: ${missing[*]} not configured."
+            echo "Cloudflare Pages deploy skipped; missing: ${missing[*]}" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "configured=true" >> "$GITHUB_OUTPUT"
           fi
@@ -104,10 +72,6 @@ jobs:
       - name: Build frontend
         if: steps.gate.outputs.configured == 'true'
         env:
-          # Baked into the bundle at build time, so a change here needs a
-          # redeploy to take effect. VITE_API_URL is deliberately empty:
-          # the browser calls same-origin /api/*, which the Pages Function
-          # forwards to Cloud Run.
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL || secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           VITE_STRIPE_PUBLISHABLE_KEY: ${{ secrets.VITE_STRIPE_PUBLISHABLE_KEY }}
@@ -115,84 +79,81 @@ jobs:
           VITE_API_URL: ''
         run: npm run build
 
-      - name: Confirm Pages assets are in the build output
+      - name: Confirm Pages assets and origin functions
         if: steps.gate.outputs.configured == 'true'
         shell: bash
         run: |
           set -euo pipefail
-          # _headers/_redirects are served from the uploaded output directory,
-          # while functions/ is compiled from the repo root. A silent loss of
-          # either is what produces a "deployed but behaving like the old
-          # build" Pages release, so fail loudly instead.
-          for f in dist/_headers dist/_redirects dist/index.html; do
-            [[ -f "$f" ]] || { echo "Missing $f in build output." >&2; exit 1; }
+          for f in dist/_headers dist/_redirects dist/index.html 'functions/[[path]].ts' 'functions/api/[[path]].ts'; do
+            [[ -f "$f" ]] || { echo "Missing $f" >&2; exit 1; }
           done
-          for f in 'functions/[[path]].ts' 'functions/api/[[path]].ts'; do
-            [[ -f "$f" ]] || {
-              echo "Missing $f — the public domain would not be backed by Cloud Run." >&2
-              exit 1
-            }
+
+      - name: Wait for Railway deployment of this commit
+        if: steps.gate.outputs.configured == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          live_sha=''
+          status=000
+          for _ in $(seq 1 40); do
+            status="$(curl -sS -o /tmp/railway-health.json -w '%{http_code}' --max-time 20 "${RAILWAY_ORIGIN}/api/health" || true)"
+            live_sha="$(jq -r '.build.sha // empty' /tmp/railway-health.json 2>/dev/null || true)"
+            if [[ "$status" == "200" && "$live_sha" == "$GITHUB_SHA" ]]; then break; fi
+            sleep 10
           done
-          echo 'Build output and Cloud Run origin proxy are present.'
+          echo "Railway /api/health -> HTTP $status sha=${live_sha:-unknown}"
+          if [[ "$status" != "200" || "$live_sha" != "$GITHUB_SHA" ]]; then
+            echo "::error::Railway did not reach the release SHA before the public cutover." >&2
+            cat /tmp/railway-health.json >&2 || true
+            exit 1
+          fi
 
       - name: Deploy to Cloudflare Pages
         if: steps.gate.outputs.configured == 'true'
         shell: bash
         run: |
           set -euo pipefail
-          # `wrangler pages deploy <dir>` uploads <dir> as the static output and
-          # compiles ./functions from the working directory into the Pages
-          # Function bundle. --branch=main targets the production deployment.
           npx --yes wrangler@4 pages deploy dist \
             --project-name "$PAGES_PROJECT" \
             --branch main \
             --commit-hash "$GITHUB_SHA" \
             --commit-message "$(git log -1 --pretty=%s)"
 
-      - name: Verify the public domain is backed by the deployed Cloud Run revision
+      - name: Verify public Railway-primary routing
         if: steps.gate.outputs.configured == 'true'
         shell: bash
         run: |
           set -euo pipefail
           status=000
-          body=''
           live_sha=''
           for _ in $(seq 1 30); do
-            status="$(curl -sS -D /tmp/public-headers.txt -o /tmp/health.json -w '%{http_code}' --max-time 20               "${PUBLIC_SITE_URL%/}/health" || true)"
-            body="$(cat /tmp/health.json 2>/dev/null || true)"
+            status="$(curl -sS -D /tmp/public-headers.txt -o /tmp/health.json -w '%{http_code}' --max-time 20 "${PUBLIC_SITE_URL%/}/api/health" || true)"
             live_sha="$(jq -r '.build.sha // empty' /tmp/health.json 2>/dev/null || true)"
-            if [[ "$status" == "200" ]]               && [[ "$live_sha" == "$GITHUB_SHA" ]]               && grep -qi '^x-buildmybot-origin: cloud-run' /tmp/public-headers.txt; then
+            if [[ "$status" == "200" && "$live_sha" == "$GITHUB_SHA" ]] && grep -qi '^x-buildmybot-origin: railway' /tmp/public-headers.txt; then
               break
             fi
             sleep 10
           done
-
-          echo "GET ${PUBLIC_SITE_URL%/}/health -> HTTP $status"
-          echo "$body"
-
+          echo "GET ${PUBLIC_SITE_URL%/}/api/health -> HTTP $status sha=${live_sha:-unknown}"
+          cat /tmp/health.json || true
           if [[ "$status" != "200" ]]; then
-            echo "::error::Expected HTTP 200 from public /health, got $status." >&2
+            echo "::error::Public health did not return HTTP 200." >&2
             exit 1
           fi
           if [[ "$live_sha" != "$GITHUB_SHA" ]]; then
-            echo "::error::Public domain is not serving the deployed Cloud Run SHA. expected=$GITHUB_SHA actual=${live_sha:-unknown}" >&2
+            echo "::error::Public domain is not serving the release SHA." >&2
             exit 1
           fi
-          if ! grep -qi '^x-buildmybot-origin: cloud-run' /tmp/public-headers.txt; then
-            echo "::error::Public traffic is not passing through the Cloud Run origin proxy." >&2
+          if ! grep -qi '^x-buildmybot-origin: railway' /tmp/public-headers.txt; then
+            echo "::error::Public traffic is not using Railway as primary origin." >&2
             exit 1
           fi
-
-          voice_status="$(curl -sS -o /tmp/voice-agent.html -w '%{http_code}' --max-time 20             "${PUBLIC_SITE_URL%/}/voice-agent")"
-          if [[ "$voice_status" != "200" ]]; then
-            echo "::error::Standalone voice-agent page returned HTTP $voice_status." >&2
-            exit 1
-          fi
-
+          voice_status="$(curl -sS -o /tmp/voice-agent.html -w '%{http_code}' --max-time 20 "${PUBLIC_SITE_URL%/}/voice-agent")"
+          [[ "$voice_status" == "200" ]] || { echo "::error::Voice-agent page returned HTTP $voice_status." >&2; exit 1; }
           {
-            echo "### BuildMyBot Cloud Run frontend deployed"
-            echo "- Commit: `$GITHUB_SHA`"
-            echo "- Public health: HTTP $status"
-            echo "- Voice page: HTTP $voice_status"
-            echo "- Public traffic is served from the Cloud Run revision."
+            echo "### BuildMyBot public release verified"
+            echo "- Commit: \`$GITHUB_SHA\`"
+            echo "- Railway primary: HTTP 200"
+            echo "- Public /api/health: HTTP 200"
+            echo "- Voice page: HTTP 200"
           } >> "$GITHUB_STEP_SUMMARY"

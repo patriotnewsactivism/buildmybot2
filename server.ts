@@ -97,13 +97,19 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 
-// Lightweight production health/provenance endpoint used by Cloud Run deploy verification.
+// Lightweight production health/provenance endpoint used by deploy verification.
+// Railway injects RAILWAY_GIT_COMMIT_SHA for GitHub-backed deployments; Cloud
+// Run receives BUILD_SHA from its deployment workflow.
 const healthPayload = () => ({
   status: 'ok',
   service: 'buildmybot2',
   timestamp: new Date().toISOString(),
   build: {
-    sha: process.env.BUILD_SHA || process.env.K_REVISION || 'unknown',
+    sha:
+      process.env.BUILD_SHA ||
+      process.env.RAILWAY_GIT_COMMIT_SHA ||
+      process.env.K_REVISION ||
+      'unknown',
     deployedAt: process.env.BUILD_TIME || null,
   },
 });

@@ -1,364 +1,240 @@
-# BuildMyBot — Official Deployment & Operations
+# BuildMyBot — Production Deployment & Operations
 
-_Last updated: 2026-09-04 (P1 production hardening). This document describes the supported production topology and the phone-agent activation rollout._
+_Last updated: 2026-09-05._
 
-> **Current production path (the only supported one):**
-> **Cloudflare Pages (SPA + `/api/*` proxy) → Google Cloud Run (Express API) → Supabase (Postgres).**
->
-> Netlify (`netlify.toml`) and any Vercel artefacts in this repository are
-> historical compatibility leftovers, not deployment authority. Do not deploy
-> production from them.
->
-> **Do not restore Vercel, Railway, Netlify or AWS as BuildMyBot production hosts.**
-> Old references may remain in history or compatibility code, but they are not
-> deployment authority.
+This file is the deployment authority for `patriotnewsactivism/buildmybot2`.
 
-## 1. Production topology
+## 1. Supported production topology
 
-| Layer | Production responsibility | Location |
-|---|---|---|
-| Frontend | Vite + React SPA | Cloudflare Pages for `buildmybot.app` / `www.buildmybot.app` |
-| Backend/API | Express/Node container wrapping the existing `api/` handlers | Google Cloud Run |
-| Cloud Run project | `buildmybot-507112` | Google Cloud |
-| Cloud Run service | `buildmybot2` | `us-central1` |
-| Verified service URL | `https://buildmybot2-fq5disxp2a-uc.a.run.app` | Google Cloud Run |
-| Browser API bridge | Same-origin `/api/*` proxy | Cloudflare Pages Function `functions/api/[[path]].ts` |
-| Database | Supabase Postgres / REST | project `evkjlnbpntimbxklnhoz` |
-| Primary AI-team provider | OpenRouter MiniMax M3 Free → Nemotron 3 Ultra Free stack | server-side only |
-| Realtime voice | Gemini Live | server-side only |
-| Telephony | Twilio Programmable Voice + bidirectional Media Streams | tenant-isolated Twilio subaccounts for new activations |
-
-Cloud Run is the backend authority. Frontend hosts must **proxy** `/api/*` to it;
-do not redirect authenticated browser traffic to `*.run.app`, because the
-host-only session cookie would no longer be sent to the application domain.
-
-### Last verified backend state
-
-On 2026-08-30 the Cloud Run backend answered:
+Target and approved topology:
 
 ```text
-GET /api/health      -> 200 {"status":"ok","service":"buildmybot-api"}
-GET /api/auth/user   -> 401 {"error":"Not authenticated"}  # correct when logged out
+buildmybot.app / www.buildmybot.app
+        |
+        v
+Cloudflare Pages + Pages Functions
+        |
+        +--> Railway buildmybot2-web                  PRIMARY
+        |    https://buildmybot2-web-production.up.railway.app
+        |
+        +--> Google Cloud Run buildmybot2             GET/HEAD FALLBACK
+             https://buildmybot2-fq5disxp2a-uc.a.run.app
+        |
+        v
+Supabase blyebndyrojmreensbxe
 ```
 
-At that time the public Cloudflare Pages release was stale and its `/api/*`
-path still reached a retired Railway edge. The repository contains an explicit
-Cloudflare Pages deployment workflow and a Pages Function that proxies to
-Cloud Run. Before treating the public domain as healthy, verify it again:
+Railway is an approved production host and is the primary application/API origin. The previous blanket rule forbidding Railway is obsolete and must not be restored. Cloud Run remains an approved warm fallback.
+
+Cloudflare keeps the public hostname stable and proxies application traffic through `functions/[[path]].ts` and API traffic through `functions/api/[[path]].ts`. The proxy may fail over idempotent `GET`/`HEAD` requests from Railway to Cloud Run on a network failure or 5xx response. It **must not** automatically replay `POST`, `PUT`, `PATCH`, or `DELETE` to another backend because that could duplicate payments, messages, provisioning, or database writes.
+
+Vercel/Netlify artifacts may remain for compatibility/history but are not the current production authority.
+
+## 2. Deployment identities
+
+### Railway primary
+
+```text
+Project:     e1170aa8-02f5-4fe3-8fce-e066133938c1
+Environment: 6ce38db0-789b-4fe9-ad02-f068fe6866ae
+Service:     60b6d260-f5d8-463d-87be-58339545eaaf
+Domain:      buildmybot2-web-production.up.railway.app
+```
+
+GitHub's Railway status context is `BuildMyBot2 - buildmybot2-web`. Railway injects `RAILWAY_GIT_COMMIT_SHA`, which `/health` and `/api/health` use for release provenance.
+
+`.github/workflows/deploy-railway.yml` synchronizes approved production configuration from GitHub secrets into this service. Do not copy credentials from another application or account merely to make a deploy pass.
+
+### Cloud Run fallback
+
+```text
+Google project: buildmybot-507112
+Region:         us-central1
+Service:        buildmybot2
+Service URL:    https://buildmybot2-fq5disxp2a-uc.a.run.app
+Identity:       buildmybotsa@buildmybot-507112.iam.gserviceaccount.com
+```
+
+`.github/workflows/deploy-cloud-run.yml` builds an immutable container and deploys it through Google authentication. Cloud Run receives `BUILD_SHA=$GITHUB_SHA`.
+
+## 3. Public release verification
+
+A merge is not a completed production release until the exact SHA is visible through the serving stack.
+
+Required checks:
 
 ```bash
-curl -fsS https://www.buildmybot.app/api/health
-curl -s -o /dev/null -w '%{http_code}\n' https://www.buildmybot.app/pricing
+# Railway primary
+curl -fsS https://buildmybot2-web-production.up.railway.app/api/health
+
+# Public domain through Cloudflare
+curl -i https://www.buildmybot.app/api/health
 ```
 
-`/api/health` must be answered by BuildMyBot/Cloud Run, not Railway.
+Expected public result:
 
-### Health and deploy provenance
+- HTTP 200;
+- JSON `status: "ok"`;
+- `build.sha` equals the intended GitHub `main` SHA;
+- response header `x-buildmybot-origin: railway`.
 
-Both `/health` and `/api/health` return the same payload, including the build
-SHA that is actually running:
+`x-buildmybot-origin: cloud-run-fallback` means the public read path is alive but Railway primary is unhealthy or unavailable. Treat that as degraded production, not a successful Railway release.
 
-```json
-{ "status": "ok", "service": "buildmybot2", "build": { "sha": "<git sha>" } }
-```
+## 4. Production Supabase project — migration hold
 
-`BUILD_SHA` must be injected at deploy time (`--set-env-vars BUILD_SHA=$GITHUB_SHA`).
-A health response with `build.sha` of `unknown` means the running revision was
-not deployed by the workflow and must not be treated as production-healthy.
-
-### Container entrypoint
-
-`server.ts` is the single production entrypoint (`npx tsx server.ts`). All
-runtime dependencies — including `cookie-parser` — are pinned in
-`package.json`; the Dockerfile no longer installs anything with `--no-save`.
-
-## 2. Cloud Run deployment
-
-The deployment workflow authenticates to Google Cloud through GitHub OIDC /
-Workload Identity and deploys an immutable container to the existing Cloud Run
-service.
-
-Production identity used by the verified workflow:
+Active project:
 
 ```text
-buildmybotsa@buildmybot-507112.iam.gserviceaccount.com
+blyebndyrojmreensbxe
+https://blyebndyrojmreensbxe.supabase.co
 ```
 
-Do not create a parallel BuildMyBot backend merely to work around a failed
-deployment. Fix the existing Cloud Run path.
+### DO NOT BLINDLY RUN `supabase db push`
 
-### Domain mapping option
+The September 5, 2026 production audit found existing BuildMyBot application relations but no usable Supabase CLI migration-history baseline. Repository migration files therefore cannot safely be assumed to be unapplied.
 
-The application can also be served directly from Cloud Run behind a Google
-Cloud Run domain mapping, with Cloudflare providing DNS only:
+`.github/workflows/supabase-migrations.yml` is intentionally audit-only. It may link the project and inspect migration history; it must not apply migrations until the baseline is reconciled.
+
+Follow `docs/MIGRATION_BASELINE_RECONCILIATION.md` before any production migration write. The process requires inventorying the live schema and repository history object-by-object, repairing migration history only for migrations proven to be represented in production, then inspecting a dry-run before applying reviewed deltas.
+
+Do not solve missing migration history by resetting, recreating, or blindly replaying the production schema.
+
+## 5. Container/runtime
+
+The production application is a real Express/Node server, not Vercel-only serverless code.
+
+```text
+Entrypoint: server.ts
+Container:  Dockerfile
+Port:       8080
+Frontend:   Vite output in dist/
+Backend:    api/* mounted through Express handlers
+WebSocket:  /api/voice/twilio-media
+```
+
+The Dockerfile builds the Vite client and copies the server/API/shared runtime into the final Node image.
+
+Core release gates:
 
 ```bash
-gcloud beta run domain-mappings create \
-  --service buildmybot2 \
-  --domain www.buildmybot.app \
-  --region us-central1 \
-  --project buildmybot-507112
-```
-
-When using Google-managed domain mapping, the Cloudflare record used for
-validation must be DNS-only while Google validates the domain and provisions
-the certificate.
-
-## 3. Core server environment
-
-Never commit real secret values. Production secrets belong in Google Secret
-Manager / the approved deployment secret path.
-
-| Variable | Requirement | Purpose |
-|---|---|---|
-| `SUPABASE_URL` | required | Supabase project URL |
-| `SUPABASE_SERVICE_ROLE_KEY` | required | Server-side database access; never expose with a `VITE_` prefix |
-| `SESSION_JWT_SECRET` | required | Session token signing |
-| `ENCRYPTION_KEY` | required for tenant telephony | AES-256-GCM key material used to encrypt stored telephony subaccount credentials |
-| `OPENROUTER_API_KEY_2` | primary AI team | Preferred OpenRouter key |
-| `OPENROUTER_API_KEY` | fallback AI team | OpenRouter fallback |
-| `RESEND_API_KEY` | email | Outbound AI-employee mail |
-| `INBOUND_EMAIL_WEBHOOK_SECRET` | inbound email | Authenticates inbound email delivery |
-| `CRON_SECRET` | scheduled work | Authenticates cron/workforce triggers |
-| `PORTFOLIO_INTAKE_SECRET` | portfolio capture | Authenticates portfolio lead intake |
-| `BASE44_SUPERAGENT_API_KEY` | optional | Server-side Base44 worker credential |
-| `STRIPE_SECRET_KEY` | billing | Server-side Stripe access |
-| `STRIPE_WEBHOOK_SECRET` | billing | Stripe webhook verification |
-| `SENTRY_DSN` | observability | Server error reporting |
-
-The full annotated set remains in `.env.example`.
-
-### Frontend build variables
-
-| Variable | Requirement | Purpose |
-|---|---|---|
-| `VITE_SUPABASE_URL` | required | Public Supabase URL |
-| `VITE_SUPABASE_ANON_KEY` | required | Public anon key; RLS applies |
-| `VITE_API_URL` | normally empty | Keeps browser API traffic same-origin |
-| `VITE_STRIPE_PUBLISHABLE_KEY` | when billing is live | Stripe publishable key |
-| `BUILDMYBOT_API_ORIGIN` | optional | Cloud Run origin for the Pages Function and server-to-server workflows |
-
-Redeploy the frontend after changing `VITE_*` values because they are baked
-into the Vite bundle.
-
-## 4. AI phone-agent production architecture
-
-The authenticated customer console remains `/app/phone`.
-
-Canonical production call path:
-
-```text
-Caller
-  -> customer Twilio number
-  -> tenant Twilio subaccount
-  -> signed webhook
-  -> BuildMyBot Cloud Run
-  -> Twilio bidirectional Media Stream
-  -> /api/voice/twilio-media
-  -> Gemini Live
-  -> shared bot / RAG knowledge
-  -> optional tools, lead capture, appointment action, hot-lead alert, human handoff
-```
-
-The realtime engine is Gemini Live. The existing Gather/LLM/TTS path remains a
-fallback for legacy numbers and for situations where realtime voice cannot be
-started.
-
-### Activation modes
-
-The guided **Activate Your AI Phone Agent** flow supports three distinct modes:
-
-1. **Get a New Number**
-   - customer selects an available Twilio number;
-   - BuildMyBot provisions it into that customer's Twilio subaccount;
-   - the number is attached to the selected bot/knowledge workspace;
-   - activation is only reported successful after Twilio and Supabase both
-     confirm their writes.
-
-2. **Use My Existing Number**
-   - BuildMyBot provisions a destination number;
-   - the customer's existing carrier remains authoritative;
-   - the activation status is `awaiting_forwarding`;
-   - the UI provides forwarding instructions;
-   - do **not** claim the existing number is connected until the customer
-     configures forwarding and a real inbound test succeeds.
-
-3. **Port My Number**
-   - BuildMyBot records the request and creates/reuses the tenant telephony
-     account;
-   - initial status is `pending_documents`;
-   - the existing carrier service must remain active;
-   - a Letter of Authorization/carrier documentation and Twilio approval are
-     required before cutover;
-   - do **not** mark a port active merely because the request was recorded.
-
-### Shared chatbot + voice knowledge
-
-By default, the activation endpoint links the phone number to an existing
-tenant bot. The phone call therefore uses the same `bot_id` and the same RAG
-knowledge used by the chatbot. A customer may choose `voice_only` mode to
-create/reuse a separate voice knowledge workspace.
-
-The linking rule is tenant-scoped. A user cannot attach a phone number to a bot
-owned by another organization.
-
-## 5. Twilio subaccount isolation
-
-New phone-agent activations use one active Twilio subaccount per BuildMyBot
-tenant. This isolates phone numbers and usage from other customers while the
-parent BuildMyBot account retains administrative control.
-
-Required parent credentials:
-
-```text
-TWILIO_ACCOUNT_SID
-TWILIO_AUTH_TOKEN
-```
-
-Additional phone-agent configuration:
-
-```text
-ENCRYPTION_KEY
-TWILIO_WEBHOOK_BASE_URL
-GEMINI_API_KEY
-```
-
-`TWILIO_WEBHOOK_BASE_URL` should be the stable HTTPS origin Twilio can reach.
-For the current architecture it may point directly to the Cloud Run service
-until the public `buildmybot.app/api/*` route is independently verified.
-
-### Credential handling
-
-When Twilio creates a subaccount it returns that subaccount's auth token.
-BuildMyBot immediately encrypts the token with AES-256-GCM and stores only the
-ciphertext in `telephony_accounts.auth_token_encrypted`.
-
-Rules:
-
-- never return the encrypted token to the browser;
-- never log the plaintext token;
-- never store the plaintext token in Supabase;
-- never use a customer subaccount token as a frontend environment variable;
-- webhook validation resolves `AccountSid` to the matching encrypted token,
-  decrypts it server-side, and validates `X-Twilio-Signature`;
-- missing or unverifiable signatures are rejected with HTTP 403.
-
-Legacy numbers remain on their current webhook path. New subaccount numbers use
-the activation-specific webhook path, which allows rollout without changing
-existing customer numbers.
-
-## 6. Phone-agent database migration
-
-Apply:
-
-```text
-supabase/migrations/20260901203000_phone_agent_activation.sql
-```
-
-The migration:
-
-- creates `telephony_accounts`;
-- creates `phone_agent_activations`;
-- adds `provider_account_sid`, `setup_mode`, `source_number`,
-  `activation_status`, and `activated_at` to `phone_numbers`;
-- adds indexes used for tenant/account/status lookup;
-- never creates a plaintext auth-token column.
-
-Apply migrations through the approved Supabase workflow:
-
-```bash
-npx supabase login
-npx supabase link --project-ref evkjlnbpntimbxklnhoz
-npx supabase db push
-```
-
-Run migrations before deploying application code that writes the new columns.
-
-## 7. Phone-agent deployment order
-
-Use this order to avoid partial activation:
-
-1. Apply the phone-agent migration.
-2. Confirm Cloud Run has:
-   - `SUPABASE_URL`
-   - `SUPABASE_SERVICE_ROLE_KEY`
-   - `SESSION_JWT_SECRET`
-   - `ENCRYPTION_KEY`
-   - `TWILIO_ACCOUNT_SID`
-   - `TWILIO_AUTH_TOKEN`
-   - `GEMINI_API_KEY`
-   - `TWILIO_WEBHOOK_BASE_URL`
-3. Deploy the backend to Cloud Run.
-4. Verify logged-out activation endpoints reject with 401.
-5. Verify the Twilio webhook endpoints reject unsigned requests with 403.
-6. Deploy the frontend.
-7. With a test tenant:
-   - search an area code;
-   - provision one number;
-   - confirm a tenant Twilio subaccount exists;
-   - confirm `auth_token_encrypted` is ciphertext;
-   - make a real inbound call;
-   - confirm a `call_logs` row is created;
-   - confirm Gemini Live audio works;
-   - confirm the call can query the selected bot's business knowledge.
-8. Test human handoff and appointment tooling only when their configuration is
-   present. Never report a tool action successful unless the external service
-   confirms it.
-
-## 8. Health and acceptance checks
-
-Minimum release checks:
-
-```bash
+npm ci
 npm run lint
 npm run test:run
 npm run build
 ```
 
-Phone-specific acceptance:
+CI is authoritative after push/PR because it runs in a clean Linux environment.
+
+## 6. Core runtime configuration
+
+Never commit secret values.
+
+Important server variables include:
+
+| Variable | Purpose |
+|---|---|
+| `SUPABASE_URL` | Production Supabase URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server-side Supabase access; never expose with `VITE_` prefix |
+| `SESSION_JWT_SECRET` | Session signing |
+| `SESSION_SECRET` | Session/runtime secret where still used |
+| `ENCRYPTION_KEY` | Encrypts provider/subaccount credentials |
+| `OPENROUTER_API_KEY_2`, `OPENROUTER_API_KEY` | AI provider chain |
+| `OPENAI_API_KEY` | Embeddings/legacy OpenAI paths |
+| `GEMINI_API_KEY` | Gemini Live voice |
+| `FIRECRAWL_API_KEY` | Website scraping/crawl |
+| `FIRECRAWL_WEBHOOK_SECRET` | Optional Firecrawl webhook verification |
+| `TELNYX_API_KEY` | Telnyx provisioning/SMS |
+| `TELNYX_MESSAGING_PROFILE_ID` | Telnyx messaging profile |
+| `TELNYX_PUBLIC_KEY` | Telnyx webhook signature validation |
+| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | Billing |
+| `RESEND_API_KEY` | Outbound email |
+| `CRON_SECRET` | Scheduled worker authentication |
+| `SMS_WORKER_SECRET` | SMS durable worker authentication |
+| `SMS_LAUNCH_ENABLED` | Production SMS launch gate |
+
+The complete annotated set belongs in `.env.example`.
+
+Cloudflare Pages Functions support:
 
 ```text
-[ ] New-number activation creates exactly one tenant subaccount and one active number
-[ ] Re-running number search reuses the tenant subaccount
-[ ] Cross-tenant bot IDs are rejected
-[ ] Stored subaccount auth token is encrypted
-[ ] Unsigned/invalid Twilio webhook is HTTP 403
-[ ] Valid subaccount webhook resolves the correct bot
-[ ] Shared knowledge returns answers from the selected bot RAG
-[ ] Forwarding mode remains awaiting_forwarding until the customer configures it
-[ ] Port mode remains pending_documents until carrier/Twilio confirmation
-[ ] Gemini Live path creates/updates call_logs
-[ ] Existing legacy Twilio numbers continue using their existing webhook path
+BUILDMYBOT_PRIMARY_API_ORIGIN
+BUILDMYBOT_FALLBACK_API_ORIGIN
+BUILDMYBOT_API_ORIGIN          # legacy; treated as fallback
 ```
 
-## 9. Rollback
+Defaults are Railway primary and Cloud Run fallback.
 
-Application rollback:
+## 7. Firecrawl contract
 
-1. revert the phone-agent activation commit;
-2. redeploy the prior Cloud Run image;
-3. redeploy the prior frontend bundle if necessary.
+`api/rag.ts` uses Firecrawl for JS-rendered website ingestion.
 
-Data/telephony rollback is deliberately conservative:
+Important distinction:
 
-- do **not** automatically close customer Twilio subaccounts during code
-  rollback;
-- do **not** automatically release purchased phone numbers;
-- do **not** delete port records that may correspond to a real carrier request;
-- instead, disable new activation traffic, inspect the affected tenant, and
-  reconcile Twilio/Supabase state explicitly.
+- crawl request `webhook.events` filters use short names such as `page`, `completed`, and `failed`;
+- webhook payload `type` values are qualified, e.g. `crawl.page`, `crawl.completed`, `crawl.failed`.
 
-The migration is additive and can remain in place while application code is
-rolled back.
+Do not change the request event filters to qualified payload-type strings. Handler comparisons must use the qualified payload `type` values.
 
-## 10. Operational ownership
+Customer-supplied crawl URLs remain subject to SSRF validation.
 
-Primary company address used by the AI workforce:
+## 8. SMS marketing, Text-to-Win, and reminders
 
-```text
-president@buildmybot.app
-```
+The repository includes the durable SMS release model and runtime for:
 
-AI employee and cron operations continue to use the same Cloud Run/Supabase
-production stack. Phone-agent activation does not create a second backend or a
-parallel data store.
+- Telnyx-oriented account/provisioning state;
+- contacts and consent records;
+- campaigns and keyword autoresponders;
+- welcome and after-hours automation;
+- sequences;
+- birthday clubs;
+- appointment reminders;
+- Text-to-Win contests, entries, draws, and approval records;
+- queued delivery jobs and inbound event processing;
+- STOP/HELP/START handling and spend controls.
+
+The migration files being present does not prove these tables/functions can be replayed into production. Keep `SMS_LAUNCH_ENABLED` off and customer-facing launch gated until the database baseline and provider E2E checks are complete.
+
+A production acceptance test must prove a real provider send/receive path, consent/opt-out behavior, worker execution, and the relevant UI before the feature is advertised as live.
+
+## 9. Shared knowledge
+
+Chat, voice, and SMS should use the same tenant-owned knowledge by default. `api/knowledge/business.ts` is the conservative SMS adapter: it resolves the configured shared knowledge mapping where available, falls back to a direct bot id for older deployments, retrieves RAG evidence, and refuses to invent an answer when no evidence is available.
+
+Cross-tenant knowledge IDs must be rejected at configuration time. Never loosen tenant ownership checks to make an integration test pass.
+
+## 10. Voice status
+
+Gemini Live is the intended realtime voice engine.
+
+Current reality:
+
+- realtime bidirectional media is still implemented in `api/voice/twilio-live.ts`;
+- Telnyx is present in the newer SMS/telephony provisioning stack;
+- full Telnyx replacement of the realtime Twilio media bridge is **not yet complete**.
+
+Do not claim Telnyx voice migration complete until a real inbound Telnyx number reaches Gemini Live, uses the correct tenant knowledge, logs the call, and passes handoff/tool tests.
+
+## 11. Safe deployment order
+
+For application-only releases that do not require a database migration:
+
+1. Run clean CI/tests/build.
+2. Merge to `main`.
+3. Confirm the exact SHA on GitHub.
+4. Wait for Railway to deploy that SHA and verify Railway `/api/health`.
+5. Keep the Cloud Run fallback updated through its workflow.
+6. Deploy/verify Cloudflare Pages when frontend/origin-function files changed.
+7. Verify the public domain is serving the exact SHA from Railway.
+8. Run feature smoke tests against `https://www.buildmybot.app`, not only local or provider URLs.
+
+For a release requiring schema changes, stop before step 2 unless the migration baseline has been reconciled and the specific migration has been reviewed as safe.
+
+## 12. Rollback
+
+Application rollback should move the affected host back to a known-good commit/image. Database and telephony rollback is deliberately conservative:
+
+- do not reset or recreate production Supabase;
+- do not automatically release customer numbers;
+- do not delete carrier/port records that may correspond to real external state;
+- do not replay failed mutating requests against both Railway and Cloud Run;
+- disable the affected feature, inspect provider/database state, and reconcile explicitly.
