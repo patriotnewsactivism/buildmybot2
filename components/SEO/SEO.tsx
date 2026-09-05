@@ -176,17 +176,17 @@ export const SEOConfig = {
     title:
       'BuildMyBot | AI Chatbot, Voice Receptionist & SMS Marketing Platform',
     description:
-      'Build, deploy, and white-label AI chatbots, a realtime voice receptionist, and Telnyx SMS marketing — all sharing one knowledge base — to capture leads, automate support, and grow revenue. No code required.',
+      'Build, deploy, and white-label AI chatbots, a realtime voice receptionist, and SMS marketing — all sharing one knowledge base — to capture leads, automate support, and grow revenue. No code required.',
     keywords:
-      'white label ai chatbot, chatbot builder, ai voice receptionist, sms marketing software, telnyx sms, lead generation, customer support automation, conversational ai',
+      'white label ai chatbot, chatbot builder, ai voice receptionist, sms marketing software, lead generation, customer support automation, conversational ai',
   },
   features: {
     title:
       'BuildMyBot Features | AI Chatbots, Voice, SMS & Shared Knowledge Base',
     description:
-      'Explore BuildMyBot features: AI chatbots, a realtime voice receptionist, Telnyx SMS marketing, a shared knowledge base, lead CRM, automation/AI team, and white-label tools — all on one platform.',
+      'Explore BuildMyBot features: AI chatbots, a realtime voice receptionist, SMS marketing, a shared knowledge base, lead CRM, automation/AI team, and white-label tools — all on one platform.',
     keywords:
-      'chatbot features, ai voice receptionist, sms marketing, telnyx sms campaigns, shared knowledge base, lead capture, CRM integration, customer engagement',
+      'chatbot features, ai voice receptionist, sms marketing, sms marketing campaigns, shared knowledge base, lead capture, CRM integration, customer engagement',
   },
   marketplace: {
     title: 'Template Marketplace - Pre-built AI Chatbot Templates',
@@ -198,7 +198,7 @@ export const SEOConfig = {
   pricing: {
     title: 'BuildMyBot Pricing | AI Chatbot, Voice & SMS Marketing Plans',
     description:
-      'Flexible pricing for businesses of all sizes, plus voice receptionist and Telnyx SMS marketing add-ons. Start free, upgrade as you grow. No hidden fees. Cancel anytime.',
+      'Flexible pricing for businesses of all sizes, plus voice receptionist and SMS marketing add-ons. Start free, upgrade as you grow. No hidden fees. Cancel anytime.',
     keywords:
       'chatbot pricing, AI chatbot cost, voice agent pricing, sms marketing pricing, subscription plans, free chatbot, enterprise chatbot',
   },

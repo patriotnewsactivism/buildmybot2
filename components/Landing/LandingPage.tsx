@@ -358,7 +358,7 @@ export const LandingPage: React.FC<LandingProps> = ({
     },
     {
       q: 'Do you offer SMS marketing too?',
-      a: 'Yes. Beyond chat and voice, BuildMyBot includes Telnyx-powered SMS marketing on your own business number — two-way campaigns, keyword auto-replies, drip sequences, Text-to-Win contests, birthday clubs, and appointment reminders, with STOP/HELP consent handling built in. It shares the same knowledge base as your chatbot and voice agent, so every channel knows your business.',
+      a: 'Yes. Beyond chat and voice, BuildMyBot includes SMS marketing on your own business number — two-way campaigns, keyword auto-replies, drip sequences, Text-to-Win contests, birthday clubs, and appointment reminders, with STOP/HELP consent handling built in. It shares the same knowledge base as your chatbot and voice agent, so every channel knows your business.',
     },
     {
       q: 'Is there a free trial?',

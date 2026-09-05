@@ -80,10 +80,10 @@ const coreFeatures = [
   },
   {
     icon: Smartphone,
-    title: 'Telnyx SMS Marketing',
+    title: 'SMS Marketing',
     subtitle: 'Two-Way Text Campaigns',
     description:
-      'Run SMS campaigns, keyword auto-replies, and drip sequences on your own Telnyx number. Built-in Text-to-Win contests, birthday clubs, and appointment reminders keep customers engaged, with STOP/HELP consent handling done for you.',
+      'Run SMS campaigns, keyword auto-replies, and drip sequences on your own dedicated business number. Built-in Text-to-Win contests, birthday clubs, and appointment reminders keep customers engaged, with STOP/HELP consent handling done for you.',
     highlights: [
       'Campaigns, sequences & keyword replies',
       'Text-to-Win contests & birthday clubs',
@@ -178,7 +178,7 @@ const comparisonData = [
     zendesk: false,
   },
   {
-    feature: 'SMS Marketing (Telnyx)',
+    feature: 'SMS Marketing',
     buildmybot: true,
     intercom: false,
     drift: false,
@@ -272,7 +272,7 @@ const faqs = [
   },
   {
     q: 'Does SMS marketing share the same knowledge base as chat and voice?',
-    a: 'Yes. Your website, PDFs, and FAQs are ingested once into a shared knowledge base that powers chat, the voice receptionist, and SMS auto-replies alike. On top of that, SMS Marketing adds Telnyx-powered campaigns, keyword auto-replies, drip sequences, Text-to-Win contests, birthday clubs, and appointment reminders, with STOP/HELP consent compliance built in.',
+    a: 'Yes. Your website, PDFs, and FAQs are ingested once into a shared knowledge base that powers chat, the voice receptionist, and SMS auto-replies alike. On top of that, SMS Marketing adds two-way campaigns, keyword auto-replies, drip sequences, Text-to-Win contests, birthday clubs, and appointment reminders, with STOP/HELP consent compliance built in.',
   },
   {
     q: 'What integrations are available?',
