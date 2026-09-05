@@ -88,22 +88,32 @@ app.post(
   },
 );
 
-app.post('/api/sms/webhooks', express.raw({ type: '*/*', limit: '1mb' }), async (req, res) => {
-  await smsWebhookHandler(req as any, res as any);
-});
+app.post(
+  '/api/sms/webhooks',
+  express.raw({ type: '*/*', limit: '1mb' }),
+  async (req, res) => {
+    await smsWebhookHandler(req as any, res as any);
+  },
+);
 
 // Body parsing for all other routes
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 
-// Lightweight production health/provenance endpoint used by Cloud Run deploy verification.
+// Lightweight production health/provenance endpoint used by Railway/Cloud Run
+// and Cloudflare deploy verification. Railway injects RAILWAY_GIT_COMMIT_SHA
+// automatically for GitHub-backed deployments; Cloud Run receives BUILD_SHA.
 const healthPayload = () => ({
   status: 'ok',
   service: 'buildmybot2',
   timestamp: new Date().toISOString(),
   build: {
-    sha: process.env.BUILD_SHA || process.env.K_REVISION || 'unknown',
+    sha:
+      process.env.BUILD_SHA ||
+      process.env.RAILWAY_GIT_COMMIT_SHA ||
+      process.env.K_REVISION ||
+      'unknown',
     deployedAt: process.env.BUILD_TIME || null,
   },
 });
@@ -126,54 +136,28 @@ app.all('/api/auth/user', async (req, res) => {
   await userHandler(req as any, res as any);
 });
 
-// Cron routes — Vercel dynamic route [job] -> Express :job param.
-// req.query must be shadowed with defineProperty because Express 5 exposes it
-// as a getter-only property on the request prototype.
+// Cron routes — /api/cron/:job
 app.all('/api/cron/:job', async (req, res) => {
-  Object.defineProperty(req, 'query', {
-    value: { ...req.query, job: req.params.job },
-    writable: true,
-    configurable: true,
-    enumerable: true,
-  });
   await cronHandler(req as any, res as any);
 });
 
-// Gemini Live ephemeral tokens are minted server-side so the permanent API
-// key never enters the browser bundle.
+// Voice token route is a dedicated handler in the Vercel layout and must run
+// before the catch-all gateway.
 app.all('/api/voice/live-token', async (req, res) => {
   await liveTokenHandler(req as any, res as any);
 });
 
-// A normal HTTP request to the Media Stream endpoint is not useful. Returning
-// 426 makes misconfiguration obvious while the WebSocket upgrade path above
-// handles actual Twilio streams.
-app.all('/api/voice/twilio-media', (_req, res) => {
-  res.status(426).json({ error: 'WebSocket upgrade required' });
-});
-
-// Gateway handles everything else under /api/*.
-// Express 5 uses named wildcards; the braced form also matches /api itself.
-app.all('/api/{*path}', async (req, res) => {
+// Everything else under /api goes through the main gateway
+app.all('/api/*', async (req, res) => {
   await gatewayHandler(req as any, res as any);
 });
 
-// Static asset caching for the embeddable widget (headers themselves are
-// set by the security middleware above).
-app.use((req, res, next) => {
-  if (req.path === '/embed.js')
-    res.setHeader('Cache-Control', 'public, max-age=3600');
-  next();
-});
-
-// Static frontend (built by Vite)
+// Static frontend
 app.use(express.static(path.join(__dirname, 'dist')));
-
-// SPA fallback — Express 5 named wildcard form also matches the root path.
-app.get('/{*splat}', (_req, res) => {
+app.get('*', (_req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
 server.listen(PORT, () => {
-  console.log(`BuildMyBot server running on port ${PORT}`);
+  console.log(`BuildMyBot server listening on port ${PORT}`);
 });
