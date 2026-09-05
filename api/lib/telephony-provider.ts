@@ -34,11 +34,12 @@ export function telnyxConfigured(): boolean {
   return Boolean(process.env.TELNYX_API_KEY);
 }
 
-async function telnyxRequest<T = any>(
+export async function telnyxRequest<T = any>(
   path: string,
   init: RequestInit = {},
 ): Promise<T> {
   const response = await fetch(`${TELNYX_API_BASE}${path}`, {
+    signal: AbortSignal.timeout(20000),
     ...init,
     headers: {
       Authorization: `Bearer ${telnyxApiKey()}`,
