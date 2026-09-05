@@ -1,0 +1,16 @@
+# This repo's production backend runs on Railway (primary) and Google
+# Cloud Run (fallback) as a real Node/Express server (server.ts +
+# Dockerfile) fronted by Cloudflare Pages -- see DEPLOYMENT.md. It is not
+# deployed as Vercel Serverless Functions.
+#
+# Vercel auto-detects any file under api/ as a candidate Serverless
+# Function and type-checks/bundles it individually. Several files under
+# api/ (notably api/gateway-legacy.ts, still imported by api/gateway.ts,
+# and api/twilio/service.ts) predate that convention and fail Vercel's
+# per-function TypeScript check, which fails the whole deployment even
+# though `npm run build` (the real frontend build) succeeds on its own.
+#
+# Excluding api/ here stops Vercel from trying to package those files as
+# functions at all. Ad hoc Vercel deployments of this repo serve the
+# static frontend only -- /api/* routes are not expected to work there.
+api

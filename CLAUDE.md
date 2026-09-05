@@ -8,16 +8,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Real architecture
 
+See `DEPLOYMENT.md` for the authoritative topology, deploy identities, and release-verification steps — this table is a quick summary only and is not the place to re-litigate which host is primary.
+
 | Layer | What runs | Notes |
 |---|---|---|
-| Frontend | Vite + React 18 SPA | Builds to `dist/`, deployed to Vercel project **buildmybot20** |
-| Backend | Vercel serverless functions in `api/` | `api/gateway.ts` handles every `/api/*` route except cron and auth |
+| Frontend | Vite + React 18 SPA | Builds to `dist/`; served by the backend container below (no separate static host in production) |
+| Public origin | Cloudflare Pages + Pages Functions | `functions/[[path]].ts` (app) and `functions/api/[[path]].ts` (API) proxy `www.buildmybot.app` to the backend below |
+| Backend | Node/Express (`server.ts` + `Dockerfile`), mounting `api/*` handlers | `api/gateway.ts` handles every `/api/*` route except cron and auth. Deployed to **Railway** (`buildmybot2-web`, primary) with **Google Cloud Run** (`buildmybot2`) as a GET/HEAD-only fallback |
 | Database | Supabase Postgres | Accessed via Supabase REST API with service-role key — **not** Drizzle ORM in production |
 | Email outbound | Resend (`RESEND_API_KEY`) | |
 | Email inbound | Webhook to `POST /api/email/inbound` | Verified with `x-webhook-secret` header |
 
-### vercel.json routing
-- `/api/*` (except `/api/cron/*`) → rewritten to `/api/gateway`
+Vercel and Netlify artifacts (`.vercelignore`, `netlify.toml`) remain in the repo for history and ad hoc previews but are **not** the production authority — don't treat either as where this app actually runs for real customers, and don't assume the public domain's DNS currently matches the topology above without checking `DEPLOYMENT.md` §3's verification steps first. `vercel.json` no longer exists; nothing routes through it.
+
+### Request routing
+- `/api/*` (except `/api/cron/*`) → handled by `api/gateway.ts`
 - `/api/auth/*` and `/api/chat/demo` serve their own files directly
 - SPA fallback: everything else → `/index.html`
 - `/chat/*` allows iframe embedding; `/embed.js` has `Access-Control-Allow-Origin: *`
@@ -95,13 +100,13 @@ Partners with 251+ accounts (Platinum) or `$499/mo Partner Access` members bypas
 
 ## Environment variables
 
-Backend (serverless functions — set in Vercel dashboard, never `VITE_` prefixed):
+Backend (Railway + Cloud Run — set as GitHub Actions secrets, synced to Railway by `.github/workflows/deploy-railway.yml`; never `VITE_` prefixed):
 - `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` — required for all DB access
 - `SESSION_JWT_SECRET` — signs session cookies (`openssl rand -hex 32`)
 - `OPENAI_API_KEY` — chat + AI team fallback
 - `RESEND_API_KEY` — outbound email
 - `INBOUND_EMAIL_WEBHOOK_SECRET` — authenticates `POST /api/email/inbound`
-- `CRON_SECRET` — authenticates Vercel cron calls
+- `CRON_SECRET` — authenticates scheduled cron calls (GitHub Actions workflows such as `.github/workflows/ai-team-schedule.yml` trigger these now, not Vercel cron)
 - `DISCORD_WEBHOOK_URL`, `SLACK_WEBHOOK_URL` — agent notifications (recommended)
 - `GEMINI_API_KEY`, `GROQ_API_KEY`, `CEREBRAS_API_KEY`, `OPENROUTER_API_KEY`, `GITHUB_TOKEN_4` — AI team free-tier providers
 - `XAI_API_KEY` — xAI/Grok TTS for `api/voice/preview.ts` (preview endpoint) and `api/twilio/webhooks.ts` (Twilio calls via `<Play>`). Falls back to Polly.Joanna when absent.
@@ -112,9 +117,9 @@ Backend (serverless functions — set in Vercel dashboard, never `VITE_` prefixe
 
 Frontend (baked in at build time, must redeploy after changing):
 - `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
-- `VITE_API_URL` — leave empty; `/api` is same-origin on Vercel
+- `VITE_API_URL` — leave empty; `/api` is same-origin behind Cloudflare Pages
 
-Production Vercel project: **buildmybot20** (team `don-matthews-projects`). Only set env vars there — `buildmybot2` under `patriotnewsactivisms-projects` auto-builds PRs but serves no production domain.
+Production deploy identities (Railway project/service/environment IDs, Cloud Run project/region): see `DEPLOYMENT.md` §2. Set real secrets there — the Vercel project(s) linked to this repo are for ad hoc previews only and are never production (see `.vercelignore`).
 
 ## Pricing & plan limits — single source of truth
 
