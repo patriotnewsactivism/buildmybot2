@@ -422,13 +422,13 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onLogin }) => {
         <section className="space-y-8">
           <div className="text-center space-y-3">
             <h2 className="text-3xl font-bold text-slate-900">
-              Telnyx SMS Marketing Add-On
+              SMS Marketing Add-On
             </h2>
             <p className="text-lg text-slate-600 max-w-3xl mx-auto">
               Two-way SMS campaigns, keyword auto-replies, sequences,
               Text-to-Win contests, birthday clubs, and appointment reminders —
-              on your own Telnyx number, sharing the same knowledge base as your
-              chatbot and voice agent.
+              on your own dedicated business number, sharing the same knowledge
+              base as your chatbot and voice agent.
             </p>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -461,9 +461,10 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onLogin }) => {
             ))}
           </div>
           <p className="text-center text-sm text-slate-500 max-w-2xl mx-auto">
-            Sending unlocks once your organization completes Telnyx 10DLC brand
-            and campaign registration — a standard carrier requirement for any
-            business texting platform, not a BuildMyBot limitation.
+            Sending unlocks once your organization completes required
+            phone-carrier registration for business texting — a standard
+            requirement for any business texting platform, not a BuildMyBot
+            limitation.
           </p>
         </section>
 

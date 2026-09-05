@@ -34,7 +34,7 @@ BuildMyBot is a white-label AI platform built on one shared business knowledge b
 
 ## Optional upgrades
 - AI voice receptionist for phone calls — realtime, two-way conversation with barge-in, on a new, forwarded, or ported number
-- Telnyx SMS marketing — two-way campaigns, keyword auto-replies, sequences, Text-to-Win contests, birthday clubs, and appointment reminders, with STOP/HELP consent handling built in
+- SMS marketing — two-way campaigns, keyword auto-replies, sequences, Text-to-Win contests, birthday clubs, and appointment reminders, with STOP/HELP consent handling built in
 - White-label branding and custom domain
 - Advanced analytics and integrations
 
