@@ -4,7 +4,6 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
     "build": "npm run build:client",
     "build:client": "vite build",
     "preview": "vite preview",
