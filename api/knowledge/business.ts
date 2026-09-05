@@ -57,5 +57,7 @@ export async function answerBusinessSms(
     return "I don't have enough verified business information to answer that yet. A team member can help you directly.";
   }
 
-  return excerpt.length <= 600 ? excerpt : `${excerpt.slice(0, 597).trimEnd()}...`;
+  return excerpt.length <= 600
+    ? excerpt
+    : `${excerpt.slice(0, 597).trimEnd()}...`;
 }
