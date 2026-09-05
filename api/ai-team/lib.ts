@@ -11,6 +11,7 @@ type Provider =
   | 'openrouter-nemotron-ultra'
   | 'openrouter-glm-5-2-free'
   | 'openrouter-nemotron-super'
+  | 'openrouter-deepseek-v4-flash-paid'
   | 'openrouter-gpt-oss-120b-paid'
   | 'openrouter-deepseek-v3-paid';
 
@@ -18,6 +19,8 @@ interface ProviderConfig {
   baseURL: string;
   model: string;
   keyEnvs: string[];
+  // Optional OpenRouter reasoning-effort hint (reasoning models only).
+  reasoningEffort?: 'low' | 'medium' | 'high';
 }
 
 // Free-tier key order: new-account free key first, then the old-account
@@ -51,6 +54,16 @@ const PROVIDER_CONFIG: Record<Provider, ProviderConfig> = {
     model: 'nvidia/nemotron-3-super-120b-a12b:free',
     keyEnvs: FREE_KEY_ENVS,
   },
+  'openrouter-deepseek-v4-flash-paid': {
+    // Operator-approved PRIMARY paid fallback (2026-09-05): kicks in only
+    // after all four free models exhaust. Reasoning model — runs at low
+    // effort and the null-content guard below keeps it from silently
+    // returning an empty reply when thinking eats the token budget.
+    baseURL: 'https://openrouter.ai/api/v1/chat/completions',
+    model: 'deepseek/deepseek-v4-flash-0731',
+    keyEnvs: PAID_KEY_ENVS,
+    reasoningEffort: 'low',
+  },
   'openrouter-gpt-oss-120b-paid': {
     // Cheapest high-reasoning paid model on OpenRouter ($0.037/M in).
     baseURL: 'https://openrouter.ai/api/v1/chat/completions',
@@ -69,6 +82,7 @@ const FALLBACK_ORDER: Provider[] = [
   'openrouter-nemotron-ultra',
   'openrouter-glm-5-2-free',
   'openrouter-nemotron-super',
+  'openrouter-deepseek-v4-flash-paid',
   'openrouter-gpt-oss-120b-paid',
   'openrouter-deepseek-v3-paid',
 ];
@@ -249,6 +263,9 @@ async function callWithConfigMessages(
         messages,
         temperature,
         max_tokens: maxTokens,
+        ...(config.reasoningEffort
+          ? { reasoning: { effort: config.reasoningEffort } }
+          : {}),
       }),
     });
     if (!response.ok) {
@@ -256,7 +273,19 @@ async function callWithConfigMessages(
       throw new Error(`${response.status} ${detail.slice(0, 200)}`);
     }
     const data = await response.json();
-    return data.choices?.[0]?.message?.content ?? '';
+    const content = data.choices?.[0]?.message?.content;
+    // Reasoning models (e.g. deepseek-v4-flash) can spend the whole token
+    // budget thinking and return content: null. That is NOT a success —
+    // throw so the chain falls through to the next provider instead of
+    // silently returning an empty reply.
+    if (typeof content !== 'string' || content.trim() === '') {
+      throw new Error(
+        `empty completion content (finish_reason: ${
+          data.choices?.[0]?.finish_reason ?? 'unknown'
+        })`,
+      );
+    }
+    return content;
   } finally {
     clearTimeout(timeout);
   }
