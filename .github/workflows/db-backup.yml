@@ -18,6 +18,10 @@ on:
 
 permissions:
   contents: read
+  # Required to mint the OIDC token for Workload Identity Federation. Without
+  # it google-github-actions/auth cannot federate and falls through to the
+  # service-account JSON, which is not configured on this repo.
+  id-token: write
 
 concurrency:
   group: db-backup
@@ -27,17 +31,50 @@ env:
   GCP_PROJECT_ID: buildmybot-507112
   BUCKET: buildmybot2-db-backups
   RETENTION_DAYS: '30'
+  # Same identity deploy-cloud-run.yml uses. That workflow authenticates by
+  # Workload Identity Federation and only falls back to a JSON key; the key
+  # secret is empty on this repo, which is why the first run of this backup
+  # died in 12s on "must specify exactly one of workload_identity_provider or
+  # credentials_json".
+  GCP_WORKLOAD_IDENTITY_PROVIDER: projects/406797137160/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+  EXPECTED_GCP_SERVICE_ACCOUNT: buildmybotsa@buildmybot-507112.iam.gserviceaccount.com
+  GCP_SA_KEY: ${{ secrets.BUILDMYBOT_GCP_SA_KEY || secrets.GCP_SA_KEY }}
 
 jobs:
   backup:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Authenticate to Google Cloud
+      # Fail with the reason rather than letting auth report the generic
+      # "specify exactly one of ..." message, which says nothing about which
+      # credential is missing.
+      - name: Check a Google credential is configured
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "${GCP_WORKLOAD_IDENTITY_PROVIDER:-}" ]]; then
+            echo "Using Workload Identity for $EXPECTED_GCP_SERVICE_ACCOUNT"
+          elif [[ -n "${GCP_SA_KEY:-}" ]]; then
+            echo "Using service-account JSON"
+          else
+            echo "No Google authentication configured: set the Workload Identity provider or BUILDMYBOT_GCP_SA_KEY." >&2
+            exit 2
+          fi
+
+      - name: Authenticate with Google Workload Identity
+        if: env.GCP_WORKLOAD_IDENTITY_PROVIDER != ''
         uses: google-github-actions/auth@v3
         with:
-          project_id: buildmybot-507112
-          credentials_json: ${{ secrets.BUILDMYBOT_GCP_SA_KEY || secrets.GCP_SA_KEY }}
+          project_id: ${{ env.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.EXPECTED_GCP_SERVICE_ACCOUNT }}
+
+      - name: Authenticate with service-account JSON
+        if: env.GCP_WORKLOAD_IDENTITY_PROVIDER == '' && env.GCP_SA_KEY != ''
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+          credentials_json: ${{ env.GCP_SA_KEY }}
 
       - uses: google-github-actions/setup-gcloud@v3
 
