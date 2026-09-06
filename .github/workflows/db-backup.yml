@@ -1,0 +1,135 @@
+name: Database backup
+
+# The Supabase project had NO backups at all — 115 tables of live customer data
+# with nothing to restore from. Platform backups need a paid plan; this is the
+# logical equivalent and costs nothing extra: the database is ~45MB, so a
+# compressed dump is a few MB a night.
+#
+# Restore (to a scratch project first — never straight over production):
+#   gsutil cp gs://<bucket>/buildmybot2/<file>.sql.gz .
+#   gunzip -c <file>.sql.gz | psql "<target DATABASE_URL>"
+
+on:
+  schedule:
+    # 08:17 UTC — off the hour so it does not contend with the 13:00 UTC AI-team
+    # cron, and off :00 so it is not queued behind everyone else's midnight jobs.
+    - cron: '17 8 * * *'
+  workflow_dispatch: {} # manual "Run workflow" from the Actions tab
+
+permissions:
+  contents: read
+
+concurrency:
+  group: db-backup
+  cancel-in-progress: false
+
+env:
+  GCP_PROJECT_ID: buildmybot-507112
+  BUCKET: buildmybot2-db-backups
+  RETENTION_DAYS: '30'
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: buildmybot-507112
+          credentials_json: ${{ secrets.BUILDMYBOT_GCP_SA_KEY || secrets.GCP_SA_KEY }}
+
+      - uses: google-github-actions/setup-gcloud@v3
+
+      - name: Ensure the backup bucket exists, is private, and expires old dumps
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! gcloud storage buckets describe "gs://$BUCKET" --project "$GCP_PROJECT_ID" >/dev/null 2>&1; then
+            # Uniform access + public access prevention: these dumps are customer
+            # data and must never be reachable by object ACL or anonymous read.
+            gcloud storage buckets create "gs://$BUCKET" \
+              --project "$GCP_PROJECT_ID" \
+              --location=us-central1 \
+              --uniform-bucket-level-access \
+              --public-access-prevention
+            echo "Created gs://$BUCKET"
+          fi
+          cat > /tmp/lifecycle.json <<JSON
+          {"rule":[{"action":{"type":"Delete"},"condition":{"age":$RETENTION_DAYS}}]}
+          JSON
+          gcloud storage buckets update "gs://$BUCKET" --lifecycle-file=/tmp/lifecycle.json
+          echo "Retention: $RETENTION_DAYS days"
+
+      - name: Dump the database
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${DATABASE_URL:-}" ]]; then
+            echo "::error::DATABASE_URL secret is not set — cannot back up." >&2
+            exit 1
+          fi
+
+          # Supabase's transaction pooler (port 6543) cannot serve pg_dump: it
+          # multiplexes statements across backends, so the consistent snapshot a
+          # dump needs is not available. Session mode on the same host (5432) is.
+          dump_url="${DATABASE_URL/:6543/:5432}"
+          if [[ "$dump_url" != "$DATABASE_URL" ]]; then
+            echo "Switched from the transaction pooler to session mode for the dump."
+          fi
+
+          stamp="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
+          out="buildmybot2-${stamp}.sql.gz"
+
+          # Server is PostgreSQL 17; pg_dump must be >= the server, and the
+          # ubuntu runner ships an older client. Pin the matching major version
+          # rather than depend on whatever the image happens to carry.
+          docker run --rm -e PGCONNECT_TIMEOUT=30 postgres:17-alpine \
+            pg_dump --no-owner --no-privileges --clean --if-exists \
+                    --quote-all-identifiers "$dump_url" \
+            | gzip -9 > "$out"
+
+          size=$(stat -c%s "$out")
+          echo "dump=$out size=${size}"
+          echo "DUMP_FILE=$out" >> "$GITHUB_ENV"
+
+          # A dump that failed part-way still exits 0 through the pipe and leaves
+          # a small, useless file. Prove it actually contains a schema before it
+          # is allowed to count as a backup.
+          if [[ "$size" -lt 20000 ]]; then
+            echo "::error::Dump is only ${size} bytes — that is not a real backup of a 45MB database." >&2
+            exit 1
+          fi
+          if ! gunzip -c "$out" | head -c 2000000 | grep -q 'CREATE TABLE'; then
+            echo "::error::Dump contains no CREATE TABLE statements — refusing to upload it." >&2
+            exit 1
+          fi
+          tables=$(gunzip -c "$out" | grep -c '^CREATE TABLE' || true)
+          echo "Verified: ${tables} tables in the dump."
+          echo "DUMP_TABLES=$tables" >> "$GITHUB_ENV"
+
+      - name: Upload
+        shell: bash
+        run: |
+          set -euo pipefail
+          dest="gs://$BUCKET/buildmybot2/$DUMP_FILE"
+          gcloud storage cp "$DUMP_FILE" "$dest"
+          echo "Uploaded $dest"
+          {
+            echo "### Database backup"
+            echo
+            echo "- File: \`$DUMP_FILE\`"
+            echo "- Tables: $DUMP_TABLES"
+            echo "- Destination: \`$dest\`"
+            echo "- Retention: $RETENTION_DAYS days"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Confirm the object is readable back
+        shell: bash
+        run: |
+          set -euo pipefail
+          # An upload that reports success but leaves nothing readable is the
+          # failure mode that makes a backup strategy worthless.
+          gcloud storage ls -l "gs://$BUCKET/buildmybot2/$DUMP_FILE"
