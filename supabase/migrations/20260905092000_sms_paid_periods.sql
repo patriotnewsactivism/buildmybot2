@@ -7,7 +7,7 @@ begin
   if a.tenant_key is null or p_end<=p_start then raise exception 'Invalid account or paid period'; end if;
   if a.subscription_id is not null and a.subscription_id<>p_subscription then raise exception 'Another SMS subscription exists'; end if;
   allowance:=case p_plan when 'SMS_STARTER' then 1000 when 'SMS_GROWTH' then 5000 when 'SMS_SCALE' then 20000 else null end;
-  rate:=case p_plan when 'SMS_STARTER' then 20000 when 'SMS_GROWTH' then 18000 when 'SMS_SCALE' then 15000 else null end;
+  rate:=case p_plan when 'SMS_STARTER' then 29000 when 'SMS_GROWTH' then 29000 when 'SMS_SCALE' then 29000 else null end;
   if allowance is null then raise exception 'Unknown plan'; end if;
   insert into sms_billing_periods(invoice_id,tenant_key,subscription_id,starts_at,ends_at) values(p_invoice,p_tenant,p_subscription,p_start,p_end) on conflict(invoice_id) do nothing;
   get diagnostics added=row_count;

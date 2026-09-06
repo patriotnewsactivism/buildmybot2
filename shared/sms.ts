@@ -1,9 +1,13 @@
 import { z } from 'zod';
 
 export const SMS_PLANS = {
-  SMS_STARTER: { price: 39, segments: 1000, overageMicros: 20000 },
-  SMS_GROWTH: { price: 99, segments: 5000, overageMicros: 18000 },
-  SMS_SCALE: { price: 249, segments: 20000, overageMicros: 15000 },
+  // Flat $0.029/msg overage across every tier, on purpose (2026-09-06, Don's call):
+  // a flat rate above any plan's effective per-message price discourages
+  // under-provisioning (buying Starter and running Scale-level volume) instead
+  // of rewarding it with a cheaper overage rate on the smallest plan.
+  SMS_STARTER: { price: 39, segments: 1000, overageMicros: 29000 },
+  SMS_GROWTH: { price: 99, segments: 5000, overageMicros: 29000 },
+  SMS_SCALE: { price: 249, segments: 20000, overageMicros: 29000 },
 } as const;
 export type SmsPlan = keyof typeof SMS_PLANS;
 export const PURPOSES = ['marketing', 'birthday', 'appointment', 'contest', 'conversation', 'lead_alert'] as const;
