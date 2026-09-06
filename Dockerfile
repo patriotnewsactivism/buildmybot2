@@ -10,15 +10,13 @@ RUN npm ci --legacy-peer-deps
 COPY . .
 RUN npm run build:client
 
-# Runtime stage — serve API (tsx) + static frontend
+# Runtime stage — serve Vite static frontend. The production path is Vercel
+# (api/gateway.ts serverless functions); this image is for local static preview
+# only, so no API runtime is bundled.
 FROM mirror.gcr.io/library/node:22-slim
 WORKDIR /app
 ENV NODE_ENV=production
-COPY package*.json ./
-RUN npm ci --omit=dev --legacy-peer-deps
+RUN npm install -g serve@14 --no-audit --no-fund
 COPY --from=builder /app/dist ./dist
-COPY api/ ./api/
-COPY shared/ ./shared/
-COPY constants.ts types.ts server.ts ./
 EXPOSE 8080
-CMD ["npx", "tsx", "server.ts"]
+CMD ["serve", "-s", "dist", "-l", "8080"]
