@@ -481,6 +481,52 @@ export const SMS_MARKETING_PRICING = Object.entries(SMS_MARKETING_PLANS).map(
   }),
 );
 
+/**
+ * SMS overage commission safeguard.
+ *
+ * Added 2026-09-06 alongside the flat $0.029/msg overage rate: partner/
+ * reseller commission on the base SMS_MARKETING_PLANS subscription price
+ * is computed in api/stripe-webhook.ts, but overage revenue is billed
+ * through a completely separate path (api/sms/billing.ts reconcileOverages,
+ * one-off Stripe invoiceitems, no linked subscription event) and had NO
+ * commission logic at all -- wired in below, using the same
+ * MAX_COMMISSION_SHARE_OF_MARGIN(0.7) cap philosophy as
+ * applyCommissionSafeguard above, sized to actual per-message economics
+ * instead of a flat plan price.
+ *
+ * SMS_SEGMENT_COST_USD is Telnyx's approximate long-code A2P per-segment
+ * list price as of 2026-09 -- a documented estimate, not a live-metered
+ * number, same caveat as COST_PER_CONVERSATION_ESTIMATE_USD above.
+ */
+export const SMS_SEGMENT_COST_USD = 0.0035;
+
+/** Cap a computed SMS-overage commission dollar amount so it can never
+ * exceed MAX_COMMISSION_SHARE_OF_MARGIN of that overage revenue's
+ * estimated margin (revenue minus estimated Telnyx send cost, at the flat
+ * overage rate every SMS_MARKETING_PLANS tier now shares). */
+export function applySmsOverageCommissionSafeguard(
+  overageRevenueUsd: number,
+  computedCommissionUsd: number,
+): {
+  cappedCommissionUsd: number;
+  wasCapped: boolean;
+  estimatedMarginUsd: number;
+} {
+  const overageRateUsd = SMS_MARKETING_PLANS.SMS_STARTER.overagePerMessage;
+  const costRatio = overageRateUsd > 0 ? SMS_SEGMENT_COST_USD / overageRateUsd : 0;
+  const estimatedMarginUsd = Math.max(0, overageRevenueUsd) * (1 - costRatio);
+  const maxSafeCommissionUsd = estimatedMarginUsd * MAX_COMMISSION_SHARE_OF_MARGIN;
+  const cappedCommissionUsd = Math.max(
+    0,
+    Math.min(computedCommissionUsd, maxSafeCommissionUsd),
+  );
+  return {
+    cappedCommissionUsd,
+    wasCapped: cappedCommissionUsd < computedCommissionUsd,
+    estimatedMarginUsd,
+  };
+}
+
 export const EXPERT_SETUP_SERVICES = [
   {
     id: 'basic_setup',

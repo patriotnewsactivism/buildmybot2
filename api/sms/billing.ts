@@ -1,4 +1,5 @@
 import { SMS_PLANS, type SmsPlan } from '../../shared/sms.js';
+import { applySmsOverageCommissionSafeguard } from '../../constants.js';
 import { accountFor } from './runtime.js';
 import { db, filter, rpc, scoped, SmsError, type SmsUser } from './store.js';
 
@@ -60,6 +61,59 @@ export async function handleSmsBillingEvent(event: StripeObject): Promise<boolea
   return true; // SMS subscriptions must never overwrite users.plan/voice_plan.
 }
 
+/** Partner/reseller commission on SMS overage revenue -- mirrors the
+ * base-subscription commission block in api/stripe-webhook.ts, but for the
+ * standalone overage invoices created below, which carry no subscription
+ * link and were previously never commissioned at all. Non-fatal by design:
+ * a commission-tracking failure must never block the actual overage
+ * invoice from being billed. */
+async function recordSmsOverageCommission(subscription: StripeObject, overageMicros: number, invoiceId: string): Promise<void> {
+  const userId = subscription.metadata?.userId;
+  if (typeof userId !== 'string') return;
+  const overageRevenueUsd = overageMicros / 1_000_000;
+  if (overageRevenueUsd <= 0) return;
+
+  const users = await db<Array<{ email: string }>>(`users?${filter({ id: `eq.${userId}`, select: 'email', limit: '1' })}`).catch(() => []);
+  const email = users[0]?.email;
+  if (!email) return;
+
+  const partnerClients = await db<Array<{ id: string; partner_id: string }>>(`partner_clients?${filter({ client_email: `eq.${email}`, status: 'eq.active', select: 'id,partner_id', limit: '1' })}`).catch(() => []);
+  if (partnerClients[0]) {
+    const partners = await db<Array<{ id: string; commission_rate: number; total_earned: number; pending_payout: number }>>(`partners?${filter({ id: `eq.${partnerClients[0].partner_id}`, status: 'eq.active', select: 'id,commission_rate,total_earned,pending_payout', limit: '1' })}`).catch(() => []);
+    const partner = partners[0];
+    if (partner) {
+      const rawCommission = +(overageRevenueUsd * (partner.commission_rate || 0.15)).toFixed(2);
+      const { cappedCommissionUsd, wasCapped } = applySmsOverageCommissionSafeguard(overageRevenueUsd, rawCommission);
+      if (cappedCommissionUsd > 0) {
+        await db(`partners?${filter({ id: `eq.${partner.id}` })}`, 'PATCH', {
+          total_earned: `${(partner.total_earned || 0) + cappedCommissionUsd}`,
+          pending_payout: `${(partner.pending_payout || 0) + cappedCommissionUsd}`,
+        }).catch(() => {});
+        await db('partner_payouts', 'POST', [{ partner_id: partner.id, amount: cappedCommissionUsd, status: 'pending' }]).catch(() => {});
+        if (wasCapped) console.warn(`[sms-billing] overage commission capped for partner ${partner.id} on invoice ${invoiceId}`);
+      }
+      return;
+    }
+  }
+
+  const resellerClients = await db<Array<{ id: string; reseller_id: string }>>(`reseller_clients?${filter({ client_email: `eq.${email}`, status: 'eq.active', select: 'id,reseller_id', limit: '1' })}`).catch(() => []);
+  if (resellerClients[0]) {
+    const resellers = await db<Array<{ id: string; commission_rate: number; total_earned: number; pending_payout: number }>>(`resellers?${filter({ id: `eq.${resellerClients[0].reseller_id}`, status: 'eq.active', select: 'id,commission_rate,total_earned,pending_payout', limit: '1' })}`).catch(() => []);
+    const reseller = resellers[0];
+    if (reseller) {
+      const rawCommission = +(overageRevenueUsd * (reseller.commission_rate || 0.2)).toFixed(2);
+      const { cappedCommissionUsd, wasCapped } = applySmsOverageCommissionSafeguard(overageRevenueUsd, rawCommission);
+      if (cappedCommissionUsd > 0) {
+        await db(`resellers?${filter({ id: `eq.${reseller.id}` })}`, 'PATCH', {
+          total_earned: `${(reseller.total_earned || 0) + cappedCommissionUsd}`,
+          pending_payout: `${(reseller.pending_payout || 0) + cappedCommissionUsd}`,
+        }).catch(() => {});
+        if (wasCapped) console.warn(`[sms-billing] overage commission capped for reseller ${reseller.id} on invoice ${invoiceId}`);
+      }
+    }
+  }
+}
+
 export async function reconcileOverages() {
   const periods = await db<Array<{ invoice_id: string; subscription_id: string; overage_micros: number }>>(`sms_billing_periods?${filter({ ends_at: `lt.${new Date().toISOString()}`, stripe_invoice_item_id: 'is.null', overage_micros: 'gt.0', limit: '20' })}`);
   for (const p of periods) {
@@ -70,5 +124,6 @@ export async function reconcileOverages() {
     const invoice = await stripe('/invoices', 'POST', { customer: String(subscription.customer), collection_method: 'charge_automatically', auto_advance: 'true', pending_invoice_items_behavior: 'exclude' }, `sms-overage-invoice:${p.invoice_id}`);
     await stripe(`/invoiceitems/${encodeURIComponent(item.id)}`, 'POST', { invoice: invoice.id }, `sms-overage-attach:${p.invoice_id}`);
     await db(`sms_billing_periods?${filter({ invoice_id: `eq.${p.invoice_id}` })}`, 'PATCH', { stripe_invoice_item_id: item.id });
+    await recordSmsOverageCommission(subscription, p.overage_micros, p.invoice_id).catch((err: any) => console.error('[sms-billing] overage commission error:', err?.message));
   }
 }
