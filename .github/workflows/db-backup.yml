@@ -98,16 +98,50 @@ jobs:
           gcloud storage buckets update "gs://$BUCKET" --lifecycle-file=/tmp/lifecycle.json
           echo "Retention: $RETENTION_DAYS days"
 
-      - name: Dump the database
+      # This project talks to Supabase over the REST API, not Postgres, so it
+      # has never needed a libpq connection string and the DATABASE_URL Actions
+      # secret is empty. pg_dump does need one. Look in Secret Manager too —
+      # the same place deploy-cloud-run.yml recovers its other runtime secrets
+      # from, and reachable with the Workload Identity credential this job
+      # already holds — so the credential can live in one place rather than
+      # being duplicated into Actions.
+      - name: Resolve the database connection string
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         shell: bash
         run: |
           set -euo pipefail
-          if [[ -z "${DATABASE_URL:-}" ]]; then
-            echo "::error::DATABASE_URL secret is not set — cannot back up." >&2
-            exit 1
+          if [[ -n "${DATABASE_URL:-}" ]]; then
+            echo "Using the DATABASE_URL Actions secret."
+            echo "::add-mask::$DATABASE_URL"
+            echo "DATABASE_URL=$DATABASE_URL" >> "$GITHUB_ENV"
+            exit 0
           fi
+
+          for name in buildmybot-database-url buildmybot2-database-url database-url; do
+            if value="$(gcloud secrets versions access latest \
+                  --project "$GCP_PROJECT_ID" --secret "$name" 2>/dev/null)" \
+               && [[ -n "$value" ]]; then
+              echo "::add-mask::$value"
+              echo "DATABASE_URL=$value" >> "$GITHUB_ENV"
+              echo "Loaded DATABASE_URL from Google Secret Manager secret '$name'."
+              exit 0
+            fi
+          done
+
+          echo "::error::No Postgres connection string available, so there is nothing to dump." >&2
+          echo "Set ONE of the following, then re-run:" >&2
+          echo "  1. A 'DATABASE_URL' GitHub Actions secret on this repository, or" >&2
+          echo "  2. A Google Secret Manager secret named 'buildmybot-database-url'" >&2
+          echo "     in project $GCP_PROJECT_ID (this job's service account can already read it)." >&2
+          echo "Get the value from Supabase → Project Settings → Database → Connection string (URI)." >&2
+          echo "Either port works; the dump switches 6543 to 5432 itself." >&2
+          exit 1
+
+      - name: Dump the database
+        shell: bash
+        run: |
+          set -euo pipefail
 
           # Supabase's transaction pooler (port 6543) cannot serve pg_dump: it
           # multiplexes statements across backends, so the consistent snapshot a
