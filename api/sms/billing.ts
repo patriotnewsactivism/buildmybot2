@@ -114,7 +114,7 @@ async function recordSmsOverageCommission(subscription: StripeObject, overageMic
   }
 }
 
-export async function reconcileOverages() {
+export async function reconcileOverages(): Promise<{ processed: number }> {
   const periods = await db<Array<{ invoice_id: string; subscription_id: string; overage_micros: number }>>(`sms_billing_periods?${filter({ ends_at: `lt.${new Date().toISOString()}`, stripe_invoice_item_id: 'is.null', overage_micros: 'gt.0', limit: '20' })}`);
   for (const p of periods) {
     const subscription = await stripe(`/subscriptions/${encodeURIComponent(p.subscription_id)}`);
@@ -126,4 +126,5 @@ export async function reconcileOverages() {
     await db(`sms_billing_periods?${filter({ invoice_id: `eq.${p.invoice_id}` })}`, 'PATCH', { stripe_invoice_item_id: item.id });
     await recordSmsOverageCommission(subscription, p.overage_micros, p.invoice_id).catch((err: any) => console.error('[sms-billing] overage commission error:', err?.message));
   }
+  return { processed: periods.length };
 }

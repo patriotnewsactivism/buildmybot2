@@ -1,0 +1,39 @@
+name: SMS Marketing — Overage Reconciliation
+
+# Runs /api/cron/sms-overage every 6 hours: finds ended SMS billing periods
+# with unbilled overage (sms_billing_periods.overage_micros > 0 and
+# stripe_invoice_item_id still null), creates the Stripe invoice for that
+# overage, and records partner/reseller commission on it (see
+# applySmsOverageCommissionSafeguard in constants.ts).
+#
+# Unlike pulse.yml/lead-followups.yml/email-dispatch-scheduled.yml above,
+# this schedule is left ENABLED by default. Those are paused because they
+# act on real leads that already sit in the database today. This job is
+# structurally a no-op until a real, paying SMS Marketing customer accrues
+# real overage -- as of 2026-09-06 there are zero live subscribers and the
+# sms_accounts/sms_billing_periods migration hasn't even been applied to
+# production yet (verified directly against Supabase), so every run finds
+# nothing to do. It starts doing real work exactly when it should: the
+# first time a real customer goes over their plan's included messages.
+#
+# Apex also triggers this same idempotent endpoint on its own schedule
+# (job type buildmybot_sms_overage) as a redundant, independent check --
+# reconcileOverages() is safe to call concurrently (see billing.ts).
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: '0 */6 * * *'
+
+env:
+  API_ORIGIN: ${{ vars.BUILDMYBOT_API_ORIGIN || 'https://buildmybot2-fq5disxp2a-uc.a.run.app' }}
+
+jobs:
+  sms-overage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reconcile SMS overage
+        run: |
+          curl -sf -X POST "$API_ORIGIN/api/cron/sms-overage" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -w "\nHTTP %{http_code}\n" || echo "::warning::sms-overage reconcile call failed (non-fatal, next run in 6 hours)"

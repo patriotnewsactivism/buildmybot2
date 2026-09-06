@@ -4,6 +4,7 @@ import { allShiftsHandler } from './_all-shifts.js';
 import { leadFollowupsHandler } from './_lead-followups.js';
 import { pulseHandler } from './_pulse.js';
 import { salesOutreachHandler } from './_sales-outreach.js';
+import { smsOverageHandler } from './_sms-overage.js';
 
 // Single dynamic route consolidating the cron endpoints into ONE Vercel
 // Serverless Function to stay under the Hobby plan's 12-function cap.
@@ -13,6 +14,8 @@ import { salesOutreachHandler } from './_sales-outreach.js';
 //   /api/cron/lead-followups — 48h follow-up worker (reasoning loop per lead)
 //   /api/cron/all-shifts     — AI team shifts (per-role or all-at-once)
 //   /api/cron/sales-outreach — Sales agent: pick up researched leads, initiate outreach
+//   /api/cron/sms-overage    — SMS Marketing overage reconciliation (billing only,
+//                              NOT an AI Team job — bypasses the AI Team gates below)
 //
 // Auth: Bearer CRON_SECRET — each handler does its own auth check internally.
 
@@ -25,6 +28,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!cronSecret || req.headers.authorization !== `Bearer ${cronSecret}`) {
     return res.status(401).json({ error: 'unauthorized' });
   }
+
+  // sms-overage is SMS billing reconciliation, a totally separate subsystem
+  // from the AI Team roles below -- it must not be coupled to the AI Team
+  // kill switch or schema-readiness gate.
+  if (job === 'sms-overage') {
+    return smsOverageHandler(req, res);
+  }
+
   if (aiTeamKilled()) {
     return res.status(200).json({ success: true, killed: true });
   }
