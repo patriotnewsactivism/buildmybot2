@@ -18,7 +18,7 @@ export const ContactPage: React.FC = () => {
     subject: '',
     message: '',
     priority: false,
-    betaTesting: false,
+    demoRequest: false,
   });
   const [submitted, setSubmitted] = useState(false);
 
@@ -74,7 +74,7 @@ export const ContactPage: React.FC = () => {
                         subject: '',
                         message: '',
                         priority: false,
-                        betaTesting: false,
+                        demoRequest: false,
                       });
                     }}
                     className="text-blue-700 font-medium hover:underline"
@@ -164,20 +164,20 @@ export const ContactPage: React.FC = () => {
                   </div>
                   <div className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4">
                     <input
-                      id="contact-beta"
+                      id="contact-demo"
                       type="checkbox"
-                      checked={formData.betaTesting}
+                      checked={formData.demoRequest}
                       onChange={(e) =>
                         setFormData({
                           ...formData,
-                          betaTesting: e.target.checked,
+                          demoRequest: e.target.checked,
                         })
                       }
                       className="mt-1 h-4 w-4 rounded border-blue-300 text-blue-700 focus:ring-blue-600"
                     />
                     <div>
                       <label
-                        htmlFor="contact-beta"
+                        htmlFor="contact-demo"
                         className="text-sm font-semibold text-blue-900"
                       >
                         I'd like a demo or walkthrough

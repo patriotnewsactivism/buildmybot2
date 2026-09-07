@@ -1765,32 +1765,31 @@ export const LandingPage: React.FC<LandingProps> = ({
             </div>
           </section>
 
-          {/* ──── 10b. BETA TESTERS + PARTNERS CTA ──── */}
+          {/* ──── 10b. START NOW + PARTNERS CTA ──── */}
           <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
-            {/* Beta Testers */}
+            {/* Start Now */}
             <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-6 sm:p-8 border-2 border-blue-200 relative overflow-hidden">
               <div className="absolute top-0 right-0 bg-blue-600 text-white text-xs font-bold px-4 py-1 rounded-bl-xl">
-                🧪 BETA
+                🚀 LIVE NOW
               </div>
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center text-white">
                   <Sparkles size={24} />
                 </div>
                 <h3 className="text-xl font-extrabold text-slate-900">
-                  Become a Beta Tester
+                  Start Your Free Trial
                 </h3>
               </div>
               <p className="text-slate-600 mb-4 leading-relaxed">
-                Get early access to our AI chatbot and voice receptionist
-                platform. Help shape the product, get priority support, and lock
-                in founder pricing.
+                Get your AI chatbot and voice receptionist live in minutes.
+                No setup fees, no contracts, cancel anytime.
               </p>
               <ul className="space-y-2 mb-6">
                 {[
-                  'Early access to all features',
-                  'Direct line to the dev team',
-                  'Founder pricing locked in forever',
-                  'Your feedback shapes the roadmap',
+                  'Full access to all features',
+                  'Live support when you need it',
+                  'Simple, transparent pricing',
+                  'Set up in under 5 minutes',
                 ].map((f) => (
                   <li
                     key={f}
@@ -1801,14 +1800,15 @@ export const LandingPage: React.FC<LandingProps> = ({
                   </li>
                 ))}
               </ul>
-              <a
-                href="mailto:support@buildmybot.app?subject=Beta%20Tester%20Application"
+              <button
+                type="button"
+                onClick={onLogin}
                 className="inline-flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 transition shadow-lg shadow-blue-600/25"
               >
-                <Mail size={18} /> Apply for Beta Access
-              </a>
+                <ArrowRight size={18} /> Get Started Now
+              </button>
               <p className="text-xs text-slate-500 mt-3">
-                Or email{' '}
+                Questions first? Email{' '}
                 <a
                   href="mailto:support@buildmybot.app"
                   className="text-blue-600 font-semibold hover:underline"

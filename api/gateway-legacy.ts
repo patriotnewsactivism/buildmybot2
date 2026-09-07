@@ -4498,12 +4498,6 @@ async function handleSupport(
   }
 }
 
-async function handleLaunchGate(_req: VercelRequest, res: VercelResponse) {
-  res.json({ enabled: false, message: 'Launch gate is open' });
-}
-
-// =====================================================================
-
 async function handleAiEmployees(
   req: VercelRequest,
   res: VercelResponse,
@@ -6461,7 +6455,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     if (routeName === 'leads' && pathParts[0] === 'capture')
       return await handleLeadCapture(req, res);
-    if (routeName === 'launch-gate') return await handleLaunchGate(req, res);
     // Inbound email webhook — authenticated by x-webhook-secret, not session
     if (routeName === 'email' && pathParts[0] === 'inbound')
       return await handleEmailInbound(req, res);
