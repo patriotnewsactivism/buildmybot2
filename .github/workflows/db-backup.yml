@@ -173,7 +173,13 @@ jobs:
             echo "::error::Dump is only ${size} bytes — that is not a real backup of a 45MB database." >&2
             exit 1
           fi
-          if ! gunzip -c "$out" | head -c 2000000 | grep -q 'CREATE TABLE'; then
+          # NOTE: do not pipe through `head -c` before this grep. With 115
+          # tables plus --quote-all-identifiers, extensions/types/functions
+          # in the preamble can push the first real CREATE TABLE well past a
+          # couple MB of decompressed text; `grep -q` already stops reading
+          # at the first match so scanning the full stream costs nothing
+          # extra in practice.
+          if ! gunzip -c "$out" | grep -q 'CREATE TABLE'; then
             echo "::error::Dump contains no CREATE TABLE statements — refusing to upload it." >&2
             exit 1
           fi
