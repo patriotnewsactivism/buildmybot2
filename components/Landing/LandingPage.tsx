@@ -1781,8 +1781,8 @@ export const LandingPage: React.FC<LandingProps> = ({
                 </h3>
               </div>
               <p className="text-slate-600 mb-4 leading-relaxed">
-                Get your AI chatbot and voice receptionist live in minutes.
-                No setup fees, no contracts, cancel anytime.
+                Get your AI chatbot and voice receptionist live in minutes. No
+                setup fees, no contracts, cancel anytime.
               </p>
               <ul className="space-y-2 mb-6">
                 {[

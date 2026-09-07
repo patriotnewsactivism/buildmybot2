@@ -285,12 +285,12 @@ export const Billing: React.FC<BillingProps> = ({ user }) => {
                   <Loader className="animate-spin" size={16} />
                 ) : null}
                 {isCurrent
-                    ? 'Current Plan'
-                    : isFree
-                      ? 'Free Forever'
-                      : isEnterprise
-                        ? 'Get Enterprise'
-                        : `Choose ${plan.name}`}
+                  ? 'Current Plan'
+                  : isFree
+                    ? 'Free Forever'
+                    : isEnterprise
+                      ? 'Get Enterprise'
+                      : `Choose ${plan.name}`}
               </button>
             </div>
           );
