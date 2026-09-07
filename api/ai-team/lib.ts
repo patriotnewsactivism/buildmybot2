@@ -89,11 +89,27 @@ const PROVIDER_CONFIG: Record<Provider, ProviderConfig> = {
     // models are daily-capped AND the paid credits are exhausted — the exact
     // combination that took the fleet down on 2026-09-06.
     //
-    // `only: ['amazon-bedrock']` is required, not a preference: x-ai/grok-4.6
-    // is served by five endpoints and xAI direct is cheaper and much faster,
-    // so an unpinned request routes there and bills the credits this rung
-    // exists to avoid. allow_fallbacks:false stops a Bedrock outage becoming a
-    // silent paid-credit call; the chain falls through instead.
+    // Pinning is required, not a preference: x-ai/grok-4.6 is served by five
+    // endpoints and xAI direct is cheaper and much faster, so an unpinned
+    // request routes there and bills the credits this rung exists to avoid.
+    // allow_fallbacks:false stops a Bedrock outage becoming a silent
+    // paid-credit call; the chain falls through instead.
+    //
+    // The `/us-west-2` suffix is REQUIRED. OpenRouter documents a base provider
+    // slug as matching every endpoint of that provider including regional ones,
+    // but for this model it does not: the bare slug is dropped by the router's
+    // "Filter by Regional Surcharge" step (Bedrock is $2.2/M against xAI's
+    // $2/M) before `only` is applied. Verified against the live API on
+    // 2026-09-07, same request otherwise:
+    //
+    //   only: ['amazon-bedrock']           -> HTTP 404 "No allowed providers
+    //                                         are available for the selected
+    //                                         model" (funnel: 5 endpoints -> 4
+    //                                         at the surcharge filter, leaving
+    //                                         only xai)
+    //   only: ['amazon-bedrock/us-west-2'] -> served, tokens returned
+    //
+    // Reverting to the bare slug does not widen the match, it disables the rung.
     //
     // reasoningEffort is mandatory: grok-4.6 has reasoning.mandatory = true
     // and defaults to 'high', which spends the whole token budget thinking and
@@ -103,7 +119,10 @@ const PROVIDER_CONFIG: Record<Provider, ProviderConfig> = {
     model: 'x-ai/grok-4.6',
     keyEnvs: BYOK_KEY_ENVS,
     reasoningEffort: 'low',
-    providerRouting: { only: ['amazon-bedrock'], allow_fallbacks: false },
+    providerRouting: {
+      only: ['amazon-bedrock/us-west-2'],
+      allow_fallbacks: false,
+    },
   },
 };
 
