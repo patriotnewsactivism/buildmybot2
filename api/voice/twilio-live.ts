@@ -2,21 +2,98 @@ import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
 import WebSocket, { type RawData } from 'ws';
 import { z } from 'zod';
-import { searchKnowledge } from '../rag.js';
 import { recordMilestone } from '../growth/milestones.js';
 import { sendSms, telnyxConfigured } from '../lib/telephony-provider.js';
+import { searchKnowledge } from '../rag.js';
 
 const GEMINI_MODEL = 'models/gemini-3.1-flash-live-preview';
 const GEMINI_WS_URL =
   'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent';
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const APP_BASE_URL = process.env.APP_BASE_URL || 'https://buildmybot.app';
 
 const SUPABASE_HEADERS = {
   apikey: SUPABASE_SERVICE_KEY || '',
   Authorization: `Bearer ${SUPABASE_SERVICE_KEY || ''}`,
   'Content-Type': 'application/json',
 };
+
+// --- Gemini Live health / circuit breaker --------------------------------
+// Serverless instances are ephemeral, so this is a best-effort in-memory
+// signal scoped to a single warm instance. It still meaningfully protects
+// against repeatedly attempting a genuinely degraded Gemini Live endpoint
+// within that instance's lifetime -- new inbound calls check it before even
+// opening a Gemini socket (see api/twilio/inbound.ts).
+const GEMINI_HEALTH_WINDOW_MS = 5 * 60 * 1000;
+const GEMINI_HEALTH_MIN_SAMPLES = 3;
+const GEMINI_HEALTH_FAILURE_RATIO = 0.6;
+const geminiHealthEvents: Array<{ at: number; ok: boolean }> = [];
+
+function pruneGeminiHealthEvents() {
+  const now = Date.now();
+  while (
+    geminiHealthEvents.length &&
+    now - geminiHealthEvents[0].at > GEMINI_HEALTH_WINDOW_MS
+  ) {
+    geminiHealthEvents.shift();
+  }
+}
+
+function recordGeminiOutcome(ok: boolean) {
+  geminiHealthEvents.push({ at: Date.now(), ok });
+  pruneGeminiHealthEvents();
+}
+
+export function isGeminiLiveCircuitOpen(): boolean {
+  pruneGeminiHealthEvents();
+  if (geminiHealthEvents.length < GEMINI_HEALTH_MIN_SAMPLES) return false;
+  const failures = geminiHealthEvents.filter((event) => !event.ok).length;
+  return failures / geminiHealthEvents.length >= GEMINI_HEALTH_FAILURE_RATIO;
+}
+
+/**
+ * Mid-call rescue: redirect an in-progress Twilio call away from a broken
+ * Gemini Live session and into the legacy Gather/TTS loop, instead of just
+ * dropping the caller. Reuses the same fallback conversation endpoint the
+ * static pre-call routing decision falls back to.
+ */
+async function redirectCallToFallback(
+  context: SessionContext,
+  reason: string,
+): Promise<boolean> {
+  const accountSid = process.env.TWILIO_ACCOUNT_SID;
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  if (!accountSid || !authToken || !context.callSid) return false;
+  try {
+    const twilio = (await import('twilio')).default;
+    const client = context.accountSid
+      ? twilio(accountSid, authToken, { accountSid: context.accountSid })
+      : twilio(accountSid, authToken);
+    const respondUrl = `${APP_BASE_URL}/api/twilio/inbound-voice-respond?logId=${encodeURIComponent(context.logId || '')}&botId=${encodeURIComponent(context.botId || '')}&turn=1`;
+    const twiml = [
+      '<Response>',
+      '<Say voice="Polly.Joanna">Sorry about that, let me connect you a different way.</Say>',
+      `<Gather input="speech" timeout="5" speechTimeout="auto" action="${respondUrl.replace(/&/g, '&amp;')}" method="POST">`,
+      '<Say voice="Polly.Joanna">Go ahead, I am listening.</Say>',
+      '</Gather>',
+      '<Say voice="Polly.Joanna">Feel free to call back anytime. Have a great day!</Say>',
+      '<Hangup/>',
+      '</Response>',
+    ].join('');
+    await client.calls(context.callSid).update({ twiml });
+    console.error(
+      `[voice-live] Redirected call ${context.callSid} to legacy fallback: ${reason}`,
+    );
+    return true;
+  } catch (error: unknown) {
+    console.error(
+      '[voice-live] Fallback redirect failed:',
+      error instanceof Error ? error.message : error,
+    );
+    return false;
+  }
+}
 
 type JsonObject = Record<string, unknown>;
 type ToolResult = JsonObject & { success: boolean };
@@ -510,7 +587,8 @@ async function sendHotLeadAlert(
       });
       return { success: true, messageSid: sent.id };
     } catch (error: unknown) {
-      const reason = error instanceof Error ? error.message : 'Telnyx SMS alert failed';
+      const reason =
+        error instanceof Error ? error.message : 'Telnyx SMS alert failed';
       console.error('[voice-live] Hot-lead SMS via Telnyx failed:', reason);
       return { success: false, reason };
     }
@@ -522,7 +600,10 @@ async function sendHotLeadAlert(
     ? context.calledNumber
     : process.env.TWILIO_PHONE_NUMBER || context.calledNumber;
   if (!accountSid || !authToken || !fromNumber) {
-    return { success: false, reason: 'No SMS provider is configured (Telnyx or Twilio)' };
+    return {
+      success: false,
+      reason: 'No SMS provider is configured (Telnyx or Twilio)',
+    };
   }
 
   try {
@@ -537,7 +618,8 @@ async function sendHotLeadAlert(
     });
     return { success: true, messageSid: message.sid };
   } catch (error: unknown) {
-    const reason = error instanceof Error ? error.message : 'Twilio SMS alert failed';
+    const reason =
+      error instanceof Error ? error.message : 'Twilio SMS alert failed';
     console.error('[voice-live] Hot-lead SMS via Twilio failed:', reason);
     return { success: false, reason };
   }
@@ -823,8 +905,45 @@ export function handleTwilioMediaConnection(
     at: string;
   }> = [];
   let finalized = false;
+  let geminiReady = false;
+  let connectTimeoutTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // Outbound audio pacing: Gemini returns audio in bursty 100-300ms chunks,
+  // but Twilio Media Streams expects ~20ms frames delivered at real-time
+  // cadence. Buffer everything Gemini sends and drain it to Twilio at a
+  // fixed 20ms/160-byte tick instead of forwarding each burst immediately.
+  const OUTBOUND_FRAME_BYTES = 160; // 20ms of 8kHz mu-law audio
+  const OUTBOUND_FRAME_MS = 20;
+  let pendingAudio = Buffer.alloc(0);
+  let pacingTimer: ReturnType<typeof setInterval> | null = null;
+
+  const stopPacingTimer = () => {
+    if (pacingTimer) {
+      clearInterval(pacingTimer);
+      pacingTimer = null;
+    }
+  };
+
+  const ensurePacingTimer = () => {
+    if (pacingTimer) return;
+    pacingTimer = setInterval(() => {
+      if (!context || twilioSocket.readyState !== WebSocket.OPEN) return;
+      if (pendingAudio.length < OUTBOUND_FRAME_BYTES) return;
+      const frame = pendingAudio.subarray(0, OUTBOUND_FRAME_BYTES);
+      pendingAudio = pendingAudio.subarray(OUTBOUND_FRAME_BYTES);
+      sendJson(twilioSocket, {
+        event: 'media',
+        streamSid: context.streamSid,
+        media: { payload: frame.toString('base64') },
+      });
+    }, OUTBOUND_FRAME_MS);
+  };
 
   const closeGemini = () => {
+    if (connectTimeoutTimer) {
+      clearTimeout(connectTimeoutTimer);
+      connectTimeoutTimer = null;
+    }
     if (!gemini) return;
     if (gemini.readyState === WebSocket.OPEN) {
       gemini.close(1000, 'Twilio stream ended');
@@ -838,6 +957,8 @@ export function handleTwilioMediaConnection(
     if (finalized) return;
     finalized = true;
     closeGemini();
+    stopPacingTimer();
+    pendingAudio = Buffer.alloc(0);
     if (context?.logId) {
       await patchCallLog(context.logId, {
         status,
@@ -878,6 +999,21 @@ export function handleTwilioMediaConnection(
       gemini = new WebSocket(
         `${GEMINI_WS_URL}?key=${encodeURIComponent(apiKey)}`,
       );
+      ensurePacingTimer();
+      connectTimeoutTimer = setTimeout(() => {
+        if (geminiReady || finalized) return;
+        recordGeminiOutcome(false);
+        console.error('[voice-live] Gemini Live setup timed out');
+        void (async () => {
+          const redirected = context
+            ? await redirectCallToFallback(
+                context,
+                'Gemini Live setup timed out',
+              )
+            : false;
+          await finalize(redirected ? 'completed' : 'failed');
+        })();
+      }, 4000);
       gemini.on('open', () => {
         if (context && gemini) setupGeminiSession(gemini, context);
       });
@@ -897,12 +1033,19 @@ export function handleTwilioMediaConnection(
           return;
         }
         if (response.setupComplete) {
+          geminiReady = true;
+          if (connectTimeoutTimer) {
+            clearTimeout(connectTimeoutTimer);
+            connectTimeoutTimer = null;
+          }
+          recordGeminiOutcome(true);
           promptInitialGreeting(gemini);
           return;
         }
 
         const content = response.serverContent;
         if (content?.interrupted) {
+          pendingAudio = Buffer.alloc(0);
           sendJson(twilioSocket, {
             event: 'clear',
             streamSid: context.streamSid,
@@ -929,11 +1072,10 @@ export function handleTwilioMediaConnection(
         for (const part of content?.modelTurn?.parts || []) {
           const audio = part.inlineData?.data;
           if (!audio) continue;
-          sendJson(twilioSocket, {
-            event: 'media',
-            streamSid: context.streamSid,
-            media: { payload: pcm24kToMuLaw8k(audio) },
-          });
+          pendingAudio = Buffer.concat([
+            pendingAudio,
+            Buffer.from(pcm24kToMuLaw8k(audio), 'base64'),
+          ]);
         }
 
         const functionCalls = response.toolCall?.functionCalls || [];
@@ -952,10 +1094,38 @@ export function handleTwilioMediaConnection(
       });
       gemini.on('error', (error) => {
         console.error('[voice-live] Gemini WebSocket error:', error.message);
+        if (finalized) return;
+        recordGeminiOutcome(false);
+        void (async () => {
+          const redirected = context
+            ? await redirectCallToFallback(
+                context,
+                `Gemini WebSocket error: ${error.message}`,
+              )
+            : false;
+          await finalize(redirected ? 'completed' : 'failed');
+        })();
       });
       gemini.on('close', () => {
-        if (!finalized && twilioSocket.readyState === WebSocket.OPEN) {
-          twilioSocket.close(1011, 'Voice engine disconnected');
+        if (finalized) return;
+        if (!geminiReady) {
+          // Already handled by the connect-timeout / error paths above in
+          // practice, but cover the case where the socket closes before
+          // either fires.
+          recordGeminiOutcome(false);
+        }
+        if (twilioSocket.readyState === WebSocket.OPEN) {
+          void (async () => {
+            const redirected = context
+              ? await redirectCallToFallback(
+                  context,
+                  'Gemini Live connection closed unexpectedly',
+                )
+              : false;
+            await finalize(redirected ? 'completed' : 'failed');
+          })();
+        } else {
+          void finalize('failed');
         }
       });
       return;

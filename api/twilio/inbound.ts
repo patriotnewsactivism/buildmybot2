@@ -9,7 +9,10 @@
 
 import { createHmac } from 'node:crypto';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { createTwilioStreamToken } from '../voice/twilio-live.js';
+import {
+  createTwilioStreamToken,
+  isGeminiLiveCircuitOpen,
+} from '../voice/twilio-live.js';
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -221,7 +224,19 @@ export async function inboundVoiceHandler(
     callSid,
   });
 
-  if (bot && process.env.GEMINI_API_KEY && process.env.TWILIO_AUTH_TOKEN) {
+  const geminiCircuitOpen = isGeminiLiveCircuitOpen();
+  if (geminiCircuitOpen) {
+    console.error(
+      '[twilio][inbound] Gemini Live circuit breaker is open (recent failures) -- routing to fallback',
+    );
+  }
+
+  if (
+    bot &&
+    process.env.GEMINI_API_KEY &&
+    process.env.TWILIO_AUTH_TOKEN &&
+    !geminiCircuitOpen
+  ) {
     try {
       const twiml = realtimeTwiml({
         botId: bot.id,
