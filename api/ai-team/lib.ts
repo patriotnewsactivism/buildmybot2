@@ -9,11 +9,11 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 type Provider =
   | 'openrouter-minimax-m3'
   | 'openrouter-nemotron-ultra'
-  | 'openrouter-glm-5-2-free'
   | 'openrouter-nemotron-super'
   | 'openrouter-deepseek-v4-flash-paid'
   | 'openrouter-gpt-oss-120b-paid'
-  | 'openrouter-deepseek-v3-paid';
+  | 'openrouter-deepseek-v3-paid'
+  | 'openrouter-grok-4-6-bedrock';
 
 interface ProviderConfig {
   baseURL: string;
@@ -21,6 +21,10 @@ interface ProviderConfig {
   keyEnvs: string[];
   // Optional OpenRouter reasoning-effort hint (reasoning models only).
   reasoningEffort?: 'low' | 'medium' | 'high';
+  // Optional OpenRouter provider-routing block. Needed when a model is served
+  // by several providers and only one of them is the intended target — e.g. a
+  // BYOK endpoint, which is only used if the request lands on that provider.
+  providerRouting?: { only?: string[]; allow_fallbacks?: boolean };
 }
 
 // Free-tier key order: new-account free key first, then the old-account
@@ -32,6 +36,14 @@ const FREE_KEY_ENVS = [
 ];
 // Paid keys back ONLY the paid tail (last resort).
 const PAID_KEY_ENVS = ['OPENROUTER_API_KEY_3'];
+// BYOK is configured per OpenRouter ACCOUNT, so this key must belong to the
+// account holding the Amazon Bedrock provider key. If that is the same account
+// as the paid key above, leave OPENROUTER_BYOK_API_KEY unset.
+const BYOK_KEY_ENVS = [
+  'OPENROUTER_BYOK_API_KEY',
+  'OPENROUTER_API_KEY_3',
+  'OPENROUTER_API_KEY',
+];
 
 const PROVIDER_CONFIG: Record<Provider, ProviderConfig> = {
   'openrouter-minimax-m3': {
@@ -42,11 +54,6 @@ const PROVIDER_CONFIG: Record<Provider, ProviderConfig> = {
   'openrouter-nemotron-ultra': {
     baseURL: 'https://openrouter.ai/api/v1/chat/completions',
     model: 'nvidia/nemotron-3-ultra-550b-a55b:free',
-    keyEnvs: FREE_KEY_ENVS,
-  },
-  'openrouter-glm-5-2-free': {
-    baseURL: 'https://openrouter.ai/api/v1/chat/completions',
-    model: 'z-ai/glm-5.2:free',
     keyEnvs: FREE_KEY_ENVS,
   },
   'openrouter-nemotron-super': {
@@ -75,16 +82,40 @@ const PROVIDER_CONFIG: Record<Provider, ProviderConfig> = {
     model: 'deepseek/deepseek-v3.2',
     keyEnvs: PAID_KEY_ENVS,
   },
+  'openrouter-grok-4-6-bedrock': {
+    // Last-resort rung (operator-authorised 2026-09-07). Routed through the
+    // operator's own Amazon Bedrock BYOK credential, so it bills AWS instead
+    // of OpenRouter credits and keeps the AI team answering when the free
+    // models are daily-capped AND the paid credits are exhausted — the exact
+    // combination that took the fleet down on 2026-09-06.
+    //
+    // `only: ['amazon-bedrock']` is required, not a preference: x-ai/grok-4.6
+    // is served by five endpoints and xAI direct is cheaper and much faster,
+    // so an unpinned request routes there and bills the credits this rung
+    // exists to avoid. allow_fallbacks:false stops a Bedrock outage becoming a
+    // silent paid-credit call; the chain falls through instead.
+    //
+    // reasoningEffort is mandatory: grok-4.6 has reasoning.mandatory = true
+    // and defaults to 'high', which spends the whole token budget thinking and
+    // returns content: null — caught by the empty-completion guard below, but
+    // only after wasting the call.
+    baseURL: 'https://openrouter.ai/api/v1/chat/completions',
+    model: 'x-ai/grok-4.6',
+    keyEnvs: BYOK_KEY_ENVS,
+    reasoningEffort: 'low',
+    providerRouting: { only: ['amazon-bedrock'], allow_fallbacks: false },
+  },
 };
 
 const FALLBACK_ORDER: Provider[] = [
   'openrouter-minimax-m3',
   'openrouter-nemotron-ultra',
-  'openrouter-glm-5-2-free',
   'openrouter-nemotron-super',
   'openrouter-deepseek-v4-flash-paid',
   'openrouter-gpt-oss-120b-paid',
   'openrouter-deepseek-v3-paid',
+  // Last: BYOK, so it is only reached once everything cheaper is exhausted.
+  'openrouter-grok-4-6-bedrock',
 ];
 
 function resolveOpenRouterKeys(config?: ProviderConfig): string[] {
@@ -266,6 +297,7 @@ async function callWithConfigMessages(
         ...(config.reasoningEffort
           ? { reasoning: { effort: config.reasoningEffort } }
           : {}),
+        ...(config.providerRouting ? { provider: config.providerRouting } : {}),
       }),
     });
     if (!response.ok) {
