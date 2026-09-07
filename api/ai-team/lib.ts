@@ -39,7 +39,11 @@ const PAID_KEY_ENVS = ['OPENROUTER_API_KEY_3'];
 // BYOK is configured per OpenRouter ACCOUNT, so this key must belong to the
 // account holding the Amazon Bedrock provider key. If that is the same account
 // as the paid key above, leave OPENROUTER_BYOK_API_KEY unset.
-const BYOK_KEY_ENVS = ['OPENROUTER_BYOK_API_KEY', 'OPENROUTER_API_KEY_3', 'OPENROUTER_API_KEY'];
+const BYOK_KEY_ENVS = [
+  'OPENROUTER_BYOK_API_KEY',
+  'OPENROUTER_API_KEY_3',
+  'OPENROUTER_API_KEY',
+];
 
 const PROVIDER_CONFIG: Record<Provider, ProviderConfig> = {
   'openrouter-minimax-m3': {
