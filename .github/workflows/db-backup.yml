@@ -173,6 +173,20 @@ jobs:
             echo "::error::Dump is only ${size} bytes — that is not a real backup of a 45MB database." >&2
             exit 1
           fi
+
+          # TEMP DIAGNOSTIC (safe: only prints SQL keyword statistics and
+          # byte counts, never row data/identifiers) to root-cause why the
+          # CREATE TABLE check is not matching. Remove once resolved.
+          decompressed_size=$(gunzip -c "$out" | wc -c || true)
+          echo "Decompressed size: ${decompressed_size} bytes"
+          echo "gunzip exit status: $?"
+          echo "CREATE-keyword histogram (object types only, no identifiers/data):"
+          gunzip -c "$out" 2>/tmp/gunzip_stderr.log | grep -aoE '^CREATE [A-Z]+' | sort | uniq -c || true
+          echo "gunzip stderr (if any):"
+          cat /tmp/gunzip_stderr.log || true
+          echo "Case-insensitive 'create table' count:"
+          gunzip -c "$out" | grep -aic 'create table' || true
+
           # NOTE: do not pipe through `head -c` before this grep. With 115
           # tables plus --quote-all-identifiers, extensions/types/functions
           # in the preamble can push the first real CREATE TABLE well past a
