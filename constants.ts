@@ -535,9 +535,11 @@ export function applySmsOverageCommissionSafeguard(
   estimatedMarginUsd: number;
 } {
   const overageRateUsd = SMS_MARKETING_PLANS.SMS_STARTER.overagePerMessage;
-  const costRatio = overageRateUsd > 0 ? SMS_SEGMENT_COST_USD / overageRateUsd : 0;
+  const costRatio =
+    overageRateUsd > 0 ? SMS_SEGMENT_COST_USD / overageRateUsd : 0;
   const estimatedMarginUsd = Math.max(0, overageRevenueUsd) * (1 - costRatio);
-  const maxSafeCommissionUsd = estimatedMarginUsd * MAX_COMMISSION_SHARE_OF_MARGIN;
+  const maxSafeCommissionUsd =
+    estimatedMarginUsd * MAX_COMMISSION_SHARE_OF_MARGIN;
   const cappedCommissionUsd = Math.max(
     0,
     Math.min(computedCommissionUsd, maxSafeCommissionUsd),

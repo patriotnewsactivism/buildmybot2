@@ -16,7 +16,10 @@ import {
   UserCheck,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { SMS_MARKETING_PRICING, SMS_MARKETING_REGISTRATION_FEE } from '../../constants';
+import {
+  SMS_MARKETING_PRICING,
+  SMS_MARKETING_REGISTRATION_FEE,
+} from '../../constants';
 import { SEO, SEOConfig } from '../SEO/SEO';
 
 const CAPABILITIES = [
