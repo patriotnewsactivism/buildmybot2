@@ -529,6 +529,12 @@ export const dbService = {
     return response.json();
   },
 
+  getAdminSmsOverview: async () => {
+    const response = await request('/admin/sms', { method: 'GET' }, false);
+    if (!response.ok) throw new Error('Failed to load SMS overview');
+    return response.json();
+  },
+
   getAdminPartners: async () => {
     const response = await request('/admin/partners', { method: 'GET' }, false);
     if (!response.ok) throw new Error('Failed to load partners');
