@@ -16,7 +16,7 @@ import {
   UserCheck,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { SMS_MARKETING_PRICING } from '../../constants';
+import { SMS_MARKETING_PRICING, SMS_MARKETING_REGISTRATION_FEE } from '../../constants';
 import { SEO, SEOConfig } from '../SEO/SEO';
 
 const CAPABILITIES = [
@@ -383,6 +383,24 @@ export function SmsMarketingLandingPage() {
             requirement for any business texting platform, not a BuildMyBot
             limitation.
           </p>
+          <div className="mx-auto mt-6 flex flex-col items-center gap-1 text-center">
+            <div className="flex items-center gap-2 text-sm">
+              <span className="font-bold uppercase tracking-wide text-emerald-400">
+                Limited time only
+              </span>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-lg text-slate-500 line-through">
+                ${SMS_MARKETING_REGISTRATION_FEE.listPrice} registration fee
+              </span>
+              <span className="text-lg font-black text-white">
+                ${SMS_MARKETING_REGISTRATION_FEE.price} intro offer
+              </span>
+            </div>
+            <p className="mx-auto mt-2 max-w-2xl text-sm text-slate-500">
+              {SMS_MARKETING_REGISTRATION_FEE.disclosure}
+            </p>
+          </div>
         </section>
 
         <section className="mx-auto max-w-5xl px-5 py-24 text-center sm:px-8 sm:py-28">

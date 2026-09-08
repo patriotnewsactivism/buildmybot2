@@ -1,4 +1,4 @@
-import { SMS_PLANS, type SmsPlan } from '../../shared/sms.js';
+import { SMS_PLANS, SMS_REGISTRATION_FEE_USD, type SmsPlan } from '../../shared/sms.js';
 import { applySmsOverageCommissionSafeguard } from '../../constants.js';
 import { accountFor } from './runtime.js';
 import { db, filter, rpc, scoped, SmsError, type SmsUser } from './store.js';
@@ -19,9 +19,21 @@ export async function createSmsCheckout(user: SmsUser, plan: SmsPlan) {
   if (!priceId) throw new SmsError(503, 'This SMS plan is not configured for checkout');
   const price = await stripe(`/prices/${encodeURIComponent(priceId)}`);
   if (!price.active || price.currency !== 'usd' || price.unit_amount !== SMS_PLANS[plan].price * 100 || price.recurring?.interval !== 'month' || (price.recurring?.interval_count || 1) !== 1) throw new SmsError(503, 'The configured billing price does not match the published SMS plan');
+  // One-time registration fee (Don, 2026-09-08): a second line item on the
+  // SAME Checkout Session, not a separate charge/flow. Stripe subscription-
+  // mode Checkout allows mixing one recurring price with one-time prices --
+  // the one-time amount lands as an invoice item on the first invoice only,
+  // never on renewals. This is why handleSmsBillingEvent's invoice.paid
+  // check below distinguishes billing_reason: only the very first invoice
+  // should include the fee.
+  const feePriceId = process.env.STRIPE_PRICE_SMS_REGISTRATION_FEE;
+  if (!feePriceId) throw new SmsError(503, 'The SMS registration fee is not configured for checkout');
+  const feePrice = await stripe(`/prices/${encodeURIComponent(feePriceId)}`);
+  if (!feePrice.active || feePrice.currency !== 'usd' || feePrice.unit_amount !== SMS_REGISTRATION_FEE_USD * 100 || feePrice.recurring != null) throw new SmsError(503, 'The configured registration-fee price does not match the published amount');
   const base = process.env.APP_BASE_URL || 'https://www.buildmybot.app';
   const session = await stripe('/checkout/sessions', 'POST', {
     mode: 'subscription', 'line_items[0][price]': priceId, 'line_items[0][quantity]': '1',
+    'line_items[1][price]': feePriceId, 'line_items[1][quantity]': '1',
     success_url: `${base}/app/sms-marketing?payment=complete`, cancel_url: `${base}/app/sms-marketing?payment=cancelled`,
     'metadata[type]': 'sms', 'metadata[userId]': user.id, 'metadata[tenantKey]': user.tenant,
     'subscription_data[metadata][type]': 'sms', 'subscription_data[metadata][userId]': user.id,
@@ -50,7 +62,15 @@ export async function handleSmsBillingEvent(event: StripeObject): Promise<boolea
     const plan = subscription.metadata.planKey as SmsPlan;
     if (!(plan in SMS_PLANS)) throw new Error('Unknown SMS plan');
     const item = subscription.items?.data?.find((i: StripeObject) => i.price?.id === process.env[`STRIPE_PRICE_${plan}`]);
-    if (!item || object.paid !== true || object.amount_paid < SMS_PLANS[plan].price * 100 || object.currency !== 'usd') throw new Error('SMS provisioning requires a fully paid first month');
+    // The registration fee (see createSmsCheckout) is bundled as a one-time
+    // line item on the SAME Checkout Session -- Stripe puts it on the first
+    // invoice only (billing_reason 'subscription_create'), never on renewal
+    // invoices ('subscription_cycle'). Require it on the first invoice so a
+    // tampered/incomplete first payment can't unlock provisioning without
+    // actually covering the real registration cost.
+    const isFirstInvoice = object.billing_reason === 'subscription_create';
+    const expectedMinorUnits = (SMS_PLANS[plan].price + (isFirstInvoice ? SMS_REGISTRATION_FEE_USD : 0)) * 100;
+    if (!item || object.paid !== true || object.amount_paid < expectedMinorUnits || object.currency !== 'usd') throw new Error(isFirstInvoice ? 'SMS provisioning requires the first month plus the registration fee to be fully paid' : 'SMS provisioning requires a fully paid month');
     const start = item.current_period_start || subscription.current_period_start || object.period_start;
     const end = item.current_period_end || subscription.current_period_end || object.period_end;
     if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) throw new Error('Invalid paid SMS period');
