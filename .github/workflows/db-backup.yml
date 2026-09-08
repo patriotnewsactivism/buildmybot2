@@ -166,38 +166,34 @@ jobs:
           echo "dump=$out size=${size}"
           echo "DUMP_FILE=$out" >> "$GITHUB_ENV"
 
-          # A dump that failed part-way still exits 0 through the pipe and leaves
-          # a small, useless file. Prove it actually contains a schema before it
-          # is allowed to count as a backup.
+          # A dump that failed part-way still exits 0 through the pipe and
+          # leaves a small, useless file.
           if [[ "$size" -lt 20000 ]]; then
             echo "::error::Dump is only ${size} bytes — that is not a real backup of a 45MB database." >&2
             exit 1
           fi
 
-          # TEMP DIAGNOSTIC (safe: only prints SQL keyword statistics and
-          # byte counts, never row data/identifiers) to root-cause why the
-          # CREATE TABLE check is not matching. Remove once resolved.
-          decompressed_size=$(gunzip -c "$out" | wc -c || true)
-          echo "Decompressed size: ${decompressed_size} bytes"
-          echo "gunzip exit status: $?"
-          echo "CREATE-keyword histogram (object types only, no identifiers/data):"
-          gunzip -c "$out" 2>/tmp/gunzip_stderr.log | grep -aoE '^CREATE [A-Z]+' | sort | uniq -c || true
-          echo "gunzip stderr (if any):"
-          cat /tmp/gunzip_stderr.log || true
-          echo "Case-insensitive 'create table' count:"
-          gunzip -c "$out" | grep -aic 'create table' || true
-
-          # NOTE: do not pipe through `head -c` before this grep. With 115
-          # tables plus --quote-all-identifiers, extensions/types/functions
-          # in the preamble can push the first real CREATE TABLE well past a
-          # couple MB of decompressed text; `grep -q` already stops reading
-          # at the first match so scanning the full stream costs nothing
-          # extra in practice.
-          if ! gunzip -c "$out" | grep -q 'CREATE TABLE'; then
+          # Prove the dump actually contains a schema before it counts as a
+          # backup.
+          #
+          # This check used to be `gunzip -c "$out" | grep -q 'CREATE TABLE'`,
+          # and it failed every single scheduled run on dumps that were
+          # perfectly good -- 30MB decompressed with 149 CREATE TABLE
+          # statements in them. `grep -q` exits at its first match, which
+          # closes the pipe; gunzip then dies of SIGPIPE with status 141, and
+          # `set -o pipefail` promotes that to the status of the whole
+          # pipeline. Finding a match is precisely what made the guard report
+          # "no CREATE TABLE statements" and refuse to upload -- the log shows
+          # `gzip: stdout: Broken pipe` immediately before the error.
+          #
+          # `grep -c` reads to end of stream, so it never closes the pipe
+          # early. Counting once is also cheaper than the previous
+          # match-then-count pair, which decompressed 30MB twice.
+          tables=$(gunzip -c "$out" | grep -ac '^CREATE TABLE' || true)
+          if [[ "${tables:-0}" -lt 1 ]]; then
             echo "::error::Dump contains no CREATE TABLE statements — refusing to upload it." >&2
             exit 1
           fi
-          tables=$(gunzip -c "$out" | grep -c '^CREATE TABLE' || true)
           echo "Verified: ${tables} tables in the dump."
           echo "DUMP_TABLES=$tables" >> "$GITHUB_ENV"
 
