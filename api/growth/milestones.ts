@@ -134,9 +134,21 @@ interface ActivationSources {
   integrations: Array<Record<string, any>>;
   phoneNumbers: Array<Record<string, any>>;
   milestones: Record<string, string>;
+  /**
+   * SMS provisioning state, present ONLY for tenants who actually have an SMS
+   * account row. Omitted for everyone else on purpose: the checklist hides
+   * itself at 100%, so an always-present SMS step would leave every non-SMS
+   * customer staring at a permanently unfinishable list.
+   */
+  sms?: { registered: boolean; ready: boolean } | null;
 }
 
-const CALENDAR_PROVIDERS = ['google_calendar', 'calendly', 'cal_com', 'outlook_calendar'];
+const CALENDAR_PROVIDERS = [
+  'google_calendar',
+  'calendly',
+  'cal_com',
+  'outlook_calendar',
+];
 
 /**
  * Pure function so the rules are testable without a database.
@@ -150,12 +162,15 @@ export function computeActivation(sources: ActivationSources): ActivationState {
   // "Installed" means the widget actually ran somewhere: either the bot was
   // published/embedded, or a conversation arrived from a non-preview session.
   const widgetInstalled = bots.some(
-    (b) => b.is_public === true || b.status === 'active' || b.embed_installed_at,
+    (b) =>
+      b.is_public === true || b.status === 'active' || b.embed_installed_at,
   );
 
   const calendarConnected = (sources.integrations || []).some(
     (i) =>
-      CALENDAR_PROVIDERS.includes(String(i.provider || i.type || '').toLowerCase()) &&
+      CALENDAR_PROVIDERS.includes(
+        String(i.provider || i.type || '').toLowerCase(),
+      ) &&
       (i.status === 'connected' || i.connected === true),
   );
 
@@ -167,7 +182,8 @@ export function computeActivation(sources: ActivationSources): ActivationState {
     {
       key: 'train_bot',
       label: 'Train your bot',
-      description: 'Add a website, document or FAQ so the bot knows your business.',
+      description:
+        'Add a website, document or FAQ so the bot knows your business.',
       done: hasBot && trained,
       href: '/app/bots',
     },
@@ -195,7 +211,8 @@ export function computeActivation(sources: ActivationSources): ActivationState {
     {
       key: 'configure_transfer',
       label: 'Configure call transfer',
-      description: 'Set the number a caller is transferred to when they ask for a human.',
+      description:
+        'Set the number a caller is transferred to when they ask for a human.',
       done: transferConfigured,
       href: '/app/phone',
     },
@@ -209,6 +226,18 @@ export function computeActivation(sources: ActivationSources): ActivationState {
       href: '/app/phone',
     },
   ];
+
+  // Only surfaced once the tenant is actually on SMS -- see ActivationSources.
+  if (sources.sms) {
+    steps.push({
+      key: 'activate_sms',
+      label: 'Finish SMS registration',
+      description:
+        'US carriers verify every business before the first text sends. Takes 5 minutes.',
+      done: sources.sms.ready,
+      href: '/app/sms-marketing',
+    });
+  }
 
   const completed = steps.filter((s) => s.done).length;
   return {

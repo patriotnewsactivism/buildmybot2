@@ -101,6 +101,7 @@ export const NAV: Record<NavRole, NavGroup[]> = {
       items: [
         { label: 'All Bots', to: '/admin/bots', icon: Bot },
         { label: 'Voice Receptionist', to: '/admin/voice', icon: Phone },
+        { label: 'SMS Marketing', to: '/admin/sms', icon: Smartphone },
         {
           label: 'Conversations',
           to: '/admin/conversations',

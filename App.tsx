@@ -15,6 +15,7 @@ import {
 import { ErrorRecoveryDashboard } from './components/Admin/ErrorRecoveryDashboard';
 import { FinancialDashboard } from './components/Admin/widgets/FinancialDashboard';
 import { PartnerOversight } from './components/Admin/widgets/PartnerOversight';
+import { SmsOversight } from './components/Admin/widgets/SmsOversight';
 import { UserManagement } from './components/Admin/widgets/UserManagement';
 import { AffiliateDashboard } from './components/Affiliate/AffiliateDashboard';
 import { AgentDashboard } from './components/Agent/AgentDashboard';
@@ -786,6 +787,14 @@ function App() {
                         onUpdate={handleUpdateActiveUser}
                       />
                     ) : null
+                  }
+                />
+                <Route
+                  path="/admin/sms"
+                  element={
+                    <div className="p-3 sm:p-6">
+                      <SmsOversight />
+                    </div>
                   }
                 />
                 <Route

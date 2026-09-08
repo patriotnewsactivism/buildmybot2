@@ -44,6 +44,7 @@ import {
   assertSafeOutboundUrl,
   safeFetch,
 } from './security/ssrf.js';
+import { computeSmsOversight } from './sms/oversight.js';
 
 // Initialize Sentry for production error monitoring
 if (process.env.SENTRY_DSN) {
@@ -1173,6 +1174,100 @@ async function handleAdmin(
   if (!isPlatformAdmin(user))
     return res.status(403).json({ error: 'Admin access required' });
   const sub = pathParts[0] || '';
+
+  // GET /admin/sms -- cross-tenant SMS oversight.
+  //
+  // The only place in the codebase that reads sms_* rows across tenants. Every
+  // customer-facing SMS query goes through scoped() in api/sms/store.ts, which
+  // pins tenant_key, so before this endpoint no staff view of the 10DLC queue
+  // existed at all. Deliberately served here rather than from api/sms/handler.ts:
+  // that handler calls ensureAccount() on every request, which would have
+  // created an sms_accounts row for whichever admin opened the page -- and that
+  // row alone adds the SMS step to their own activation checklist.
+  if (sub === 'sms') {
+    if (_req.method !== 'GET')
+      return res.status(405).json({ error: 'Method not allowed' });
+
+    const TENANT_LIMIT = 500;
+    const JOB_SCAN_LIMIT = 5000;
+    const WINDOW_DAYS = 30;
+
+    // The accounts read is the one query NOT wrapped in .catch(): an empty
+    // accounts list renders as "no tenant has opened SMS yet", so swallowing a
+    // Supabase failure here would quietly tell staff the opposite of the
+    // truth. Promise.all propagates that rejection, and the gateway's
+    // top-level handler turns it into the 500 the UI shows as an error state.
+    //
+    // sms_provisioning.tenant_key is a PK referencing sms_accounts, so there
+    // is never more provisioning than accounts. Fetching both at the same cap
+    // therefore aligns exactly until one of them binds -- which the response
+    // reports as tenantsTruncated rather than silently showing a registered
+    // tenant as "not started".
+    const [accounts, provisioning] = await Promise.all([
+      sbSelect(
+        'sms_accounts',
+        'tenant_key,user_id,organization_id,business_name,plan_key,paid_until,sender,campaign_id,campaign_usecase,ready,included_segments,used_segments,overage_micros,overage_used_micros,spend_limit_micros,updated_at',
+        { order: 'updated_at.desc', limit: String(TENANT_LIMIT) },
+      ),
+      sbSelect(
+        'sms_provisioning',
+        'tenant_key,status,step,last_error,sender,provider_brand_id,provider_campaign_id,updated_at',
+        { order: 'tenant_key.asc', limit: String(TENANT_LIMIT) },
+      ).catch(() => []),
+    ]);
+
+    // Chunked because a single in.() over 500 uuids builds a URL long enough
+    // for PostgREST to reject outright.
+    const ownerIds = [
+      ...new Set(
+        (accounts as any[])
+          .map((a) => a.user_id)
+          .filter(
+            (id): id is string =>
+              typeof id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(id),
+          ),
+      ),
+    ];
+    const ownerChunks: string[][] = [];
+    for (let i = 0; i < ownerIds.length; i += 100)
+      ownerChunks.push(ownerIds.slice(i, i + 100));
+
+    // Message counts are aggregated in JS from a bounded recent window rather
+    // than by a Postgres GROUP BY: PostgREST cannot group, and an RPC for a
+    // read-only staff page would mean a migration the operator has to apply.
+    // JOB_SCAN_LIMIT rows back means the counts are a floor, and the response
+    // says so via jobsTruncated so the UI never implies a total it cannot see.
+    const since = new Date(Date.now() - WINDOW_DAYS * 86400000).toISOString();
+    const [ownerPages, jobs] = await Promise.all([
+      Promise.all(
+        ownerChunks.map((chunk) =>
+          sbSelect('users', 'id,email,name', {
+            id: `in.(${chunk.join(',')})`,
+          }).catch(() => []),
+        ),
+      ),
+      sbSelect('sms_jobs', 'tenant_key,status', {
+        created_at: `gte.${since}`,
+        order: 'created_at.desc',
+        limit: String(JOB_SCAN_LIMIT),
+      }).catch(() => []),
+    ]);
+
+    return res.json({
+      ...computeSmsOversight({
+        accounts: accounts as any[],
+        provisioning: provisioning as any[],
+        owners: ownerPages.flat() as any[],
+        jobs: jobs as any[],
+        jobsTruncated: (jobs as any[]).length >= JOB_SCAN_LIMIT,
+        launchEnabled: process.env.SMS_LAUNCH_ENABLED === 'true',
+      }),
+      tenantsTruncated:
+        (accounts as any[]).length >= TENANT_LIMIT ||
+        (provisioning as any[]).length >= TENANT_LIMIT,
+      windowDays: WINDOW_DAYS,
+    });
+  }
 
   if (sub === 'users') {
     // Backs the admin Users / Sales Agents / Clients / Affiliates pages
@@ -6292,12 +6387,21 @@ async function handleActivation(
     return res.status(405).json({ error: 'Method not allowed' });
 
   const filter = ownerFilter(user);
-  const [bots, integrations, phoneNumbers, milestones] = await Promise.all([
-    sbSelect('bots', '*', filter).catch(() => []),
-    sbSelect('integrations', '*', filter).catch(() => []),
-    sbSelect('phone_numbers', '*', filter).catch(() => []),
-    listMilestones(user.id).catch(() => ({})),
-  ]);
+  // SMS tables are keyed by tenant_key, not by the owner columns the rest of
+  // this handler filters on -- mirrors authenticate() in api/sms/store.ts.
+  const tenantKey = user.organizationId
+    ? `org:${user.organizationId}`
+    : `user:${user.id}`;
+  const [bots, integrations, phoneNumbers, milestones, smsAccounts] =
+    await Promise.all([
+      sbSelect('bots', '*', filter).catch(() => []),
+      sbSelect('integrations', '*', filter).catch(() => []),
+      sbSelect('phone_numbers', '*', filter).catch(() => []),
+      listMilestones(user.id).catch(() => ({})),
+      sbSelect('sms_accounts', 'tenant_key,ready', {
+        tenant_key: `eq.${tenantKey}`,
+      }).catch(() => []),
+    ]);
 
   const botIds = (bots || []).map((b: any) => b.id);
   let knowledgeSourceCount = 0;
@@ -6308,6 +6412,7 @@ async function handleActivation(
     knowledgeSourceCount = (sources || []).length;
   }
 
+  const smsAccount = (smsAccounts || [])[0];
   return res.json(
     computeActivation({
       bots: bots || [],
@@ -6315,6 +6420,9 @@ async function handleActivation(
       integrations: integrations || [],
       phoneNumbers: phoneNumbers || [],
       milestones: milestones || {},
+      sms: smsAccount
+        ? { registered: true, ready: smsAccount.ready === true }
+        : null,
     }),
   );
 }

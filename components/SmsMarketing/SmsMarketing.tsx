@@ -1,104 +1,243 @@
-import { CheckCircle2, Clock, Loader, MessageSquareText, XCircle } from 'lucide-react';
+import {
+  ArrowLeft,
+  ArrowRight,
+  CheckCircle2,
+  Clock,
+  Loader,
+  MessageSquareText,
+  ShieldCheck,
+  XCircle,
+} from 'lucide-react';
 import type React from 'react';
 import { useEffect, useState } from 'react';
 import { SMS_MARKETING_PRICING } from '../../constants';
 import { buildApiUrl } from '../../services/apiConfig';
 
 /**
- * Standalone SMS marketing registration + status page.
+ * Guided SMS (10DLC) setup + live provisioning status.
  *
- * NOT YET LINKED from any nav (Don's call, 2026-09-04) -- exists at
- * /app/sms-marketing but there is deliberately no sidebar entry pointing
- * here yet. Flip it on by adding an entry to navConfig.tsx once a real
- * Telnyx account + a test registration have been verified end-to-end.
+ * The tenant fills this out once and never sees Telnyx. Real carrier
+ * registration needs real business identity (legal name, EIN, address) --
+ * that cannot be skipped on any provider -- but submission and status
+ * tracking both happen here.
  *
- * The whole point: the tenant fills out ONE form, on this page, and never
- * sees Telnyx. Real carrier (10DLC) registration requires real business
- * info (legal name, EIN, address) -- that part can't be skipped by anyone,
- * on any provider -- but submission and status tracking both happen here.
+ * Why a wizard rather than the single long form this replaced: the payload
+ * `POST /api/sms/register` requires is 19 fields across four unrelated
+ * subjects (legal identity, carrier content review, consent links, number
+ * choice). One page of 19 required inputs is where tenants gave up.
+ *
+ * Two bugs this fixes, both of which made the previous form unusable:
+ *
+ *  1. It posted only 14 of the 19 required fields. `vertical`, `entityType`,
+ *     `privacyPolicyLink`, `termsAndConditionsLink` and `areaCode` have no
+ *     server default, and `website` is `z.url()` (required) while the form
+ *     labelled it optional and allowed ''. Every submission 400'd on Zod
+ *     validation before reaching Telnyx.
+ *
+ *  2. It rendered `status.brand.status` / `status.campaign.*`, which
+ *     `GET /api/sms/register` has never returned. The real shape is
+ *     { registered, status, step, error, smsReady }. A registered tenant saw
+ *     "Business ()" stuck on "Pending" forever, and never saw the real
+ *     provisioning step, the carrier rejection reason, or `waiting_funding`.
+ *
+ * Opt-in/opt-out/HELP keywords are deliberately NOT collected: api/sms/register.ts
+ * composes carrier-compliant ones itself when it builds the campaign. They are
+ * shown read-only in step 3 so the tenant knows what was filed on their behalf.
  */
 
-interface RegistrationStatus {
-  registered: boolean;
-  brand?: { companyName: string; status: string; failureReason?: string | null };
-  campaign?: { usecase: string; status: string; failureReason?: string | null } | null;
-  smsReady?: boolean;
-}
+type WizardStep = 1 | 2 | 3 | 4 | 5;
+const TOTAL_STEPS = 5;
 
+/** Mirrors the `registration` zod schema in api/sms/register.ts exactly. */
 interface FormState {
   companyName: string;
   ein: string;
+  entityType: 'PRIVATE_PROFIT' | 'PUBLIC_PROFIT' | 'NON_PROFIT';
+  vertical: string;
   phone: string;
+  email: string;
+  website: string;
   street: string;
   city: string;
   state: string;
   postalCode: string;
-  email: string;
-  website: string;
+  areaCode: string;
+  usecase: 'MIXED' | 'SWEEPSTAKES';
   description: string;
   sample1: string;
   sample2: string;
   messageFlow: string;
   helpMessage: string;
+  privacyPolicyLink: string;
+  termsAndConditionsLink: string;
 }
 
 const EMPTY_FORM: FormState = {
   companyName: '',
   ein: '',
+  entityType: 'PRIVATE_PROFIT',
+  vertical: '',
   phone: '',
+  email: '',
+  website: '',
   street: '',
   city: '',
   state: '',
   postalCode: '',
-  email: '',
-  website: '',
+  areaCode: '',
+  usecase: 'MIXED',
   description: '',
   sample1: '',
   sample2: '',
   messageFlow: '',
   helpMessage: '',
+  privacyPolicyLink: '',
+  termsAndConditionsLink: '',
 };
 
-function StatusBadge({ status }: { status: string }) {
-  const normalized = status.toUpperCase();
-  if (normalized === 'APPROVED') {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-3 py-1 text-sm font-medium text-emerald-700">
-        <CheckCircle2 className="h-4 w-4" /> Approved
-      </span>
-    );
-  }
-  if (normalized === 'FAILED' || normalized === 'REJECTED') {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-3 py-1 text-sm font-medium text-red-700">
-        <XCircle className="h-4 w-4" /> Rejected
-      </span>
-    );
-  }
+/** The shape GET /api/sms/register actually returns. */
+interface RegistrationStatus {
+  registered: boolean;
+  status:
+    | 'not_registered'
+    | 'pending'
+    | 'working'
+    | 'waiting_funding'
+    | 'unknown'
+    | 'ready'
+    | string;
+  step?: string;
+  error?: string | null;
+  smsReady?: boolean;
+}
+
+/** Carrier vertical codes Telnyx accepts for 10DLC brands. */
+const VERTICALS = [
+  'PROFESSIONAL',
+  'REAL_ESTATE',
+  'HEALTHCARE',
+  'HOSPITALITY',
+  'RETAIL',
+  'HOME_SERVICES',
+  'AUTOMOTIVE',
+  'FINANCIAL',
+  'NGO',
+  'EDUCATION',
+  'TECHNOLOGY',
+  'ENTERTAINMENT',
+] as const;
+
+/**
+ * Keywords api/sms/register.ts files with the carrier on the tenant's behalf.
+ * Kept in sync with the campaignBuilder body there — shown, never collected.
+ */
+const COMPLIANCE_KEYWORDS = {
+  optIn: 'START, YES, SUBSCRIBE',
+  optOut: 'STOP, STOPALL, UNSUBSCRIBE, CANCEL, END, QUIT',
+  help: 'HELP, INFO',
+};
+
+/** Human copy for each provisioning step the backend reports. */
+const STEP_COPY: Record<string, string> = {
+  brand: 'Filing your business identity with the carriers',
+  campaign: 'Registering your messaging campaign',
+  number: 'Reserving an SMS number in your area code',
+  assignment: 'Attaching your number to the approved campaign',
+  complete: 'Setup complete',
+};
+
+function StatusPanel({
+  status,
+  onRefresh,
+}: {
+  status: RegistrationStatus;
+  onRefresh: () => void;
+}) {
+  const ready = status.status === 'ready' || status.smsReady === true;
+  const needsSupport = status.status === 'unknown';
+  const waitingFunding = status.status === 'waiting_funding';
+
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-3 py-1 text-sm font-medium text-amber-700">
-      <Clock className="h-4 w-4" /> Pending carrier approval
-    </span>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-gray-600">Carrier registration</span>
+        {ready ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-3 py-1 text-sm font-medium text-emerald-700">
+            <CheckCircle2 className="h-4 w-4" /> Approved — sending is live
+          </span>
+        ) : needsSupport ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-3 py-1 text-sm font-medium text-red-700">
+            <XCircle className="h-4 w-4" /> Needs support review
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-3 py-1 text-sm font-medium text-amber-700">
+            <Clock className="h-4 w-4" /> In progress
+          </span>
+        )}
+      </div>
+
+      {!ready && status.step && (
+        <p className="text-sm text-gray-600">
+          Current stage: {STEP_COPY[status.step] || status.step}
+        </p>
+      )}
+
+      {waitingFunding && (
+        <p className="rounded-md bg-amber-50 p-3 text-sm text-amber-800">
+          Your payment came through. We're waiting on provider funding before we
+          can buy your number — no action needed from you.
+        </p>
+      )}
+
+      {needsSupport && (
+        <p className="rounded-md bg-red-50 p-3 text-sm text-red-700">
+          A provider step returned an uncertain result, so we stopped rather
+          than risk buying a second number. Support is reconciling it — please
+          contact us if this doesn't clear within one business day.
+        </p>
+      )}
+
+      {status.error && !needsSupport && (
+        <p className="rounded-md bg-slate-50 p-3 text-sm text-slate-700">
+          {status.error}
+        </p>
+      )}
+
+      {!ready && !needsSupport && (
+        <p className="text-sm text-gray-500">
+          Carrier approval usually takes 1–7 business days. This page updates
+          itself — nothing more is needed from you.
+        </p>
+      )}
+
+      <button
+        type="button"
+        onClick={onRefresh}
+        className="text-sm font-medium text-indigo-600 hover:text-indigo-700"
+      >
+        Refresh status
+      </button>
+    </div>
   );
 }
 
 export const SmsMarketing: React.FC = () => {
   const [status, setStatus] = useState<RegistrationStatus | null>(null);
   const [loadingStatus, setLoadingStatus] = useState(true);
+  const [step, setStep] = useState<WizardStep>(1);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [successNote, setSuccessNote] = useState('');
 
   const loadStatus = async () => {
     setLoadingStatus(true);
     try {
-      const response = await fetch(buildApiUrl('/sms/register'), { credentials: 'include' });
-      if (response.ok) {
-        setStatus(await response.json());
-      }
+      const response = await fetch(buildApiUrl('/sms/register'), {
+        credentials: 'include',
+      });
+      if (response.ok) setStatus(await response.json());
     } catch {
-      // Silent -- the form below still works; status panel just stays empty.
+      // Silent — the wizard below still works; the status panel stays empty.
     } finally {
       setLoadingStatus(false);
     }
@@ -108,17 +247,63 @@ export const SmsMarketing: React.FC = () => {
     loadStatus();
   }, []);
 
-  const updateField = (field: keyof FormState) => (
-    event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-  ) => {
-    setForm((prev) => ({ ...prev, [field]: event.target.value }));
+  const update =
+    (field: keyof FormState) =>
+    (
+      event: React.ChangeEvent<
+        HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+      >,
+    ) => {
+      setForm((prev) => ({ ...prev, [field]: event.target.value }));
+    };
+
+  /**
+   * Gate each step on the same rules the server enforces, so a tenant finds
+   * out about a bad EIN on step 1 rather than after submitting 19 fields.
+   */
+  const stepValid = (target: WizardStep): boolean => {
+    if (target === 1) {
+      return (
+        form.companyName.trim().length >= 2 &&
+        /^\d{2}-?\d{7}$/.test(form.ein) &&
+        form.vertical.length >= 2 &&
+        /^\+1\d{10}$/.test(form.phone) &&
+        /.+@.+\..+/.test(form.email) &&
+        /^https?:\/\/.+/.test(form.website)
+      );
+    }
+    if (target === 2) {
+      return (
+        form.street.trim().length >= 3 &&
+        form.city.trim().length >= 2 &&
+        form.state.trim().length === 2 &&
+        /^\d{5}(-\d{4})?$/.test(form.postalCode) &&
+        /^\d{3}$/.test(form.areaCode)
+      );
+    }
+    if (target === 3) {
+      return (
+        /^https?:\/\/.+/.test(form.privacyPolicyLink) &&
+        /^https?:\/\/.+/.test(form.termsAndConditionsLink)
+      );
+    }
+    if (target === 4) {
+      return (
+        form.description.trim().length >= 40 &&
+        form.sample1.trim().length >= 20 &&
+        form.sample2.trim().length >= 20 &&
+        form.messageFlow.trim().length >= 40 &&
+        form.helpMessage.trim().length >= 20
+      );
+    }
+    return true;
   };
 
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
+  const canAdvance = stepValid(step);
+
+  const handleSubmit = async () => {
     setSubmitting(true);
     setError('');
-    setSuccessNote('');
     try {
       const response = await fetch(buildApiUrl('/sms/register'), {
         method: 'POST',
@@ -131,148 +316,389 @@ export const SmsMarketing: React.FC = () => {
         setError(data.error || 'Registration failed');
         return;
       }
-      setSuccessNote(data.note || 'Submitted for carrier review.');
-      await loadStatus();
+      setStatus(data);
     } catch {
-      setError('Network error -- please try again.');
+      setError('Network error — please try again.');
     } finally {
       setSubmitting(false);
     }
   };
 
+  const registered = status?.registered === true;
+
   return (
     <div className="mx-auto max-w-3xl space-y-8 p-6">
       <div>
         <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900">
-          <MessageSquareText className="h-6 w-6 text-indigo-600" />
-          SMS Marketing
+          <MessageSquareText className="h-6 w-6 text-indigo-600" /> SMS
+          Marketing
         </h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Send SMS marketing campaigns straight from BuildMyBot -- no separate account, no
-          separate login. Carrier registration below is required by mobile carriers for every
-          business that sends SMS at volume, not just BuildMyBot.
+        <p className="mt-1 text-sm text-gray-600">
+          Text your customers from a number registered to your business. US
+          carriers require every business to be verified before the first
+          message sends — we handle the filing.
         </p>
       </div>
 
-      <div className="rounded-lg border bg-white p-5 shadow-sm">
+      <div className="rounded-lg border border-gray-200 bg-white p-5">
         <h2 className="mb-3 text-lg font-semibold text-gray-900">Plans</h2>
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-3">
           {SMS_MARKETING_PRICING.map((plan) => (
-            <div key={plan.id} className="rounded-md border p-4">
-              <p className="text-sm font-medium text-gray-500">{plan.name}</p>
-              <p className="mt-1 text-2xl font-bold text-gray-900">
-                ${plan.price}
-                <span className="text-sm font-normal text-gray-500">/mo</span>
+            <div
+              key={plan.id}
+              className="rounded-md border border-gray-200 p-3"
+            >
+              <p className="text-sm font-semibold text-gray-900">{plan.name}</p>
+              <p className="text-sm text-gray-600">
+                ${plan.price}/mo · {plan.messagesIncluded.toLocaleString()} msgs
               </p>
-              <ul className="mt-3 space-y-1 text-sm text-gray-600">
-                {plan.features.map((feature) => (
-                  <li key={feature}>{feature}</li>
-                ))}
-              </ul>
+              <p className="mt-0.5 text-xs text-gray-500">
+                then ${plan.overagePerMessage.toFixed(3)}/msg
+              </p>
             </div>
           ))}
         </div>
       </div>
 
-      <div className="rounded-lg border bg-white p-5 shadow-sm">
-        <h2 className="mb-3 text-lg font-semibold text-gray-900">Registration status</h2>
+      <div className="rounded-lg border border-gray-200 bg-white p-5">
+        <h2 className="mb-3 text-lg font-semibold text-gray-900">
+          Registration status
+        </h2>
         {loadingStatus ? (
           <div className="flex items-center gap-2 text-sm text-gray-500">
-            <Loader className="h-4 w-4 animate-spin" /> Checking...
+            <Loader className="h-4 w-4 animate-spin" /> Checking…
           </div>
-        ) : status?.registered ? (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">Business ({status.brand?.companyName})</span>
-              <StatusBadge status={status.brand?.status || 'pending'} />
-            </div>
-            {status.campaign && (
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Campaign ({status.campaign.usecase})</span>
-                <StatusBadge status={status.campaign.status} />
-              </div>
-            )}
-            {status.smsReady && (
-              <p className="text-sm font-medium text-emerald-700">
-                You're approved -- SMS marketing sends are live on your account.
-              </p>
-            )}
-            {!status.smsReady && (
-              <p className="text-sm text-gray-500">
-                Carrier approval typically takes 1-7 business days. This page updates
-                automatically once approved -- no action needed from you.
-              </p>
-            )}
-            {(status.brand?.failureReason || status.campaign?.failureReason) && (
-              <p className="text-sm text-red-600">
-                {status.brand?.failureReason || status.campaign?.failureReason}
-              </p>
-            )}
-          </div>
+        ) : registered && status ? (
+          <StatusPanel status={status} onRefresh={loadStatus} />
         ) : (
           <p className="text-sm text-gray-500">
-            Not registered yet -- fill out the form below to get started.
+            Not registered yet — the {TOTAL_STEPS} steps below get you approved.
           </p>
         )}
       </div>
 
-      {!status?.registered && (
-        <form onSubmit={handleSubmit} className="space-y-4 rounded-lg border bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-semibold text-gray-900">Register your business</h2>
-          <p className="text-sm text-gray-500">
-            This information goes straight to carrier registration -- it must match your real
-            business records (legal name, EIN, address).
-          </p>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Legal company name" value={form.companyName} onChange={updateField('companyName')} required />
-            <Field label="EIN (XX-XXXXXXX)" value={form.ein} onChange={updateField('ein')} required />
-            <Field label="Business phone" value={form.phone} onChange={updateField('phone')} placeholder="+15551234567" required />
-            <Field label="Business email" value={form.email} onChange={updateField('email')} type="email" required />
-            <Field label="Street address" value={form.street} onChange={updateField('street')} required />
-            <Field label="City" value={form.city} onChange={updateField('city')} required />
-            <Field label="State" value={form.state} onChange={updateField('state')} required />
-            <Field label="ZIP / postal code" value={form.postalCode} onChange={updateField('postalCode')} required />
-            <Field label="Website (optional)" value={form.website} onChange={updateField('website')} />
+      {!registered && !loadingStatus && (
+        <div className="rounded-lg border border-gray-200 bg-white p-5">
+          <div className="mb-5">
+            <div className="mb-2 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900">
+                Step {step} of {TOTAL_STEPS}
+              </h2>
+              <span className="text-sm text-gray-500">
+                {Math.round(((step - 1) / TOTAL_STEPS) * 100)}% complete
+              </span>
+            </div>
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-200">
+              <div
+                className="h-full rounded-full bg-indigo-600 transition-all"
+                style={{ width: `${((step - 1) / TOTAL_STEPS) * 100}%` }}
+              />
+            </div>
           </div>
 
-          <hr className="my-2" />
-          <p className="text-sm font-medium text-gray-700">Campaign details</p>
+          {step === 1 && (
+            <div className="space-y-4">
+              <h3 className="font-semibold text-gray-900">Your business</h3>
+              <p className="text-sm text-gray-600">
+                This must match your legal registration exactly — carriers check
+                it against public records, and a mismatch is the most common
+                cause of rejection.
+              </p>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field
+                  label="Legal company name"
+                  value={form.companyName}
+                  onChange={update('companyName')}
+                  required
+                />
+                <Field
+                  label="EIN (XX-XXXXXXX)"
+                  value={form.ein}
+                  onChange={update('ein')}
+                  placeholder="12-3456789"
+                  required
+                />
+                <Select
+                  label="Entity type"
+                  value={form.entityType}
+                  onChange={update('entityType')}
+                  options={[
+                    ['PRIVATE_PROFIT', 'Private company'],
+                    ['PUBLIC_PROFIT', 'Publicly traded company'],
+                    ['NON_PROFIT', 'Non-profit'],
+                  ]}
+                />
+                <Select
+                  label="Industry"
+                  value={form.vertical}
+                  onChange={update('vertical')}
+                  options={[
+                    ['', 'Select an industry…'],
+                    ...VERTICALS.map(
+                      (v) =>
+                        [v, v.replace(/_/g, ' ').toLowerCase()] as [
+                          string,
+                          string,
+                        ],
+                    ),
+                  ]}
+                />
+                <Field
+                  label="Business phone"
+                  value={form.phone}
+                  onChange={update('phone')}
+                  placeholder="+15551234567"
+                  required
+                />
+                <Field
+                  label="Business email"
+                  value={form.email}
+                  onChange={update('email')}
+                  type="email"
+                  required
+                />
+              </div>
+              <Field
+                label="Website"
+                value={form.website}
+                onChange={update('website')}
+                placeholder="https://example.com"
+                required
+              />
+            </div>
+          )}
 
-          <TextArea
-            label="What will you send? (2-4 sentences)"
-            value={form.description}
-            onChange={updateField('description')}
-            required
-          />
-          <TextArea label="Sample message 1" value={form.sample1} onChange={updateField('sample1')} required />
-          <TextArea label="Sample message 2" value={form.sample2} onChange={updateField('sample2')} required />
-          <TextArea
-            label="How do customers opt in?"
-            value={form.messageFlow}
-            onChange={updateField('messageFlow')}
-            placeholder="e.g. Customers opt in by checking a box at checkout / texting JOIN to our number."
-            required
-          />
-          <TextArea
-            label="Reply to the HELP keyword"
-            value={form.helpMessage}
-            onChange={updateField('helpMessage')}
-            placeholder="e.g. Acme Corp alerts. For help visit acme.com/support. Reply STOP to cancel."
-            required
-          />
+          {step === 2 && (
+            <div className="space-y-4">
+              <h3 className="font-semibold text-gray-900">
+                Address and your number
+              </h3>
+              <p className="text-sm text-gray-600">
+                We buy and register an SMS-capable number for you in the area
+                code you choose. There is nothing to set up with a carrier
+                yourself.
+              </p>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field
+                  label="Street address"
+                  value={form.street}
+                  onChange={update('street')}
+                  required
+                />
+                <Field
+                  label="City"
+                  value={form.city}
+                  onChange={update('city')}
+                  required
+                />
+                <Field
+                  label="State (2 letters)"
+                  value={form.state}
+                  onChange={update('state')}
+                  placeholder="LA"
+                  required
+                />
+                <Field
+                  label="ZIP code"
+                  value={form.postalCode}
+                  onChange={update('postalCode')}
+                  placeholder="70801"
+                  required
+                />
+                <Field
+                  label="Preferred area code"
+                  value={form.areaCode}
+                  onChange={update('areaCode')}
+                  placeholder="225"
+                  required
+                />
+              </div>
+            </div>
+          )}
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
-          {successNote && <p className="text-sm text-emerald-700">{successNote}</p>}
+          {step === 3 && (
+            <div className="space-y-4">
+              <h3 className="font-semibold text-gray-900">
+                Consent and opt-out
+              </h3>
+              <p className="text-sm text-gray-600">
+                Carriers require a reachable privacy policy and terms page
+                before approving a campaign.
+              </p>
+              <Field
+                label="Privacy policy URL"
+                value={form.privacyPolicyLink}
+                onChange={update('privacyPolicyLink')}
+                placeholder="https://example.com/privacy"
+                required
+              />
+              <Field
+                label="Terms and conditions URL"
+                value={form.termsAndConditionsLink}
+                onChange={update('termsAndConditionsLink')}
+                placeholder="https://example.com/terms"
+                required
+              />
+              <div className="rounded-md border border-emerald-200 bg-emerald-50 p-4">
+                <p className="flex items-center gap-2 text-sm font-medium text-emerald-900">
+                  <ShieldCheck className="h-4 w-4" /> Handled for you
+                </p>
+                <p className="mt-1 text-sm text-emerald-800">
+                  We file these keywords with the carrier and honour them
+                  automatically on every message — you don't configure them.
+                </p>
+                <dl className="mt-3 space-y-1 text-sm text-emerald-900">
+                  <div className="flex gap-2">
+                    <dt className="font-medium">Opt in:</dt>
+                    <dd>{COMPLIANCE_KEYWORDS.optIn}</dd>
+                  </div>
+                  <div className="flex gap-2">
+                    <dt className="font-medium">Opt out:</dt>
+                    <dd>{COMPLIANCE_KEYWORDS.optOut}</dd>
+                  </div>
+                  <div className="flex gap-2">
+                    <dt className="font-medium">Help:</dt>
+                    <dd>{COMPLIANCE_KEYWORDS.help}</dd>
+                  </div>
+                </dl>
+              </div>
+            </div>
+          )}
 
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
-          >
-            {submitting ? 'Submitting...' : 'Register for SMS marketing'}
-          </button>
-        </form>
+          {step === 4 && (
+            <div className="space-y-4">
+              <h3 className="font-semibold text-gray-900">
+                What you'll be sending
+              </h3>
+              <p className="text-sm text-gray-600">
+                A human reviewer at the carrier reads this. Be specific and
+                concrete — vague answers are the second most common rejection.
+              </p>
+              <Select
+                label="Campaign type"
+                value={form.usecase}
+                onChange={update('usecase')}
+                options={[
+                  ['MIXED', 'Marketing, customer care and notifications'],
+                  ['SWEEPSTAKES', 'Contests and sweepstakes'],
+                ]}
+              />
+              <TextArea
+                label="What will you send? (at least 40 characters)"
+                value={form.description}
+                onChange={update('description')}
+                required
+              />
+              <TextArea
+                label="Sample message 1 (at least 20 characters)"
+                value={form.sample1}
+                onChange={update('sample1')}
+                required
+              />
+              <TextArea
+                label="Sample message 2 (at least 20 characters)"
+                value={form.sample2}
+                onChange={update('sample2')}
+                required
+              />
+              <TextArea
+                label="How do customers opt in? (at least 40 characters)"
+                value={form.messageFlow}
+                onChange={update('messageFlow')}
+                placeholder="Customers check a consent box on our booking form at example.com/book, which stores the timestamp."
+                required
+              />
+              <TextArea
+                label="Your reply to the HELP keyword (at least 20 characters)"
+                value={form.helpMessage}
+                onChange={update('helpMessage')}
+                placeholder="Acme Plumbing: call 555-123-4567 or email help@acme.com. Reply STOP to unsubscribe."
+                required
+              />
+            </div>
+          )}
+
+          {step === 5 && (
+            <div className="space-y-4">
+              <h3 className="font-semibold text-gray-900">Review and submit</h3>
+              <p className="text-sm text-gray-600">
+                Submitting files your brand and campaign with the carriers. It
+                can't be edited while under review, so check the details below.
+              </p>
+              <dl className="divide-y divide-gray-100 rounded-md border border-gray-200">
+                {[
+                  ['Company', form.companyName],
+                  ['EIN', form.ein],
+                  ['Industry', form.vertical.replace(/_/g, ' ').toLowerCase()],
+                  ['Phone', form.phone],
+                  ['Website', form.website],
+                  [
+                    'Address',
+                    `${form.street}, ${form.city}, ${form.state} ${form.postalCode}`,
+                  ],
+                  ['Area code', form.areaCode],
+                  [
+                    'Campaign',
+                    form.usecase === 'MIXED'
+                      ? 'Marketing, customer care and notifications'
+                      : 'Contests and sweepstakes',
+                  ],
+                ].map(([label, value]) => (
+                  <div
+                    key={label}
+                    className="flex justify-between gap-4 px-3 py-2 text-sm"
+                  >
+                    <dt className="text-gray-500">{label}</dt>
+                    <dd className="text-right font-medium text-gray-900">
+                      {value || '—'}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+              <p className="text-sm text-gray-500">
+                Registration and number provisioning start once your first month
+                is paid.
+              </p>
+            </div>
+          )}
+
+          {error && (
+            <p className="mt-4 rounded-md bg-red-50 p-3 text-sm text-red-700">
+              {error}
+            </p>
+          )}
+
+          <div className="mt-6 flex items-center justify-between border-t border-gray-100 pt-4">
+            <button
+              type="button"
+              onClick={() => setStep((s) => Math.max(1, s - 1) as WizardStep)}
+              disabled={step === 1}
+              className="inline-flex items-center gap-1 text-sm font-medium text-gray-600 disabled:opacity-40"
+            >
+              <ArrowLeft className="h-4 w-4" /> Back
+            </button>
+            {step < TOTAL_STEPS ? (
+              <button
+                type="button"
+                onClick={() => setStep((s) => (s + 1) as WizardStep)}
+                disabled={!canAdvance}
+                className="inline-flex items-center gap-1 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
+              >
+                Continue <ArrowRight className="h-4 w-4" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={submitting}
+                className="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
+              >
+                {submitting && <Loader className="h-4 w-4 animate-spin" />}
+                Submit for carrier approval
+              </button>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );
@@ -304,6 +730,35 @@ function Field({
         required={required}
         className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
       />
+    </label>
+  );
+}
+
+function Select({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (event: React.ChangeEvent<HTMLSelectElement>) => void;
+  options: Array<[string, string]>;
+}) {
+  return (
+    <label className="block text-sm">
+      <span className="mb-1 block font-medium text-gray-700">{label}</span>
+      <select
+        value={value}
+        onChange={onChange}
+        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm capitalize focus:border-indigo-500 focus:outline-none"
+      >
+        {options.map(([optionValue, optionLabel]) => (
+          <option key={optionValue} value={optionValue}>
+            {optionLabel}
+          </option>
+        ))}
+      </select>
     </label>
   );
 }
