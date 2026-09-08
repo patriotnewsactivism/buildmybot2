@@ -464,6 +464,25 @@ export const SMS_MARKETING_PLANS = {
   },
 };
 
+/**
+ * One-time registration fee, charged alongside the first month at checkout
+ * (see api/sms/billing.ts createSmsCheckout -- bundled as a second Stripe
+ * line item on the SAME Checkout Session, not a separate charge/flow).
+ * Covers the real TCR/Telnyx cost of 10DLC brand + campaign registration +
+ * first month's number (~$60-65 as of 2026-09) with margin. Don's call,
+ * 2026-09-08 -- customer-facing copy must explain this as covering
+ * regulatory fees associated with phone number and campaign registration
+ * and provisioning, and must state it is non-refundable due to costs
+ * incurred in provisioning.
+ */
+export const SMS_MARKETING_REGISTRATION_FEE = {
+  price: 99,
+  name: 'SMS Marketing Registration Fee',
+  stripePriceEnv: 'STRIPE_PRICE_SMS_REGISTRATION_FEE',
+  disclosure:
+    'One-time $99 registration fee covers regulatory fees associated with phone number and campaign registration and provisioning. Non-refundable due to costs incurred in provisioning.',
+};
+
 export const SMS_MARKETING_PRICING = Object.entries(SMS_MARKETING_PLANS).map(
   ([key, plan]) => ({
     id: key.toLowerCase(),

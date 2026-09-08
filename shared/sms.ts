@@ -10,6 +10,19 @@ export const SMS_PLANS = {
   SMS_SCALE: { price: 249, segments: 20000, overageMicros: 29000 },
 } as const;
 export type SmsPlan = keyof typeof SMS_PLANS;
+
+// One-time fee charged at signup, bundled as a second line item on the SAME
+// Stripe Checkout Session as the monthly plan subscription (see
+// api/sms/billing.ts createSmsCheckout) -- so payment of the plan's first
+// invoice and payment of this fee are the same event, no separate gating
+// needed. Covers the real TCR/Telnyx cost of 10DLC brand + campaign
+// registration + first month's number (~$60-65 as of 2026-09, standard
+// non-sole-proprietor brand ~$44-48 + Low-Volume campaign vetting ~$15 +
+// first month number ~$1-2) with margin. Don's call, 2026-09-08: explain to
+// customers as covering regulatory fees associated with phone number and
+// campaign registration/provisioning; non-refundable due to costs incurred
+// in provisioning.
+export const SMS_REGISTRATION_FEE_USD = 99;
 export const PURPOSES = ['marketing', 'birthday', 'appointment', 'contest', 'conversation', 'lead_alert'] as const;
 export type SmsPurpose = (typeof PURPOSES)[number];
 export const SYSTEM_KEYWORDS = new Set(['STOP', 'STOPALL', 'UNSUBSCRIBE', 'CANCEL', 'END', 'QUIT', 'HELP', 'INFO', 'START', 'YES', 'SUBSCRIBE', 'CONFIRM', 'RESCHEDULE']);

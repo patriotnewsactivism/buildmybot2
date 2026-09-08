@@ -16,7 +16,7 @@ import {
   UserCheck,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { SMS_MARKETING_PRICING } from '../../constants';
+import { SMS_MARKETING_PRICING, SMS_MARKETING_REGISTRATION_FEE } from '../../constants';
 import { SEO, SEOConfig } from '../SEO/SEO';
 
 const CAPABILITIES = [
@@ -382,6 +382,10 @@ export function SmsMarketingLandingPage() {
             phone-carrier registration for business texting — a standard
             requirement for any business texting platform, not a BuildMyBot
             limitation.
+          </p>
+          <p className="mx-auto mt-3 max-w-2xl text-center text-sm text-slate-500">
+            A one-time ${SMS_MARKETING_REGISTRATION_FEE.price} registration fee applies at
+            signup. {SMS_MARKETING_REGISTRATION_FEE.disclosure}
           </p>
         </section>
 
