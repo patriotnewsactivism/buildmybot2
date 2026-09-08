@@ -2289,18 +2289,26 @@ async function handleKnowledge(
       );
       // Chunk counts per source, for the dashboard's chunkCount column
       const chunkCounts: Record<string, number> = {};
+      let totalTokens = 0;
       if (rows.length > 0) {
-        const chunkRows = await sbSelect('knowledge_chunks', 'source_id', {
-          source_id: `in.(${rows.map((r: any) => r.id).join(',')})`,
-        }).catch(() => []);
+        const chunkRows = await sbSelect(
+          'knowledge_chunks',
+          'source_id,token_count',
+          {
+            source_id: `in.(${rows.map((r: any) => r.id).join(',')})`,
+          },
+        ).catch(() => []);
         for (const c of chunkRows) {
           chunkCounts[c.source_id] = (chunkCounts[c.source_id] || 0) + 1;
+          totalTokens += Number(c.token_count) || 0;
         }
       }
       const sources = rows.map((r: any) =>
         toKnowledgeSourceDTO(r, chunkCounts[r.id] || 0),
       );
-      const totalTokens = 0; // not tracked cheaply here; chunkCount is the primary signal
+      // totalTokens is accumulated above from knowledge_chunks.token_count
+      // (previously hardcoded to 0 here, which is why the dashboard always
+      // showed "~0k tokens" regardless of actual knowledge base size).
       res.json({
         sources,
         stats: {
@@ -2331,9 +2339,13 @@ async function handleKnowledge(
     const body = parseBody(req);
     const sourceId = crypto.randomUUID();
     const url = body.url || '';
-    const crawlDepth = Math.max(1, Math.min(Number(body.crawlDepth) || 1, 3));
-    // depth 1 → 15 pages, 2 → 40 pages, 3 → 75 pages (keeps Firecrawl usage sane)
-    const pageLimit = { 1: 15, 2: 40, 3: 75 }[crawlDepth] || 15;
+    // The dashboard's page-count dropdown (KnowledgeBaseManager.tsx) already
+    // sends a literal page count -- 1/3/5/10/20/50 -- as crawlDepth. This used
+    // to be remapped through a coarser 1/2/3 depth tier that clamped every
+    // selection >= 3 down to the same 75-page crawl, so "5 pages" and
+    // "50 pages" produced identical requests. Use the literal value instead,
+    // capped at the dropdown's own max (50) to keep Firecrawl usage sane.
+    const pageLimit = Math.max(1, Math.min(Number(body.crawlDepth) || 10, 50));
 
     if (!url) {
       return res.status(400).json({ error: 'url is required' });
@@ -2502,11 +2514,76 @@ async function handleKnowledge(
     if (!source)
       return res.status(404).json({ error: 'Knowledge source not found' });
     if (sub === 'refresh') {
+      if (source.source_type !== 'url' || !source.source_url) {
+        return res
+          .status(400)
+          .json({ error: 'Only URL knowledge sources can be refreshed' });
+      }
+
       await sbUpdate(
         'knowledge_sources',
-        { status: 'refreshing' },
+        { status: 'refreshing', error_message: null, last_error: null },
         { id: `eq.${source.id}` },
       ).catch(() => {});
+
+      // NOTE: this previously set status to 'refreshing' and returned,
+      // without ever starting a re-crawl -- a refreshed source was stranded
+      // at 'refreshing' forever (confirmed against a real production row
+      // stuck since 2026-07-24 with no error and no retry). Mirror the
+      // /scrape handler: try a real Firecrawl domain crawl first (async,
+      // webhook-driven -- handleFirecrawlWebhook moves the status on to
+      // 'ready'/'failed'), and fall back to a single-page synchronous
+      // re-ingest if Firecrawl isn't configured.
+      const pageLimit = Math.max(
+        1,
+        Math.min(Number(source.pages_crawled) || 10, 50),
+      );
+      const crawlJob = await startFirecrawlCrawl({
+        url: source.source_url,
+        sourceId: source.id,
+        botId: source.bot_id,
+        organizationId: source.organization_id,
+        limit: pageLimit,
+      }).catch((err: any) => {
+        console.error(
+          '[knowledge] refresh: crawl start failed:',
+          err.message,
+        );
+        return null;
+      });
+
+      if (!crawlJob) {
+        try {
+          const scrapedContent = await scrapeUrlFirecrawl(source.source_url);
+          if (scrapedContent) {
+            await ingestKnowledgeSource(
+              source.id,
+              source.bot_id,
+              scrapedContent,
+            );
+          } else {
+            await sbUpdate(
+              'knowledge_sources',
+              {
+                status: 'failed',
+                last_error: 'No content retrieved on refresh',
+              },
+              { id: `eq.${source.id}` },
+            ).catch(() => {});
+          }
+        } catch (err: any) {
+          console.error(
+            '[knowledge] refresh: fallback scrape failed:',
+            err.message,
+          );
+          await sbUpdate(
+            'knowledge_sources',
+            { status: 'failed', last_error: err.message },
+            { id: `eq.${source.id}` },
+          ).catch(() => {});
+        }
+      }
+
       return res.json({ success: true });
     }
     return res.json(toKnowledgeSourceDTO(source));
