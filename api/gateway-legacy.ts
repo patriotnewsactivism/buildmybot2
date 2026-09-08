@@ -6292,12 +6292,21 @@ async function handleActivation(
     return res.status(405).json({ error: 'Method not allowed' });
 
   const filter = ownerFilter(user);
-  const [bots, integrations, phoneNumbers, milestones] = await Promise.all([
-    sbSelect('bots', '*', filter).catch(() => []),
-    sbSelect('integrations', '*', filter).catch(() => []),
-    sbSelect('phone_numbers', '*', filter).catch(() => []),
-    listMilestones(user.id).catch(() => ({})),
-  ]);
+  // SMS tables are keyed by tenant_key, not by the owner columns the rest of
+  // this handler filters on -- mirrors authenticate() in api/sms/store.ts.
+  const tenantKey = user.organizationId
+    ? `org:${user.organizationId}`
+    : `user:${user.id}`;
+  const [bots, integrations, phoneNumbers, milestones, smsAccounts] =
+    await Promise.all([
+      sbSelect('bots', '*', filter).catch(() => []),
+      sbSelect('integrations', '*', filter).catch(() => []),
+      sbSelect('phone_numbers', '*', filter).catch(() => []),
+      listMilestones(user.id).catch(() => ({})),
+      sbSelect('sms_accounts', 'tenant_key,ready', {
+        tenant_key: `eq.${tenantKey}`,
+      }).catch(() => []),
+    ]);
 
   const botIds = (bots || []).map((b: any) => b.id);
   let knowledgeSourceCount = 0;
@@ -6308,6 +6317,7 @@ async function handleActivation(
     knowledgeSourceCount = (sources || []).length;
   }
 
+  const smsAccount = (smsAccounts || [])[0];
   return res.json(
     computeActivation({
       bots: bots || [],
@@ -6315,6 +6325,9 @@ async function handleActivation(
       integrations: integrations || [],
       phoneNumbers: phoneNumbers || [],
       milestones: milestones || {},
+      sms: smsAccount
+        ? { registered: true, ready: smsAccount.ready === true }
+        : null,
     }),
   );
 }

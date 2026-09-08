@@ -103,6 +103,60 @@ describe('computeActivation', () => {
     expect(state.percent).toBe(100);
     expect(state.activated).toBe(true);
   });
+
+  // The checklist hides itself only at 100%. If the SMS step were
+  // unconditional, every customer not on SMS would be left staring at a list
+  // they can never finish -- so absence of an SMS account must leave the
+  // six-step contract untouched.
+  it('omits the SMS step entirely for a tenant with no SMS account', () => {
+    for (const sms of [undefined, null]) {
+      const state = computeActivation({ ...emptySources, sms });
+      expect(state.total).toBe(6);
+      expect(state.steps.some((s) => s.key === 'activate_sms')).toBe(false);
+    }
+  });
+
+  it('adds an unfinished SMS step once the tenant has an SMS account', () => {
+    const state = computeActivation({
+      ...emptySources,
+      sms: { registered: true, ready: false },
+    });
+    expect(state.total).toBe(7);
+    const step = state.steps.find((s) => s.key === 'activate_sms');
+    expect(step?.done).toBe(false);
+    expect(step?.href).toBe('/app/sms-marketing');
+  });
+
+  it('ticks the SMS step only when the carrier has approved the sender', () => {
+    const base = {
+      bots: [{ id: 'b1', is_public: true, transfer_number: '+15550000000' }],
+      knowledgeSourceCount: 1,
+      integrations: [{ provider: 'calendly', status: 'connected' }],
+      phoneNumbers: [{ id: 'p1', last_call_at: '2026-09-01T00:00:00Z' }],
+      milestones: {
+        first_chat: '2026-09-01T00:00:00Z',
+        first_answered_call: '2026-09-02T00:00:00Z',
+      },
+    };
+
+    // Registered but still pending carrier approval: not activated.
+    const pending = computeActivation({
+      ...base,
+      sms: { registered: true, ready: false },
+    });
+    expect(pending.completed).toBe(6);
+    expect(pending.total).toBe(7);
+    expect(pending.activated).toBe(false);
+
+    // Approved sender: the seventh step ticks and the account activates.
+    const ready = computeActivation({
+      ...base,
+      sms: { registered: true, ready: true },
+    });
+    expect(ready.completed).toBe(7);
+    expect(ready.percent).toBe(100);
+    expect(ready.activated).toBe(true);
+  });
 });
 
 describe('resolveUsageDecision', () => {
