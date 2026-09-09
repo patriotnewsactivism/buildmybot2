@@ -21,6 +21,7 @@ import {
   SMS_MARKETING_REGISTRATION_FEE,
 } from '../../constants';
 import { SEO, SEOConfig } from '../SEO/SEO';
+import { DigitalSignageShowcase } from './DigitalSignageShowcase';
 
 const CAPABILITIES = [
   {
@@ -215,6 +216,8 @@ export function SmsMarketingLandingPage() {
             </div>
           </div>
         </section>
+
+        <DigitalSignageShowcase />
 
         <section className="border-y border-white/10 bg-white/[0.03]">
           <div className="mx-auto grid max-w-7xl grid-cols-2 gap-px px-5 py-8 sm:grid-cols-4 sm:px-8">

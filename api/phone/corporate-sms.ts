@@ -83,7 +83,24 @@ export async function receiveCorporateSms(
   }
   let reply =
     'BuildMyBot: Thanks for reaching our sales team. Explore chat, voice and SMS at https://www.buildmybot.app. Reply STOP to stop.';
-  if (!['HELP', 'INFO', 'START', 'UNSTOP', 'DEMO'].includes(keyword)) {
+  const examples: Record<string, string> = {
+    BBQGIFT:
+      'Restaurant demo: a customer could receive a brisket queso offer and a feast giveaway entry.',
+    GLOWVIP:
+      'Spa demo: a customer could receive a facial voucher and a spa-day giveaway entry.',
+    PEAKPASS:
+      'Gym demo: a customer could receive a seven-day pass and a membership giveaway entry.',
+    SAVE20:
+      'Auto-care demo: a customer could receive a service credit and a tire giveaway entry.',
+    WINNER:
+      'Text-to-Win demo: your business can acknowledge an entry and run a logged draw.',
+  };
+  if (examples[keyword])
+    reply = `BuildMyBot: ${examples[keyword]} Sample only; no reward or contest entry issued. Reply STOP to stop.`;
+  if (
+    !examples[keyword] &&
+    !['HELP', 'INFO', 'START', 'UNSTOP', 'DEMO'].includes(keyword)
+  ) {
     const [bot] = await db<Array<{ system_prompt: string }>>(
       `bots?${filter({ id: `eq.${CORPORATE.botId}`, user_id: `eq.${CORPORATE.ownerId}`, select: 'system_prompt' })}`,
     );
