@@ -296,9 +296,9 @@ export function DigitalSignageShowcase() {
           })}
         </div>
         {copyError && (
-          <p role="status" className="mt-4 text-center text-sm text-amber-300">
+          <output className="mt-4 block text-center text-sm text-amber-300">
             {copyError}
-          </p>
+          </output>
         )}
         <div className="mt-12 space-y-3 text-center">
           <p className="text-sm text-slate-300">
