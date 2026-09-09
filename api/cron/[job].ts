@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { ApiRequest, ApiResponse } from '../lib/http-types.js';
 import { aiTeamKilled, getAiTeamSchemaReadiness } from '../ai-team/lib.js';
 import { allShiftsHandler } from './_all-shifts.js';
 import { leadFollowupsHandler } from './_lead-followups.js';
@@ -21,7 +21,7 @@ import { smsOverageHandler } from './_sms-overage.js';
 
 export const maxDuration = 300;
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   const { job } = req.query;
 
   const cronSecret = process.env.CRON_SECRET;

@@ -6,7 +6,7 @@
  * disconnected EmployeeLog table.
  */
 
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { ApiRequest, ApiResponse } from '../../api/lib/http-types.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 process.env.SUPABASE_URL = 'https://fake-project.supabase.co';
@@ -20,7 +20,7 @@ process.env.RESEND_API_KEY = undefined;
 const gateway = await import('../../api/gateway.ts');
 const handler = gateway.default;
 
-function mockRes(): VercelResponse & { statusCode: number; body: any } {
+function mockRes(): ApiResponse & { statusCode: number; body: any } {
   const res: any = {
     statusCode: 200,
     headers: {} as Record<string, string>,
@@ -112,7 +112,7 @@ describe('POST /api/email/inbound — roster consolidation', () => {
         subject: 'How do I add a knowledge base?',
         text: 'How do I upload a PDF to my bot?',
       },
-    } as unknown as VercelRequest;
+    } as unknown as ApiRequest;
     const res = mockRes();
 
     await handler(req, res);

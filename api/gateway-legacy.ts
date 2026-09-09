@@ -1,6 +1,6 @@
 import { Readable } from 'node:stream';
 import * as Sentry from '@sentry/node';
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { ApiRequest, ApiResponse } from './lib/http-types.js';
 import multer from 'multer';
 import {
   PLAN_LIMITS,
@@ -56,7 +56,7 @@ if (process.env.SENTRY_DSN) {
 }
 
 // =====================================================================
-// BuildMyBot API Gateway — Vercel Serverless Catch-All
+// BuildMyBot API Gateway — Railway/Express API Catch-All
 // Replaces the dead Render Express backend
 // Uses Supabase REST API for data, JWT cookies for auth
 // =====================================================================
@@ -109,7 +109,7 @@ function parseCookies(
   return cookies;
 }
 
-async function getAuthUser(req: VercelRequest): Promise<AuthUser | null> {
+async function getAuthUser(req: ApiRequest): Promise<AuthUser | null> {
   if (!SESSION_JWT_SECRET || !SUPABASE_SERVICE_KEY) return null;
 
   // Check Bearer token
@@ -459,7 +459,7 @@ async function sbDelete(table: string, filters: Record<string, string>) {
   return { success: true };
 }
 
-function setCors(res: VercelResponse, req?: VercelRequest) {
+function setCors(res: ApiResponse, req?: ApiRequest) {
   // Credentialed API responses are restricted to an origin allowlist;
   // `*` with credentials is both unsafe and rejected by browsers.
   const origin = (req?.headers?.origin as string | undefined) || '';
@@ -482,7 +482,7 @@ function setCors(res: VercelResponse, req?: VercelRequest) {
   );
 }
 
-function parseBody(req: VercelRequest): any {
+function parseBody(req: ApiRequest): any {
   if (typeof req.body === 'string') return JSON.parse(req.body);
   return req.body;
 }
@@ -501,7 +501,7 @@ const multipartUpload = multer({
  * that instead of `req` directly.
  */
 async function parseMultipartFile(
-  req: VercelRequest,
+  req: ApiRequest,
 ): Promise<Express.Multer.File | undefined> {
   let raw: Buffer;
   if (Buffer.isBuffer(req.body) && req.body.length > 0) {
@@ -555,7 +555,7 @@ async function extractTextFromFile(
 // Route Handlers
 // =====================================================================
 
-async function handleHealth(_req: VercelRequest, res: VercelResponse) {
+async function handleHealth(_req: ApiRequest, res: ApiResponse) {
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
@@ -574,8 +574,8 @@ async function handleHealth(_req: VercelRequest, res: VercelResponse) {
 }
 
 async function handleBots(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
 ) {
   const orgFilter = ownerFilter(user);
@@ -629,8 +629,8 @@ async function handleBots(
 }
 
 async function handleBotById(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   botId: string,
 ) {
@@ -659,8 +659,8 @@ async function handleBotById(
 }
 
 async function handlePublicBotById(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   botId: string,
 ) {
   if (req.method !== 'GET')
@@ -698,8 +698,8 @@ function analyticsScope(
 }
 
 async function handleAnalytics(
-  _req: VercelRequest,
-  res: VercelResponse,
+  _req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -795,8 +795,8 @@ async function handleAnalytics(
 }
 
 async function handleLeads(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -1012,7 +1012,7 @@ function scoreLeadIntent(conversationContext: string | undefined): number {
   return Math.max(0, Math.min(100, Math.round(score)));
 }
 
-async function handleLeadCapture(req: VercelRequest, res: VercelResponse) {
+async function handleLeadCapture(req: ApiRequest, res: ApiResponse) {
   if (req.method !== 'POST')
     return res.status(405).json({ error: 'Method not allowed' });
   const body = parseBody(req);
@@ -1166,8 +1166,8 @@ const PLAN_PRICES: Record<string, number> = {
 };
 
 async function handleAdmin(
-  _req: VercelRequest,
-  res: VercelResponse,
+  _req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -1706,8 +1706,8 @@ async function handleAdmin(
 }
 
 async function handleConversations(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -1739,8 +1739,8 @@ async function handleConversations(
 }
 
 async function handleImpersonation(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -1755,8 +1755,8 @@ async function handleImpersonation(
 }
 
 async function handleRevenue(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -1882,8 +1882,8 @@ async function handleRevenue(
 }
 
 async function handleVoice(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -2192,7 +2192,7 @@ async function countCrawledPages(sourceId: string): Promise<number> {
  * crawl ("crawl.page"), and once more on completion/failure. Each page is
  * chunked + embedded and appended to the source's knowledge_chunks.
  */
-async function handleFirecrawlWebhook(req: VercelRequest, res: VercelResponse) {
+async function handleFirecrawlWebhook(req: ApiRequest, res: ApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -2354,8 +2354,8 @@ async function getAccessibleKnowledgeSource(
 }
 
 async function handleKnowledge(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -2609,8 +2609,8 @@ async function handleKnowledge(
 }
 
 async function handleTemplates(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[] = [],
 ) {
@@ -2699,8 +2699,8 @@ async function getAccessibleTool(
 }
 
 async function handleTools(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -2762,8 +2762,8 @@ async function handleTools(
 }
 
 async function handleWebhooks(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -2902,8 +2902,8 @@ async function handleWebhooks(
 }
 
 async function handleAgency(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -3009,8 +3009,8 @@ async function handleAgency(
 }
 
 async function handleIntegrations(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -3135,8 +3135,8 @@ async function handleIntegrations(
 }
 
 async function handleChannels(
-  _req: VercelRequest,
-  res: VercelResponse,
+  _req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
 ) {
   res.json(
@@ -3180,8 +3180,8 @@ async function getTwilioClient() {
 }
 
 async function handlePhone(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -3379,8 +3379,8 @@ async function handlePhone(
 }
 
 async function handleOrganizations(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
 ) {
   if (req.method === 'GET') {
@@ -3401,8 +3401,8 @@ async function handleOrganizations(
 }
 
 async function handleClients(
-  _req: VercelRequest,
-  res: VercelResponse,
+  _req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -3618,7 +3618,7 @@ function chatRateLimited(key: string, max = 30, windowMs = 60_000): boolean {
  *    the underlying scraper/SSRF error text (logged server-side instead)
  *  - no API keys or other secrets ever touch the response body
  */
-async function handleDemoScrape(req: VercelRequest, res: VercelResponse) {
+async function handleDemoScrape(req: ApiRequest, res: ApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -3667,8 +3667,8 @@ async function handleDemoScrape(req: VercelRequest, res: VercelResponse) {
  * `user` -- website visitors chatting with an embedded bot are never
  * logged into buildmybot.app. */
 async function handleChat(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   pathParts: string[],
 ) {
   if (req.method !== 'POST') {
@@ -3829,8 +3829,8 @@ async function handleChat(
 }
 
 async function handleSearch(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
 ) {
   // SECURITY: this had no tenant scoping at all -- any logged-in user could
@@ -3933,8 +3933,8 @@ async function getOrCreateStripeCustomer(userId: string): Promise<string> {
 }
 
 async function handleStripe(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -4068,8 +4068,8 @@ async function handleStripe(
 }
 
 async function handleNotifications(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -4136,8 +4136,8 @@ async function handleNotifications(
 }
 
 async function handleAuthExtra(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   pathParts: string[],
 ) {
   const sub = pathParts[0] || '';
@@ -4282,8 +4282,8 @@ async function handleAuthExtra(
 }
 
 async function handleBotHealth(
-  _req: VercelRequest,
-  res: VercelResponse,
+  _req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -4313,8 +4313,8 @@ async function handleBotHealth(
 }
 
 async function handleBotErrors(
-  _req: VercelRequest,
-  res: VercelResponse,
+  _req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -4343,8 +4343,8 @@ async function handleBotErrors(
 }
 
 async function handleLandingPages(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -4452,8 +4452,8 @@ const USER_SELF_UPDATE_FIELDS: Record<string, string> = {
 };
 
 async function handleUsers(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -4495,8 +4495,8 @@ async function handleUsers(
 }
 
 async function handleTeam(
-  _req: VercelRequest,
-  res: VercelResponse,
+  _req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
 ) {
   const [members, roles] = await Promise.all([
@@ -4507,8 +4507,8 @@ async function handleTeam(
 }
 
 async function handleAudit(
-  _req: VercelRequest,
-  res: VercelResponse,
+  _req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
 ) {
   // SECURITY: previously had no role check AND no tenant scoping -- any
@@ -4528,8 +4528,8 @@ async function handleAudit(
 }
 
 async function handleSupport(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -4594,8 +4594,8 @@ async function handleSupport(
 }
 
 async function handleAiEmployees(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -5574,7 +5574,7 @@ async function logEmployeeWork(entry: {
 /** PUBLIC (webhook-secret) — POST /api/email/inbound
  * Body accepts the common inbound-parse field names from Cloudflare Email
  * Workers, Mailgun, Postmark, and SendGrid. */
-async function handleEmailInbound(req: VercelRequest, res: VercelResponse) {
+async function handleEmailInbound(req: ApiRequest, res: ApiResponse) {
   if (req.method !== 'POST')
     return res.status(405).json({ error: 'Method not allowed' });
 
@@ -5947,8 +5947,8 @@ async function handleEmailInbound(req: VercelRequest, res: VercelResponse) {
 
 /** AUTHENTICATED (admin/owner) — /api/email/... management endpoints */
 async function handleEmail(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -6005,8 +6005,8 @@ async function handleEmail(
  * (GitHub Actions), authenticated via CRON_SECRET, since Resend already
  * handles its own scheduled sends and doesn't need this at all. */
 async function handleEmailDispatchScheduled(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
 ) {
   if (req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) {
     return res.status(401).json({ error: 'unauthorized' });
@@ -6066,8 +6066,8 @@ async function handleEmailDispatchScheduled(
 // =====================================================================
 // ─── Partners Dashboard (real data) ───────────────────────────────────
 async function handlePartners(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -6173,8 +6173,8 @@ async function handlePartners(
 
 // ─── Resellers Dashboard (real data) ──────────────────────────────────
 async function handleResellers(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -6239,8 +6239,8 @@ async function handleResellers(
 
 // ─── Trial Management ─────────────────────────────────────────────────
 async function handleTrial(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
 ) {
   if (req.method === 'GET') {
@@ -6379,8 +6379,8 @@ async function enforceConversationQuota(
 
 // ─── P2: activation checklist ─────────────────────────────────────────
 async function handleActivation(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
 ) {
   if (req.method !== 'GET')
@@ -6429,8 +6429,8 @@ async function handleActivation(
 
 // ─── Quota Check ──────────────────────────────────────────────────────
 async function handleQuota(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
 ) {
   const planKey = getUserPlanKey(user);
@@ -6513,7 +6513,7 @@ async function handleQuota(
 // frontend widgets actually expect, including profit-report.
 const _origHandleAgency = handleAgency;
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   setCors(res, req);
   if (req.method === 'OPTIONS') return res.status(204).end();
 

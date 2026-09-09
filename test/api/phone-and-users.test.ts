@@ -9,7 +9,7 @@
  *     route inbound calls with a real knowledge base.
  */
 
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { ApiRequest, ApiResponse } from '../../api/lib/http-types.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const SESSION_SECRET = 'test-session-secret';
@@ -25,7 +25,7 @@ process.env.SALES_AUTOMATION_DRY_RUN = 'true';
 const gateway = await import('../../api/gateway.ts');
 const handler = gateway.default;
 
-function mockRes(): VercelResponse & { statusCode: number; body: any } {
+function mockRes(): ApiResponse & { statusCode: number; body: any } {
   const res: any = {
     statusCode: 200,
     headers: {} as Record<string, string>,
@@ -108,7 +108,7 @@ describe('PUT /api/users/:id — profile save', () => {
       body: {
         phoneConfig: { enabled: true, voiceId: 'eve', introMessage: 'Hi!' },
       },
-    } as unknown as VercelRequest;
+    } as unknown as ApiRequest;
     const res = mockRes();
 
     await handler(req, res);
@@ -143,7 +143,7 @@ describe('PUT /api/users/:id — profile save', () => {
       url: '/api/users/someone-else',
       headers: { cookie: `bmb_session=${token}` },
       body: { phoneConfig: { enabled: true } },
-    } as unknown as VercelRequest;
+    } as unknown as ApiRequest;
     const res = mockRes();
 
     await handler(req, res);
@@ -188,7 +188,7 @@ describe('GET /api/phone/voice-bot and /api/phone/calls', () => {
       url: '/api/phone/voice-bot',
       headers: { cookie: `bmb_session=${token}` },
       body: {},
-    } as unknown as VercelRequest;
+    } as unknown as ApiRequest;
     const res = mockRes();
 
     await handler(req, res);
@@ -240,7 +240,7 @@ describe('GET /api/phone/voice-bot and /api/phone/calls', () => {
       url: '/api/phone/calls',
       headers: { cookie: `bmb_session=${token}` },
       body: {},
-    } as unknown as VercelRequest;
+    } as unknown as ApiRequest;
     const res = mockRes();
 
     await handler(req, res);
@@ -279,7 +279,7 @@ describe('Standalone voice plans — purchasable independent of chatbot plan', (
       url: '/api/phone/purchase',
       headers: { cookie: `bmb_session=${token}` },
       body: { phoneNumber: '+15557654321' },
-    } as unknown as VercelRequest;
+    } as unknown as ApiRequest;
     const res = mockRes();
 
     await handler(req, res);
@@ -323,7 +323,7 @@ describe('Standalone voice plans — purchasable independent of chatbot plan', (
       url: '/api/phone/voice-plan',
       headers: { cookie: `bmb_session=${token}` },
       body: { voicePlan: 'VOICE_BASIC' },
-    } as unknown as VercelRequest;
+    } as unknown as ApiRequest;
     const selectRes = mockRes();
     await handler(selectReq, selectRes);
 
@@ -337,7 +337,7 @@ describe('Standalone voice plans — purchasable independent of chatbot plan', (
       url: '/api/phone/voice-plans',
       headers: { cookie: `bmb_session=${token}` },
       body: {},
-    } as unknown as VercelRequest;
+    } as unknown as ApiRequest;
     const res = mockRes();
     await handler(req, res);
     expect(res.statusCode).toBe(200);
@@ -355,7 +355,7 @@ describe('Standalone voice plans — purchasable independent of chatbot plan', (
       url: '/api/phone/voice-plan',
       headers: { cookie: `bmb_session=${token}` },
       body: { voicePlan: 'NOT_A_PLAN' },
-    } as unknown as VercelRequest;
+    } as unknown as ApiRequest;
     const res = mockRes();
     await handler(req, res);
     expect(res.statusCode).toBe(400);
@@ -429,7 +429,7 @@ describe('POST /api/phone/purchase — real Twilio provisioning', () => {
       url: '/api/phone/purchase',
       headers: { cookie: `bmb_session=${token}` },
       body: { phoneNumber: '+15557654321' },
-    } as unknown as VercelRequest;
+    } as unknown as ApiRequest;
     const res = mockRes();
 
     await handler(req, res);

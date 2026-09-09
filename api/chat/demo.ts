@@ -1,13 +1,12 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-
-// ─── Chat demo endpoint for Vercel serverless ───
+import type { ApiRequest, ApiResponse } from '../lib/http-types.js';
+// ─── Chat demo endpoint for Railway/Express API ───
 // Proxies to Base44 backend function which handles AI provider fallback.
-// This keeps AI keys off Vercel and eliminates Render dependency entirely.
+// This keeps AI keys off the public client and eliminates Render dependency entirely.
 
 const BASE44_CHAT_URL =
   'https://superagent-08b20413.base44.app/functions/chatDemo';
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   // CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');

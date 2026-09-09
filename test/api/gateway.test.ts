@@ -1,6 +1,6 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { ApiRequest, ApiResponse } from '../../api/lib/http-types.js';
 /**
- * api/gateway.ts tests — the actual production Vercel serverless function
+ * api/gateway.ts tests — the actual production Railway/Express API function
  * that powers buildmybot.app (NOT the dead server/ Express backend the
  * rest of test/ exercises). Covers the things a real security/launch audit
  * cares about: auth verification, tenant isolation, admin gating, quota
@@ -23,7 +23,7 @@ const { ownerFilter, checkQuota, getUserPlanKey, getPlanLimits } =
   gateway as any;
 const handler = gateway.default;
 
-function mockRes(): VercelResponse {
+function mockRes(): ApiResponse {
   const res: any = {
     statusCode: 200,
     headers: {} as Record<string, string>,
@@ -44,17 +44,17 @@ function mockRes(): VercelResponse {
       return this;
     },
   };
-  return res as VercelResponse;
+  return res as ApiResponse;
 }
 
-function mockReq(overrides: Partial<VercelRequest> = {}): VercelRequest {
+function mockReq(overrides: Partial<ApiRequest> = {}): ApiRequest {
   return {
     method: 'GET',
     url: '/api/health',
     headers: {},
     body: {},
     ...overrides,
-  } as VercelRequest;
+  } as ApiRequest;
 }
 
 /** Signs a session token exactly like api/auth/login.ts does. */
@@ -296,7 +296,7 @@ describe('api/gateway.ts — bot CRUD tenant isolation', () => {
       url: '/api/bots',
       headers: { authorization: 'Bearer valid-token' },
       body: { name: 'My Bot', description: 'test' },
-    } as unknown as VercelRequest;
+    } as unknown as ApiRequest;
     const res = mockRes();
 
     // Mock auth to succeed, quota to fail
@@ -335,7 +335,7 @@ describe('api/gateway.ts — chat endpoint is public', () => {
       url: '/api/chat',
       headers: {},
       body: { message: 'hello' },
-    } as unknown as VercelRequest;
+    } as unknown as ApiRequest;
     const res = mockRes();
 
     await handler(req, res);
@@ -351,7 +351,7 @@ describe('api/gateway.ts — admin guard', () => {
       method: 'GET',
       url: '/api/admin/users',
       headers: { authorization: 'Bearer some-token' },
-    } as unknown as VercelRequest;
+    } as unknown as ApiRequest;
     const res = mockRes();
 
     // Mock auth to succeed with a non-admin user
@@ -392,7 +392,7 @@ describe('api/gateway.ts — lead capture', () => {
         email: 'lead@example.com',
         bot_id: 'bot-123',
       },
-    } as unknown as VercelRequest;
+    } as unknown as ApiRequest;
     const res = mockRes();
 
     vi.stubGlobal(

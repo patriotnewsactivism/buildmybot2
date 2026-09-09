@@ -41,7 +41,7 @@
  * scoped follow-up once this can be tested against a real call.
  */
 
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { ApiRequest, ApiResponse } from '../lib/http-types.js';
 import { z } from 'zod';
 import {
   answerCall,
@@ -303,7 +303,7 @@ const webhookEventSchema = z.object({
   }),
 });
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
     return res.status(405).json({ error: 'Method Not Allowed' });

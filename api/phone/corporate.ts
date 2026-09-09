@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { ApiRequest, ApiResponse } from '../lib/http-types.js';
 import { z } from 'zod';
 import { hangupCall, telnyxRequest } from '../lib/telephony-provider.js';
 import { SmsError, authenticate, db, filter } from '../sms/store.js';
@@ -29,8 +29,8 @@ const scope = {
   provider: 'eq.telnyx',
 };
 export default async function corporatePhoneHandler(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
 ) {
   try {
     const path = new URL(req.url || '/', 'https://buildmybot.app').pathname;

@@ -1,5 +1,5 @@
 import { createPublicKey, verify } from 'node:crypto';
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { ApiRequest, ApiResponse } from '../lib/http-types.js';
 import { z } from 'zod';
 import { normalizePhone } from '../../shared/sms.js';
 import { receiveCorporateSms } from '../phone/corporate-sms.js';
@@ -40,7 +40,7 @@ export function verifyTelnyxSignature(
     return false;
   }
 }
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (req.method !== 'POST')
     return res.status(405).json({ error: 'Method not allowed' });
   const raw = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);

@@ -1,6 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import type { VercelRequest } from '@vercel/node';
-
+import type { ApiRequest } from '../lib/http-types.js';
 export class SmsError extends Error {
   constructor(public status: number, message: string) { super(message); }
 }
@@ -21,7 +20,7 @@ export const filter = (values: Record<string, string>) => new URLSearchParams(va
 export const scoped = (tenant: string, values: Record<string, string> = {}) => filter({ tenant_key: `eq.${tenant}`, ...values });
 export const rpc = <T = unknown>(name: string, args: unknown) => db<T>(`rpc/${name}`, 'POST', args);
 
-export async function authenticate(req: VercelRequest): Promise<SmsUser> {
+export async function authenticate(req: ApiRequest): Promise<SmsUser> {
   const secret = process.env.SESSION_JWT_SECRET;
   if (!secret) throw new SmsError(503, 'Authentication is not configured');
   let token = req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : '';
@@ -48,7 +47,7 @@ export async function authenticate(req: VercelRequest): Promise<SmsUser> {
   }
 }
 
-export function requireWorker(req: VercelRequest) {
+export function requireWorker(req: ApiRequest) {
   const expected = process.env.SMS_WORKER_SECRET;
   const received = req.headers.authorization?.replace(/^Bearer /, '') || '';
   if (!expected || received.length !== expected.length || !timingSafeEqual(Buffer.from(received), Buffer.from(expected))) throw new SmsError(401, 'Worker authentication required');

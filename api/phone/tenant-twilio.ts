@@ -8,7 +8,7 @@
  */
 
 import { createHmac } from 'node:crypto';
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { ApiRequest, ApiResponse } from '../lib/http-types.js';
 import { z } from 'zod';
 import { createTwilioStreamToken } from '../voice/twilio-live.js';
 import { decryptSecret } from './crypto.js';
@@ -25,7 +25,7 @@ const SUPABASE_HEADERS = {
   'Content-Type': 'application/json',
 };
 
-function rawBody(req: VercelRequest): unknown {
+function rawBody(req: ApiRequest): unknown {
   if (typeof req.body === 'string') {
     try {
       return JSON.parse(req.body);
@@ -55,7 +55,7 @@ const statusWebhookSchema = twilioBaseSchema.extend({
 });
 
 function parseWebhookBody<T extends z.ZodType>(
-  req: VercelRequest,
+  req: ApiRequest,
   schema: T,
 ): z.infer<T> | null {
   const parsed = schema.safeParse(rawBody(req));
@@ -136,7 +136,7 @@ async function twilioAuthTokenForAccount(
   }
 }
 
-async function validateTwilioRequest(req: VercelRequest): Promise<boolean> {
+async function validateTwilioRequest(req: ApiRequest): Promise<boolean> {
   const signature = req.headers['x-twilio-signature'] as string | undefined;
   if (!signature) return false;
 
@@ -309,8 +309,8 @@ function realtimeTwiml(options: {
 }
 
 export async function tenantInboundVoiceHandler(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
 ) {
   if (req.method !== 'POST') return res.status(405).end();
   if (!(await validateTwilioRequest(req))) {
@@ -406,8 +406,8 @@ export async function tenantInboundVoiceHandler(
 const MAX_TURNS = 12;
 
 export async function tenantInboundVoiceRespond(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
 ) {
   if (req.method !== 'POST') return res.status(405).end();
   if (!(await validateTwilioRequest(req))) {
@@ -493,8 +493,8 @@ export async function tenantInboundVoiceRespond(
 }
 
 export async function tenantInboundStatusCallback(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
 ) {
   if (req.method !== 'POST') return res.status(405).end();
   if (!(await validateTwilioRequest(req))) {
@@ -532,8 +532,8 @@ export async function tenantInboundStatusCallback(
 }
 
 export async function handleTenantTwilioWebhook(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
 ) {
   const pathname = (req.url || '').split('?')[0] || '';
   if (pathname.endsWith('/twilio/inbound')) {

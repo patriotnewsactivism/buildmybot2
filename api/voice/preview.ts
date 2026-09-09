@@ -1,5 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-
+import type { ApiRequest, ApiResponse } from '../lib/http-types.js';
 /**
  * POST /api/voice/preview
  * Generates high-quality TTS audio for the landing page demo.
@@ -168,7 +167,7 @@ const providers: Record<string, TTSProvider> = {
   grok: grokProvider,
 };
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   // CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');

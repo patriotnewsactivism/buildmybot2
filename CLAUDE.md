@@ -19,7 +19,7 @@ See `DEPLOYMENT.md` for the authoritative topology, deploy identities, and relea
 | Email outbound | Resend (`RESEND_API_KEY`) | |
 | Email inbound | Webhook to `POST /api/email/inbound` | Verified with `x-webhook-secret` header |
 
-Vercel and Netlify artifacts (`.vercelignore`, `netlify.toml`) remain in the repo for history and ad hoc previews but are **not** the production authority — don't treat either as where this app actually runs for real customers, and don't assume the public domain's DNS currently matches the topology above without checking `DEPLOYMENT.md` §3's verification steps first. `vercel.json` no longer exists; nothing routes through it.
+Netlify artifacts remain only as historical configuration. Vercel is not a supported deployment, preview, analytics, or runtime target for this repository. Production is Railway-first with the prior Cloud Run service retained only as the documented fallback.
 
 ### Request routing
 - `/api/*` (except `/api/cron/*`) → handled by `api/gateway.ts`
@@ -119,7 +119,7 @@ Frontend (baked in at build time, must redeploy after changing):
 - `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
 - `VITE_API_URL` — leave empty; `/api` is same-origin behind Cloudflare Pages
 
-Production deploy identities (Railway project/service/environment IDs, Cloud Run project/region): see `DEPLOYMENT.md` §2. Set real secrets there — the Vercel project(s) linked to this repo are for ad hoc previews only and are never production (see `.vercelignore`).
+Production deploy identities (Railway project/service/environment IDs, Cloud Run project/region): see `DEPLOYMENT.md` §2. Set real secrets there. Do not configure or use Vercel for this repository.
 
 ## Pricing & plan limits — single source of truth
 
