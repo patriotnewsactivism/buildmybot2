@@ -45,8 +45,8 @@ import WebSocket, { type RawData } from 'ws';
 import { z } from 'zod';
 import { recordMilestone } from '../growth/milestones.js';
 import { sendSms, speakText, transferCall } from '../lib/telephony-provider.js';
-import { searchKnowledge } from '../rag.js';
 import { validTelnyxClientState } from '../phone/tenant-telnyx-token.js';
+import { searchKnowledge } from '../rag.js';
 
 const GEMINI_MODEL = 'models/gemini-3.1-flash-live-preview';
 const GEMINI_WS_URL =
@@ -68,7 +68,10 @@ const geminiHealthEvents: Array<{ at: number; ok: boolean }> = [];
 
 function pruneGeminiHealthEvents() {
   const now = Date.now();
-  while (geminiHealthEvents.length && now - geminiHealthEvents[0].at > GEMINI_HEALTH_WINDOW_MS) {
+  while (
+    geminiHealthEvents.length &&
+    now - geminiHealthEvents[0].at > GEMINI_HEALTH_WINDOW_MS
+  ) {
     geminiHealthEvents.shift();
   }
 }
@@ -93,20 +96,28 @@ export function isGeminiLiveCircuitOpen(): boolean {
  * the closest equivalent is issuing a fresh speak/transfer/hangup action
  * against the same call_control_id.
  */
-async function redirectCallToFallback(context: SessionContext, reason: string): Promise<boolean> {
+async function redirectCallToFallback(
+  context: SessionContext,
+  reason: string,
+): Promise<boolean> {
   if (!context.callControlId) return false;
   try {
     await speakText(
       context.callControlId,
       'Sorry about that, let me have someone follow up with you instead.',
     );
-    console.error(`[telnyx-voice-live] Redirected call ${context.callControlId} to fallback speak: ${reason}`);
+    console.error(
+      `[telnyx-voice-live] Redirected call ${context.callControlId} to fallback speak: ${reason}`,
+    );
     if (context.logId) {
       await mergeCallMetadata(context.logId, { fallbackReason: reason });
     }
     return true;
   } catch (error: unknown) {
-    console.error('[telnyx-voice-live] Fallback redirect failed:', error instanceof Error ? error.message : error);
+    console.error(
+      '[telnyx-voice-live] Fallback redirect failed:',
+      error instanceof Error ? error.message : error,
+    );
     return false;
   }
 }
@@ -126,7 +137,12 @@ type TelnyxStreamStart = {
 type TelnyxMessage = {
   event?: 'connected' | 'start' | 'media' | 'stop';
   start?: TelnyxStreamStart;
-  media?: { track?: string; chunk?: string; timestamp?: string; payload?: string };
+  media?: {
+    track?: string;
+    chunk?: string;
+    timestamp?: string;
+    payload?: string;
+  };
 };
 
 type GeminiFunctionCall = { id?: string; name?: string; args?: JsonObject };
@@ -136,7 +152,9 @@ type GeminiMessage = {
   serverContent?: {
     inputTranscription?: { text?: string };
     outputTranscription?: { text?: string };
-    modelTurn?: { parts?: Array<{ inlineData?: { data?: string; mimeType?: string } }> };
+    modelTurn?: {
+      parts?: Array<{ inlineData?: { data?: string; mimeType?: string } }>;
+    };
     interrupted?: boolean;
   };
   toolCall?: { functionCalls?: GeminiFunctionCall[] };
@@ -156,7 +174,11 @@ type SessionContext = {
   phoneConfig: Record<string, unknown>;
 };
 
-async function sbRequest(table: string, params = '', init?: RequestInit): Promise<{ ok: boolean; data: unknown }> {
+async function sbRequest(
+  table: string,
+  params = '',
+  init?: RequestInit,
+): Promise<{ ok: boolean; data: unknown }> {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return { ok: false, data: null };
   try {
     const response = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params}`, {
@@ -174,7 +196,10 @@ async function sbRequest(table: string, params = '', init?: RequestInit): Promis
     }
     return { ok: response.ok, data };
   } catch (error: unknown) {
-    console.error(`[telnyx-voice-live] Supabase ${table} request failed:`, error instanceof Error ? error.message : error);
+    console.error(
+      `[telnyx-voice-live] Supabase ${table} request failed:`,
+      error instanceof Error ? error.message : error,
+    );
     return { ok: false, data: null };
   }
 }
@@ -215,7 +240,8 @@ export function muLaw8kToPcm16k(payload: string): string {
   const output = Buffer.allocUnsafe(input.length * 4);
   for (let index = 0; index < input.length; index += 1) {
     const current = decodeMuLawByte(input[index]);
-    const next = index + 1 < input.length ? decodeMuLawByte(input[index + 1]) : current;
+    const next =
+      index + 1 < input.length ? decodeMuLawByte(input[index + 1]) : current;
     output.writeInt16LE(current, index * 4);
     output.writeInt16LE(Math.round((current + next) / 2), index * 4 + 2);
   }
@@ -251,7 +277,9 @@ function sendJson(socket: WebSocket, payload: unknown) {
   }
 }
 
-async function loadSessionContext(start: TelnyxStreamStart): Promise<SessionContext | null> {
+async function loadSessionContext(
+  start: TelnyxStreamStart,
+): Promise<SessionContext | null> {
   const callControlId = start.call_control_id || '';
   const clientStateRaw = start.client_state || '';
   if (!callControlId || !clientStateRaw) return null;
@@ -268,7 +296,8 @@ async function loadSessionContext(start: TelnyxStreamStart): Promise<SessionCont
   if (!botResult.ok || !bot) return null;
 
   let userId = typeof bot.user_id === 'string' ? bot.user_id : null;
-  let organizationId = typeof bot.organization_id === 'string' ? bot.organization_id : null;
+  let organizationId =
+    typeof bot.organization_id === 'string' ? bot.organization_id : null;
   const calledNumber = start.to || '';
 
   if (calledNumber) {
@@ -278,12 +307,16 @@ async function loadSessionContext(start: TelnyxStreamStart): Promise<SessionCont
     );
     const number = asRows(numberResult.data)[0];
     if (number && typeof number.user_id === 'string') userId = number.user_id;
-    if (number && typeof number.organization_id === 'string') organizationId = number.organization_id;
+    if (number && typeof number.organization_id === 'string')
+      organizationId = number.organization_id;
   }
 
   let phoneConfig: Record<string, unknown> = {};
   if (userId) {
-    const userResult = await sbRequest('users', `id=eq.${encodeURIComponent(userId)}&select=phone_config&limit=1`);
+    const userResult = await sbRequest(
+      'users',
+      `id=eq.${encodeURIComponent(userId)}&select=phone_config&limit=1`,
+    );
     const user = asRows(userResult.data)[0];
     if (user?.phone_config && typeof user.phone_config === 'object') {
       phoneConfig = user.phone_config as Record<string, unknown>;
@@ -307,14 +340,23 @@ async function loadSessionContext(start: TelnyxStreamStart): Promise<SessionCont
   };
 }
 
-function configuredString(config: Record<string, unknown>, key: string): string {
+function configuredString(
+  config: Record<string, unknown>,
+  key: string,
+): string {
   return typeof config[key] === 'string' ? config[key].trim() : '';
 }
 
 function buildSystemInstruction(context: SessionContext): string {
   const intro = configuredString(context.phoneConfig, 'introMessage');
-  const transferNumber = configuredString(context.phoneConfig, 'transferNumber');
-  const bookingWebhook = configuredString(context.phoneConfig, 'bookingWebhookUrl');
+  const transferNumber = configuredString(
+    context.phoneConfig,
+    'transferNumber',
+  );
+  const bookingWebhook = configuredString(
+    context.phoneConfig,
+    'bookingWebhookUrl',
+  );
   return [
     `You are the live AI receptionist for ${context.botName}.`,
     context.systemPrompt,
@@ -339,16 +381,23 @@ function buildTools(context: SessionContext) {
   const functionDeclarations: JsonObject[] = [
     {
       name: 'search_business_knowledge',
-      description: 'Search the business knowledge base for accurate service, policy, hours, pricing, location, or FAQ information.',
+      description:
+        'Search the business knowledge base for accurate service, policy, hours, pricing, location, or FAQ information.',
       parameters: {
         type: 'OBJECT',
-        properties: { query: { type: 'STRING', description: 'The business fact or question to look up' } },
+        properties: {
+          query: {
+            type: 'STRING',
+            description: 'The business fact or question to look up',
+          },
+        },
         required: ['query'],
       },
     },
     {
       name: 'capture_lead',
-      description: 'Capture a caller as a CRM lead after receiving contact information or meaningful buying intent.',
+      description:
+        'Capture a caller as a CRM lead after receiving contact information or meaningful buying intent.',
       parameters: {
         type: 'OBJECT',
         properties: {
@@ -364,10 +413,14 @@ function buildTools(context: SessionContext) {
   if (configuredString(context.phoneConfig, 'transferNumber')) {
     functionDeclarations.push({
       name: 'transfer_to_human',
-      description: 'Transfer the current live phone call to the configured human handoff number.',
+      description:
+        'Transfer the current live phone call to the configured human handoff number.',
       parameters: {
         type: 'OBJECT',
-        properties: { reason: { type: 'STRING' }, callerName: { type: 'STRING' } },
+        properties: {
+          reason: { type: 'STRING' },
+          callerName: { type: 'STRING' },
+        },
         required: ['reason'],
       },
     });
@@ -375,7 +428,8 @@ function buildTools(context: SessionContext) {
   if (configuredString(context.phoneConfig, 'bookingWebhookUrl')) {
     functionDeclarations.push({
       name: 'request_appointment',
-      description: 'Send an appointment request to the configured scheduling integration and return whether it was accepted.',
+      description:
+        'Send an appointment request to the configured scheduling integration and return whether it was accepted.',
       parameters: {
         type: 'OBJECT',
         properties: {
@@ -393,48 +447,86 @@ function buildTools(context: SessionContext) {
   return [{ functionDeclarations }];
 }
 
-async function patchCallLog(logId: string, patch: JsonObject): Promise<boolean> {
+async function patchCallLog(
+  logId: string,
+  patch: JsonObject,
+): Promise<boolean> {
   if (!logId) return false;
-  const result = await sbRequest('call_logs', `id=eq.${encodeURIComponent(logId)}`, {
-    method: 'PATCH',
-    body: JSON.stringify(patch),
-  });
+  const result = await sbRequest(
+    'call_logs',
+    `id=eq.${encodeURIComponent(logId)}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    },
+  );
   return result.ok;
 }
 
-async function mergeCallMetadata(logId: string, extra: JsonObject): Promise<boolean> {
+async function mergeCallMetadata(
+  logId: string,
+  extra: JsonObject,
+): Promise<boolean> {
   if (!logId) return false;
-  const current = await sbRequest('call_logs', `id=eq.${encodeURIComponent(logId)}&select=metadata&limit=1`);
+  const current = await sbRequest(
+    'call_logs',
+    `id=eq.${encodeURIComponent(logId)}&select=metadata&limit=1`,
+  );
   const row = asRows(current.data)[0];
-  const metadata = row?.metadata && typeof row.metadata === 'object' ? (row.metadata as JsonObject) : {};
+  const metadata =
+    row?.metadata && typeof row.metadata === 'object'
+      ? (row.metadata as JsonObject)
+      : {};
   return patchCallLog(logId, { metadata: { ...metadata, ...extra } });
 }
 
-async function sendHotLeadAlert(context: SessionContext, details: JsonObject): Promise<ToolResult> {
-  const alertNumber = configuredString(context.phoneConfig, 'hotLeadNumber') || configuredString(context.phoneConfig, 'transferNumber');
-  if (!alertNumber) return { success: false, reason: 'No hot-lead alert number is configured' };
+async function sendHotLeadAlert(
+  context: SessionContext,
+  details: JsonObject,
+): Promise<ToolResult> {
+  const alertNumber =
+    configuredString(context.phoneConfig, 'hotLeadNumber') ||
+    configuredString(context.phoneConfig, 'transferNumber');
+  if (!alertNumber)
+    return { success: false, reason: 'No hot-lead alert number is configured' };
   const name = String(details.name || 'Caller').slice(0, 120);
   const phone = String(details.phone || context.callerNumber || 'unknown');
   const score = String(details.score || '');
   const summary = String(details.summary || '').slice(0, 600);
   const body = `BuildMyBot hot lead${score ? ` (${score}/100)` : ''}: ${name} ${phone}${summary ? ` — ${summary}` : ''}`;
   try {
-    const sent = await sendSms({ to: alertNumber, from: context.calledNumber || undefined, text: body });
+    const sent = await sendSms({
+      to: alertNumber,
+      from: context.calledNumber || undefined,
+      text: body,
+    });
     return { success: true, messageSid: sent.id };
   } catch (error: unknown) {
-    const reason = error instanceof Error ? error.message : 'Telnyx SMS alert failed';
+    const reason =
+      error instanceof Error ? error.message : 'Telnyx SMS alert failed';
     console.error('[telnyx-voice-live] Hot-lead SMS failed:', reason);
     return { success: false, reason };
   }
 }
 
-async function captureLead(context: SessionContext, args: JsonObject): Promise<ToolResult> {
+async function captureLead(
+  context: SessionContext,
+  args: JsonObject,
+): Promise<ToolResult> {
   const scoreValue = Number(args.score ?? 50);
-  const score = Number.isFinite(scoreValue) ? Math.max(0, Math.min(100, Math.round(scoreValue))) : 50;
+  const score = Number.isFinite(scoreValue)
+    ? Math.max(0, Math.min(100, Math.round(scoreValue)))
+    : 50;
   const phone = String(args.phone || context.callerNumber || '').trim();
-  const email = String(args.email || '').trim().slice(0, 255);
-  const name = String(args.name || 'Phone caller').trim().slice(0, 255);
-  const summary = String(args.summary || '').trim().slice(0, 4000);
+  const email = String(args.email || '')
+    .trim()
+    .slice(0, 255);
+  const name = String(args.name || 'Phone caller')
+    .trim()
+    .slice(0, 255);
+  const summary = String(args.summary || '')
+    .trim()
+    .slice(0, 4000);
   const leadId = randomUUID();
   const now = new Date().toISOString();
 
@@ -458,36 +550,71 @@ async function captureLead(context: SessionContext, args: JsonObject): Promise<T
       last_contacted_at: now,
     }),
   });
-  if (!inserted.ok || !asRows(inserted.data)[0]) return { success: false, reason: 'CRM lead creation failed' };
+  if (!inserted.ok || !asRows(inserted.data)[0])
+    return { success: false, reason: 'CRM lead creation failed' };
 
-  const logLinked = context.logId ? await patchCallLog(context.logId, { lead_id: leadId }) : false;
-  if (context.logId) await mergeCallMetadata(context.logId, { leadScore: score, leadSummary: summary });
+  const logLinked = context.logId
+    ? await patchCallLog(context.logId, { lead_id: leadId })
+    : false;
+  if (context.logId)
+    await mergeCallMetadata(context.logId, {
+      leadScore: score,
+      leadSummary: summary,
+    });
 
-  const alert = score >= 70
-    ? await sendHotLeadAlert(context, { name, phone, summary, score })
-    : { success: false, reason: 'Lead score below hot-lead threshold' };
+  const alert =
+    score >= 70
+      ? await sendHotLeadAlert(context, { name, phone, summary, score })
+      : { success: false, reason: 'Lead score below hot-lead threshold' };
 
-  return { success: true, leadId, score, callLogLinked: logLinked, hotLeadAlertSent: alert.success };
+  return {
+    success: true,
+    leadId,
+    score,
+    callLogLinked: logLinked,
+    hotLeadAlertSent: alert.success,
+  };
 }
 
-async function transferToHuman(context: SessionContext, args: JsonObject): Promise<ToolResult> {
-  const transferNumber = configuredString(context.phoneConfig, 'transferNumber');
-  if (!transferNumber) return { success: false, reason: 'Human transfer is not configured' };
-  if (!context.callControlId) return { success: false, reason: 'Telnyx call control is not configured' };
+async function transferToHuman(
+  context: SessionContext,
+  args: JsonObject,
+): Promise<ToolResult> {
+  const transferNumber = configuredString(
+    context.phoneConfig,
+    'transferNumber',
+  );
+  if (!transferNumber)
+    return { success: false, reason: 'Human transfer is not configured' };
+  if (!context.callControlId)
+    return { success: false, reason: 'Telnyx call control is not configured' };
 
   try {
-    const reason = String(args.reason || 'Human handoff requested').slice(0, 300);
+    const reason = String(args.reason || 'Human handoff requested').slice(
+      0,
+      300,
+    );
     const alert = await sendHotLeadAlert(context, {
       name: String(args.callerName || 'Caller'),
       phone: context.callerNumber,
       score: 100,
       summary: reason,
     });
-    await transferCall(context.callControlId, transferNumber, { from: context.calledNumber || undefined });
+    await transferCall(context.callControlId, transferNumber, {
+      from: context.calledNumber || undefined,
+    });
     if (context.logId) {
-      await mergeCallMetadata(context.logId, { handoffRequested: true, handoffReason: reason, handoffNumber: transferNumber });
+      await mergeCallMetadata(context.logId, {
+        handoffRequested: true,
+        handoffReason: reason,
+        handoffNumber: transferNumber,
+      });
     }
-    return { success: true, transferredTo: transferNumber, hotLeadAlertSent: alert.success };
+    return {
+      success: true,
+      transferredTo: transferNumber,
+      hotLeadAlertSent: alert.success,
+    };
   } catch (error: unknown) {
     const reason = error instanceof Error ? error.message : 'Transfer failed';
     console.error('[telnyx-voice-live] Human transfer failed:', reason);
@@ -495,9 +622,19 @@ async function transferToHuman(context: SessionContext, args: JsonObject): Promi
   }
 }
 
-async function requestAppointment(context: SessionContext, args: JsonObject): Promise<ToolResult> {
-  const bookingWebhookUrl = configuredString(context.phoneConfig, 'bookingWebhookUrl');
-  if (!bookingWebhookUrl) return { success: false, reason: 'Scheduling integration is not configured' };
+async function requestAppointment(
+  context: SessionContext,
+  args: JsonObject,
+): Promise<ToolResult> {
+  const bookingWebhookUrl = configuredString(
+    context.phoneConfig,
+    'bookingWebhookUrl',
+  );
+  if (!bookingWebhookUrl)
+    return {
+      success: false,
+      reason: 'Scheduling integration is not configured',
+    };
   try {
     const response = await fetch(bookingWebhookUrl, {
       method: 'POST',
@@ -511,7 +648,11 @@ async function requestAppointment(context: SessionContext, args: JsonObject): Pr
       }),
     });
     const text = await response.text();
-    if (!response.ok) return { success: false, reason: `Scheduling service returned HTTP ${response.status}` };
+    if (!response.ok)
+      return {
+        success: false,
+        reason: `Scheduling service returned HTTP ${response.status}`,
+      };
     if (context.userId) {
       recordMilestone({
         milestone: 'first_appointment',
@@ -523,18 +664,29 @@ async function requestAppointment(context: SessionContext, args: JsonObject): Pr
     }
     return { success: true, result: text.slice(0, 1000) || 'accepted' };
   } catch (error: unknown) {
-    return { success: false, reason: error instanceof Error ? error.message : 'Scheduling failed' };
+    return {
+      success: false,
+      reason: error instanceof Error ? error.message : 'Scheduling failed',
+    };
   }
 }
 
-async function executeFunction(context: SessionContext, call: GeminiFunctionCall): Promise<ToolResult> {
+async function executeFunction(
+  context: SessionContext,
+  call: GeminiFunctionCall,
+): Promise<ToolResult> {
   const args = call.args || {};
   switch (call.name) {
     case 'search_business_knowledge': {
       const query = String(args.query || '').trim();
       if (!query) return { success: false, reason: 'Query is required' };
-      const chunks = await searchKnowledge(context.botId, query, 5).catch(() => []);
-      return { success: true, matches: chunks.slice(0, 5).map((chunk) => chunk.slice(0, 1800)) };
+      const chunks = await searchKnowledge(context.botId, query, 5).catch(
+        () => [],
+      );
+      return {
+        success: true,
+        matches: chunks.slice(0, 5).map((chunk) => chunk.slice(0, 1800)),
+      };
     }
     case 'capture_lead':
       return captureLead(context, args);
@@ -543,7 +695,10 @@ async function executeFunction(context: SessionContext, call: GeminiFunctionCall
     case 'request_appointment':
       return requestAppointment(context, args);
     default:
-      return { success: false, reason: `Unknown tool: ${call.name || 'unnamed'}` };
+      return {
+        success: false,
+        reason: `Unknown tool: ${call.name || 'unnamed'}`,
+      };
   }
 }
 
@@ -554,7 +709,12 @@ function setupGeminiSession(gemini: WebSocket, context: SessionContext) {
       generationConfig: {
         responseModalities: ['AUDIO'],
         speechConfig: {
-          voiceConfig: { prebuiltVoiceConfig: { voiceName: configuredString(context.phoneConfig, 'geminiVoice') || 'Aoede' } },
+          voiceConfig: {
+            prebuiltVoiceConfig: {
+              voiceName:
+                configuredString(context.phoneConfig, 'geminiVoice') || 'Aoede',
+            },
+          },
         },
       },
       realtimeInputConfig: {
@@ -581,7 +741,11 @@ function promptInitialGreeting(gemini: WebSocket) {
       turns: [
         {
           role: 'user',
-          parts: [{ text: 'The caller just connected. Greet them now using the configured greeting or a short natural greeting, then ask how you can help.' }],
+          parts: [
+            {
+              text: 'The caller just connected. Greet them now using the configured greeting or a short natural greeting, then ask how you can help.',
+            },
+          ],
         },
       ],
       turnComplete: true,
@@ -589,10 +753,17 @@ function promptInitialGreeting(gemini: WebSocket) {
   });
 }
 
-export function handleTelnyxMediaConnection(telnyxSocket: WebSocket, _request: IncomingMessage) {
+export function handleTelnyxMediaConnection(
+  telnyxSocket: WebSocket,
+  _request: IncomingMessage,
+) {
   let context: SessionContext | null = null;
   let gemini: WebSocket | null = null;
-  const transcript: Array<{ role: 'caller' | 'agent'; text: string; at: string }> = [];
+  const transcript: Array<{
+    role: 'caller' | 'agent';
+    text: string;
+    at: string;
+  }> = [];
   let finalized = false;
   let geminiReady = false;
   let connectTimeoutTimer: ReturnType<typeof setTimeout> | null = null;
@@ -622,7 +793,10 @@ export function handleTelnyxMediaConnection(telnyxSocket: WebSocket, _request: I
       // Telnyx bidirectional streaming: no stream_id/streamSid needed on
       // outbound media messages (only one bidirectional stream per call is
       // supported), unlike Twilio which requires streamSid on every frame.
-      sendJson(telnyxSocket, { event: 'media', media: { payload: frame.toString('base64') } });
+      sendJson(telnyxSocket, {
+        event: 'media',
+        media: { payload: frame.toString('base64') },
+      });
     }, OUTBOUND_FRAME_MS);
   };
 
@@ -647,8 +821,16 @@ export function handleTelnyxMediaConnection(telnyxSocket: WebSocket, _request: I
     stopPacingTimer();
     pendingAudio = Buffer.alloc(0);
     if (context?.logId) {
-      await patchCallLog(context.logId, { status, transcript, ended_at: new Date().toISOString() });
-      await mergeCallMetadata(context.logId, { source: 'gemini-live', realtime: true, provider: 'telnyx' });
+      await patchCallLog(context.logId, {
+        status,
+        transcript,
+        ended_at: new Date().toISOString(),
+      });
+      await mergeCallMetadata(context.logId, {
+        source: 'gemini-live',
+        realtime: true,
+        provider: 'telnyx',
+      });
     }
   };
 
@@ -675,14 +857,21 @@ export function handleTelnyxMediaConnection(telnyxSocket: WebSocket, _request: I
         return;
       }
 
-      gemini = new WebSocket(`${GEMINI_WS_URL}?key=${encodeURIComponent(apiKey)}`);
+      gemini = new WebSocket(
+        `${GEMINI_WS_URL}?key=${encodeURIComponent(apiKey)}`,
+      );
       ensurePacingTimer();
       connectTimeoutTimer = setTimeout(() => {
         if (geminiReady || finalized) return;
         recordGeminiOutcome(false);
         console.error('[telnyx-voice-live] Gemini Live setup timed out');
         void (async () => {
-          const redirected = context ? await redirectCallToFallback(context, 'Gemini Live setup timed out') : false;
+          const redirected = context
+            ? await redirectCallToFallback(
+                context,
+                'Gemini Live setup timed out',
+              )
+            : false;
           await finalize(redirected ? 'completed' : 'failed');
         })();
       }, 4000);
@@ -693,13 +882,18 @@ export function handleTelnyxMediaConnection(telnyxSocket: WebSocket, _request: I
         if (!context || !gemini) return;
         let response: GeminiMessage;
         try {
-          response = JSON.parse(parseSocketMessage(geminiData)) as GeminiMessage;
+          response = JSON.parse(
+            parseSocketMessage(geminiData),
+          ) as GeminiMessage;
         } catch {
           return;
         }
 
         if (response.error?.message) {
-          console.error('[telnyx-voice-live] Gemini error:', response.error.message);
+          console.error(
+            '[telnyx-voice-live] Gemini error:',
+            response.error.message,
+          );
           return;
         }
         if (response.setupComplete) {
@@ -723,14 +917,27 @@ export function handleTelnyxMediaConnection(telnyxSocket: WebSocket, _request: I
         }
 
         const callerText = content?.inputTranscription?.text?.trim();
-        if (callerText) transcript.push({ role: 'caller', text: callerText, at: new Date().toISOString() });
+        if (callerText)
+          transcript.push({
+            role: 'caller',
+            text: callerText,
+            at: new Date().toISOString(),
+          });
         const agentText = content?.outputTranscription?.text?.trim();
-        if (agentText) transcript.push({ role: 'agent', text: agentText, at: new Date().toISOString() });
+        if (agentText)
+          transcript.push({
+            role: 'agent',
+            text: agentText,
+            at: new Date().toISOString(),
+          });
 
         for (const part of content?.modelTurn?.parts || []) {
           const audio = part.inlineData?.data;
           if (!audio) continue;
-          pendingAudio = Buffer.concat([pendingAudio, Buffer.from(pcm24kToMuLaw8k(audio), 'base64')]);
+          pendingAudio = Buffer.concat([
+            pendingAudio,
+            Buffer.from(pcm24kToMuLaw8k(audio), 'base64'),
+          ]);
         }
 
         const functionCalls = response.toolCall?.functionCalls || [];
@@ -738,17 +945,29 @@ export function handleTelnyxMediaConnection(telnyxSocket: WebSocket, _request: I
           const functionResponses = [];
           for (const call of functionCalls) {
             const result = await executeFunction(context, call);
-            functionResponses.push({ id: call.id, name: call.name, response: result });
+            functionResponses.push({
+              id: call.id,
+              name: call.name,
+              response: result,
+            });
           }
           sendJson(gemini, { toolResponse: { functionResponses } });
         }
       });
       gemini.on('error', (error) => {
-        console.error('[telnyx-voice-live] Gemini WebSocket error:', error.message);
+        console.error(
+          '[telnyx-voice-live] Gemini WebSocket error:',
+          error.message,
+        );
         if (finalized) return;
         recordGeminiOutcome(false);
         void (async () => {
-          const redirected = context ? await redirectCallToFallback(context, `Gemini WebSocket error: ${error.message}`) : false;
+          const redirected = context
+            ? await redirectCallToFallback(
+                context,
+                `Gemini WebSocket error: ${error.message}`,
+              )
+            : false;
           await finalize(redirected ? 'completed' : 'failed');
         })();
       });
@@ -757,7 +976,12 @@ export function handleTelnyxMediaConnection(telnyxSocket: WebSocket, _request: I
         if (!geminiReady) recordGeminiOutcome(false);
         if (telnyxSocket.readyState === WebSocket.OPEN) {
           void (async () => {
-            const redirected = context ? await redirectCallToFallback(context, 'Gemini Live connection closed unexpectedly') : false;
+            const redirected = context
+              ? await redirectCallToFallback(
+                  context,
+                  'Gemini Live connection closed unexpectedly',
+                )
+              : false;
             await finalize(redirected ? 'completed' : 'failed');
           })();
         } else {
@@ -770,7 +994,12 @@ export function handleTelnyxMediaConnection(telnyxSocket: WebSocket, _request: I
     if (message.event === 'media' && message.media?.payload && gemini) {
       if (gemini.readyState !== WebSocket.OPEN) return;
       sendJson(gemini, {
-        realtimeInput: { audio: { data: muLaw8kToPcm16k(message.media.payload), mimeType: 'audio/pcm;rate=16000' } },
+        realtimeInput: {
+          audio: {
+            data: muLaw8kToPcm16k(message.media.payload),
+            mimeType: 'audio/pcm;rate=16000',
+          },
+        },
       });
       return;
     }

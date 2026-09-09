@@ -43,8 +43,12 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { z } from 'zod';
+import {
+  answerCall,
+  hangupCall,
+  speakText,
+} from '../lib/telephony-provider.js';
 import { verifyTelnyxSignature } from '../sms/webhooks.js';
-import { answerCall, speakText, hangupCall } from '../lib/telephony-provider.js';
 import { createTelnyxStreamToken } from './tenant-telnyx-token.js';
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -71,7 +75,9 @@ async function sbFetch(table: string, params: string, init?: RequestInit) {
     });
     if (!response.ok) {
       const detail = await response.text().catch(() => '');
-      console.error(`[tenant-telnyx] Supabase ${init?.method || 'GET'} ${table} failed: ${response.status}${detail ? ` ${detail}` : ''}`);
+      console.error(
+        `[tenant-telnyx] Supabase ${init?.method || 'GET'} ${table} failed: ${response.status}${detail ? ` ${detail}` : ''}`,
+      );
       return null;
     }
     const text = await response.text();
@@ -82,7 +88,10 @@ async function sbFetch(table: string, params: string, init?: RequestInit) {
       return null;
     }
   } catch (error) {
-    console.error(`[tenant-telnyx] Supabase ${init?.method || 'GET'} ${table} transport failed:`, error instanceof Error ? error.message : error);
+    console.error(
+      `[tenant-telnyx] Supabase ${init?.method || 'GET'} ${table} transport failed:`,
+      error instanceof Error ? error.message : error,
+    );
     return null;
   } finally {
     clearTimeout(timeout);
@@ -102,7 +111,9 @@ interface ResolvedPhoneNumber {
   bot: BusinessBot | null;
 }
 
-async function resolveBotForNumber(calledNumber: string): Promise<ResolvedPhoneNumber | null> {
+async function resolveBotForNumber(
+  calledNumber: string,
+): Promise<ResolvedPhoneNumber | null> {
   const numbers = await sbFetch(
     'phone_numbers',
     `phone_number=eq.${encodeURIComponent(calledNumber)}&status=eq.active&select=user_id,voice_agent_id&limit=2`,
@@ -111,11 +122,17 @@ async function resolveBotForNumber(calledNumber: string): Promise<ResolvedPhoneN
   const row = numbers[0];
   if (!row?.user_id || !row?.voice_agent_id) return null;
 
-  const agents = await sbFetch('voice_agents', `id=eq.${encodeURIComponent(row.voice_agent_id)}&select=id,bot_id,greeting&limit=1`);
+  const agents = await sbFetch(
+    'voice_agents',
+    `id=eq.${encodeURIComponent(row.voice_agent_id)}&select=id,bot_id,greeting&limit=1`,
+  );
   const agent = agents?.[0];
   if (!agent?.id || !agent?.bot_id) return null;
 
-  const bots = await sbFetch('bots', `id=eq.${encodeURIComponent(agent.bot_id)}&select=id,name,system_prompt&limit=1`);
+  const bots = await sbFetch(
+    'bots',
+    `id=eq.${encodeURIComponent(agent.bot_id)}&select=id,name,system_prompt&limit=1`,
+  );
   return {
     userId: String(row.user_id),
     voiceAgentId: String(agent.id),
@@ -148,12 +165,18 @@ async function createCallLog(options: {
     }),
   });
   if (rows?.[0]?.id != null) return String(rows[0].id);
-  const existing = await sbFetch('call_logs', `call_sid=eq.${encodeURIComponent(options.callControlId)}&select=id&limit=1`);
+  const existing = await sbFetch(
+    'call_logs',
+    `call_sid=eq.${encodeURIComponent(options.callControlId)}&select=id&limit=1`,
+  );
   return existing?.[0]?.id != null ? String(existing[0].id) : null;
 }
 
 function mediaStreamUrl(): string {
-  const base = APP_BASE_URL.replace(/^https:/i, 'wss:').replace(/^http:/i, 'ws:');
+  const base = APP_BASE_URL.replace(/^https:/i, 'wss:').replace(
+    /^http:/i,
+    'ws:',
+  );
   return `${base.replace(/\/$/, '')}/api/voice/telnyx-media`;
 }
 
@@ -174,7 +197,11 @@ async function handleCallInitiated(payload: unknown): Promise<void> {
     console.error('[tenant-telnyx] Malformed call.initiated payload');
     return;
   }
-  const { call_control_id: callControlId, from: callerNumber, to: calledNumber } = parsed.data;
+  const {
+    call_control_id: callControlId,
+    from: callerNumber,
+    to: calledNumber,
+  } = parsed.data;
 
   const resolved = await resolveBotForNumber(calledNumber);
   const bot = resolved?.bot || null;
@@ -184,9 +211,15 @@ async function handleCallInitiated(payload: unknown): Promise<void> {
     // spoken message rather than silently rejecting the call.
     try {
       await answerCall(callControlId);
-      await speakText(callControlId, "Thanks for calling. I'm not fully set up yet, but I'll do my best to help. Please try again later.");
+      await speakText(
+        callControlId,
+        "Thanks for calling. I'm not fully set up yet, but I'll do my best to help. Please try again later.",
+      );
     } catch (error) {
-      console.error('[tenant-telnyx] Answer/speak failed for unconfigured number:', error instanceof Error ? error.message : error);
+      console.error(
+        '[tenant-telnyx] Answer/speak failed for unconfigured number:',
+        error instanceof Error ? error.message : error,
+      );
     }
     return;
   }
@@ -200,12 +233,23 @@ async function handleCallInitiated(payload: unknown): Promise<void> {
   });
 
   if (logId && process.env.GEMINI_API_KEY) {
-    const clientState = createTelnyxStreamToken({ callControlId, botId: bot.id, logId });
+    const clientState = createTelnyxStreamToken({
+      callControlId,
+      botId: bot.id,
+      logId,
+    });
     try {
-      await answerCall(callControlId, { clientState, streamUrl: mediaStreamUrl(), bidirectional: true });
+      await answerCall(callControlId, {
+        clientState,
+        streamUrl: mediaStreamUrl(),
+        bidirectional: true,
+      });
       return;
     } catch (error) {
-      console.error('[tenant-telnyx] Failed to answer with media streaming, falling back:', error instanceof Error ? error.message : error);
+      console.error(
+        '[tenant-telnyx] Failed to answer with media streaming, falling back:',
+        error instanceof Error ? error.message : error,
+      );
     }
   }
 
@@ -214,10 +258,15 @@ async function handleCallInitiated(payload: unknown): Promise<void> {
   // IVR loop.
   try {
     await answerCall(callControlId);
-    const greeting = resolved.greeting || `Thanks for calling ${bot.name}. Our AI agent is temporarily unavailable -- please leave your name and reason for calling after the tone, or call back shortly.`;
+    const greeting =
+      resolved.greeting ||
+      `Thanks for calling ${bot.name}. Our AI agent is temporarily unavailable -- please leave your name and reason for calling after the tone, or call back shortly.`;
     await speakText(callControlId, greeting);
   } catch (error) {
-    console.error('[tenant-telnyx] Fallback answer/speak failed:', error instanceof Error ? error.message : error);
+    console.error(
+      '[tenant-telnyx] Fallback answer/speak failed:',
+      error instanceof Error ? error.message : error,
+    );
   }
 }
 
@@ -229,7 +278,10 @@ async function handleCallHangup(payload: unknown): Promise<void> {
     `call_sid=eq.${encodeURIComponent(parsed.data.call_control_id)}&status=eq.in-progress&order=started_at.desc&limit=1`,
     {
       method: 'PATCH',
-      body: JSON.stringify({ status: 'completed', ended_at: new Date().toISOString() }),
+      body: JSON.stringify({
+        status: 'completed',
+        ended_at: new Date().toISOString(),
+      }),
     },
   );
 }
@@ -284,6 +336,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         break;
     }
   } catch (error) {
-    console.error(`[tenant-telnyx] Handling ${event.data.event_type} failed:`, error instanceof Error ? error.message : error);
+    console.error(
+      `[tenant-telnyx] Handling ${event.data.event_type} failed:`,
+      error instanceof Error ? error.message : error,
+    );
   }
 }

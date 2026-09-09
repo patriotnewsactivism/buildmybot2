@@ -46,15 +46,9 @@ export function translateProcessedStripeOutcome(
     return null;
   }
 
-  const organizationId = String(
-    session.metadata?.organizationId || '',
-  ).trim();
+  const organizationId = String(session.metadata?.organizationId || '').trim();
   const amountTotal = Number(session.amount_total);
-  if (
-    !organizationId ||
-    !Number.isFinite(amountTotal) ||
-    amountTotal <= 0
-  ) {
+  if (!organizationId || !Number.isFinite(amountTotal) || amountTotal <= 0) {
     return null;
   }
 
