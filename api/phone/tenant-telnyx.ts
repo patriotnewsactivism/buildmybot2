@@ -49,6 +49,8 @@ import {
   speakText,
 } from '../lib/telephony-provider.js';
 import { verifyTelnyxSignature } from '../sms/webhooks.js';
+import { CORPORATE, corporateMediaUrl } from './corporate-config.js';
+import { handleCorporateAnswered } from './corporate.js';
 import { createTelnyxStreamToken } from './tenant-telnyx-token.js';
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -124,14 +126,14 @@ async function resolveBotForNumber(
 
   const agents = await sbFetch(
     'voice_agents',
-    `id=eq.${encodeURIComponent(row.voice_agent_id)}&select=id,bot_id,greeting&limit=1`,
+    `id=eq.${encodeURIComponent(row.voice_agent_id)}&enabled=eq.true&is_active=eq.true&select=id,bot_id,greeting&limit=1`,
   );
   const agent = agents?.[0];
   if (!agent?.id || !agent?.bot_id) return null;
 
   const bots = await sbFetch(
     'bots',
-    `id=eq.${encodeURIComponent(agent.bot_id)}&select=id,name,system_prompt&limit=1`,
+    `id=eq.${encodeURIComponent(agent.bot_id)}&user_id=eq.${encodeURIComponent(row.user_id)}&active=eq.true&deleted_at=is.null&select=id,name,system_prompt&limit=1`,
   );
   return {
     userId: String(row.user_id),
@@ -142,6 +144,7 @@ async function resolveBotForNumber(
 }
 
 async function createCallLog(options: {
+  voiceAgentId: string;
   userId: string;
   botId: string;
   callerNumber: string;
@@ -152,6 +155,7 @@ async function createCallLog(options: {
     method: 'POST',
     headers: { Prefer: 'return=representation' },
     body: JSON.stringify({
+      voice_agent_id: options.voiceAgentId,
       bot_id: options.botId,
       user_id: options.userId,
       provider: 'telnyx',
@@ -181,6 +185,7 @@ function mediaStreamUrl(): string {
 }
 
 const callInitiatedSchema = z.object({
+  direction: z.enum(['incoming', 'outgoing']).optional(),
   call_control_id: z.string().min(1),
   from: z.string().min(1),
   to: z.string().min(1),
@@ -197,6 +202,7 @@ async function handleCallInitiated(payload: unknown): Promise<void> {
     console.error('[tenant-telnyx] Malformed call.initiated payload');
     return;
   }
+  if (parsed.data.direction === 'outgoing') return;
   const {
     call_control_id: callControlId,
     from: callerNumber,
@@ -225,6 +231,7 @@ async function handleCallInitiated(payload: unknown): Promise<void> {
   }
 
   const logId = await createCallLog({
+    voiceAgentId: resolved.voiceAgentId,
     userId: resolved.userId,
     botId: bot.id,
     callerNumber,
@@ -241,7 +248,10 @@ async function handleCallInitiated(payload: unknown): Promise<void> {
     try {
       await answerCall(callControlId, {
         clientState,
-        streamUrl: mediaStreamUrl(),
+        streamUrl:
+          calledNumber === CORPORATE.number
+            ? corporateMediaUrl()
+            : mediaStreamUrl(),
         bidirectional: true,
       });
       return;
@@ -258,9 +268,7 @@ async function handleCallInitiated(payload: unknown): Promise<void> {
   // IVR loop.
   try {
     await answerCall(callControlId);
-    const greeting =
-      resolved.greeting ||
-      `Thanks for calling ${bot.name}. Our AI agent is temporarily unavailable -- please leave your name and reason for calling after the tone, or call back shortly.`;
+    const greeting = `Thanks for calling ${bot.name}. Our voice connection is temporarily unavailable. Please call back shortly or contact our team through our website.`;
     await speakText(callControlId, greeting);
   } catch (error) {
     console.error(
@@ -324,6 +332,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     switch (event.data.event_type) {
       case 'call.initiated':
         await handleCallInitiated(event.data.payload);
+        break;
+      case 'call.answered':
+        await handleCorporateAnswered(event.data.payload);
         break;
       case 'call.hangup':
         await handleCallHangup(event.data.payload);

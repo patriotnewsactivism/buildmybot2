@@ -5,6 +5,7 @@ import cookieParser from 'cookie-parser';
 import express from 'express';
 import helmet from 'helmet';
 import { WebSocketServer } from 'ws';
+import { connectCorporatePhone } from './api/phone/corporate-setup.js';
 
 import loginHandler from './api/auth/login.js';
 import logoutHandler from './api/auth/logout.js';
@@ -13,18 +14,18 @@ import userHandler from './api/auth/user.js';
 import cronHandler from './api/cron/[job].js';
 import gatewayHandler from './api/gateway.js';
 import { flushOutcomeOutbox } from './api/lib/outcome-ledger.js';
-import { recordProcessedStripeOutcome } from './api/lib/stripe-outcome.js';
 import {
   corsMiddleware,
   embedFrameMiddleware,
   helmetOptions,
 } from './api/lib/security.js';
+import { recordProcessedStripeOutcome } from './api/lib/stripe-outcome.js';
+import tenantTelnyxWebhookHandler from './api/phone/tenant-telnyx.js';
 import smsWebhookHandler from './api/sms/webhooks.js';
 import stripeWebhookHandler from './api/stripe-webhook.js';
 import liveTokenHandler from './api/voice/live-token.js';
-import { handleTwilioMediaConnection } from './api/voice/twilio-live.js';
 import { handleTelnyxMediaConnection } from './api/voice/telnyx-live.js';
-import tenantTelnyxWebhookHandler from './api/phone/tenant-telnyx.js';
+import { handleTwilioMediaConnection } from './api/voice/twilio-live.js';
 
 const app = express();
 const server = createServer(app);
@@ -87,7 +88,10 @@ app.post(
     await stripeWebhookHandler(req as any, res as any);
     if (res.statusCode >= 200 && res.statusCode < 300) {
       recordProcessedStripeOutcome(raw).catch((error) =>
-        console.error('[outcome-ledger] verified Stripe event could not be queued', error),
+        console.error(
+          '[outcome-ledger] verified Stripe event could not be queued',
+          error,
+        ),
       );
     }
   },
@@ -181,6 +185,7 @@ app.get('/{*splat}', (_req, res) => {
 });
 
 server.listen(PORT, () => {
+  void connectCorporatePhone();
   console.log(`BuildMyBot server running on port ${PORT}`);
 });
 
