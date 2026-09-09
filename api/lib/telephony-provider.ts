@@ -390,3 +390,67 @@ export async function getCampaignStatus(
     failureReason: result.data?.failureReasons?.join('; ') || undefined,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Call Control actions for live inbound-call handling (api/phone/tenant-telnyx.ts,
+// api/voice/telnyx-live.ts). Added alongside startMediaStream for the
+// Twilio -> Telnyx voice-webhook migration ("part 2" referenced in this
+// module's header comment above).
+// ---------------------------------------------------------------------------
+
+export async function answerCall(
+  callControlId: string,
+  options: { clientState?: string; streamUrl?: string; bidirectional?: boolean } = {},
+): Promise<void> {
+  await telnyxRequest(`/calls/${encodeURIComponent(callControlId)}/actions/answer`, {
+    method: 'POST',
+    body: JSON.stringify({
+      client_state: options.clientState || undefined,
+      ...(options.streamUrl
+        ? {
+            stream_url: options.streamUrl,
+            stream_track: 'both_tracks',
+            ...(options.bidirectional ? { stream_bidirectional_mode: 'rtp' } : {}),
+          }
+        : {}),
+    }),
+  });
+}
+
+export async function speakText(
+  callControlId: string,
+  text: string,
+  options: { voice?: string; language?: string } = {},
+): Promise<void> {
+  await telnyxRequest(`/calls/${encodeURIComponent(callControlId)}/actions/speak`, {
+    method: 'POST',
+    body: JSON.stringify({
+      payload: text,
+      voice: options.voice || 'Polly.Joanna-Neural',
+      language: options.language || 'en-US',
+      payload_type: 'text',
+    }),
+  });
+}
+
+export async function hangupCall(callControlId: string): Promise<void> {
+  await telnyxRequest(`/calls/${encodeURIComponent(callControlId)}/actions/hangup`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+export async function transferCall(
+  callControlId: string,
+  to: string,
+  options: { from?: string; clientState?: string } = {},
+): Promise<void> {
+  await telnyxRequest(`/calls/${encodeURIComponent(callControlId)}/actions/transfer`, {
+    method: 'POST',
+    body: JSON.stringify({
+      to,
+      from: options.from || undefined,
+      client_state: options.clientState || undefined,
+    }),
+  });
+}
