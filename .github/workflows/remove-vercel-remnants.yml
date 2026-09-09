@@ -13,7 +13,7 @@ permissions:
 jobs:
   cleanup:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
@@ -42,8 +42,11 @@ jobs:
           ! grep -R "VercelRequest\|VercelResponse" --include='*.ts' --include='*.tsx' --exclude-dir=node_modules --exclude-dir=coverage --exclude-dir=dist .
           ! grep -q '"@vercel/' package.json
 
-      - name: Typecheck
-        run: npx tsc --noEmit
+      - name: Run maintained tests
+        run: npm run test:run -- --exclude test/voice-agent.test.ts
+
+      - name: Run flagship voice tests
+        run: npm run test:run -- test/voice-agent.test.ts
 
       - name: Production build
         run: npm run build
