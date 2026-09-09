@@ -271,22 +271,57 @@ async function loadSessionContext(start: TelnyxStreamStart): Promise<SessionCont
   let organizationId = typeof bot.organization_id === 'string' ? bot.organization_id : null;
   const calledNumber = start.to || '';
 
+  let voiceAgentId: string | null = null;
   if (calledNumber) {
     const numberResult = await sbRequest(
       'phone_numbers',
-      `phone_number=eq.${encodeURIComponent(calledNumber)}&status=eq.active&select=user_id,organization_id&limit=1`,
+      `phone_number=eq.${encodeURIComponent(calledNumber)}&status=eq.active&select=user_id,organization_id,voice_agent_id&limit=1`,
     );
     const number = asRows(numberResult.data)[0];
     if (number && typeof number.user_id === 'string') userId = number.user_id;
     if (number && typeof number.organization_id === 'string') organizationId = number.organization_id;
+    if (number && typeof number.voice_agent_id === 'string') voiceAgentId = number.voice_agent_id;
   }
 
+  // phoneConfig starts as the account-level fallback (users.phone_config --
+  // the older, single-blob-per-account config from the original Twilio
+  // pipeline this file was ported from). The per-agent voice_agents columns
+  // (transfer_number/lead_capture_enabled/calendar_booking_url) are the
+  // REAL, richer, per-number source of truth in the current schema and take
+  // priority when present -- merged in below rather than replacing wholesale,
+  // so any account-level fallback (e.g. introMessage/geminiVoice/hotLeadNumber)
+  // set only on users.phone_config still applies.
   let phoneConfig: Record<string, unknown> = {};
   if (userId) {
     const userResult = await sbRequest('users', `id=eq.${encodeURIComponent(userId)}&select=phone_config&limit=1`);
     const user = asRows(userResult.data)[0];
     if (user?.phone_config && typeof user.phone_config === 'object') {
-      phoneConfig = user.phone_config as Record<string, unknown>;
+      phoneConfig = { ...(user.phone_config as Record<string, unknown>) };
+    }
+  }
+  if (voiceAgentId) {
+    const agentResult = await sbRequest(
+      'voice_agents',
+      `id=eq.${encodeURIComponent(voiceAgentId)}&select=transfer_enabled,transfer_number,lead_capture_enabled,calendar_booking_url&limit=1`,
+    );
+    const agent = asRows(agentResult.data)[0];
+    if (agent) {
+      if (agent.transfer_enabled && typeof agent.transfer_number === 'string' && agent.transfer_number.trim()) {
+        phoneConfig.transferNumber = agent.transfer_number.trim();
+        // hotLeadNumber falls back to transferNumber if unset (see
+        // sendHotLeadAlert below) -- only set it explicitly here if the
+        // account-level config didn't already specify a different one.
+        if (!configuredString(phoneConfig, 'hotLeadNumber')) {
+          phoneConfig.hotLeadNumber = agent.transfer_number.trim();
+        }
+      }
+      // calendar_booking_url is a plain scheduling LINK in this schema, not
+      // a webhook endpoint -- request_appointment's tool below expects a
+      // webhook to POST to (bookingWebhookUrl). Deliberately NOT mapping
+      // calendar_booking_url into bookingWebhookUrl: that would silently
+      // POST a webhook request to what is actually meant to be a link a
+      // human reads/texts. Leaving this as a known follow-up gap rather
+      // than shipping a POST to a URL that isn't an API endpoint.
     }
   }
 
