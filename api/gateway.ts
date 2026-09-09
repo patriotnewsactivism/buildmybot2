@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import legacyHandler from './gateway-legacy.js';
 import { handlePhoneActivation } from './phone/activation.js';
 import { handleTenantTwilioWebhook } from './phone/tenant-twilio.js';
+import tenantTelnyxWebhook from './phone/tenant-telnyx.js';
 import smsHandler from './sms/handler.js';
 import smsRegistration from './sms/register.js';
 
@@ -18,6 +19,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (path.startsWith('/api/phone/activation/twilio/')) {
     return handleTenantTwilioWebhook(req, res);
+  }
+
+  if (path === '/api/phone/activation/telnyx/webhook') {
+    return tenantTelnyxWebhook(req, res);
   }
 
   if (
