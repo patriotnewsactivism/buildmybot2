@@ -22,31 +22,13 @@ function relImport(fromFile, toFile) {
 }
 
 const httpTypesPath = path.join(root, 'api/lib/http-types.ts');
-const httpTypes = `import type { IncomingHttpHeaders } from 'node:http';
+const httpTypes = `import type { Request, Response } from 'express';
 
-/** Platform-neutral HTTP request shape used by the Railway/Express runtime. */
-export interface ApiRequest {
-  method?: string;
-  url?: string;
-  headers: IncomingHttpHeaders & Record<string, string | string[] | undefined>;
-  query: Record<string, unknown>;
-  body?: any;
-  cookies?: Record<string, string>;
-  rawBody?: Buffer;
-  [key: string]: any;
-}
+/** Railway/Express request type shared by API handlers. */
+export type ApiRequest = Request;
 
-/** Platform-neutral HTTP response shape used by the Railway/Express runtime. */
-export interface ApiResponse {
-  statusCode: number;
-  status(code: number): ApiResponse;
-  json(body: any): ApiResponse;
-  send(body: any): ApiResponse;
-  end(body?: any): ApiResponse;
-  setHeader(name: string, value: string | string[] | number): any;
-  getHeader(name: string): number | string | string[] | undefined;
-  [key: string]: any;
-}
+/** Railway/Express response type shared by API handlers. */
+export type ApiResponse = Response;
 `;
 fs.writeFileSync(httpTypesPath, httpTypes);
 
@@ -73,8 +55,8 @@ for (const file of walk(root)) {
   src = src.replace(matches[0][0], replacement);
   src = src.replaceAll('VercelRequest', 'ApiRequest').replaceAll('VercelResponse', 'ApiResponse');
   src = src
-    .replaceAll('Vercel serverless', 'production Express API')
-    .replaceAll('Vercel Serverless', 'production Express API')
+    .replaceAll('Vercel serverless', 'Railway/Express API')
+    .replaceAll('Vercel Serverless', 'Railway/Express API')
     .replaceAll('off Vercel', 'off the public client');
   fs.writeFileSync(file, src);
   converted += 1;
@@ -97,7 +79,7 @@ if (fs.existsSync(claudePath)) {
   let text = fs.readFileSync(claudePath, 'utf8');
   text = text.replace(
     /Vercel and Netlify artifacts \(`\.vercelignore`, `netlify\.toml`\) remain in the repo for history and ad hoc previews but are \*\*not\*\* the production authority[^\n]*/,
-    'Netlify artifacts remain only as historical configuration. Vercel is not a supported deployment, preview, analytics, or runtime target for this repository. Production is Railway-first with Cloud Run fallback as documented in DEPLOYMENT.md.',
+    'Netlify artifacts remain only as historical configuration. Vercel is not a supported deployment, preview, analytics, or runtime target for this repository. Production is Railway-first with the prior Cloud Run service retained only as the documented fallback.',
   );
   text = text.replace(
     /Set real secrets there — the Vercel project\(s\) linked to this repo are for ad hoc previews only and are never production \(see `\.vercelignore`\)\./,
