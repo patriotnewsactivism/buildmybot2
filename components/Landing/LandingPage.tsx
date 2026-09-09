@@ -70,6 +70,7 @@ import {
 } from '../../services/openaiService';
 import { PlanType } from '../../types';
 import { SEO, SEOConfig } from '../SEO/SEO';
+import { CorporatePhoneDemo } from './CorporatePhoneDemo';
 
 interface LandingProps {
   onLogin: () => void;
@@ -1096,6 +1097,8 @@ export const LandingPage: React.FC<LandingProps> = ({
               </div>
             </div>
           </section>
+
+          <CorporatePhoneDemo />
 
           {/* ──── 5. INTERACTIVE DEMO — Try the chatbot ──── */}
           <section id="demo" className="space-y-8 sm:space-y-12">

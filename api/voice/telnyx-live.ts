@@ -1,3 +1,9 @@
+import {
+  CORPORATE_ROUTING_PROMPT,
+  DEPARTMENTS,
+  type Department,
+  departmentInstructions,
+} from '../phone/corporate-routing.js';
 /**
  * Telnyx bidirectional Call Control streaming -> Gemini Live voice pipeline.
  *
@@ -27,16 +33,8 @@
  *    api/lib/telephony-provider.ts) instead of the Twilio SDK's
  *    `client.calls(sid).update({twiml})`.
  *
- * KNOWN GAP (disclosed, not silently dropped): Twilio Media Streams supports
- * an explicit {event:'clear'} message telling Twilio to flush its outbound
- * audio buffer instantly on caller barge-in. Telnyx's bidirectional
- * streaming docs do not document an equivalent client->Telnyx "clear
- * buffered audio" message. This code still stops ENQUEUEING further stale
- * audio the instant Gemini reports an interruption (same as the Twilio
- * path), but whatever Telnyx already has in its own internal playback
- * buffer at that instant may finish playing out -- interruption cutoff may
- * be slightly less instant than the Twilio path. Not verified against a
- * real call; flag to Don if barge-in feels laggy in testing.
+ * Barge-in clears both local PCM queues and Telnyx playback using its
+ * documented {event:"clear"} control message.
  */
 
 import { randomUUID, timingSafeEqual } from 'node:crypto';
@@ -45,10 +43,11 @@ import WebSocket, { type RawData } from 'ws';
 import { z } from 'zod';
 import { recordMilestone } from '../growth/milestones.js';
 import { sendSms, speakText, transferCall } from '../lib/telephony-provider.js';
+import { CORPORATE } from '../phone/corporate-config.js';
 import { validTelnyxClientState } from '../phone/tenant-telnyx-token.js';
 import { searchKnowledge } from '../rag.js';
 
-const GEMINI_MODEL = 'models/gemini-3.1-flash-live-preview';
+export const GEMINI_MODEL = 'models/gemini-3.1-flash-live-preview';
 const GEMINI_WS_URL =
   'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent';
 const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -104,7 +103,7 @@ async function redirectCallToFallback(
   try {
     await speakText(
       context.callControlId,
-      'Sorry about that, let me have someone follow up with you instead.',
+      'Sorry, our voice connection has dropped. Please try calling again, or contact our team at buildmybot.app.',
     );
     console.error(
       `[telnyx-voice-live] Redirected call ${context.callControlId} to fallback speak: ${reason}`,
@@ -183,6 +182,7 @@ async function sbRequest(
   try {
     const response = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params}`, {
       ...init,
+      signal: AbortSignal.timeout(5000),
       headers: { ...SUPABASE_HEADERS, ...(init?.headers || {}) },
     });
     const text = await response.text();
@@ -295,39 +295,50 @@ async function loadSessionContext(
   const bot = asRows(botResult.data)[0];
   if (!botResult.ok || !bot) return null;
 
-  let userId = typeof bot.user_id === 'string' ? bot.user_id : null;
-  let organizationId =
+  const logResult = await sbRequest(
+    'call_logs',
+    `id=eq.${encodeURIComponent(logId)}&bot_id=eq.${encodeURIComponent(botId)}&call_sid=eq.${encodeURIComponent(callControlId)}&select=user_id,caller_number,called_number,direction,metadata&limit=1`,
+  );
+  const log = asRows(logResult.data)[0];
+  if (!logResult.ok || !log || log.user_id !== bot.user_id) return null;
+  const userId = typeof bot.user_id === 'string' ? bot.user_id : null;
+  const organizationId =
     typeof bot.organization_id === 'string' ? bot.organization_id : null;
-  const calledNumber = start.to || '';
-
-  if (calledNumber) {
-    const numberResult = await sbRequest(
-      'phone_numbers',
-      `phone_number=eq.${encodeURIComponent(calledNumber)}&status=eq.active&select=user_id,organization_id&limit=1`,
-    );
-    const number = asRows(numberResult.data)[0];
-    if (number && typeof number.user_id === 'string') userId = number.user_id;
-    if (number && typeof number.organization_id === 'string')
-      organizationId = number.organization_id;
-  }
-
-  let phoneConfig: Record<string, unknown> = {};
-  if (userId) {
-    const userResult = await sbRequest(
-      'users',
-      `id=eq.${encodeURIComponent(userId)}&select=phone_config&limit=1`,
-    );
-    const user = asRows(userResult.data)[0];
-    if (user?.phone_config && typeof user.phone_config === 'object') {
-      phoneConfig = user.phone_config as Record<string, unknown>;
-    }
-  }
+  const calledNumber =
+    log.direction === 'outbound'
+      ? String(log.caller_number)
+      : String(log.called_number);
+  const agentsResult = await sbRequest(
+    'voice_agents',
+    `bot_id=eq.${encodeURIComponent(botId)}&enabled=eq.true&is_active=eq.true&select=greeting,transfer_enabled,transfer_number,max_call_duration&limit=2`,
+  );
+  const agents = asRows(agentsResult.data);
+  if (!agentsResult.ok || agents.length !== 1) return null;
+  const voiceAgent = agents[0];
+  const phoneConfig: Record<string, unknown> = {
+    introMessage: voiceAgent.greeting || '',
+    transferNumber: voiceAgent.transfer_enabled
+      ? voiceAgent.transfer_number || ''
+      : '',
+    maxCallDuration: Number(voiceAgent.max_call_duration || 600),
+  };
+  // Corporate outbound is separately approved; never initiate an unapproved
+  // transfer leg from the corporate line. Capture human follow-up instead.
+  if (botId === CORPORATE.botId) phoneConfig.transferNumber = '';
+  const metadata = log.metadata as Record<string, unknown> | null;
+  const objective =
+    log.direction === 'outbound' && typeof metadata?.objective === 'string'
+      ? `Approved outbound call objective: ${metadata.objective}. Identify yourself as BuildMyBot's AI sales assistant. Do not imply the recipient called us.`
+      : '';
 
   return {
     botId,
     logId,
     callControlId,
-    callerNumber: start.from || '',
+    callerNumber:
+      log.direction === 'outbound'
+        ? String(log.called_number)
+        : String(log.caller_number),
     calledNumber,
     botName: typeof bot.name === 'string' ? bot.name : 'the business',
     systemPrompt:
@@ -337,6 +348,9 @@ async function loadSessionContext(
     userId,
     organizationId,
     phoneConfig,
+    ...(objective
+      ? { systemPrompt: `${String(bot.system_prompt || '')}\n${objective}` }
+      : {}),
   };
 }
 
@@ -360,6 +374,7 @@ function buildSystemInstruction(context: SessionContext): string {
   return [
     `You are the live AI receptionist for ${context.botName}.`,
     context.systemPrompt,
+    context.botId === CORPORATE.botId ? CORPORATE_ROUTING_PROMPT : '',
     intro ? `Preferred opening greeting: ${intro}` : '',
     'Speak naturally and concisely. Allow normal pauses, corrections, filler words, and interruptions.',
     'Never claim that a transfer, appointment, CRM update, text message, payment, or any external action succeeded unless the matching tool returned success.',
@@ -379,6 +394,26 @@ function buildSystemInstruction(context: SessionContext): string {
 
 function buildTools(context: SessionContext) {
   const functionDeclarations: JsonObject[] = [
+    ...(context.botId === CORPORATE.botId
+      ? [
+          {
+            name: 'route_department',
+            description:
+              'Hand the conversation and its context to BuildMyBot AI sales, customer support, or administration. Route promptly once intent is clear.',
+            parameters: {
+              type: 'OBJECT',
+              properties: {
+                department: {
+                  type: 'STRING',
+                  enum: ['sales', 'support', 'admin'],
+                },
+                summary: { type: 'STRING' },
+              },
+              required: ['department', 'summary'],
+            },
+          },
+        ]
+      : []),
     {
       name: 'search_business_knowledge',
       description:
@@ -688,6 +723,46 @@ async function executeFunction(
         matches: chunks.slice(0, 5).map((chunk) => chunk.slice(0, 1800)),
       };
     }
+    case 'route_department': {
+      if (
+        context.botId !== CORPORATE.botId ||
+        !Object.hasOwn(DEPARTMENTS, String(args.department))
+      )
+        return { success: false, reason: 'Unknown department' };
+      const department = args.department as Department;
+      const destination = DEPARTMENTS[department];
+      const summary = String(args.summary || '').slice(0, 2000);
+      const recorded = await mergeCallMetadata(context.logId, {
+        department,
+        departmentRoleId: destination.roleId,
+        handoffSummary: summary,
+        routedAt: new Date().toISOString(),
+      });
+      if (!recorded)
+        return {
+          success: false,
+          reason: 'Unable to record department handoff',
+        };
+      const logged = await sbRequest('ai_team_log', '', {
+        method: 'POST',
+        body: JSON.stringify({
+          role_id: destination.roleId,
+          role_name: destination.name,
+          shift_date: new Date().toISOString().slice(0, 10),
+          summary: `Corporate call ${context.logId} routed to ${department}: ${summary}`,
+          tasks_completed: 1,
+        }),
+      });
+      return {
+        success: true,
+        department,
+        specialist: destination.name,
+        teamLogSaved: logged.ok,
+        instructions: departmentInstructions(department),
+        handoffSummary: summary,
+        delivery: 'internal_ai_department',
+      };
+    }
     case 'capture_lead':
       return captureLead(context, args);
     case 'transfer_to_human':
@@ -702,12 +777,13 @@ async function executeFunction(
   }
 }
 
-function setupGeminiSession(gemini: WebSocket, context: SessionContext) {
+export function setupGeminiSession(gemini: WebSocket, context: SessionContext) {
   sendJson(gemini, {
     setup: {
       model: GEMINI_MODEL,
       generationConfig: {
         responseModalities: ['AUDIO'],
+        thinkingConfig: { thinkingLevel: 'minimal' },
         speechConfig: {
           voiceConfig: {
             prebuiltVoiceConfig: {
@@ -723,7 +799,7 @@ function setupGeminiSession(gemini: WebSocket, context: SessionContext) {
           startOfSpeechSensitivity: 'START_SENSITIVITY_HIGH',
           endOfSpeechSensitivity: 'END_SENSITIVITY_LOW',
           prefixPaddingMs: 120,
-          silenceDurationMs: 750,
+          silenceDurationMs: 500,
         },
         activityHandling: 'START_OF_ACTIVITY_INTERRUPTS',
       },
@@ -735,20 +811,10 @@ function setupGeminiSession(gemini: WebSocket, context: SessionContext) {
   });
 }
 
-function promptInitialGreeting(gemini: WebSocket) {
+export function promptInitialGreeting(gemini: WebSocket) {
   sendJson(gemini, {
-    clientContent: {
-      turns: [
-        {
-          role: 'user',
-          parts: [
-            {
-              text: 'The caller just connected. Greet them now using the configured greeting or a short natural greeting, then ask how you can help.',
-            },
-          ],
-        },
-      ],
-      turnComplete: true,
+    realtimeInput: {
+      text: 'The phone connection is ready. Give your brief configured greeting now, then listen. Follow any approved outbound objective if this is an outbound call.',
     },
   });
 }
@@ -766,6 +832,12 @@ export function handleTelnyxMediaConnection(
   }> = [];
   let finalized = false;
   let geminiReady = false;
+  let started = false;
+  const inputQueue: string[] = [];
+  let inboundFrames = 0;
+  let outboundFrames = 0;
+  let interruptions = 0;
+  let durationTimer: ReturnType<typeof setTimeout> | null = null;
   let connectTimeoutTimer: ReturnType<typeof setTimeout> | null = null;
 
   // Outbound audio pacing -- identical rationale/cadence to twilio-live.ts:
@@ -793,6 +865,7 @@ export function handleTelnyxMediaConnection(
       // Telnyx bidirectional streaming: no stream_id/streamSid needed on
       // outbound media messages (only one bidirectional stream per call is
       // supported), unlike Twilio which requires streamSid on every frame.
+      outboundFrames += 1;
       sendJson(telnyxSocket, {
         event: 'media',
         media: { payload: frame.toString('base64') },
@@ -818,6 +891,7 @@ export function handleTelnyxMediaConnection(
     if (finalized) return;
     finalized = true;
     closeGemini();
+    if (durationTimer) clearTimeout(durationTimer);
     stopPacingTimer();
     pendingAudio = Buffer.alloc(0);
     if (context?.logId) {
@@ -828,6 +902,10 @@ export function handleTelnyxMediaConnection(
       });
       await mergeCallMetadata(context.logId, {
         source: 'gemini-live',
+        model: GEMINI_MODEL,
+        inboundFrames,
+        outboundFrames,
+        interruptions,
         realtime: true,
         provider: 'telnyx',
       });
@@ -843,6 +921,17 @@ export function handleTelnyxMediaConnection(
     }
 
     if (message.event === 'start' && message.start) {
+      if (started || finalized) return;
+      started = true;
+      const format = message.start.media_format;
+      if (
+        format &&
+        (format.encoding !== 'PCMU' || format.sample_rate !== 8000)
+      ) {
+        console.error('[telnyx-voice-live] Unsupported inbound codec', format);
+        telnyxSocket.close(1003, 'Unsupported audio codec');
+        return;
+      }
       context = await loadSessionContext(message.start);
       if (!context) {
         console.error('[telnyx-voice-live] Rejected Telnyx stream session');
@@ -850,6 +939,20 @@ export function handleTelnyxMediaConnection(
         return;
       }
 
+      durationTimer = setTimeout(
+        () => {
+          if (context?.callControlId)
+            void import('../lib/telephony-provider.js')
+              .then((m) => m.hangupCall(context!.callControlId))
+              .catch(() => {});
+          void finalize('completed');
+          telnyxSocket.close(1000, 'Call duration limit reached');
+        },
+        Math.max(
+          30,
+          Math.min(600, Number(context.phoneConfig.maxCallDuration) || 600),
+        ) * 1000,
+      );
       const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) {
         console.error('[telnyx-voice-live] GEMINI_API_KEY is not configured');
@@ -874,7 +977,7 @@ export function handleTelnyxMediaConnection(
             : false;
           await finalize(redirected ? 'completed' : 'failed');
         })();
-      }, 4000);
+      }, 10000);
       gemini.on('open', () => {
         if (context && gemini) setupGeminiSession(gemini, context);
       });
@@ -904,16 +1007,27 @@ export function handleTelnyxMediaConnection(
           }
           recordGeminiOutcome(true);
           promptInitialGreeting(gemini);
-          return;
+          for (const audio of inputQueue.splice(0))
+            sendJson(gemini, {
+              realtimeInput: {
+                audio: {
+                  data: muLaw8kToPcm16k(audio),
+                  mimeType: 'audio/pcm;rate=16000',
+                },
+              },
+            });
+          console.info(
+            '[telnyx-voice-live] Gemini ready',
+            GEMINI_MODEL,
+            context.logId,
+          );
         }
 
         const content = response.serverContent;
         if (content?.interrupted) {
-          // See module header "KNOWN GAP" -- we stop enqueueing further
-          // audio immediately; Telnyx's own already-buffered playback may
-          // trail slightly longer than Twilio's explicit {event:'clear'}
-          // would have cut it off.
           pendingAudio = Buffer.alloc(0);
+          interruptions += 1;
+          sendJson(telnyxSocket, { event: 'clear' });
         }
 
         const callerText = content?.inputTranscription?.text?.trim();
@@ -933,7 +1047,7 @@ export function handleTelnyxMediaConnection(
 
         for (const part of content?.modelTurn?.parts || []) {
           const audio = part.inlineData?.data;
-          if (!audio) continue;
+          if (!audio || content?.interrupted) continue;
           pendingAudio = Buffer.concat([
             pendingAudio,
             Buffer.from(pcm24kToMuLaw8k(audio), 'base64'),
@@ -944,7 +1058,11 @@ export function handleTelnyxMediaConnection(
         if (functionCalls.length) {
           const functionResponses = [];
           for (const call of functionCalls) {
-            const result = await executeFunction(context, call);
+            const result = await executeFunction(context, call).catch(() => ({
+              success: false,
+              reason:
+                'The action could not be completed. Ask a short follow-up or offer owner follow-up.',
+            }));
             functionResponses.push({
               id: call.id,
               name: call.name,
@@ -991,8 +1109,18 @@ export function handleTelnyxMediaConnection(
       return;
     }
 
-    if (message.event === 'media' && message.media?.payload && gemini) {
-      if (gemini.readyState !== WebSocket.OPEN) return;
+    if (message.event === 'media' && message.media?.payload) {
+      if (
+        message.media.track &&
+        !['inbound', 'inbound_track'].includes(message.media.track)
+      )
+        return;
+      inboundFrames += 1;
+      if (!geminiReady || !gemini || gemini.readyState !== WebSocket.OPEN) {
+        if (!finalized && inputQueue.length < 250)
+          inputQueue.push(message.media.payload);
+        return;
+      }
       sendJson(gemini, {
         realtimeInput: {
           audio: {

@@ -437,9 +437,12 @@ export async function answerCall(
         ...(options.streamUrl
           ? {
               stream_url: options.streamUrl,
-              stream_track: 'both_tracks',
+              stream_track: 'inbound_track',
               ...(options.bidirectional
-                ? { stream_bidirectional_mode: 'rtp' }
+                ? {
+                    stream_bidirectional_mode: 'rtp',
+                    stream_bidirectional_codec: 'PCMU',
+                  }
                 : {}),
             }
           : {}),
