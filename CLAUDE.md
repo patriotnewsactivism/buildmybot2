@@ -1,144 +1,134 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code and other autonomous coding agents working in `patriotnewsactivism/buildmybot2`.
 
-## ⚠️ Critical: Dead code in package.json
+## Production architecture
 
-`server/` **does not exist and was never committed.** The following scripts all fail: `dev`, `server`, `start`, `check:server`, and every `seed:*` alias. Do not attempt to run them. For local frontend development use `npm run client` (Vite on port 5000).
+Production is Railway-first, fronted by Cloudflare Pages/Functions, with Google Cloud Run retained as a GET/HEAD fallback. Vercel is not a production runtime for this repository.
 
-## Real architecture
+- Public app: `https://www.buildmybot.app`
+- Railway primary service: `buildmybot2-web`
+- Production branch: `main`
+- Active Supabase project: `blyebndyrojmreensbxe`
+- Root server: `server.ts`
+- Container: `Dockerfile`
+- Main API router: `api/gateway.ts`
 
-See `DEPLOYMENT.md` for the authoritative topology, deploy identities, and release-verification steps — this table is a quick summary only and is not the place to re-litigate which host is primary.
+Read `DEPLOYMENT.md` before changing production routing, deployment workflows, or environment configuration.
 
-| Layer | What runs | Notes |
-|---|---|---|
-| Frontend | Vite + React 18 SPA | Builds to `dist/`; served by the backend container below (no separate static host in production) |
-| Public origin | Cloudflare Pages + Pages Functions | `functions/[[path]].ts` (app) and `functions/api/[[path]].ts` (API) proxy `www.buildmybot.app` to the backend below |
-| Backend | Node/Express (`server.ts` + `Dockerfile`), mounting `api/*` handlers | `api/gateway.ts` handles every `/api/*` route except cron and auth. Deployed to **Railway** (`buildmybot2-web`, primary) with **Google Cloud Run** (`buildmybot2`) as a GET/HEAD-only fallback |
-| Database | Supabase Postgres | Accessed via Supabase REST API with service-role key — **not** Drizzle ORM in production |
-| Email outbound | Resend (`RESEND_API_KEY`) | |
-| Email inbound | Webhook to `POST /api/email/inbound` | Verified with `x-webhook-secret` header |
+## Do not invent a server/ tree
 
-Netlify artifacts remain only as historical configuration. Vercel is not a supported deployment, preview, analytics, or runtime target for this repository. Production is Railway-first with the prior Cloud Run service retained only as the documented fallback.
+A historical `server/` Express tree referenced by older scripts/documentation does not exist. Do not create assumptions around `server/index.ts`. Inspect the real filesystem and `package.json` before using scripts that may still reference stale paths.
 
-### Request routing
-- `/api/*` (except `/api/cron/*`) → handled by `api/gateway.ts`
-- `/api/auth/*` and `/api/chat/demo` serve their own files directly
-- SPA fallback: everything else → `/index.html`
-- `/chat/*` allows iframe embedding; `/embed.js` has `Access-Control-Allow-Origin: *`
-- Cron: `api/cron/all-shifts` runs daily at 13:00 UTC. Other workers (`_lead-followups.ts`, `_pulse.ts`, `_sales-outreach.ts`) exist but have **no cron entry** — they must be triggered manually or via `api/cron/[job].ts`
+The production runtime is the root `server.ts` plus handlers under `api/`.
 
-## Commands that work
+## Distinct production voice agents
+
+Receptionist, Sales, Support, and Manager are four distinct realtime voice agents. Never simplify them into one agent that merely changes prompts.
+
+Every AI-to-AI handoff must change:
+
+- role/agent identity;
+- voice ID;
+- persona/system prompt;
+- speaking style/role policy;
+- first-message/transfer acknowledgement behavior.
+
+Caller context may transfer in a bounded envelope; outgoing persona and voice state may not.
+
+Primary implementation/documentation:
+
+- `shared/voice-team.ts`
+- `api/voice/team.ts`
+- `api/voice/team-store.ts`
+- `api/voice/team-preview.ts`
+- `api/voice/telnyx-live.ts`
+- `components/PhoneAgent/VoiceTeamEditor.tsx`
+- `docs/VOICE_TEAM_ARCHITECTURE_2026-09-10.md`
+- `docs/AI_VOICE_TEAM.md`
+- `docs/CORPORATE_PHONE.md`
+
+Gemini Live is the realtime conversational voice engine. Telnyx is the preferred current telephony/SMS path. Some legacy Twilio-compatible code may remain during migration; do not delete it until the replacement passes an actual inbound end-to-end test.
+
+## Database safety
+
+The active production Supabase project is `blyebndyrojmreensbxe`.
+
+There is an active production migration-history reconciliation hold. Do not run `supabase db push`, reset production, replay all migrations, or otherwise mutate the production schema simply because repository migrations exist.
+
+Follow `docs/MIGRATION_BASELINE_RECONCILIATION.md` and verify the specific migration against the live schema before any production schema write.
+
+Tenant isolation is mandatory. Do not trust client-supplied organization IDs, roles, or ownership claims where the server can resolve them from authenticated/live data.
+
+## Commands
+
+Typical safe development/release commands:
 
 ```bash
-npm run client            # Vite dev server, port 5000 (frontend only)
-npm run build             # Production frontend build → dist/
-npm run lint              # Biome linter (NOT ESLint/Prettier)
-npm test                  # Vitest watch
-npm run test:run          # Vitest single pass
-npm run test:coverage     # Coverage report
-npx vitest run path/to/file.test.tsx   # Single test file
+npm ci
+npm run client
+npm run lint
+npm run test:run
+npm run build
 ```
 
-### Database (local scripts only — these do NOT affect how serverless functions query data)
-```bash
-npm run db:push           # Drizzle-kit push to Supabase (needs DATABASE_URL in env)
-npm run db:migrate        # Run scripts/migrate.ts
-npm run db:seed           # Run scripts/seed.ts
-npm run db:studio         # Drizzle Studio GUI
-```
+Production container validation:
 
-Supabase migrations live in `supabase/migrations/`. Apply with:
 ```bash
-npx supabase link --project-ref evkjlnbpntimbxklnhoz
-npx supabase db push
+docker build -t buildmybot2 .
+docker run --rm -p 8080:8080 --env-file .env buildmybot2
 ```
 
 ## Authentication
 
-Custom JWT, **not** a standard JWT library. Tokens are minted by `api/auth/login.ts` and `api/auth/signup.ts` as `base64url(payload).base64url(hmac-sha256(payload, SESSION_JWT_SECRET))`, stored in cookie `bmb_session`.
+Authentication uses the repository's custom signed session flow. Server-side authorization must resolve current trusted user/tenant state; do not make authorization decisions solely from browser state or unsigned/unverified claims.
 
-`getAuthUser()` in `api/gateway.ts` verifies the HMAC, then **fetches the live user row from Supabase** — role, organizationId, and plan are never trusted from the token. This means role changes take effect immediately.
+Any mutation touching customers, bots, telephony, SMS, billing, campaigns, or AI-agent configuration must validate authentication and tenant scope server-side.
 
-Frontend-side `MASTER_ADMINS` array in `App.tsx` forces the `MasterAdmin` role for those emails regardless of the stored role.
+## AI workforce
 
-Roles: `MasterAdmin` > `Admin` > `Reseller` > `Owner` > `Client`.
+Autonomous employee workflows live under `api/ai-team/` and related scheduled endpoints/workflows. Keep autonomous actions bounded and observable.
 
-## How serverless functions query data
+For model/provider calls:
 
-`api/gateway.ts` uses raw `fetch` against the Supabase REST API:
-```
-${SUPABASE_URL}/rest/v1/<table>?select=...&filter=...
-```
-with `apikey` and `Authorization: Bearer <service-role-key>` headers. There is no Drizzle or ORM in the serverless path — `shared/schema.ts` is only for local scripts.
+- cap retries;
+- bound timeouts;
+- avoid uncontrolled fallback cascades;
+- distinguish model/provider errors from credential/quota errors;
+- do not put all credentials into cooldown because one model timed out;
+- avoid frivolous token spend during repeated failures;
+- log structured diagnostics without leaking secrets.
 
-Always filter by `organization_id` when querying tenant-scoped tables. The gateway enforces this using the auth user's `organizationId`.
+## Pricing and limits
 
-## Database schema files
+`constants.ts` `PLANS` is the canonical source for product plan pricing/limits used by the application. Reuse shared helpers rather than hard-coding plan prices or limits in prompts/components.
 
-- `shared/schema.ts` — main tables (Drizzle, used by scripts)
-- `shared/schema-ai-employees.ts` — AI employee tables (also Drizzle, scripts only)
+## Frontend routing
 
-Key tables: `users`, `organizations`, `organization_members`, `bots`, `leads`, `conversations`, `knowledge_sources`, `knowledge_chunks`, `bot_templates`, `analytics_events`, `audit_logs`, `ai_employees`, `agent_messages`, `email_messages`, `escalations`.
+The app uses `react-router-dom` with authenticated dashboard routes. `components/Dashboard/navConfig.tsx` is the canonical navigation definition. Preserve shared layout/routing rather than reintroducing view-state navigation patterns.
 
-## AI Team (six AI employees)
+## Secrets
 
-Managed by `api/ai-team/lib.ts` and triggered via cron + inbound email.
+Never commit real credentials. Never place private server secrets in `VITE_*` variables. Treat all `VITE_*` values as public build-time configuration.
 
-| Employee | Title | Mailbox |
-|---|---|---|
-| Alex Morgan | Executive Admin | admin@buildmybot.app |
-| Sam Rivera | Customer Support | support@buildmybot.app |
-| Vera Cross | VP Sales | sales@buildmybot.app |
-| Devon Reyes | VP Agent Development | agents@buildmybot.app |
-| Maya Chen | Marketing Director | marketing@buildmybot.app |
-| Harper Lane | Head of People | careers@buildmybot.app |
+Use `.env.example` as the variable inventory and update it whenever a new required variable is introduced.
 
-LLM provider waterfall (first with a key configured wins): `AI_TEAM_LLM_PROVIDER` env override → Gemini → Groq → Cerebras → OpenRouter → OpenRouter2 → GitHub Models → OpenAI. Set e.g. `AI_TEAM_LLM_PROVIDER=groq` to pin a provider. OpenRouter's free model catalog churns — if AI team shift logs show errors, re-verify the model IDs against `GET https://openrouter.ai/api/v1/models`.
+## Release verification
 
-Partners with 251+ accounts (Platinum) or `$499/mo Partner Access` members bypass the AI hierarchy and go straight to `PRESIDENT_EMAIL`.
+A merge to `main` is not the same as a completed production release. Verify:
 
-## Environment variables
+1. exact Git SHA on `main`;
+2. CI;
+3. Railway deployment status;
+4. Railway `/api/health`;
+5. public `https://www.buildmybot.app/api/health` and origin header;
+6. Cloudflare when frontend/proxy functions changed;
+7. feature-specific smoke tests.
 
-Backend (Railway + Cloud Run — set as GitHub Actions secrets, synced to Railway by `.github/workflows/deploy-railway.yml`; never `VITE_` prefixed):
-- `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` — required for all DB access
-- `SESSION_JWT_SECRET` — signs session cookies (`openssl rand -hex 32`)
-- `OPENAI_API_KEY` — chat + AI team fallback
-- `RESEND_API_KEY` — outbound email
-- `INBOUND_EMAIL_WEBHOOK_SECRET` — authenticates `POST /api/email/inbound`
-- `CRON_SECRET` — authenticates scheduled cron calls (GitHub Actions workflows such as `.github/workflows/ai-team-schedule.yml` trigger these now, not Vercel cron)
-- `DISCORD_WEBHOOK_URL`, `SLACK_WEBHOOK_URL` — agent notifications (recommended)
-- `GEMINI_API_KEY`, `GROQ_API_KEY`, `CEREBRAS_API_KEY`, `OPENROUTER_API_KEY`, `GITHUB_TOKEN_4` — AI team free-tier providers
-- `XAI_API_KEY` — xAI/Grok TTS for `api/voice/preview.ts` (preview endpoint) and `api/twilio/webhooks.ts` (Twilio calls via `<Play>`). Falls back to Polly.Joanna when absent.
-- `FIRECRAWL_API_KEY` — powers real URL/domain knowledge-base scraping (`api/rag.ts` `scrapeUrlFirecrawl`/`startFirecrawlCrawl`). **Not currently set in production** — without it, `/knowledge/scrape` silently falls back to a basic regex-based HTML fetch (`scrapeUrl()`) that can't render JS and often returns empty content on modern sites. Get a key at firecrawl.dev.
-- `FIRECRAWL_WEBHOOK_SECRET` — validates the `x-webhook-secret` header on `POST /api/knowledge/firecrawl-webhook`, which Firecrawl calls per-page during a multi-page domain crawl. Optional but recommended once `FIRECRAWL_API_KEY` is set.
-- `APP_BASE_URL` — base URL Firecrawl webhooks are pointed at (defaults to `https://www.buildmybot.app`); only needs overriding for a non-production deploy target.
-- `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` — billing (not yet live)
+For voice changes, perform actual realtime call-path testing. A passing build or preview audio is not sufficient proof of PSTN handoff quality.
 
-Frontend (baked in at build time, must redeploy after changing):
-- `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
-- `VITE_API_URL` — leave empty; `/api` is same-origin behind Cloudflare Pages
+## Documentation rule
 
-Production deploy identities (Railway project/service/environment IDs, Cloud Run project/region): see `DEPLOYMENT.md` §2. Set real secrets there. Do not configure or use Vercel for this repository.
+Architecture-changing work must update the relevant docs in the same change. Check `README.md`, `AGENTS.md`, `CLAUDE.md`, `DEPLOYMENT.md`, and the feature-specific documents under `docs/`.
 
-## Pricing & plan limits — single source of truth
-
-`constants.ts` `PLANS` is canonical for **both** marketing display and backend enforcement. The gateway imports the derived `PLAN_LIMITS` from it (`api/gateway.ts` has no limits table of its own), and AI agent prompts (gateway AI-team + Twilio calls) quote prices via `formatPricingForPrompt()`. Never hardcode plan prices/limits anywhere else — that's how Executive customers ended up throttled to Free-tier limits before this was consolidated.
-
-## Frontend structure
-
-`App.tsx` uses **real URL routing** via `react-router-dom` (v7) — `index.tsx` wraps `<App/>` in `<BrowserRouter>`. `App.tsx` holds auth/session/impersonation state and renders a `<Routes>` tree: public marketing routes (`/`, `/pricing`, `/chat/:botId`, …) and an authenticated dashboard tree gated on login.
-
-Every authenticated section is a real path under a single shared `components/Dashboard/DashboardLayout.tsx` shell (grouped sidebar + top bar, `NavLink` + `Outlet`). Route prefixes by role:
-- `admin` (MasterAdmin/Admin) → `/admin/*` (Overview, Users, Partners, Agents, Clients, Affiliates, Bots, Conversations, AI Team, Support, System, Analytics, Financial)
-- `partner`/`reseller` → `/partner/*` (`PartnerDashboardV2`, tab driven by URL)
-- `client`/`owner` → `/app/*` (BotBuilder, CRM, Analytics, Phone, Billing, …)
-- `agent` → `/agent`, `affiliate` → `/affiliate`
-
-Navigation is defined once in `components/Dashboard/navConfig.tsx` (`NAV`, `getNavRole`, `ROLE_HOME`) — the single source of truth for every role's menu. The old `currentView`-state system, `DashboardShell`, `Layout/Sidebar`, and `dashboardNav.ts` were removed in the routing overhaul.
-
-Path aliases: `@/` → repo root, `@shared/` → `./shared`.
-
-## Code style
-
-Biome (`npm run lint`). Single quotes, semicolons, 2-space indent. TypeScript strict mode — fix all type errors before committing.
+Do not keep documentation known to be false merely because it was once accurate; Git history is the archive.
