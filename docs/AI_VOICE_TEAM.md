@@ -1,6 +1,6 @@
 # AI Voice Team
 
-BuildMyBot's production phone path uses Telnyx Call Control and Gemini 3.1 Flash Live. Receptionist, Sales, Support and Manager are independently configured agents. Every successful AI handoff opens a fresh Gemini WebSocket with the destination's voice, identity, role instructions and opening behavior. One Telnyx phone connection remains open.
+BuildMyBot's production phone architecture uses Telnyx Call Control with Gemini Live. Receptionist, Sales, Support and Manager are independently configured agents. Every successful AI handoff opens a fresh Gemini session with the destination's voice, identity, role instructions and opening behavior while the phone connection and bounded caller context continue.
 
 ## Default staff
 
@@ -19,28 +19,42 @@ These are configurable defaults. Audition the team on the actual phone path to a
 - `shared/voice-team.ts`: four independent agent definitions, supported voices, strict validation and routing policy.
 - `api/voice/team.ts`: authenticated settings and preview API.
 - `api/voice/team-store.ts`: tenant-scoped persistence.
-- `api/voice/team-preview.ts`: short previews using the same Gemini Live model and voice as calls.
+- `api/voice/team-preview.ts`: short previews using the same Gemini Live model and voice configuration as calls.
 - `components/PhoneAgent/VoiceTeamEditor.tsx`: reusable team editor.
 - `components/PhoneAgent/PhoneAgent.tsx` and `components/Team/CorporatePhonePanel.tsx`: customer and corporate entry points.
 
-Previously, `route_department` returned instructions to the existing model connection. Its initial setup selected Aoede by default, so the caller heard the same voice changing roles. The new implementation treats routing as a connection lifecycle change.
+Previously, `route_department` returned instructions to the existing model connection. Its initial setup selected one voice by default, so the caller could hear the same person changing roles. The current implementation treats routing as a connection lifecycle and identity change.
+
+## Non-negotiable identity boundary
+
+Receptionist, Sales, Support, and Manager are four distinct production agents, not one assistant with dynamic role prompts.
+
+Every AI-to-AI handoff must change the destination agent's:
+
+- stable role/agent identity;
+- voice ID;
+- persona/system prompt;
+- speaking style and role policy;
+- first-message/transfer acknowledgement behavior.
+
+Caller context may transfer. Outgoing persona/voice state may not.
 
 ## Handoff lifecycle
 
-1. Validate the destination, require a factual summary, reject self-transfers, and enforce a maximum of eight attempts per call.
-2. Keep the source available while starting the destination. Buffer up to ten seconds of recent caller audio during setup.
+1. Validate the destination, require a factual summary, reject self-transfers, and enforce a bounded number of transfer attempts per call.
+2. Keep the source available while starting the destination and buffer recent caller audio during setup.
 3. When destination setup completes, clear queued source playback, retire the old session, and enable the destination. Late source events cannot speak, execute tools, or finalize the new session.
 4. Give the destination the caller number, known name/company/reason, handoff summary and a bounded recent transcript. It introduces its own name and role, acknowledges the issue and avoids repeat questions.
-5. If setup fails or exceeds ten seconds, return a failed tool result to the source and replay buffered caller audio. If neither connection is available, use the existing phone fallback.
+5. If destination setup fails or times out, return a failed tool result to the source and preserve a deterministic fallback path.
 6. On hangup or duration limit, close all agent sessions and timers. Preserve the original call duration limit across every handoff.
 
 The call snapshot contains four agent definitions. Stable identity is `botId:department`; a successful transfer changes that identity and creates a new model session. Business instructions, knowledge access and confirmed tool results may be shared. Previous persona and voice settings are never used as the destination configuration.
 
-`admin` is accepted as a compatibility alias for `manager`. Explicit human requests remain human-transfer or follow-up requests; the AI manager has no extra billing, account or contractual permissions. Corporate outbound approval is unchanged. Approved outbound calls begin with Sales and their approved objective.
+`admin` may be accepted as a compatibility alias for `manager`. Explicit human requests remain human-transfer or follow-up requests; the AI manager has no extra billing, account or contractual permissions merely because it is the manager persona. Corporate outbound approval is unchanged. Approved outbound calls may begin with Sales and their approved objective.
 
 ## Persistence
 
-The migration adds the backend-only `voice_teams` table. It retains the existing `voice_agents` row as the phone-number binding.
+The voice-team migration adds the backend-only `voice_teams` table while retaining the existing phone-number/bot binding model.
 
 | Column | Purpose |
 | --- | --- |
@@ -53,9 +67,9 @@ The migration adds the backend-only `voice_teams` table. It retains the existing
 
 Each agent contains `department`, `name`, `voice.provider`, `voice.voiceId`, `persona`, `speakingStyle` and `firstMessage`. The complete team is saved in one database write, allowing two departments to swap voices without a transient duplicate configuration.
 
-Zod validates the API and runtime configuration. A database CHECK function requires all four roles, unique names and voices, supported Gemini IDs and nonempty agent fields. RLS is enabled; public browser roles have no grants. The existing custom session authenticator resolves the current user and organization from the database. API queries verify bot ownership before reading, saving or generating previews. Client-supplied owner/tenant fields are rejected.
+Zod validates the API and runtime configuration. Database constraints/RLS must preserve all four roles, unique names/voices where required, supported voice IDs, nonempty agent fields, and tenant isolation. Client-supplied owner/tenant fields must never override verified ownership.
 
-No saved team means the four default agents, revision 0. The first save creates revision 1. Updates must match the current revision; stale updates receive HTTP 409. A missing migration or database outage produces an explicit error rather than pretending settings were saved.
+No saved team means the four default agents, revision 0. The first save creates revision 1. Updates must match the current revision; stale updates receive HTTP 409. A missing migration or database outage must produce an explicit error rather than pretending settings were saved.
 
 New calls load a configuration snapshot. Editing the team does not change a call already in progress.
 
@@ -63,10 +77,10 @@ New calls load a configuration snapshot. Editing the team does not change a call
 
 1. Open Phone settings; choose a business bot to configure its AI Voice Team above call settings. The corporate owner also has the editor inside the corporate phone panel.
 2. Edit each name, select a voice, adjust speaking style/opening and optionally expand role instructions.
-3. Preview each opening. Previews use Gemini Live, stop on completion, and do not silently substitute another provider. They require bot ownership and are limited to one active preview and eight requests per minute per user per server instance.
-4. Save the whole team. Duplicate voices/names disable saving and show a role-specific warning. A failed request remains an error; a successful response confirms that new calls will use the team.
+3. Preview each opening. Previews use Gemini Live and must not silently substitute another provider.
+4. Save the whole team. Duplicate or invalid identity settings must be rejected clearly. A successful response confirms persistence for new calls, not that an already-active call changed midstream.
 
-The separate legacy voice/greeting controls are labeled as fallback settings.
+The separate legacy voice/greeting controls are fallback settings and must not be confused with the four-agent team identity contract.
 
 ## API
 
@@ -75,40 +89,51 @@ The separate legacy voice/greeting controls are labeled as fallback settings.
 | GET /api/voice/team/bots | List the authenticated owner's bots for the team selector |
 | GET /api/voice/team?botId=... | Read validated team and revision |
 | PUT /api/voice/team?botId=... | Save config plus expected revision |
-| POST /api/voice/team/preview?botId=... | Preview one validated agent; WAV audio |
+| POST /api/voice/team/preview?botId=... | Preview one validated agent; audio response |
 | GET /api/corporate-phone/voice-team-bot | Corporate owner only: resolve the corporate bot |
 
 ## Call evidence
 
-Existing `call_logs.transcript` entries include the active department. `call_logs.metadata.voiceHandoffs` records transition ID, source/destination agent IDs, source/destination voice IDs, summary, timestamps, result and failure reason. Metadata also includes the active department and configuration revision. A handoff is marked completed only after destination setup succeeds.
+Call telemetry should identify the active department and record voice handoffs with source/destination agent IDs, source/destination voice IDs, summary, timestamps, result and failure reason. A handoff is completed only after destination setup succeeds.
 
-## Release and verification
+## Release state — 2026-09-10
 
-Apply `supabase/migrations/20260910164950_distinct_ai_voice_team.sql` to the verified production project before deploying this code. No Vapi or Base44 migration, new phone number, new provider key or extra paid voice service is needed. Existing GEMINI_API_KEY is used server-side.
+The application code for distinct voice teams was merged to `main` through PR #110. Merge commit:
 
-Run:
+`2c13fce5334027f79e78ae7b5178a720403c8654`
+
+Railway automatically deployed that merge as deployment:
+
+`cd866ecf-e184-40a6-843d-f7397b3069e1`
+
+The deployment completed successfully and the runtime started on port 8080.
+
+**Important:** application deployment does not prove the production database migration was applied. The repository has an active production migration-history reconciliation hold. Do not run `supabase db push` merely to enable this feature. The specific voice-team migration must be reconciled against the verified production schema under `docs/MIGRATION_BASELINE_RECONCILIATION.md` before any production schema write.
+
+Therefore the correct current statement is:
+
+- voice-team application code: deployed to Railway production;
+- exact production database migration state: must be verified/reconciled before claiming persisted team configuration is fully live;
+- live PSTN role-handoff listening test: still required before declaring end-to-end voice-team acceptance complete.
+
+## Verification
+
+Run the focused tests that exist in the repository for voice-team/API/media behavior, then the normal release gates:
 
 ```sh
-npx vitest run test/voice-team.test.ts test/api/voice-team.test.ts test/telnyx-media.test.ts
-npx tsc --noEmit
-npm run build
+npm run test:run
 npm run lint
+npm run build
 ```
 
-Before declaring the feature live, perform an inbound listening check: identify yourself and your company to Reception, request Sales, then Support, then a Manager. Confirm each voice and introduction changes, context is retained, interruptions work, and the call log records all transitions. Preview-only or mocked tests do not establish end-to-end PSTN audio quality.
+Before declaring the feature end-to-end live, perform an inbound listening check: identify yourself and your company to Reception, request Sales, then Support, then a Manager. Confirm each voice and introduction changes, context is retained, interruptions work, and the call log records transitions. Preview-only or mocked tests do not establish PSTN audio quality.
 
-Rollback the application release if needed. The additive team table can remain; the previous application ignores it. No call logs, phone bindings or existing agent rows are replaced by this migration.
+Rollback the application release if needed. Do not destructively roll back the production database or release customer phone resources as part of an application rollback.
 
-## Provider references
+## Related documentation
 
-- [Gemini Live voice configuration and session capabilities](https://ai.google.dev/gemini-api/docs/live-api/capabilities)
-- [Google's voice catalog](https://ai.google.dev/gemini-api/docs/speech-generation)
-- [Supabase Data API security](https://supabase.com/docs/guides/api/securing-your-api)
-
-## Implementation validation snapshot
-
-37 focused tests passed across team validation, tenant access, Telnyx handoffs and existing inbound/corporate voice behavior. TypeScript and the production frontend build passed. Changed production files pass scoped Biome checks; repository-wide lint still reports existing unrelated issues. The migration was executed in an isolated PostgreSQL/PGlite instance and its constraints, optimistic updates, RLS and grants were checked. Desktop/mobile browser checks used the real editor with mocked API responses. Live Gemini audio and an end-to-end telephone listening test remain release checks. This change has not been deployed and the production migration has not been applied.
-
-![Desktop Voice Team editor](screenshots/voice-team-desktop.png)
-
-[Mobile Voice Team editor](screenshots/voice-team-mobile.png)
+- `docs/VOICE_TEAM_ARCHITECTURE_2026-09-10.md` — production architecture contract and acceptance criteria.
+- `docs/CORPORATE_PHONE.md` — corporate phone routing/operations.
+- `DEPLOYMENT.md` — production deployment authority and release verification.
+- `AGENTS.md` — mandatory coding-agent constraints.
+- `SECURITY.md` — security boundaries.
