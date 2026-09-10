@@ -1,78 +1,88 @@
 # Corporate sales and support phone
 
-BuildMyBot's Telnyx number is **+1 346 646 0065**. It belongs to the existing
-corporate bot and owner, not to a customer provisioning default. Railway is
-its webhook/media origin. No Twilio credentials are used on this path.
+BuildMyBot's corporate Telnyx number is **+1 346 646 0065**. It belongs to the existing corporate bot and owner, not to a customer provisioning default. Railway is its webhook/media origin.
 
 ## Inbound calls
 
-The Telnyx Call Control application points to
-`https://buildmybot2-web-production.up.railway.app/api/phone/activation/telnyx/webhook`.
-The media endpoint is `/api/voice/telnyx-media`. Ed25519 signatures validate
-webhooks; a signed client state binds media to a saved call and bot. The call
-log must include the required `voice_agent_id`, otherwise Gemini cannot start.
+The Telnyx Call Control application points to:
 
-Gemini 3.1 Flash Live Preview handles audio. Its initial prompt uses
-`realtimeInput.text`, not the older `clientContent` turn format. The bridge
-buffers early caller audio until setup completes, excludes outbound echo,
-uses automatic activity interruption, and clears both local and Telnyx audio
-queues on barge-in. The current PSTN codec is PCMU at 8 kHz; telephone audio
-quality remains narrower than the browser demo. Calls are bounded to 10 minutes.
+`https://buildmybot2-web-production.up.railway.app/api/phone/activation/telnyx/webhook`
 
-The receptionist routes through `route_department` to Vera Cross (AI sales),
-Sam Rivera (AI support), or Alex Morgan (AI administration). The ongoing Gemini
-conversation keeps its context, receives the department's instructions, and
-records the destination and summary in call metadata and the AI team log.
-These are AI department handoffs, not claims that a human or external phone
-extension joined. Human requests are captured for owner follow-up. Caller ID
-is never authorization to inspect a customer's private account.
+The media endpoint is `/api/voice/telnyx-media`. Telnyx webhook signatures and signed call state must bind media to a verified saved call and bot before the realtime AI session starts.
+
+Gemini Live handles realtime audio. The bridge must buffer early caller audio until setup completes, exclude outbound echo, support barge-in/interruption, and clear stale playback when the caller interrupts. Telephone audio quality is constrained by the PSTN codec and may sound narrower than a browser demo.
+
+## Distinct AI departments
+
+The corporate phone follows the same production voice-team contract as customer phone agents.
+
+Receptionist, Sales, Support, and Manager are **four distinct AI agents**. Routing is not implemented by changing the prompt on one persistent audible persona.
+
+A successful handoff must:
+
+1. preserve a bounded caller/call context envelope;
+2. start the destination agent with its own voice ID;
+3. apply the destination persona/system prompt;
+4. apply the destination speaking style and role policy;
+5. use destination-specific opening/transfer acknowledgement behavior;
+6. prevent the outgoing agent from continuing to speak or execute tools after transfer completion;
+7. log source/destination agent and voice identity in call telemetry.
+
+The caller should audibly perceive a new person taking over while not having to repeat already-known facts.
+
+Default roles are configured through the voice-team model rather than hard-wiring corporate AI employee identities into the call router. Human-transfer requests remain human-transfer/follow-up requests; the AI Manager is an escalation persona, not a grant of additional account, billing, contractual, or security privileges.
+
+Caller ID is never authorization to inspect a customer's private account.
 
 ## Outbound approval
 
-Open **AI Team → Corporate sales phone** while signed in to the corporate
-owner account. Create a request with the exact destination and call purpose.
-Nothing dials until **Approve and call [number]** is clicked. Reject discards
-the request. Approval is restricted to the exact corporate OWNER, expires
-after 24 hours, and is atomically consumed before Telnyx is contacted.
-An ambiguous provider failure is held as `dispatch_unknown`; never retry it
-without reconciling the provider's call records. No cron or public demo can
-approve a call. The existing sales dry-run setting remains unchanged.
+Open **AI Team → Corporate sales phone** while signed in to the corporate owner account. Create a request with the exact destination and call purpose. Nothing dials until the owner approves that specific request.
+
+Approval must remain scoped to the exact corporate owner, exact destination, and bounded validity window. An ambiguous provider failure must be reconciled against provider call records rather than blindly retried. No cron job, demo route, or autonomous agent may silently convert a pending call into an approved outbound call.
+
+Approved sales calls should start in the Sales agent identity, not the Receptionist identity, unless product routing explicitly requires otherwise.
 
 ## SMS and demos
 
-The landing page and `/demo` display the corporate calling link when routing
-is configured. A labeled SMS example remains available while carrier activation
-is pending. The live Text DEMO link requires verified carrier assignment plus
-`CORPORATE_SMS_ENABLED=true`. A configured messaging profile alone is not proof
-of deliverability. No brand/campaign registration or phone purchase is performed.
+The landing page and `/demo` may display the corporate calling link when routing is configured. SMS demos must remain subject to carrier assignment, consent, messaging-profile, and launch-gate requirements.
 
-The corporate SMS webhook uses the existing signed `/api/sms/webhooks` route,
-records inbound messages in the corporate SMS inbox and CRM, honors STOP/START,
-and never grants marketing consent or paid customer entitlements. Replies are
-limited to customer-initiated conversations (10 inbound messages per contact/hour,
-100 total/day). Ambiguous send outcomes are held without automatic retries.
-Other tenants continue through the existing SMS handler. Delivery acceptance
-is not proof of delivery; a real send/receive test is still required.
+The corporate SMS webhook uses the signed `/api/sms/webhooks` route, records inbound messages in the corporate SMS inbox and CRM, honors STOP/START, and must not infer marketing consent or paid entitlements from an inbound message alone.
+
+Ambiguous send outcomes must not trigger unbounded automatic retries. Provider acceptance is not proof of handset delivery; real send/receive verification remains required.
 
 ## Deployment settings
 
-Set only on the corporate Railway service:
+Set only on the corporate Railway service where applicable:
 
-- `CORPORATE_PHONE_CONNECT=true`: reconcile this existing number and webhook
-  assignment at startup with existing Telnyx credentials; no number purchase.
-- `CORPORATE_VOICE_PROBE=true`: bounded Gemini audio generation check at startup;
-  does not place a phone call or send SMS.
-- `CORPORATE_SMS_ENABLED`: default false until carrier assignment is approved.
-- `CORPORATE_PHONE_API_ORIGIN`: optional override of the documented Railway origin.
+- `CORPORATE_PHONE_CONNECT=true` — reconcile the existing number and webhook assignment at startup; do not purchase a number as a side effect.
+- `CORPORATE_VOICE_PROBE=true` — bounded Gemini audio/configuration probe; does not place a phone call or send SMS.
+- `CORPORATE_SMS_ENABLED` — keep false until carrier/compliance requirements are satisfied.
+- `CORPORATE_PHONE_API_ORIGIN` — optional override of the documented Railway origin.
 
-`GET /api/corporate-phone` exposes only number and readiness flags. Owner call
-requests live under `/api/corporate-phone/calls`. No credentials are returned.
-No migrations are required. The production migration-baseline hold remains.
+`GET /api/corporate-phone` must expose only non-secret readiness/status fields. Owner call requests remain under `/api/corporate-phone/calls`. No provider credentials may be returned to the browser.
+
+Voice-team persistence may depend on the additive `voice_teams` database migration. The production migration-baseline hold remains authoritative; do not bypass it with an uncontrolled `supabase db push`.
 
 ## Acceptance checks
 
-Verify exact GitHub SHA through public `/api/health`. Check the startup Gemini
-probe and `/api/corporate-phone`. Have a caller ring the number, speak during
-the greeting, ask a buying question, and then ask an existing-service question.
-Confirm two-way audio, interruption cutoff, routing metadata, and saved transcript.
-Do not initiate an outbound test call without the owner's per-call approval.
+Before declaring the corporate voice team end-to-end accepted:
+
+1. verify the exact Git SHA through the public health route;
+2. confirm Railway is serving the intended release;
+3. call the corporate number;
+4. speak during/after the Receptionist greeting and confirm barge-in behavior;
+5. transfer Receptionist -> Sales and confirm a clearly different voice/persona;
+6. transfer to Support and confirm another distinct voice/persona while preserving context;
+7. escalate to Manager and confirm a fourth identity;
+8. verify the caller is not forced to repeat already-captured facts;
+9. verify call telemetry records all transitions and voice identities;
+10. confirm no stale/source agent audio leaks after each transfer.
+
+Do not initiate outbound test calls without the owner's per-call approval.
+
+## Related documentation
+
+- `docs/VOICE_TEAM_ARCHITECTURE_2026-09-10.md`
+- `docs/AI_VOICE_TEAM.md`
+- `DEPLOYMENT.md`
+- `AGENTS.md`
