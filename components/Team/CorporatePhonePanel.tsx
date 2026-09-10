@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { API_BASE } from '../../services/apiConfig';
+import { VoiceTeamEditor } from '../PhoneAgent/VoiceTeamEditor';
 interface CallRow {
   id: number;
   called_number: string;
@@ -13,6 +14,7 @@ export function CorporatePhonePanel() {
   const [objective, setObjective] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [voiceBotId, setVoiceBotId] = useState<string | null>(null);
   const load = useCallback(async () => {
     const r = await fetch(`${API_BASE}/corporate-phone/calls`, {
       credentials: 'include',
@@ -20,6 +22,10 @@ export function CorporatePhonePanel() {
     if (r.ok) {
       setAllowed(true);
       setCalls(await r.json());
+      const team = await fetch(`${API_BASE}/corporate-phone/voice-team-bot`, {
+        credentials: 'include',
+      });
+      if (team.ok) setVoiceBotId((await team.json()).botId);
     }
   }, []);
   useEffect(() => {
@@ -51,10 +57,11 @@ export function CorporatePhonePanel() {
         Corporate sales phone · (346) 646-0065
       </h3>
       <p className="text-sm text-slate-600">
-        Inbound calls reach our AI sales assistant. Each outbound call needs
-        your approval below. Approval places one call immediately, for up to 10
-        minutes.
+        Inbound calls reach Reception, then the right AI specialist. Each
+        outbound call needs your approval below. Approval places one call
+        immediately, for up to 10 minutes.
       </p>
+      {voiceBotId && <VoiceTeamEditor key={voiceBotId} botId={voiceBotId} />}
       <form
         className="flex flex-wrap gap-3"
         onSubmit={(e) => {
@@ -100,7 +107,7 @@ export function CorporatePhonePanel() {
       {calls.map((call) => (
         <div key={call.id} className="border-t pt-3 space-y-2">
           <p className="font-medium">
-            {call.called_number} · {call.status.replaceAll('_', ' ')}
+            {call.called_number} · {call.status.replace(/_/g, ' ')}
           </p>
           <p className="text-sm text-slate-600">{call.metadata?.objective}</p>
           {call.status === 'awaiting_approval' && (

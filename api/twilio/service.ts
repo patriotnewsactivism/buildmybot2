@@ -121,7 +121,7 @@ export async function initiateOutboundCall(opts: {
 
   try {
     const Twilio = (await import('twilio')).default;
-    const client = new Twilio(TWILIO_ACCOUNT_SID!, TWILIO_AUTH_TOKEN!);
+    const client = Twilio(TWILIO_ACCOUNT_SID!, TWILIO_AUTH_TOKEN!);
 
     // Create a call log record BEFORE the call so we have a reference
     const logRow = await sbInsert('call_logs', {

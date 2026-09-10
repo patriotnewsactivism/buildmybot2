@@ -1338,7 +1338,7 @@ async function handleAdmin(
       }).catch(() => []);
       const target = targetRows[0];
       if (!target) return res.status(404).json({ error: 'User not found' });
-      const f = target.organization_id
+      const f: Record<string, string> = target.organization_id
         ? { organization_id: `eq.${target.organization_id}` }
         : { user_id: `eq.${targetId}` };
       const [bots, leads, conversations] = await Promise.all([
@@ -3176,7 +3176,7 @@ async function getTwilioClient() {
   const Twilio = (await import('twilio')).default;
   const accountSid = process.env.TWILIO_ACCOUNT_SID as string;
   const authToken = process.env.TWILIO_AUTH_TOKEN as string;
-  return new Twilio(accountSid, authToken);
+  return Twilio(accountSid, authToken);
 }
 
 async function handlePhone(
@@ -4850,7 +4850,7 @@ async function handleAiEmployees(
             );
             const revenue = succeeded.reduce((s, c) => s + c.amount, 0) / 100;
             const renewalsSoon = activeSubs.data.filter(
-              (s) => s.current_period_end && s.current_period_end <= soon,
+              (s) => s.items.data.some((item) => item.current_period_end <= soon),
             ).length;
             status = 'completed';
             output = `Real check: $${revenue.toFixed(2)} revenue / ${charges.data.length} charges in last 24h, ${failed.length} failed, ${pastDueSubs.data.length} past-due subs, ${renewalsSoon} renewing in next 7 days.`;
@@ -5627,7 +5627,7 @@ async function handleEmailInbound(req: ApiRequest, res: ApiResponse) {
     const { simpleParser } = await import('mailparser');
     const parsed = await simpleParser(raw);
     to = String(
-      parsed.to?.value?.[0]?.address ||
+      (Array.isArray(parsed.to) ? parsed.to[0] : parsed.to)?.value?.[0]?.address ||
         parsed.headers.get('delivered-to') ||
         '',
     ).toLowerCase();
