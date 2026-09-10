@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import type { ApiRequest, ApiResponse } from '../lib/http-types.js';
 import { z } from 'zod';
+import type { ApiRequest, ApiResponse } from '../lib/http-types.js';
 import { hangupCall, telnyxRequest } from '../lib/telephony-provider.js';
 import { SmsError, authenticate, db, filter } from '../sms/store.js';
 import {
@@ -40,6 +40,8 @@ export default async function corporatePhoneHandler(
     const user = await authenticate(req);
     if (user.id !== CORPORATE.ownerId || user.role !== 'OWNER')
       throw new SmsError(403, 'Only the corporate owner may approve calls');
+    if (path === '/api/corporate-phone/voice-team-bot' && req.method === 'GET')
+      return res.json({ botId: CORPORATE.botId });
     const origin = req.headers.origin;
     if (
       origin &&

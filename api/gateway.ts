@@ -1,11 +1,12 @@
-import type { ApiRequest, ApiResponse } from './lib/http-types.js';
 import legacyHandler from './gateway-legacy.js';
+import type { ApiRequest, ApiResponse } from './lib/http-types.js';
 import { handlePhoneActivation } from './phone/activation.js';
 import corporatePhoneHandler from './phone/corporate.js';
 import tenantTelnyxWebhook from './phone/tenant-telnyx.js';
 import { handleTenantTwilioWebhook } from './phone/tenant-twilio.js';
 import smsHandler from './sms/handler.js';
 import smsRegistration from './sms/register.js';
+import voiceTeamHandler from './voice/team.js';
 
 export * from './gateway-legacy.js';
 
@@ -15,6 +16,12 @@ function pathname(req: ApiRequest): string {
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   const path = pathname(req);
+  if (
+    path === '/api/voice/team/bots' ||
+    path === '/api/voice/team' ||
+    path === '/api/voice/team/preview'
+  )
+    return voiceTeamHandler(req, res);
   if (
     path === '/api/corporate-phone' ||
     path.startsWith('/api/corporate-phone/')
