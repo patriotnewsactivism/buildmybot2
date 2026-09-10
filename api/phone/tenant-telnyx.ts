@@ -55,7 +55,11 @@ import { createTelnyxStreamToken } from './tenant-telnyx-token.js';
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const APP_BASE_URL = process.env.APP_BASE_URL || 'https://buildmybot.app';
+const DIRECT_MEDIA_ORIGIN =
+  process.env.TELNYX_MEDIA_BASE_URL ||
+  (process.env.RAILWAY_PUBLIC_DOMAIN
+    ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+    : 'https://buildmybot2-web-production.up.railway.app');
 
 export const config = { api: { bodyParser: false } };
 
@@ -177,7 +181,7 @@ async function createCallLog(options: {
 }
 
 function mediaStreamUrl(): string {
-  const base = APP_BASE_URL.replace(/^https:/i, 'wss:').replace(
+  const base = DIRECT_MEDIA_ORIGIN.replace(/^https:/i, 'wss:').replace(
     /^http:/i,
     'ws:',
   );

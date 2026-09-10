@@ -228,7 +228,7 @@ export async function startMediaStream(options: {
       method: 'POST',
       body: JSON.stringify({
         stream_url: options.streamUrl,
-        stream_track: 'both_tracks',
+        stream_track: 'inbound_track',
         ...(options.bidirectional
           ? {
               stream_bidirectional_mode: 'rtp',
