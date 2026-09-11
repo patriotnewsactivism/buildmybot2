@@ -95,7 +95,10 @@ export function createRetentionState(): RetentionState {
 }
 
 function normalize(value: string): string {
-  return value.trim().toLowerCase().replace(/[\s-]+/g, '_');
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_');
 }
 
 function catalog(): CommercialPlan[] {
@@ -118,11 +121,17 @@ export function resolveCommercialPlan(planId: string): CommercialPlan {
   const requested = normalize(planId);
   const plan = catalog().find(
     (candidate) =>
-      normalize(candidate.key) === requested || normalize(candidate.name) === requested,
+      normalize(candidate.key) === requested ||
+      normalize(candidate.name) === requested,
   );
-  if (!plan) throw new RetentionPolicyViolation('The requested plan is not in the canonical pricing catalog.');
+  if (!plan)
+    throw new RetentionPolicyViolation(
+      'The requested plan is not in the canonical pricing catalog.',
+    );
   if (!(plan.listedMonthlyPrice > 0)) {
-    throw new RetentionPolicyViolation('Exceptional retention pricing cannot be issued for a zero-price plan.');
+    throw new RetentionPolicyViolation(
+      'Exceptional retention pricing cannot be issued for a zero-price plan.',
+    );
   }
   return plan;
 }
@@ -141,7 +150,9 @@ function cents(value: number): number {
 
 function requireManager(department: VoiceDepartment) {
   if (department !== 'manager') {
-    throw new RetentionPolicyViolation('Exceptional introductory incentives require manager authority.');
+    throw new RetentionPolicyViolation(
+      'Exceptional introductory incentives require manager authority.',
+    );
   }
 }
 
@@ -149,29 +160,52 @@ export function authorizeNextRetentionOffer(
   request: RetentionOfferRequest,
 ): RetentionOfferPublicResult {
   requireManager(request.department);
-  if (!request.reason.trim()) throw new RetentionPolicyViolation('A business reason is required.');
+  if (!request.reason.trim())
+    throw new RetentionPolicyViolation('A business reason is required.');
   if (!request.valueDefended) {
-    throw new RetentionPolicyViolation('Resolve or defend value before requesting an exceptional incentive.');
+    throw new RetentionPolicyViolation(
+      'Resolve or defend value before requesting an exceptional incentive.',
+    );
   }
-  if (!Number.isInteger(request.months) || request.months < 1 || request.months > MAXIMUM_INCENTIVE_MONTHS) {
-    throw new RetentionPolicyViolation('Exceptional introductory pricing may last only 1 or 2 billing months.');
+  if (
+    !Number.isInteger(request.months) ||
+    request.months < 1 ||
+    request.months > MAXIMUM_INCENTIVE_MONTHS
+  ) {
+    throw new RetentionPolicyViolation(
+      'Exceptional introductory pricing may last only 1 or 2 billing months.',
+    );
   }
 
   const plan = resolveCommercialPlan(request.planId);
   if (request.state.planKey && request.state.planKey !== plan.key) {
-    throw new RetentionPolicyViolation('Do not switch plans mid-negotiation to bypass the authorized offer sequence.');
+    throw new RetentionPolicyViolation(
+      'Do not switch plans mid-negotiation to bypass the authorized offer sequence.',
+    );
   }
 
   const stage = nextStage(request.state.currentStage);
-  if (!stage) throw new RetentionPolicyViolation('Maximum authorized introductory incentive has already been reached.');
-  if ((stage === 'strong' || stage === 'maximum') && !request.conditionalCommitment) {
-    throw new RetentionPolicyViolation('Confirm that price is the remaining blocker before a stronger incentive.');
+  if (!stage)
+    throw new RetentionPolicyViolation(
+      'Maximum authorized introductory incentive has already been reached.',
+    );
+  if (
+    (stage === 'strong' || stage === 'maximum') &&
+    !request.conditionalCommitment
+  ) {
+    throw new RetentionPolicyViolation(
+      'Confirm that price is the remaining blocker before a stronger incentive.',
+    );
   }
 
-  const temporaryMonthlyPrice = cents(plan.listedMonthlyPrice * OFFER_MULTIPLIERS[stage]);
+  const temporaryMonthlyPrice = cents(
+    plan.listedMonthlyPrice * OFFER_MULTIPLIERS[stage],
+  );
   const floor = cents(plan.listedMonthlyPrice * MINIMUM_PRICE_MULTIPLIER);
   if (temporaryMonthlyPrice < floor) {
-    throw new RetentionPolicyViolation('Requested incentive is below the authorized pricing floor.');
+    throw new RetentionPolicyViolation(
+      'Requested incentive is below the authorized pricing floor.',
+    );
   }
 
   request.state.planKey = plan.key;
@@ -209,13 +243,20 @@ export function markLatestRetentionOfferOutcome(
   accepted: boolean,
   note = '',
 ): RetentionAuditEntry {
-  const entry = [...state.offers].reverse().find((offer) => offer.accepted === null);
-  if (!entry) throw new RetentionPolicyViolation('No pending retention offer exists for this call.');
+  const entry = [...state.offers]
+    .reverse()
+    .find((offer) => offer.accepted === null);
+  if (!entry)
+    throw new RetentionPolicyViolation(
+      'No pending retention offer exists for this call.',
+    );
   entry.accepted = accepted;
   if (note.trim()) entry.outcomeNote = note.trim().slice(0, 1000);
   return entry;
 }
 
-export function retentionAuditSnapshot(state: RetentionState): RetentionAuditEntry[] {
+export function retentionAuditSnapshot(
+  state: RetentionState,
+): RetentionAuditEntry[] {
   return state.offers.map((offer) => ({ ...offer }));
 }

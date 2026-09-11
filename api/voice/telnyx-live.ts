@@ -1,4 +1,13 @@
 import {
+  RETENTION_OBJECTIONS,
+  type RetentionObjection,
+  type RetentionState,
+  authorizeNextRetentionOffer,
+  createRetentionState,
+  markLatestRetentionOfferOutcome,
+  retentionAuditSnapshot,
+} from '../../shared/voice-commercial-policy.js';
+import {
   GEMINI_LIVE_MODEL,
   type SharedCallContext,
   VOICE_TEAM_ROUTING,
@@ -182,6 +191,7 @@ type SessionContext = {
   teamRevision?: number;
   department?: VoiceDepartment;
   sharedContext?: SharedCallContext;
+  retentionState: RetentionState;
   outboundObjective?: string;
 };
 
@@ -365,6 +375,7 @@ async function loadSessionContext(
     userId,
     organizationId,
     phoneConfig,
+    retentionState: createRetentionState(),
     ...(objective
       ? { systemPrompt: `${String(bot.system_prompt || '')}\n${objective}` }
       : {}),
@@ -376,6 +387,19 @@ function configuredString(
   key: string,
 ): string {
   return typeof config[key] === 'string' ? config[key].trim() : '';
+}
+
+function departmentOperatingRules(context: SessionContext): string {
+  switch (context.department || 'receptionist') {
+    case 'receptionist':
+      return 'Identify the caller, whether they are an existing customer, the reason for the call, desired outcome and urgency. Route without friction. Do not troubleshoot complex issues or negotiate price.';
+    case 'sales':
+      return 'Discover the real objective, current process, buying criteria, timing and blocker. Establish relevant supported value before discussing price. You do not have exceptional discount authority. If price is genuinely the final unresolved blocker after value has been established, route to manager with the facts already learned.';
+    case 'support':
+      return 'Resolve the operational, account, configuration or product issue first. Identify churn or cancellation risk without immediately offering a commercial concession. Escalate unresolved service issues or retention risk to manager with what has already been tried.';
+    case 'manager':
+      return 'Operate in this order: UNDERSTAND, ISOLATE, RESOLVE, VALUE, CONFIRM, INCENTIVIZE, CLOSE, ESCALATE. Never begin by discounting. Use request_retention_offer only after the real blocker is isolated and value has been defended. Do not state or infer internal discount limits, remaining authority, ladders or floors. Before a stronger concession, establish whether resolving price allows the customer to proceed. Use escalate_to_owner only when owner-level judgment is genuinely required or the caller insists after reasonable resolution efforts.';
+  }
 }
 
 function buildSystemInstruction(context: SessionContext): string {
@@ -396,6 +420,7 @@ function buildSystemInstruction(context: SessionContext): string {
     agent.persona,
     `Speaking style: ${agent.speakingStyle}`,
     `Preferred opening greeting: ${agent.firstMessage}`,
+    departmentOperatingRules(context),
     context.botId === CORPORATE.botId && department !== 'receptionist'
       ? department === 'manager'
         ? 'For corporate escalations and business inquiries, collect the issue and contact details, use the established support tools, and do not make contractual commitments or invent account privileges.'
@@ -440,6 +465,12 @@ function buildTools(context: SessionContext) {
           callerName: { type: 'STRING' },
           company: { type: 'STRING' },
           reason: { type: 'STRING' },
+          desiredOutcome: { type: 'STRING' },
+          objection: { type: 'STRING' },
+          emotionalState: { type: 'STRING' },
+          competitorName: { type: 'STRING' },
+          attemptedResolutions: { type: 'ARRAY', items: { type: 'STRING' } },
+          pricingDiscussed: { type: 'ARRAY', items: { type: 'STRING' } },
         },
         required: ['department', 'summary'],
       },
@@ -508,6 +539,74 @@ function buildTools(context: SessionContext) {
         required: ['requestedTime'],
       },
     });
+  }
+  if (
+    context.botId === CORPORATE.botId &&
+    (context.department || 'receptionist') === 'manager'
+  ) {
+    functionDeclarations.push(
+      {
+        name: 'request_retention_offer',
+        description:
+          'Request the next server-authorized temporary introductory offer after the real objection has been isolated and value has been established. The server, not the model, decides the amount and authority.',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            planId: { type: 'STRING' },
+            objection: { type: 'STRING', enum: [...RETENTION_OBJECTIONS] },
+            months: { type: 'NUMBER' },
+            reason: { type: 'STRING' },
+            valueDefended: { type: 'BOOLEAN' },
+            conditionalCommitment: { type: 'BOOLEAN' },
+            competitorName: { type: 'STRING' },
+            desiredOutcome: { type: 'STRING' },
+          },
+          required: [
+            'planId',
+            'objection',
+            'months',
+            'reason',
+            'valueDefended',
+            'conditionalCommitment',
+          ],
+        },
+      },
+      {
+        name: 'record_retention_offer_outcome',
+        description:
+          'Record whether the latest server-authorized introductory offer was accepted after the caller responds.',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            accepted: { type: 'BOOLEAN' },
+            note: { type: 'STRING' },
+          },
+          required: ['accepted'],
+        },
+      },
+    );
+    if (configuredOwnerEscalation()) {
+      functionDeclarations.push({
+        name: 'escalate_to_owner',
+        description:
+          'Warm-transfer an unresolved manager-level situation to the privately configured owner destination. The destination itself is confidential and is never returned to you.',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            reason: { type: 'STRING' },
+            callerName: { type: 'STRING' },
+            company: { type: 'STRING' },
+            objection: { type: 'STRING' },
+            stepsAlreadyTaken: { type: 'STRING' },
+            pricingDiscussed: { type: 'STRING' },
+            competitorName: { type: 'STRING' },
+            desiredOutcome: { type: 'STRING' },
+            emotionalState: { type: 'STRING' },
+          },
+          required: ['reason', 'stepsAlreadyTaken'],
+        },
+      });
+    }
   }
   return [{ functionDeclarations }];
 }
@@ -677,12 +776,155 @@ async function transferToHuman(
     }
     return {
       success: true,
-      transferredTo: transferNumber,
+      transferred: true,
       hotLeadAlertSent: alert.success,
     };
   } catch (error: unknown) {
     const reason = error instanceof Error ? error.message : 'Transfer failed';
     console.error('[telnyx-voice-live] Human transfer failed:', reason);
+    return { success: false, reason };
+  }
+}
+
+function configuredOwnerEscalation(): string {
+  return (process.env.VOICE_OWNER_ESCALATION_NUMBER || '').trim();
+}
+
+async function persistRetentionAudit(context: SessionContext): Promise<void> {
+  if (!context.logId) return;
+  await mergeCallMetadata(context.logId, {
+    retentionAudit: retentionAuditSnapshot(context.retentionState),
+    retentionAuditUpdatedAt: new Date().toISOString(),
+  });
+}
+
+async function requestRetentionOffer(
+  context: SessionContext,
+  args: JsonObject,
+): Promise<ToolResult> {
+  if (context.botId !== CORPORATE.botId || context.department !== 'manager') {
+    return {
+      success: false,
+      reason: 'This call does not have manager incentive authority.',
+    };
+  }
+  const objection = String(args.objection || 'other') as RetentionObjection;
+  if (!RETENTION_OBJECTIONS.includes(objection)) {
+    return { success: false, reason: 'Unknown objection type.' };
+  }
+  try {
+    const offer = authorizeNextRetentionOffer({
+      department: context.department,
+      state: context.retentionState,
+      planId: String(args.planId || ''),
+      objection,
+      months: Number(args.months),
+      reason: String(args.reason || ''),
+      valueDefended: args.valueDefended === true,
+      conditionalCommitment: args.conditionalCommitment === true,
+      competitorName: String(args.competitorName || ''),
+      desiredOutcome: String(args.desiredOutcome || ''),
+    });
+    await persistRetentionAudit(context);
+    return { success: true, offer };
+  } catch (error: unknown) {
+    return {
+      success: false,
+      reason:
+        error instanceof Error
+          ? error.message
+          : 'Retention offer was not authorized.',
+    };
+  }
+}
+
+async function recordRetentionOfferOutcome(
+  context: SessionContext,
+  args: JsonObject,
+): Promise<ToolResult> {
+  if (context.botId !== CORPORATE.botId || context.department !== 'manager') {
+    return {
+      success: false,
+      reason: 'This call does not have manager incentive authority.',
+    };
+  }
+  try {
+    const entry = markLatestRetentionOfferOutcome(
+      context.retentionState,
+      args.accepted === true,
+      String(args.note || ''),
+    );
+    await persistRetentionAudit(context);
+    return { success: true, accepted: entry.accepted };
+  } catch (error: unknown) {
+    return {
+      success: false,
+      reason:
+        error instanceof Error
+          ? error.message
+          : 'Offer outcome could not be recorded.',
+    };
+  }
+}
+
+async function escalateToOwner(
+  context: SessionContext,
+  args: JsonObject,
+): Promise<ToolResult> {
+  if (context.botId !== CORPORATE.botId || context.department !== 'manager') {
+    return {
+      success: false,
+      reason: 'Owner escalation is available only from the corporate manager.',
+    };
+  }
+  const destination = configuredOwnerEscalation();
+  if (!destination)
+    return { success: false, reason: 'Owner escalation is not configured.' };
+  if (!context.callControlId)
+    return { success: false, reason: 'Live call control is unavailable.' };
+
+  const clean = (key: string, max = 1000) =>
+    String(args[key] || '')
+      .trim()
+      .slice(0, max);
+  const handoff = {
+    callerName: clean('callerName', 200),
+    company: clean('company', 200),
+    reason: clean('reason'),
+    objection: clean('objection', 200),
+    stepsAlreadyTaken: clean('stepsAlreadyTaken', 2000),
+    pricingDiscussed: clean('pricingDiscussed', 1000),
+    competitorName: clean('competitorName', 200),
+    desiredOutcome: clean('desiredOutcome', 1000),
+    emotionalState: clean('emotionalState', 200),
+    requestedAt: new Date().toISOString(),
+  };
+  if (!handoff.reason || !handoff.stepsAlreadyTaken) {
+    return {
+      success: false,
+      reason:
+        'A reason and the resolution steps already attempted are required.',
+    };
+  }
+
+  try {
+    if (context.logId) {
+      await mergeCallMetadata(context.logId, {
+        ownerEscalationRequested: true,
+        ownerEscalationHandoff: handoff,
+        retentionAudit: retentionAuditSnapshot(context.retentionState),
+      });
+    }
+    await transferCall(context.callControlId, destination, {
+      from: context.calledNumber || undefined,
+    });
+    return { success: true, transferred: true };
+  } catch (error: unknown) {
+    const reason =
+      error instanceof Error ? error.message : 'Owner transfer failed';
+    if (context.logId) {
+      await mergeCallMetadata(context.logId, { ownerEscalationFailed: reason });
+    }
     return { success: false, reason };
   }
 }
@@ -757,6 +999,12 @@ async function executeFunction(
       return captureLead(context, args);
     case 'transfer_to_human':
       return transferToHuman(context, args);
+    case 'request_retention_offer':
+      return requestRetentionOffer(context, args);
+    case 'record_retention_offer_outcome':
+      return recordRetentionOfferOutcome(context, args);
+    case 'escalate_to_owner':
+      return escalateToOwner(context, args);
     case 'request_appointment':
       return requestAppointment(context, args);
     default:
@@ -767,13 +1015,23 @@ async function executeFunction(
   }
 }
 
+function thinkingLevelForDepartment(
+  department: VoiceDepartment | undefined,
+): 'minimal' | 'low' | 'medium' {
+  if (department === 'manager') return 'medium';
+  if (department === 'sales' || department === 'support') return 'low';
+  return 'minimal';
+}
+
 export function setupGeminiSession(gemini: WebSocket, context: SessionContext) {
   sendJson(gemini, {
     setup: {
       model: GEMINI_MODEL,
       generationConfig: {
         responseModalities: ['AUDIO'],
-        thinkingConfig: { thinkingLevel: 'minimal' },
+        thinkingConfig: {
+          thinkingLevel: thinkingLevelForDepartment(context.department),
+        },
         speechConfig: {
           voiceConfig: {
             prebuiltVoiceConfig: {
@@ -1156,7 +1414,14 @@ export function handleTelnyxMediaConnection(
           handoffAttempts++;
           const details = (key: string) =>
             typeof call.args?.[key] === 'string'
-              ? String(call.args[key]).slice(0, 200)
+              ? String(call.args[key]).slice(0, 500)
+              : undefined;
+          const listDetails = (key: string) =>
+            Array.isArray(call.args?.[key])
+              ? (call.args?.[key] as unknown[])
+                  .filter((value): value is string => typeof value === 'string')
+                  .slice(0, 12)
+                  .map((value) => value.slice(0, 500))
               : undefined;
           const sharedContext: SharedCallContext = {
             ...next.sharedContext,
@@ -1164,6 +1429,19 @@ export function handleTelnyxMediaConnection(
             callerName: details('callerName') || next.sharedContext?.callerName,
             company: details('company') || next.sharedContext?.company,
             reason: details('reason') || next.sharedContext?.reason,
+            desiredOutcome:
+              details('desiredOutcome') || next.sharedContext?.desiredOutcome,
+            objection: details('objection') || next.sharedContext?.objection,
+            emotionalState:
+              details('emotionalState') || next.sharedContext?.emotionalState,
+            competitorName:
+              details('competitorName') || next.sharedContext?.competitorName,
+            attemptedResolutions:
+              listDetails('attemptedResolutions') ||
+              next.sharedContext?.attemptedResolutions,
+            pricingDiscussed:
+              listDetails('pricingDiscussed') ||
+              next.sharedContext?.pricingDiscussed,
             summary,
             transcript,
           };

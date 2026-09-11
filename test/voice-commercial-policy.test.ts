@@ -52,7 +52,9 @@ describe('voice commercial retention policy', () => {
       conditionalCommitment: true,
     };
 
-    expect(authorizeNextRetentionOffer(base).temporaryMonthlyPrice).toBe(424.15);
+    expect(authorizeNextRetentionOffer(base).temporaryMonthlyPrice).toBe(
+      424.15,
+    );
     expect(authorizeNextRetentionOffer(base).temporaryMonthlyPrice).toBe(349.3);
     expect(authorizeNextRetentionOffer(base).temporaryMonthlyPrice).toBe(249.5);
     const maximum = authorizeNextRetentionOffer(base);
@@ -139,7 +141,11 @@ describe('voice commercial retention policy', () => {
       valueDefended: true,
       conditionalCommitment: false,
     });
-    const audit = markLatestRetentionOfferOutcome(state, true, 'Customer agreed to enroll.');
+    const audit = markLatestRetentionOfferOutcome(
+      state,
+      true,
+      'Customer agreed to enroll.',
+    );
     expect(audit.accepted).toBe(true);
     expect(audit.outcomeNote).toBe('Customer agreed to enroll.');
   });
