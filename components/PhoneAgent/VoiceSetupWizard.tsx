@@ -3,6 +3,7 @@ import {
   ArrowRight,
   Bot,
   CheckCircle2,
+  Info,
   Loader2,
   Mic,
   Phone,
@@ -106,6 +107,43 @@ const MODES: Array<{
   },
 ];
 
+
+const PATH_STEP_COPY: Record<
+  SetupMode,
+  {
+    title: string;
+    description: string;
+    searchLabel: string;
+    selectedLabel: string;
+    progressLabel: string;
+  }
+> = {
+  new: {
+    title: 'Search and choose a number',
+    description:
+      'Search a local area code and choose the number callers will dial.',
+    searchLabel: 'Search numbers',
+    selectedLabel: 'Selected number',
+    progressLabel: 'Choose number',
+  },
+  forward: {
+    title: 'Set your forwarding destination',
+    description:
+      'Your existing business line stays with its carrier. Pick a BuildMyBot destination number to forward calls to — this does not replace or take over your customer-facing number.',
+    searchLabel: 'Search destination numbers',
+    selectedLabel: 'Forwarding destination',
+    progressLabel: 'Destination',
+  },
+  port: {
+    title: 'Number being ported',
+    description:
+      'Enter the number you want to move. Submitting starts a port request and documentation checklist — it is not an instant carrier cutover.',
+    searchLabel: 'Search numbers',
+    selectedLabel: 'Number to port',
+    progressLabel: 'Port request',
+  },
+};
+
 export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
   user,
   onComplete,
@@ -147,6 +185,8 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
   const [selectingVoicePlan, setSelectingVoicePlan] = useState<string | null>(
     null,
   );
+  const [pathResetNotice, setPathResetNotice] = useState<string | null>(null);
+  const [maxStepReached, setMaxStepReached] = useState<WizardStep>(1);
 
   useEffect(() => {
     let cancelled = false;
@@ -226,14 +266,52 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
 
   const next = () => {
     setError(null);
+    setPathResetNotice(null);
     if (step < 5 && canContinue) {
-      setStep((step + 1) as WizardStep);
+      const upcoming = (step + 1) as WizardStep;
+      setStep(upcoming);
+      setMaxStepReached((current) => (upcoming > current ? upcoming : current));
     }
   };
 
   const back = () => {
     setError(null);
+    setPathResetNotice(null);
     if (step > 1) setStep((step - 1) as WizardStep);
+  };
+
+  const selectSetupMode = (nextMode: SetupMode) => {
+    if (nextMode === mode) return;
+
+    const hadPathProgress =
+      maxStepReached > 1 ||
+      Boolean(selectedNumber) ||
+      Boolean(sourceNumber.trim()) ||
+      availableNumbers.length > 0 ||
+      Boolean(areaCode) ||
+      Boolean(carrier.trim()) ||
+      Boolean(activationResult);
+
+    setMode(nextMode);
+    setSelectedNumber('');
+    setAvailableNumbers([]);
+    setSourceNumber('');
+    setCarrier('');
+    setAreaCode('');
+    setActivationResult(null);
+    setVoicePlans({});
+    setError(null);
+
+    if (hadPathProgress) {
+      setPathResetNotice(
+        'Number path changed. Selected numbers, source/port fields, and activation progress for the previous path were cleared so Back/Continue stay accurate.',
+      );
+      // Keep the user on step 1 so they re-confirm the new path before continuing.
+      setStep(1);
+      setMaxStepReached(1);
+    } else {
+      setPathResetNotice(null);
+    }
   };
 
   const playPreview = async (voiceId: string) => {
@@ -420,15 +498,22 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
             ))}
           </div>
           <div className="mt-2 flex justify-between text-[11px] text-slate-500">
-            <span>Number</span>
+            <span>Path</span>
             <span>Knowledge</span>
             <span>Voice</span>
-            <span>Details</span>
+            <span>{PATH_STEP_COPY[mode].progressLabel}</span>
             <span>Activate</span>
           </div>
         </div>
 
         <div className="p-5 md:p-7">
+          {pathResetNotice && (
+            <div className="mb-5 flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950">
+              <Info size={18} className="mt-0.5 shrink-0 text-blue-700" />
+              <p>{pathResetNotice}</p>
+            </div>
+          )}
+
           {error && (
             <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
               {error}
@@ -455,12 +540,7 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
                     <button
                       key={option.id}
                       type="button"
-                      onClick={() => {
-                        setMode(option.id);
-                        setSelectedNumber('');
-                        setAvailableNumbers([]);
-                        setError(null);
-                      }}
+                      onClick={() => selectSetupMode(option.id)}
                       className={`rounded-2xl border-2 p-5 text-left transition ${
                         selected
                           ? 'border-blue-600 bg-blue-50 shadow-sm'
@@ -512,9 +592,9 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
                   Use the same business knowledge everywhere
                 </h3>
                 <p className="mt-1 text-sm text-slate-600">
-                  By default, the voice agent uses the same bot knowledge that
-                  powers your chatbot. You can also keep voice knowledge
-                  separate.
+                  Shared knowledge starts <strong>ON</strong> by default. The
+                  optional voice-only override starts <strong>OFF</strong> —
+                  use it only when phone answers should differ from chat.
                 </p>
               </div>
 
@@ -528,13 +608,18 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
                       : 'border-slate-200'
                   }`}
                 >
-                  <div className="flex items-center gap-2 font-semibold text-slate-900">
-                    <Bot size={19} />
-                    Shared chatbot + voice knowledge
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-2 font-semibold text-slate-900">
+                      <Bot size={19} />
+                      Shared chatbot + voice knowledge
+                    </div>
+                    <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-800">
+                      Default · On
+                    </span>
                   </div>
                   <p className="mt-2 text-sm text-slate-600">
-                    Recommended. One knowledge workspace stays consistent across
-                    chat and phone.
+                    Starts on. One knowledge workspace stays consistent across
+                    chat and phone unless you override it.
                   </p>
                 </button>
 
@@ -547,13 +632,18 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
                       : 'border-slate-200'
                   }`}
                 >
-                  <div className="flex items-center gap-2 font-semibold text-slate-900">
-                    <Mic size={19} />
-                    Separate voice-only knowledge
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-2 font-semibold text-slate-900">
+                      <Mic size={19} />
+                      Separate voice-only knowledge
+                    </div>
+                    <span className="shrink-0 rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-700">
+                      Optional · Off
+                    </span>
                   </div>
                   <p className="mt-2 text-sm text-slate-600">
-                    Create or reuse a dedicated voice workspace instead of
-                    sharing a chatbot.
+                    Off by default. Turn this on only if you want a dedicated
+                    voice workspace instead of sharing chatbot knowledge.
                   </p>
                 </button>
               </div>
@@ -602,10 +692,13 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
                   Choose the voice and opening greeting
                 </h3>
                 <p className="mt-1 text-sm text-slate-600">
-                  Production calls use our realtime voice engine for the
-                  conversation. These voice options are used for previews and
-                  fallback speech.
+                  Production calls use our realtime voice engine. The Preview
+                  buttons play <strong>simulated demo audio only</strong> — they
+                  do not place a live carrier call or provision a number.
                 </p>
+                <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-amber-900">
+                  Simulated preview · Not a live call
+                </div>
               </div>
 
               <div className="grid gap-3 md:grid-cols-3">
@@ -701,23 +794,19 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
             <div className="space-y-5">
               <div>
                 <h3 className="text-lg font-semibold text-slate-900">
-                  {mode === 'port'
-                    ? 'Tell us about the number to port'
-                    : 'Choose the BuildMyBot destination number'}
+                  {PATH_STEP_COPY[mode].title}
                 </h3>
                 <p className="mt-1 text-sm text-slate-600">
-                  {mode === 'new'
-                    ? 'Search a local area code and choose the number callers will dial.'
-                    : mode === 'forward'
-                      ? 'Your existing business number stays with its carrier. Choose the destination number it will forward to.'
-                      : 'A port is not instant. The current carrier remains active until Twilio accepts the request and schedules cutover.'}
+                  {PATH_STEP_COPY[mode].description}
                 </p>
               </div>
 
               {(mode === 'forward' || mode === 'port') && (
                 <div className="grid gap-4 md:grid-cols-2">
                   <label className="text-sm font-medium text-slate-800">
-                    Existing business number
+                    {mode === 'port'
+                      ? 'Number being ported'
+                      : 'Existing business number'}
                     <input
                       type="tel"
                       value={sourceNumber}
@@ -732,7 +821,11 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
                       type="text"
                       value={carrier}
                       onChange={(event) => setCarrier(event.target.value)}
-                      placeholder="Optional for forwarding"
+                      placeholder={
+                        mode === 'port'
+                          ? 'Required later for LOA / port docs'
+                          : 'Optional for forwarding'
+                      }
                       className="mt-2 w-full rounded-lg border border-slate-200 p-3 font-normal focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                     />
                   </label>
@@ -764,7 +857,7 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
                       {searchingNumbers && (
                         <Loader2 size={16} className="animate-spin" />
                       )}
-                      Search numbers
+                      {PATH_STEP_COPY[mode].searchLabel}
                     </button>
                   </div>
 
@@ -804,11 +897,36 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
                 </>
               )}
 
+              {mode === 'forward' && selectedNumber && (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+                  <span className="font-semibold text-slate-900">
+                    {PATH_STEP_COPY.forward.selectedLabel}:
+                  </span>{' '}
+                  {selectedNumber}. Callers keep dialing your existing business
+                  number; this destination only receives forwarded calls.
+                </div>
+              )}
+
+              {mode === 'new' && selectedNumber && (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+                  <span className="font-semibold text-slate-900">
+                    {PATH_STEP_COPY.new.selectedLabel}:
+                  </span>{' '}
+                  {selectedNumber}
+                </div>
+              )}
+
               {mode === 'port' && (
-                <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
-                  Submitting this step records a port request; it does not claim
-                  the carrier transfer is complete. Keep the existing service
-                  active until a confirmed port date.
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+                  <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-amber-300 bg-white/70 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-900">
+                    Port request · Not live cutover
+                  </div>
+                  <p>
+                    Continuing records a port request and next-step checklist.
+                    It does <strong>not</strong> move the number immediately.
+                    Keep the existing carrier service active until a confirmed
+                    port date.
+                  </p>
                 </div>
               )}
             </div>
@@ -818,48 +936,64 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
             <div className="space-y-5">
               {!activationResult ? (
                 <>
-                  <div>
-                    <h3 className="text-lg font-semibold text-slate-900">
-                      Review and activate
-                    </h3>
-                    <p className="mt-1 text-sm text-slate-600">
-                      BuildMyBot will provision only after you press the button
-                      below. No success state is assumed if Twilio or the
-                      database returns an error.
-                    </p>
+                  {/* Activation summary stays above the fold — before long copy */}
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <h3 className="text-lg font-semibold text-slate-900">
+                        Activation summary
+                      </h3>
+                      {mode === 'port' ? (
+                        <span className="rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-amber-900">
+                          Port request · Not live cutover
+                        </span>
+                      ) : (
+                        <span className="rounded-full border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-900">
+                          Real carrier provisioning
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-3 divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white">
+                      <SummaryRow
+                        label="Mode"
+                        value={
+                          MODES.find((option) => option.id === mode)?.title ||
+                          mode
+                        }
+                      />
+                      <SummaryRow
+                        label="Knowledge"
+                        value={
+                          knowledgeMode === 'shared'
+                            ? `${knowledgeBots.find((bot) => bot.id === selectedBotId)?.name || 'Shared business knowledge'} (default ON)`
+                            : 'Separate voice-only knowledge (override ON)'
+                        }
+                      />
+                      <SummaryRow label="Voice" value={selectedVoice.name} />
+                      {mode !== 'port' && (
+                        <SummaryRow
+                          label={PATH_STEP_COPY[mode].selectedLabel}
+                          value={selectedNumber || 'Not selected'}
+                        />
+                      )}
+                      {mode !== 'new' && (
+                        <SummaryRow
+                          label={
+                            mode === 'port'
+                              ? 'Number being ported'
+                              : 'Existing business number'
+                          }
+                          value={sourceNumber || 'Not entered'}
+                        />
+                      )}
+                    </div>
                   </div>
 
-                  <div className="divide-y divide-slate-200 rounded-xl border border-slate-200">
-                    <SummaryRow
-                      label="Phone setup"
-                      value={
-                        MODES.find((option) => option.id === mode)?.title ||
-                        mode
-                      }
-                    />
-                    <SummaryRow
-                      label="Knowledge"
-                      value={
-                        knowledgeMode === 'shared'
-                          ? knowledgeBots.find(
-                              (bot) => bot.id === selectedBotId,
-                            )?.name || 'Shared business knowledge'
-                          : 'Separate voice-only knowledge'
-                      }
-                    />
-                    <SummaryRow label="Voice" value={selectedVoice.name} />
-                    {mode !== 'port' && (
-                      <SummaryRow
-                        label="Destination"
-                        value={selectedNumber || 'Not selected'}
-                      />
-                    )}
-                    {mode !== 'new' && (
-                      <SummaryRow
-                        label="Existing number"
-                        value={sourceNumber || 'Not entered'}
-                      />
-                    )}
+                  <div>
+                    <p className="text-sm text-slate-600">
+                      {mode === 'port'
+                        ? 'Pressing the button records a real port request in BuildMyBot. It does not immediately transfer the number from your current carrier.'
+                        : 'Pressing the button performs real number provisioning with the telephony provider. This is not a dry-run or simulated activation.'}
+                    </p>
                   </div>
 
                   {Object.keys(voicePlans).length > 0 && (
@@ -906,7 +1040,7 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
                     )}
                     {mode === 'port'
                       ? 'Start Port Request'
-                      : 'Activate AI Phone Agent'}
+                      : 'Activate AI Phone Agent (live)'}
                   </button>
                 </>
               ) : (
@@ -925,7 +1059,13 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
                               ? 'Destination number is ready'
                               : 'Port request recorded'}
                         </h3>
-                        <p className="mt-1 text-sm leading-6 text-emerald-900">
+                        <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-emerald-300 bg-white/70 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-900">
+                          {activationResult.status === 'pending_documents' ||
+                          activationResult.mode === 'port'
+                            ? 'Real port request · Cutover not complete'
+                            : 'Real provisioning complete · Not a simulation'}
+                        </div>
+                        <p className="mt-2 text-sm leading-6 text-emerald-900">
                           {activationResult.message}
                         </p>
                       </div>

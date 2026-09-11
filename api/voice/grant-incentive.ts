@@ -134,6 +134,7 @@ export async function loadWorkspaceIncentiveConfig(
   try {
     return parseWorkspaceIncentiveConfig(settings.incentivePlaybook);
   } catch {
+    // Fail closed to defaults rather than inventing open-ended discounts.
     return defaultWorkspaceIncentiveConfig();
   }
 }
@@ -209,7 +210,8 @@ async function alreadySentIncentiveSms(
     ? (metadata.incentiveGrants as JsonObject[])
     : [];
   return grants.some(
-    (grant) => grant.offerCode === offerCode && grant.smsSent === true,
+    (grant) =>
+      grant.offerCode === offerCode && grant.smsSent === true,
   );
 }
 
@@ -281,7 +283,8 @@ export async function executeGrantIncentive(
 
   const grantedAt = new Date().toISOString();
   const grantedBy =
-    context.team?.manager?.name?.trim() || 'Support Manager (voice AI)';
+    context.team?.manager?.name?.trim() ||
+    'Support Manager (voice AI)';
 
   try {
     const config = await loadWorkspaceIncentiveConfig(context.organizationId);
@@ -385,6 +388,7 @@ export async function executeGrantIncentive(
       });
     }
 
+    // Fail closed on CRM write when a lead exists but timeline write failed.
     if (leadId && !timelineWritten) {
       return {
         success: false,
@@ -430,7 +434,9 @@ export async function executeGrantIncentive(
     return {
       success: false,
       reason:
-        error instanceof Error ? error.message : 'Incentive grant was refused.',
+        error instanceof Error
+          ? error.message
+          : 'Incentive grant was refused.',
     };
   }
 }

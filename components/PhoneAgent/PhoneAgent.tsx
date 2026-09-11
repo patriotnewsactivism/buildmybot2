@@ -420,19 +420,22 @@ export const PhoneAgent: React.FC<PhoneAgentProps> = ({ user, onUpdate }) => {
         {/* Sidebar */}
         <div className="space-y-6">
           <div className="bg-slate-900 text-white p-6 rounded-xl shadow-lg text-center">
-            <h3 className="font-bold text-lg mb-4">Live Call Simulation</h3>
+            <h3 className="font-bold text-lg mb-2">Browser Voice Simulation</h3>
+            <p className="mb-4 text-[11px] font-semibold uppercase tracking-wide text-amber-300">
+              Simulated · Not a carrier phone call
+            </p>
             <button
               type="button"
               className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition flex items-center justify-center gap-2"
               onClick={() => setIsSimulatorOpen(true)}
-              aria-label="Start call simulation"
+              aria-label="Start browser voice simulation"
             >
               <Phone size={20} />
               Test Your Voice Agent
             </button>
             <p className="text-xs text-slate-400 mt-4">
-              Click to start a live test call with your configured voice and
-              greeting.
+              Browser-only dry-run with your configured voice and greeting. It
+              does not dial a real number or provision telephony.
             </p>
           </div>
 

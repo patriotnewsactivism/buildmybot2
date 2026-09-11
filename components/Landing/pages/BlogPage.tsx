@@ -9,7 +9,7 @@ const blogPosts = [
     title:
       'The Complete BuildMyBot Feature Guide: Everything You Need to Automate Customer Conversations',
     excerpt:
-      'BuildMyBot offers a comprehensive suite of AI-powered tools designed to transform how businesses interact with customers. From our intuitive no-code bot builder with multiple persona options to advanced voice agents powered by Cartesia, lead capture CRM, marketing automation, and white-label partner capabilities—discover every feature that makes BuildMyBot the all-in-one platform for modern customer engagement. Whether you need a simple FAQ bot or a sophisticated sales assistant that works 24/7, BuildMyBot has you covered.',
+      'BuildMyBot offers a comprehensive suite of AI-powered tools designed to transform how businesses interact with customers. From our intuitive no-code bot builder with multiple persona options to advanced voice agents powered by Gemini Live, lead capture CRM, marketing automation, and white-label partner capabilities—discover every feature that makes BuildMyBot the all-in-one platform for modern customer engagement. Whether you need a simple FAQ bot or a sophisticated sales assistant that works 24/7, BuildMyBot has you covered.',
     date: 'January 2, 2026',
     category: 'Product Features',
     readTime: '15 min read',
