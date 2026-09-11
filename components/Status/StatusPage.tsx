@@ -167,7 +167,7 @@ export const StatusPage: React.FC = () => {
               icon={<MessageSquare size={20} />}
             />
             <ServiceCard
-              name="Voice Synthesis (Cartesia)"
+              name="Realtime Voice Engine"
               status={health?.services.cartesia}
               icon={<Globe size={20} />}
             />
