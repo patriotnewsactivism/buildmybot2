@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { ApiRequest, ApiResponse } from '../api/lib/http-types.js';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 process.env.SUPABASE_URL = 'https://fake-project.supabase.co';
@@ -17,8 +17,8 @@ interface StreamTokenInput {
 type StreamTokenSigner = (input: StreamTokenInput) => string;
 type AudioConverter = (payload: string) => string;
 type InboundVoiceHandler = (
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
 ) => Promise<unknown>;
 
 let createTwilioStreamToken: StreamTokenSigner;
@@ -34,7 +34,7 @@ beforeAll(async () => {
   ({ inboundVoiceHandler } = await import('../api/twilio/inbound.ts'));
 });
 
-function mockRes(): VercelResponse & {
+function mockRes(): ApiResponse & {
   statusCode: number;
   body: unknown;
   headers: Record<string, string>;
@@ -155,7 +155,7 @@ describe('inbound realtime call routing', () => {
         From: '+15550001111',
         To: '+15550002222',
       },
-    } as unknown as VercelRequest;
+    } as unknown as ApiRequest;
     const res = mockRes();
 
     await inboundVoiceHandler(req, res);
@@ -214,7 +214,7 @@ describe('inbound realtime call routing', () => {
         From: '+15550001111',
         To: '+15550002222',
       },
-    } as unknown as VercelRequest;
+    } as unknown as ApiRequest;
     const res = mockRes();
 
     await inboundVoiceHandler(req, res);

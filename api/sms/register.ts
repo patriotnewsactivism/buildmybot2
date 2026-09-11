@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { ApiRequest, ApiResponse } from '../lib/http-types.js';
 import { z } from 'zod';
 import { telnyxRequest } from '../lib/telephony-provider.js';
 import { accountFor, ensureAccount } from './runtime.js';
@@ -78,7 +78,7 @@ export async function advanceProvisioning(tenant: string) {
   }
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   try {
     const user = await authenticate(req); const a = await ensureAccount(user);
     if (req.method === 'POST') {

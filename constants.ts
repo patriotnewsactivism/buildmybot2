@@ -464,6 +464,28 @@ export const SMS_MARKETING_PLANS = {
   },
 };
 
+/**
+ * One-time registration fee, charged alongside the first month at checkout
+ * (see api/sms/billing.ts createSmsCheckout -- bundled as a second Stripe
+ * line item on the SAME Checkout Session, not a separate charge/flow).
+ * `listPrice` ($99) is the real cost-covering price (TCR/Telnyx ~$60-65 +
+ * margin). Don's call, 2026-09-08, UPDATED same day: for now, charge only
+ * `price` ($29) as an introductory sign-on discount advertised against the
+ * crossed-out list price, "for a limited time only" -- Don is subsidizing
+ * the gap per signup during this promo. Customer-facing copy must show the
+ * list price struck through, the discounted price, the limited-time framing,
+ * AND must still state the fee is non-refundable due to costs incurred in
+ * provisioning.
+ */
+export const SMS_MARKETING_REGISTRATION_FEE = {
+  price: 29,
+  listPrice: 99,
+  name: 'SMS Marketing Registration Fee',
+  stripePriceEnv: 'STRIPE_PRICE_SMS_REGISTRATION_FEE',
+  disclosure:
+    'Introductory $29 registration fee for a limited time only (regularly $99). Covers regulatory fees associated with phone number and campaign registration and provisioning. Non-refundable due to costs incurred in provisioning.',
+};
+
 export const SMS_MARKETING_PRICING = Object.entries(SMS_MARKETING_PLANS).map(
   ([key, plan]) => ({
     id: key.toLowerCase(),
@@ -513,9 +535,11 @@ export function applySmsOverageCommissionSafeguard(
   estimatedMarginUsd: number;
 } {
   const overageRateUsd = SMS_MARKETING_PLANS.SMS_STARTER.overagePerMessage;
-  const costRatio = overageRateUsd > 0 ? SMS_SEGMENT_COST_USD / overageRateUsd : 0;
+  const costRatio =
+    overageRateUsd > 0 ? SMS_SEGMENT_COST_USD / overageRateUsd : 0;
   const estimatedMarginUsd = Math.max(0, overageRevenueUsd) * (1 - costRatio);
-  const maxSafeCommissionUsd = estimatedMarginUsd * MAX_COMMISSION_SHARE_OF_MARGIN;
+  const maxSafeCommissionUsd =
+    estimatedMarginUsd * MAX_COMMISSION_SHARE_OF_MARGIN;
   const cappedCommissionUsd = Math.max(
     0,
     Math.min(computedCommissionUsd, maxSafeCommissionUsd),

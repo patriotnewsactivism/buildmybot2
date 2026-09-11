@@ -4,6 +4,14 @@ BuildMyBot is a white-label AI customer-engagement platform for web chat, voice,
 
 Production site: `https://www.buildmybot.app`
 
+## Production voice-team baseline
+
+As of 2026-09-10, BuildMyBot treats **Receptionist, Sales, Support, and Manager as four distinct realtime voice agents**. They are not one assistant swapping prompts.
+
+Each AI-to-AI handoff must change the destination agent's voice ID, persona/system prompt, speaking style, and opening behavior while carrying forward only the bounded caller/call context needed to continue the conversation. Reusing one audible voice across these roles is a production regression.
+
+The implementation entered `main` through PR #110 and is documented in `docs/VOICE_TEAM_ARCHITECTURE_2026-09-10.md` and `docs/AI_VOICE_TEAM.md`.
+
 ## Current architecture
 
 The repository is no longer Vercel-only and Railway is not prohibited.
@@ -50,9 +58,11 @@ The production migration workflow is intentionally audit-only. Follow `docs/MIGR
 
 - Customer activation flow for a new number, forwarding an existing number, or porting a number.
 - Gemini Live is the realtime voice engine.
+- Four distinct production voice identities: Receptionist, Sales, Support, and Manager.
+- Shared caller context survives handoffs, while destination voice/persona/style identity changes at every AI-to-AI transfer.
 - Shared chatbot/voice knowledge by default, with channel-specific knowledge modes supported by the activation model.
-- Twilio remains the current realtime bidirectional media-stream implementation in `api/voice/twilio-live.ts`.
-- Telnyx is used by the newer telephony/SMS provisioning path. Full replacement of the legacy Twilio realtime voice bridge is still a separate migration and must not be claimed complete until an inbound Telnyx call passes end-to-end.
+- Twilio remains in legacy realtime bidirectional media-stream paths such as `api/voice/twilio-live.ts` while Telnyx is the preferred newer telephony/SMS provisioning path.
+- Do not remove a legacy voice bridge until the replacement path passes an inbound end-to-end call test, including role handoffs.
 
 ### SMS marketing and automation
 
@@ -78,7 +88,7 @@ Prerequisites: Node.js 22+ and the required environment variables from `.env.exa
 
 ```bash
 npm ci
-npm run dev
+npm run client
 ```
 
 Release gates:
@@ -110,6 +120,18 @@ Both report the deployed Git SHA. Railway uses its injected `RAILWAY_GIT_COMMIT_
 Never commit real credentials. Server secrets belong in Railway/GitHub production secrets and, for the Cloud Run fallback, Google Secret Manager or its existing deployment bindings. `VITE_*` variables are public build-time values and must never contain service-role or private provider credentials.
 
 Core server configuration includes Supabase, session signing, encryption, AI provider credentials, Stripe, Firecrawl, Telnyx, Gemini, email, and scheduled-worker secrets. See `.env.example` for the annotated list.
+
+## Documentation map
+
+- `README.md` — product and production overview.
+- `AGENTS.md` — coding-agent operating rules and non-negotiable architecture constraints.
+- `CLAUDE.md` — Claude Code repository guidance.
+- `DEPLOYMENT.md` — authoritative production deployment/runbook.
+- `docs/VOICE_TEAM_ARCHITECTURE_2026-09-10.md` — current four-agent voice-team contract and acceptance criteria.
+- `docs/AI_VOICE_TEAM.md` — implementation-specific voice-team behavior.
+- `docs/CORPORATE_PHONE.md` — corporate phone routing and operations.
+- `SECURITY.md` — security requirements and boundaries.
+- `docs/MIGRATION_BASELINE_RECONCILIATION.md` — production database migration safety procedure.
 
 ## Deployment rule
 

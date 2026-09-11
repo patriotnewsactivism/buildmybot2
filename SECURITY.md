@@ -1,129 +1,115 @@
 # Security Notes
 
-## ⚠️ ACTION REQUIRED: rotate leaked credentials
+_Last reviewed: 2026-09-10._
 
-The following credentials were found committed to this repository (removed
-from the working tree, but **still present in git history** — commits
-`58847d0` and `9eb649e`). Rotation status below was verified live on
-2026-09-04 by probing each provider with the leaked value:
+## Credential rotation history
 
-| Credential | Where it leaked | Verified status (2026-09-04) | Action |
-|---|---|---|---|
-| OpenAI API key (`sk-proj-Pvfo…`) | `attached_assets/Pasted-*.txt` | ✅ **ROTATED** — provider returns `401 Incorrect API key provided` | none |
-| Cartesia API key (`sk_car_CDBn…`) | `attached_assets/Pasted-*.txt` | 🚨 **STILL LIVE** — `GET https://api.cartesia.ai/voices` returned `200` with this org's voice list | **Revoke in the Cartesia dashboard immediately and reissue** |
-| Supabase Postgres password (project `qjwwkcore…`) | `FIX_AUTH_ISSUE.md`, `VERCEL_DEPLOYMENT.md` | ❓ **UNVERIFIED** — cannot be probed without attempting a DB login from an allowed network | Reset: Supabase → Settings → Database → Reset password, then confirm the old value fails |
-| `SESSION_SECRET` (base64, `2NtQ…`) | `FIX_AUTH_ISSUE.md` | ❓ **UNVERIFIED** — cannot be tested externally | Compare the deployed `SESSION_JWT_SECRET` against the leaked value; if equal, regenerate (`openssl rand -base64 64`). Any session token signed with the leaked secret is forgeable, which is a full authentication bypass |
+Historical repository commits contained sensitive credentials. Removing a secret from the working tree does not remove it from Git history; leaked credentials must be rotated at the provider. A coordinated history rewrite may reduce future exposure but does not replace rotation.
 
-Because these values remain in git history, rotation is the only real
-remediation — file removal does not help. A history rewrite
-(`git filter-repo`) would remove them permanently but needs a coordinated
-force-push.
+Do not copy any historical credential from Git history into a current deployment.
 
-## Supabase Row Level Security (RLS)
+## Current production trust boundary
 
-RLS policies live in `supabase/migrations/20260110234903_remote_schema.sql`
-(search for `CREATE POLICY` / `ENABLE ROW LEVEL SECURITY`). They cover
-`bots`, `leads`, `conversations`, `profiles`, `phone_calls`, `usage_events`,
-`marketplace_templates`, `website_pages`, and others, keyed on
-`auth.uid()` and the `is_admin()` helper.
+Production is Railway-first behind Cloudflare, with Google Cloud Run retained as a read fallback. The active application runtime is the root `server.ts` plus `api/*` handlers. Do not rely on obsolete Vercel/serverless-only or nonexistent `server/` architecture descriptions.
 
-**Important:** RLS only protects access made with the **anon key**
-(`VITE_SUPABASE_ANON_KEY`). Two code paths bypass RLS entirely and must
-enforce tenancy themselves:
+The active production Supabase project is `blyebndyrojmreensbxe`.
 
-1. **Vercel serverless functions** (`api/gateway.ts`, `api/auth/*.ts`) use
-   `SUPABASE_SERVICE_ROLE_KEY`, which bypasses RLS. Every query there must
-   filter by the authenticated user/organization — never trust client-supplied
-   IDs without an ownership check.
-2. **The Express server** (`server/`) connects directly to Postgres via
-   `DATABASE_URL` (Drizzle), which also bypasses RLS. Tenancy is enforced by
-   the middleware stack: `authenticate` → `loadOrganizationContext` →
-   `tenantIsolation()`. Any new org-scoped route must use this stack.
+Server-side Supabase access using the service-role key bypasses RLS. Every tenant-scoped query therefore must enforce authenticated user/organization ownership in application code even where database RLS also exists.
 
-Never expose the service-role key with a `VITE_`/`NEXT_PUBLIC_` prefix and
-never hardcode it as a fallback in source.
+Never expose `SUPABASE_SERVICE_ROLE_KEY` or another server credential through a `VITE_*` variable.
 
-## Authorization model (OWNER vs ADMIN)
+## Authentication and authorization
 
-`api/security/authz.ts` is the single source of truth:
+Authentication and authorization decisions must be based on verified server-side state. Never trust browser-provided roles, organization IDs, caller IDs, bot ownership, or other identity claims without verification.
 
-- **OWNER** (also `ORG_OWNER`, `ACCOUNT_OWNER`) — the customer who owns an
-  organization. Full rights inside their own tenant, **zero** platform-wide
-  rights. `api/auth/signup.ts` gives every self-service signup this role.
-- **ADMIN / MasterAdmin / SUPER_ADMIN / PLATFORM_ADMIN / STAFF** — BuildMyBot
-  staff. Platform-wide access.
+Platform-administrator privileges and tenant-owner privileges are different security domains. Customer/tenant ownership must never be treated as platform administration.
 
-Never write `['admin','ADMIN','owner','OWNER'].includes(user.role)` again —
-that pattern (removed in this pass) handed every customer platform-admin
-access to `/api/admin/*`, `/api/audit`, `/api/bots/errors`, `/api/ai-employees`
-and `/api/email/*`. Use `isPlatformAdmin(user)` / `denyIfNotPlatformAdmin()`.
+Every state-changing route for bots, voice teams, phone resources, SMS, campaigns, billing, AI employees, or customer data must authenticate the caller and verify tenant scope.
 
-Self-service signup must never promote by email address. The hard-coded
-`MASTER_ADMINS` lists in `api/auth/signup.ts` and `App.tsx` have been removed;
-staff access is granted out-of-band against the database
-(`scripts/setAdminPermissions.ts`).
+## Distinct voice-team security boundary
+
+Receptionist, Sales, Support, and Manager are separate conversational identities, but **persona hierarchy does not grant authorization hierarchy**.
+
+In particular:
+
+- the Manager persona does not automatically gain billing, contract, admin, or account-management permissions;
+- Sales cannot access private support/account data merely because a caller asks;
+- caller ID is not authentication;
+- transferred context must be bounded to information needed for the call and tenant;
+- a handoff must not leak system prompts, provider keys, hidden tool results, cross-tenant knowledge, or privileged internal metadata;
+- destination agents must inherit only explicitly allowed tool capabilities;
+- human-transfer requests must not be simulated as completed human transfers when no human actually joined.
+
+Call telemetry should record agent/voice transitions without storing secrets. Sensitive transcript data should be minimized and handled under the same tenant controls as other customer conversation data.
+
+See `docs/VOICE_TEAM_ARCHITECTURE_2026-09-10.md` and `docs/AI_VOICE_TEAM.md`.
+
+## Telephony and webhook verification
+
+Telnyx/Twilio-compatible provider webhooks must be cryptographically verified according to the active provider path and fail closed in production when verification is required.
+
+Do not treat the presence of a provider call ID or caller number as proof a webhook is authentic.
+
+Outbound calls and other high-impact provider actions must preserve explicit approval/authorization controls. Ambiguous provider responses must be reconciled against provider state before retrying to avoid duplicate calls, messages, purchases, ports, or provisioning actions.
 
 ## Billing integrity
 
-- Entitlements (plan, voice plan, phone minutes, wallet credit, usage pools)
-  are written **only** by `api/stripe-webhook.ts` after a signature-verified
-  Stripe event. `POST /api/phone/voice-plan` and
-  `POST /api/agency/wallet/(auto-)recharge` now return `402 PAYMENT_REQUIRED`.
-- `POST /api/stripe/checkout|portal|whitelabel/checkout` take identity from
-  the session only. Client-supplied `userId`, `organizationId`, plan limits,
-  `minutes` and `credits` are ignored.
-- Stripe signature verification needs the **exact bytes**. `server.ts`
-  preserves them on `req.rawBody` (Cloud Run/Express previously consumed and
-  re-serialized the body, so every webhook silently failed verification).
-- Duplicate/retried events have exactly one effect, enforced by the unique
-  `stripe_webhook_events.event_id` claim
-  (`supabase-migrations/20260904_stripe_webhook_idempotency.sql`).
+Billing/entitlement changes must come from trusted, signature-verified payment events or another explicitly authorized server-side workflow. Never accept client-supplied plan limits, wallet balances, minutes, credits, or organization identity as authoritative.
+
+Stripe webhook verification requires the exact request bytes. Preserve raw-body handling on the webhook path.
+
+Provider retries/webhook redelivery must be idempotent.
 
 ## SSRF
 
-Any customer-controlled outbound URL (website scraping, webhook delivery and
-webhook tests, booking callbacks) must go through
-`assertSafeOutboundUrl()` / `safeFetch()` in `api/security/ssrf.ts`, which
-rejects non-http(s) schemes, embedded credentials, `localhost`,
-`*.internal`, the cloud metadata endpoints and all loopback / RFC1918 /
-link-local / CGNAT ranges — re-validating every redirect hop.
+Customer-controlled outbound URLs used for scraping, callbacks, webhook tests, or similar features must pass the repository's outbound URL validation and redirect-hop validation.
 
-## Route authentication map
+Reject localhost, metadata endpoints, private/link-local networks, embedded credentials, unsupported schemes, and unsafe redirects.
 
-- Public by design: `/api/health`, `/api/auth/*`, `GET /api/templates`,
-  `POST /api/chat/demo` (rate-limited), `POST /api/chat/bot/:botId`
-  (rate-limited, powers the embeddable widget), `POST /api/leads/capture`
-  (rate-limited), `GET /api/public/bots/:id`, provider webhook paths
-  (`/api/webhooks/voice/twilio`, `/api/voice-providers/webhooks/*`),
-  Stripe checkout/portal/webhook endpoints.
-- Everything else requires `authenticate` (session auth), applied either at
-  mount in `server/index.ts` or via `router.use(...)` inside the route file.
-- `/api/admin` additionally requires an admin role; `/api/partners` a
-  partner/reseller role; `POST/PUT /api/revenue/plans` an admin role.
+## RAG and tenant knowledge
 
-## x-user-id header authentication (Express server only)
+Shared knowledge is tenant-owned data. Chat, voice, and SMS may share knowledge within a tenant, but cross-tenant knowledge IDs or retrieved evidence must never be accepted.
 
-The Express server's `authenticate` middleware historically accepted a
-client-supplied `x-user-id` header (user id *or email*) as a full identity —
-an authentication bypass, since anyone can send any value. As of this
-hardening pass the header is only honored when `NODE_ENV !== 'production'`,
-or when `DANGEROUSLY_ALLOW_HEADER_AUTH=true` is explicitly set. Production
-deployments of the Express server must rely on session cookies
-(`POST /api/auth/login` sets `session.userId`). The Vercel serverless path
-(`api/gateway.ts`) is unaffected — it uses signed session JWTs.
+Do not weaken tenant ownership checks to make an integration test pass.
 
-The SPA (`services/dbService.ts`) still sends `x-user-id` alongside
-`credentials: 'include'`; once sessions are confirmed working in every
-deployed topology, that header should be dropped from the client too.
+Agents must not invent private account facts when retrieval has no evidence.
 
-## Known gaps (accepted for now)
+## Production database migration hold
 
-- ~~Twilio webhook signature validation~~ — **fixed**. `api/twilio/webhooks.ts`
-  and `api/twilio/inbound.ts` now validate `X-Twilio-Signature` against the
-  full public URL (`APP_BASE_URL`, plus the `x-forwarded-host` variant) and
-  **fail closed** in production. The old code fell back to "does the body
-  contain a `CallSid`?" whenever the token was missing, the header was
-  absent, or validation threw — all trivially forgeable.
-- **Secrets in git history**: rotating (above) mitigates; a history rewrite
-  (`git filter-repo`) would remove them permanently but requires
-  coordinating a force-push with all collaborators.
+There is an active migration-history reconciliation hold for production Supabase. Do not run `supabase db push`, destructive migrations, resets, or wholesale replay of repository migrations against production until `docs/MIGRATION_BASELINE_RECONCILIATION.md` is completed for the affected migration.
+
+This applies to the additive voice-team migration as well. Application code being deployed does not prove the production table exists.
+
+## AI/provider reliability and spend safety
+
+AI/provider failure handling is also a security/cost boundary.
+
+- bound timeouts and retries;
+- prevent infinite provider/model fallback loops;
+- do not put all credentials into cooldown because one model timed out;
+- distinguish credential, quota, provider, validation, and network failures;
+- avoid uncontrolled token/credit spend during failure cascades;
+- never log full API keys, bearer tokens, or provider secrets.
+
+## Secrets
+
+Use `.env.example` as the variable inventory, but never put real values in it.
+
+Server secrets belong in Railway/GitHub/cloud secret storage. Public `VITE_*` values must contain only data safe to expose to every browser user.
+
+Webhook secrets, encryption keys, session-signing keys, service-role keys, AI provider credentials, Telnyx/Twilio credentials, Stripe secrets, Resend keys, and cron/worker secrets are server-only.
+
+## Security review checklist for significant changes
+
+Before merging a security-sensitive change, verify:
+
+1. authentication is required where appropriate;
+2. tenant ownership is verified server-side;
+3. privileged roles are not inferred from customer roles;
+4. webhook signatures remain verified;
+5. retries are bounded/idempotent;
+6. no secret moved into client-visible code/logs;
+7. no new SSRF path bypasses validation;
+8. voice handoffs do not expand permissions or leak hidden context;
+9. database changes respect the migration hold;
+10. public health/provenance confirms the intended release SHA.

@@ -128,10 +128,7 @@ function validateEvent(event: PortfolioOutcomeEvent): void {
   if (numericClaims.some((value) => !Number.isFinite(value))) {
     throw new Error('Outcome numeric claims must be finite numbers');
   }
-  if (
-    event.outcome?.directCost !== undefined &&
-    event.outcome.directCost < 0
-  ) {
+  if (event.outcome?.directCost !== undefined && event.outcome.directCost < 0) {
     throw new Error('Outcome directCost cannot be negative');
   }
 }
@@ -296,9 +293,7 @@ export async function flushOutcomeOutbox(
       });
       if (!response.ok) {
         const detail = await response.text().catch(() => '');
-        throw new Error(
-          `APEX ${response.status}: ${detail.slice(0, 400)}`,
-        );
+        throw new Error(`APEX ${response.status}: ${detail.slice(0, 400)}`);
       }
       await patchRow(row.id, {
         published_at: new Date().toISOString(),
@@ -308,17 +303,15 @@ export async function flushOutcomeOutbox(
     } catch (error) {
       failed += 1;
       const attempts = Number(row.attempts || 0) + 1;
-      const backoffSeconds = Math.min(
-        3600,
-        15 * 2 ** Math.min(attempts, 8),
-      );
+      const backoffSeconds = Math.min(3600, 15 * 2 ** Math.min(attempts, 8));
       await patchRow(row.id, {
         attempts,
         next_attempt_at: new Date(
           Date.now() + backoffSeconds * 1000,
         ).toISOString(),
-        last_error: (
-          error instanceof Error ? error.message : String(error)
+        last_error: (error instanceof Error
+          ? error.message
+          : String(error)
         ).slice(0, 1000),
       }).catch((patchError) =>
         console.error(

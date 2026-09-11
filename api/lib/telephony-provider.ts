@@ -58,7 +58,9 @@ export async function telnyxRequest<T = any>(
     const detail = parsed?.errors
       ? JSON.stringify(parsed.errors)
       : text || response.statusText;
-    throw new Error(`Telnyx API error ${response.status} on ${path}: ${detail}`);
+    throw new Error(
+      `Telnyx API error ${response.status} on ${path}: ${detail}`,
+    );
   }
   return (parsed ?? {}) as T;
 }
@@ -133,11 +135,18 @@ export async function searchAvailableNumbers(options: {
   }
   const query = new URLSearchParams(filters).toString();
   const search = await telnyxRequest<{
-    data: Array<{ phone_number: string; region_information?: Array<{ region_type: string; region_name: string }> }>;
+    data: Array<{
+      phone_number: string;
+      region_information?: Array<{ region_type: string; region_name: string }>;
+    }>;
   }>(`/available_phone_numbers?${query}`);
   return (search.data || []).map((entry) => {
-    const locality = entry.region_information?.find((r) => r.region_type === 'rate_center')?.region_name;
-    const region = entry.region_information?.find((r) => r.region_type === 'state')?.region_name;
+    const locality = entry.region_information?.find(
+      (r) => r.region_type === 'rate_center',
+    )?.region_name;
+    const region = entry.region_information?.find(
+      (r) => r.region_type === 'state',
+    )?.region_name;
     return { phoneNumber: entry.phone_number, locality, region };
   });
 }
@@ -170,12 +179,16 @@ export async function purchaseNumber(options: {
   }
 
   const order = await telnyxRequest<{
-    data: { id: string; phone_numbers: Array<{ id: string; phone_number: string }> };
+    data: {
+      id: string;
+      phone_numbers: Array<{ id: string; phone_number: string }>;
+    };
   }>('/number_orders', {
     method: 'POST',
     body: JSON.stringify({
       phone_numbers: [{ phone_number: candidate }],
-      connection_id: options.connectionId || process.env.TELNYX_CONNECTION_ID || undefined,
+      connection_id:
+        options.connectionId || process.env.TELNYX_CONNECTION_ID || undefined,
     }),
   });
 
@@ -192,7 +205,9 @@ export async function purchaseNumber(options: {
 }
 
 export async function releaseNumber(providerNumberId: string): Promise<void> {
-  await telnyxRequest(`/phone_numbers/${providerNumberId}`, { method: 'DELETE' });
+  await telnyxRequest(`/phone_numbers/${providerNumberId}`, {
+    method: 'DELETE',
+  });
 }
 
 /**
@@ -207,16 +222,22 @@ export async function startMediaStream(options: {
   streamUrl: string;
   bidirectional?: boolean;
 }): Promise<void> {
-  await telnyxRequest(`/calls/${options.callControlId}/actions/streaming_start`, {
-    method: 'POST',
-    body: JSON.stringify({
-      stream_url: options.streamUrl,
-      stream_track: 'both_tracks',
-      ...(options.bidirectional
-        ? { stream_bidirectional_mode: 'rtp', stream_bidirectional_target_legs: 'both' }
-        : {}),
-    }),
-  });
+  await telnyxRequest(
+    `/calls/${options.callControlId}/actions/streaming_start`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        stream_url: options.streamUrl,
+        stream_track: 'inbound_track',
+        ...(options.bidirectional
+          ? {
+              stream_bidirectional_mode: 'rtp',
+              stream_bidirectional_target_legs: 'both',
+            }
+          : {}),
+      }),
+    },
+  );
 }
 
 export interface SendSmsResult {
@@ -237,18 +258,17 @@ export async function sendSms(options: {
       'sendSms requires either a from number or TELNYX_MESSAGING_PROFILE_ID (for number-pool sending)',
     );
   }
-  const result = await telnyxRequest<{ data: { id: string; to: Array<{ status: string }> } }>(
-    '/messages',
-    {
-      method: 'POST',
-      body: JSON.stringify({
-        to: options.to,
-        from: options.from || undefined,
-        messaging_profile_id: options.from ? undefined : messagingProfileId,
-        text: options.text,
-      }),
-    },
-  );
+  const result = await telnyxRequest<{
+    data: { id: string; to: Array<{ status: string }> };
+  }>('/messages', {
+    method: 'POST',
+    body: JSON.stringify({
+      to: options.to,
+      from: options.from || undefined,
+      messaging_profile_id: options.from ? undefined : messagingProfileId,
+      text: options.text,
+    }),
+  });
   return {
     id: result.data?.id,
     status: result.data?.to?.[0]?.status || 'unknown',
@@ -298,28 +318,27 @@ export interface BrandRegistrationResult {
 export async function registerBrand(
   input: BrandRegistrationInput,
 ): Promise<BrandRegistrationResult> {
-  const result = await telnyxRequest<{ data: { brandId: string; status?: string } }>(
-    '/10dlc/brand',
-    {
-      method: 'POST',
-      body: JSON.stringify({
-        entityType: input.entityType || 'PRIVATE_PROFIT',
-        companyName: input.companyName,
-        ein: input.ein,
-        einIssuingCountry: input.einIssuingCountry || 'US',
-        phone: input.phone,
-        street: input.street,
-        city: input.city,
-        state: input.state,
-        postalCode: input.postalCode,
-        country: input.country || 'US',
-        email: input.email,
-        website: input.website || undefined,
-        vertical: input.vertical || 'TECHNOLOGY',
-        displayName: input.companyName,
-      }),
-    },
-  );
+  const result = await telnyxRequest<{
+    data: { brandId: string; status?: string };
+  }>('/10dlc/brand', {
+    method: 'POST',
+    body: JSON.stringify({
+      entityType: input.entityType || 'PRIVATE_PROFIT',
+      companyName: input.companyName,
+      ein: input.ein,
+      einIssuingCountry: input.einIssuingCountry || 'US',
+      phone: input.phone,
+      street: input.street,
+      city: input.city,
+      state: input.state,
+      postalCode: input.postalCode,
+      country: input.country || 'US',
+      email: input.email,
+      website: input.website || undefined,
+      vertical: input.vertical || 'TECHNOLOGY',
+      displayName: input.companyName,
+    }),
+  });
   return {
     telnyxBrandId: result.data?.brandId,
     status: result.data?.status || 'pending',
@@ -343,24 +362,23 @@ export interface CampaignRegistrationResult {
 export async function registerLowVolumeCampaign(
   input: CampaignRegistrationInput,
 ): Promise<CampaignRegistrationResult> {
-  const result = await telnyxRequest<{ data: { campaignId: string; status?: string } }>(
-    '/10dlc/campaignBuilder',
-    {
-      method: 'POST',
-      body: JSON.stringify({
-        brandId: input.brandId,
-        usecase: 'LOW_VOLUME',
-        description: input.description,
-        sample1: input.sample1,
-        sample2: input.sample2,
-        messageFlow: input.messageFlow,
-        helpMessage: input.helpMessage,
-        optinKeywords: 'START, YES, SUBSCRIBE',
-        optoutKeywords: 'STOP, UNSUBSCRIBE, CANCEL, QUIT',
-        helpKeywords: 'HELP, INFO',
-      }),
-    },
-  );
+  const result = await telnyxRequest<{
+    data: { campaignId: string; status?: string };
+  }>('/10dlc/campaignBuilder', {
+    method: 'POST',
+    body: JSON.stringify({
+      brandId: input.brandId,
+      usecase: 'LOW_VOLUME',
+      description: input.description,
+      sample1: input.sample1,
+      sample2: input.sample2,
+      messageFlow: input.messageFlow,
+      helpMessage: input.helpMessage,
+      optinKeywords: 'START, YES, SUBSCRIBE',
+      optoutKeywords: 'STOP, UNSUBSCRIBE, CANCEL, QUIT',
+      helpKeywords: 'HELP, INFO',
+    }),
+  });
   return {
     telnyxCampaignId: result.data?.campaignId,
     status: result.data?.status || 'pending',
@@ -371,7 +389,11 @@ export async function getBrandStatus(
   telnyxBrandId: string,
 ): Promise<{ status: string; vettingScore?: number; failureReason?: string }> {
   const result = await telnyxRequest<{
-    data: { status?: string; identityStatus?: string; failureReasons?: string[] };
+    data: {
+      status?: string;
+      identityStatus?: string;
+      failureReasons?: string[];
+    };
   }>(`/10dlc/brand/${encodeURIComponent(telnyxBrandId)}`);
   return {
     status: result.data?.identityStatus || result.data?.status || 'pending',
@@ -389,4 +411,89 @@ export async function getCampaignStatus(
     status: result.data?.status || 'pending',
     failureReason: result.data?.failureReasons?.join('; ') || undefined,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Call Control actions for live inbound-call handling (api/phone/tenant-telnyx.ts,
+// api/voice/telnyx-live.ts). Added alongside startMediaStream for the
+// Twilio -> Telnyx voice-webhook migration ("part 2" referenced in this
+// module's header comment above).
+// ---------------------------------------------------------------------------
+
+export async function answerCall(
+  callControlId: string,
+  options: {
+    clientState?: string;
+    streamUrl?: string;
+    bidirectional?: boolean;
+  } = {},
+): Promise<void> {
+  await telnyxRequest(
+    `/calls/${encodeURIComponent(callControlId)}/actions/answer`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        client_state: options.clientState || undefined,
+        ...(options.streamUrl
+          ? {
+              stream_url: options.streamUrl,
+              stream_track: 'inbound_track',
+              ...(options.bidirectional
+                ? {
+                    stream_bidirectional_mode: 'rtp',
+                    stream_bidirectional_codec: 'PCMU',
+                  }
+                : {}),
+            }
+          : {}),
+      }),
+    },
+  );
+}
+
+export async function speakText(
+  callControlId: string,
+  text: string,
+  options: { voice?: string; language?: string } = {},
+): Promise<void> {
+  await telnyxRequest(
+    `/calls/${encodeURIComponent(callControlId)}/actions/speak`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        payload: text,
+        voice: options.voice || 'Polly.Joanna-Neural',
+        language: options.language || 'en-US',
+        payload_type: 'text',
+      }),
+    },
+  );
+}
+
+export async function hangupCall(callControlId: string): Promise<void> {
+  await telnyxRequest(
+    `/calls/${encodeURIComponent(callControlId)}/actions/hangup`,
+    {
+      method: 'POST',
+      body: JSON.stringify({}),
+    },
+  );
+}
+
+export async function transferCall(
+  callControlId: string,
+  to: string,
+  options: { from?: string; clientState?: string } = {},
+): Promise<void> {
+  await telnyxRequest(
+    `/calls/${encodeURIComponent(callControlId)}/actions/transfer`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        to,
+        from: options.from || undefined,
+        client_state: options.clientState || undefined,
+      }),
+    },
+  );
 }

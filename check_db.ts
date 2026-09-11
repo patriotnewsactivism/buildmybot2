@@ -10,7 +10,7 @@ if (!connectionString) {
   throw new Error('DATABASE_URL is required');
 }
 
-async function checkConnection() {
+async function checkConnection(connectionString: string) {
   console.log('Testing database connection...');
   try {
     const client = postgres(connectionString);
@@ -27,4 +27,4 @@ async function checkConnection() {
   }
 }
 
-checkConnection();
+checkConnection(connectionString);

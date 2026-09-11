@@ -1,12 +1,12 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { ApiRequest, ApiResponse } from '../lib/http-types.js';
 import { z } from 'zod';
 import { appointmentSchema, contactSchema, programSchema, smsSegments, SMS_PLANS, timezoneSchema } from '../../shared/sms.js';
 import { accountFor, contactFor, enqueue, ensureAccount, runWorker, saveAppointment, type Contact } from './runtime.js';
 import { authenticate, db, filter, requireLaunch, requireWorker, rpc, scoped, SmsError } from './store.js';
 import { createSmsCheckout } from './billing.js';
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   try {
     const path = new URL(req.url || '/', 'https://buildmybot.app').pathname.split('/').filter(Boolean).slice(2);
     const [resource = 'account', id, action] = path;

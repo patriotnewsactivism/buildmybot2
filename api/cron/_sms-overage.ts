@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { ApiRequest, ApiResponse } from '../lib/http-types.js';
 import { reconcileOverages } from '../sms/billing.js';
 
 // SMS Marketing overage reconciliation. Finds ended sms_billing_periods rows
@@ -10,7 +10,7 @@ import { reconcileOverages } from '../sms/billing.js';
 // which send real outbound comms to real leads that already exist.
 export const maxDuration = 60;
 
-export async function smsOverageHandler(req: VercelRequest, res: VercelResponse) {
+export async function smsOverageHandler(req: ApiRequest, res: ApiResponse) {
   if (req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) {
     return res.status(401).end();
   }

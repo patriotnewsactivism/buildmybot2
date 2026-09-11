@@ -1,5 +1,5 @@
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { ApiRequest, ApiResponse } from '../lib/http-types.js';
 import { PLAN_LIMITS, VOICE_PLANS } from '../../constants.js';
 import { encryptSecret } from './crypto.js';
 import {
@@ -171,7 +171,7 @@ function tenantTelephonyFilter(user: AuthUser): Record<string, string> {
   };
 }
 
-async function getAuthUser(req: VercelRequest): Promise<AuthUser | null> {
+async function getAuthUser(req: ApiRequest): Promise<AuthUser | null> {
   if (!SESSION_JWT_SECRET || !SUPABASE_SERVICE_KEY || !SUPABASE_URL) {
     return null;
   }
@@ -228,7 +228,7 @@ async function getAuthUser(req: VercelRequest): Promise<AuthUser | null> {
   }
 }
 
-function setCors(res: VercelResponse) {
+function setCors(res: ApiResponse) {
   const origin = process.env.CORS_ORIGINS?.split(',')[0]?.trim();
   res.setHeader('Access-Control-Allow-Origin', origin || APP_BASE_URL);
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,OPTIONS');
@@ -239,7 +239,7 @@ function setCors(res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Credentials', 'true');
 }
 
-function parseBody(req: VercelRequest): Record<string, any> {
+function parseBody(req: ApiRequest): Record<string, any> {
   if (typeof req.body === 'string') {
     try {
       return JSON.parse(req.body);
@@ -660,8 +660,8 @@ async function cleanupProvisionedNumber(options: {
 }
 
 async function provision(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
 ) {
   const body = parseBody(req) as ProvisionBody;
@@ -845,8 +845,8 @@ async function provision(
 }
 
 async function availableNumbers(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
 ) {
   const url = new URL(req.url || '/', 'http://localhost');
@@ -884,7 +884,7 @@ async function availableNumbers(
   );
 }
 
-async function status(res: VercelResponse, user: AuthUser) {
+async function status(res: ApiResponse, user: AuthUser) {
   res.setHeader('Cache-Control', 'private, no-store, max-age=0');
   const [accounts, activations, numbers] = await Promise.all([
     sbSelect(
@@ -920,8 +920,8 @@ async function status(res: VercelResponse, user: AuthUser) {
 }
 
 export async function handlePhoneActivation(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
 ) {
   setCors(res);
   if (req.method === 'OPTIONS') return res.status(204).end();

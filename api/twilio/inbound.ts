@@ -8,7 +8,7 @@
  */
 
 import { createHmac } from 'node:crypto';
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { ApiRequest, ApiResponse } from '../lib/http-types.js';
 import {
   createTwilioStreamToken,
   isGeminiLiveCircuitOpen,
@@ -24,13 +24,13 @@ const SUPABASE_HEADERS = {
   'Content-Type': 'application/json',
 };
 
-function setCors(res: VercelResponse) {
+function setCors(res: ApiResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 }
 
-function parseBody(req: VercelRequest): any {
+function parseBody(req: ApiRequest): any {
   if (typeof req.body === 'string') {
     try {
       return JSON.parse(req.body);
@@ -41,7 +41,7 @@ function parseBody(req: VercelRequest): any {
   return req.body || {};
 }
 
-async function validateTwilioRequest(req: VercelRequest): Promise<boolean> {
+async function validateTwilioRequest(req: ApiRequest): Promise<boolean> {
   const authToken = process.env.TWILIO_AUTH_TOKEN;
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
   if (!authToken || !accountSid) {
@@ -200,8 +200,8 @@ function realtimeTwiml(options: {
  * realtime engine is configured. Fall back to Gather/TTS when it is not.
  */
 export async function inboundVoiceHandler(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
 ) {
   setCors(res);
   if (req.method === 'OPTIONS') return res.status(204).end();
@@ -295,8 +295,8 @@ const MAX_TURNS = 12;
  * Legacy fallback conversation loop used only if Gemini Live cannot be used.
  */
 export async function inboundVoiceRespond(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
 ) {
   setCors(res);
   if (req.method !== 'POST') return res.status(405).end();
@@ -374,8 +374,8 @@ export async function inboundVoiceRespond(
  * Close out the call_logs row once Twilio reports a terminal call state.
  */
 export async function inboundStatusCallback(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
 ) {
   setCors(res);
   if (req.method !== 'POST') return res.status(405).end();

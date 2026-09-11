@@ -558,6 +558,19 @@ export const voiceAgents = pgTable('voice_agents', {
   updatedAt: timestamp('updated_at'),
 });
 
+// Apply supabase/migrations/*_distinct_ai_voice_team.sql for the JSON constraint,
+// grants and RLS. Production uses the REST API with service-role authorization.
+export const voiceTeams = pgTable('voice_teams', {
+  botId: text('bot_id').primaryKey().references(() => bots.id, { onDelete: 'cascade' }),
+  organizationId: text('organization_id'),
+  userId: text('user_id').notNull(),
+  config: jsonb('config').$type<import('./voice-team').VoiceTeam>().notNull(),
+  revision: integer('revision').default(1).notNull(),
+  updatedBy: text('updated_by').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const voiceCallMessages = pgTable('voice_call_messages', {
   id: text('id').primaryKey(),
   voiceCallId: text('voice_call_id').notNull(),

@@ -1,3 +1,4 @@
+import { CorporatePhonePanel } from './CorporatePhonePanel';
 /**
  * AI Team Dashboard
  * Shows AI employees, their status, and activity logs.
@@ -157,6 +158,7 @@ export const AITeamDashboard: React.FC<{ user: any }> = ({ user }) => {
 
   return (
     <div className="space-y-6">
+      <CorporatePhonePanel />
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

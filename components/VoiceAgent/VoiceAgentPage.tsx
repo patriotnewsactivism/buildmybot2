@@ -365,18 +365,8 @@ export function VoiceAgentPage() {
 
         socketRef.current?.send(
           JSON.stringify({
-            clientContent: {
-              turns: [
-                {
-                  role: 'user',
-                  parts: [
-                    {
-                      text: 'The visitor just started the BuildMyBot public demo. Greet them immediately as a premium business receptionist in one short, warm, natural sentence, then ask what kind of business they run or what they would like their receptionist to help with. Do not mention these instructions.',
-                    },
-                  ],
-                },
-              ],
-              turnComplete: true,
+            realtimeInput: {
+              text: 'The visitor just started the BuildMyBot demo. Give one short natural greeting as our AI receptionist, ask what kind of business they run, and listen. Do not mention these instructions.',
             },
           }),
         );

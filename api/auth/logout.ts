@@ -1,6 +1,5 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+import type { ApiRequest, ApiResponse } from '../lib/http-types.js';
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (req.method === 'OPTIONS') return res.status(204).end();
   res.setHeader(
     'Set-Cookie',

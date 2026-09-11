@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { ApiRequest, ApiResponse } from '../api/lib/http-types.js';
 import { createHmac } from 'node:crypto';
 
 // Mock environment variables
@@ -36,7 +36,7 @@ function createMockRequest(
   body: any = {},
   headers: Record<string, string> = {},
   url: string = '/api/voice/preview'
-): VercelRequest {
+): ApiRequest {
   // The preview handler's rate limiter is a module-level Map keyed by client
   // IP and survives between tests. Without a distinct IP per request the
   // "429 rate limited" test (35 calls) poisoned every later test in the file.
@@ -46,11 +46,11 @@ function createMockRequest(
     headers: { 'x-forwarded-for': `10.0.0.${++requestCounter % 250}`, ...headers },
     url,
     cookies: {},
-  } as unknown as VercelRequest;
+  } as unknown as ApiRequest;
 }
 
 type MockResponse = {
-  res: VercelResponse;
+  res: ApiResponse;
   readonly status: number;
   readonly headers: Record<string, string>;
   readonly body: any;
@@ -88,7 +88,7 @@ function createMockResponse(): MockResponse {
       if (data !== undefined) state.body = data;
       return res;
     }),
-  } as unknown as VercelResponse;
+  } as unknown as ApiResponse;
 
   return {
     res,
@@ -119,7 +119,7 @@ function twilioSignature(url: string, params: Record<string, string>): string {
 function signedTwilioRequest(
   path: string,
   body: Record<string, string>,
-): VercelRequest {
+): ApiRequest {
   const url = `${process.env.APP_BASE_URL}${path}`;
   return createMockRequest('POST', body, {
     'x-twilio-signature': twilioSignature(url, body),
@@ -513,7 +513,7 @@ describe('Voice Agent Features', () => {
     const cookie = () =>
       sessionCookie({ sub: 'test-user', userId: 'test-user' });
 
-    function provisionRequest(path: string, body: any): VercelRequest {
+    function provisionRequest(path: string, body: any): ApiRequest {
       return createMockRequest('POST', body, { cookie: cookie() }, path);
     }
 

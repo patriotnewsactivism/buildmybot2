@@ -5,6 +5,7 @@ import cookieParser from 'cookie-parser';
 import express from 'express';
 import helmet from 'helmet';
 import { WebSocketServer } from 'ws';
+import { connectCorporatePhone } from './api/phone/corporate-setup.js';
 
 import loginHandler from './api/auth/login.js';
 import logoutHandler from './api/auth/logout.js';
@@ -13,20 +14,23 @@ import userHandler from './api/auth/user.js';
 import cronHandler from './api/cron/[job].js';
 import gatewayHandler from './api/gateway.js';
 import { flushOutcomeOutbox } from './api/lib/outcome-ledger.js';
-import { recordProcessedStripeOutcome } from './api/lib/stripe-outcome.js';
 import {
   corsMiddleware,
   embedFrameMiddleware,
   helmetOptions,
 } from './api/lib/security.js';
+import { recordProcessedStripeOutcome } from './api/lib/stripe-outcome.js';
+import tenantTelnyxWebhookHandler from './api/phone/tenant-telnyx.js';
 import smsWebhookHandler from './api/sms/webhooks.js';
 import stripeWebhookHandler from './api/stripe-webhook.js';
 import liveTokenHandler from './api/voice/live-token.js';
+import { handleTelnyxMediaConnection } from './api/voice/telnyx-live.js';
 import { handleTwilioMediaConnection } from './api/voice/twilio-live.js';
 
 const app = express();
 const server = createServer(app);
 const twilioMediaWss = new WebSocketServer({ noServer: true });
+const telnyxMediaWss = new WebSocketServer({ noServer: true });
 const PORT = process.env.PORT || 8080;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -37,6 +41,13 @@ server.on('upgrade', (request, socket, head) => {
     pathname = new URL(request.url || '/', `http://${host}`).pathname;
   } catch {
     socket.destroy();
+    return;
+  }
+
+  if (pathname === '/api/voice/telnyx-media') {
+    telnyxMediaWss.handleUpgrade(request, socket, head, (webSocket) => {
+      handleTelnyxMediaConnection(webSocket, request);
+    });
     return;
   }
 
@@ -77,7 +88,10 @@ app.post(
     await stripeWebhookHandler(req as any, res as any);
     if (res.statusCode >= 200 && res.statusCode < 300) {
       recordProcessedStripeOutcome(raw).catch((error) =>
-        console.error('[outcome-ledger] verified Stripe event could not be queued', error),
+        console.error(
+          '[outcome-ledger] verified Stripe event could not be queued',
+          error,
+        ),
       );
     }
   },
@@ -88,6 +102,14 @@ app.post(
   express.raw({ type: '*/*', limit: '1mb' }),
   async (req, res) => {
     await smsWebhookHandler(req as any, res as any);
+  },
+);
+
+app.post(
+  '/api/phone/activation/telnyx/webhook',
+  express.raw({ type: '*/*', limit: '1mb' }),
+  async (req, res) => {
+    await tenantTelnyxWebhookHandler(req as any, res as any);
   },
 );
 
@@ -142,6 +164,10 @@ app.all('/api/voice/twilio-media', (_req, res) => {
   res.status(426).json({ error: 'WebSocket upgrade required' });
 });
 
+app.all('/api/voice/telnyx-media', (_req, res) => {
+  res.status(426).json({ error: 'WebSocket upgrade required' });
+});
+
 app.all('/api/{*path}', async (req, res) => {
   await gatewayHandler(req as any, res as any);
 });
@@ -159,6 +185,7 @@ app.get('/{*splat}', (_req, res) => {
 });
 
 server.listen(PORT, () => {
+  void connectCorporatePhone();
   console.log(`BuildMyBot server running on port ${PORT}`);
 });
 

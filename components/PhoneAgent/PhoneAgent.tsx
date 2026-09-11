@@ -19,6 +19,7 @@ import type { User } from '../../types';
 import { KnowledgeBaseManager } from '../BotBuilder/KnowledgeBaseManager';
 import { VoiceCallSimulator } from './VoiceCallSimulator';
 import { VoiceSetupWizard } from './VoiceSetupWizard';
+import { VoiceTeamEditor } from './VoiceTeamEditor';
 import {
   DEFAULT_VOICE_ID,
   VOICE_OPTIONS,
@@ -49,9 +50,6 @@ export const PhoneAgent: React.FC<PhoneAgentProps> = ({ user, onUpdate }) => {
     user?.phoneConfig?.introMessage ||
       'Hi! Thanks for calling. This is your AI assistant. How can I help you today?',
   );
-  const [geminiVoice, setGeminiVoice] = useState(
-    user?.phoneConfig?.geminiVoice || 'Aoede',
-  );
   const [transferNumber, setTransferNumber] = useState(
     user?.phoneConfig?.transferNumber || '',
   );
@@ -65,6 +63,28 @@ export const PhoneAgent: React.FC<PhoneAgentProps> = ({ user, onUpdate }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [isPlayingPreview, setIsPlayingPreview] = useState<string | null>(null);
   const [voiceBotId, setVoiceBotId] = useState<string | null>(null);
+  const [teamBots, setTeamBots] = useState<Array<{ id: string; name: string }>>(
+    [],
+  );
+  const [selectedTeamBotId, setSelectedTeamBotId] = useState<string | null>(
+    null,
+  );
+  useEffect(() => {
+    if (!voiceBotId) return;
+    const controller = new AbortController();
+    fetch(buildApiUrl('/voice/team/bots'), {
+      credentials: 'include',
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) return;
+        const bots = await response.json();
+        if (!controller.signal.aborted && Array.isArray(bots))
+          setTeamBots(bots);
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [voiceBotId]);
   const [recentCalls, setRecentCalls] = useState<CallLogRow[]>([]);
 
   useEffect(() => {
@@ -73,7 +93,6 @@ export const PhoneAgent: React.FC<PhoneAgentProps> = ({ user, onUpdate }) => {
       if (user.phoneConfig.voiceId) setVoice(user.phoneConfig.voiceId);
       if (user.phoneConfig.introMessage)
         setIntroMessage(user.phoneConfig.introMessage);
-      setGeminiVoice(user.phoneConfig.geminiVoice || 'Aoede');
       setTransferNumber(user.phoneConfig.transferNumber || '');
       setHotLeadNumber(user.phoneConfig.hotLeadNumber || '');
       setBookingWebhookUrl(user.phoneConfig.bookingWebhookUrl || '');
@@ -139,7 +158,6 @@ export const PhoneAgent: React.FC<PhoneAgentProps> = ({ user, onUpdate }) => {
             enabled,
             voiceId: voice,
             introMessage,
-            geminiVoice,
             transferNumber: transferNumber.trim() || undefined,
             hotLeadNumber: hotLeadNumber.trim() || undefined,
             bookingWebhookUrl: bookingWebhookUrl.trim() || undefined,
@@ -154,9 +172,9 @@ export const PhoneAgent: React.FC<PhoneAgentProps> = ({ user, onUpdate }) => {
     <div className="max-w-5xl mx-auto animate-fade-in space-y-6 p-4 md:p-6">
       <div className="flex justify-between items-start gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800">AI Voice Agent</h2>
+          <h2 className="text-2xl font-bold text-slate-800">AI Voice Team</h2>
           <p className="text-slate-500">
-            Deploy an AI receptionist with an ultra-realistic voice.
+            Give Reception, Sales, Support, and Management their own voices.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -203,6 +221,30 @@ export const PhoneAgent: React.FC<PhoneAgentProps> = ({ user, onUpdate }) => {
         </div>
       </div>
 
+      {voiceBotId && (
+        <div className="space-y-3">
+          {teamBots.length > 1 && (
+            <label className="block text-sm font-medium text-slate-700">
+              Choose a bot's Voice Team
+              <select
+                className="mt-1 block w-full rounded-lg border border-slate-300 bg-white p-3"
+                value={selectedTeamBotId || voiceBotId}
+                onChange={(event) => setSelectedTeamBotId(event.target.value)}
+              >
+                {teamBots.map((bot) => (
+                  <option key={bot.id} value={bot.id}>
+                    {bot.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <VoiceTeamEditor
+            key={selectedTeamBotId || voiceBotId}
+            botId={selectedTeamBotId || voiceBotId}
+          />
+        </div>
+      )}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Main config */}
         <div className="md:col-span-2 space-y-6">
@@ -211,7 +253,7 @@ export const PhoneAgent: React.FC<PhoneAgentProps> = ({ user, onUpdate }) => {
               <div className="p-2 bg-blue-50 text-blue-900 rounded-lg">
                 <Settings size={18} />
               </div>
-              <h3 className="font-bold text-slate-800">Greeting Message</h3>
+              <h3 className="font-bold text-slate-800">Fallback Greeting</h3>
             </div>
             <label
               htmlFor="voice-intro-message"
@@ -245,23 +287,6 @@ export const PhoneAgent: React.FC<PhoneAgentProps> = ({ user, onUpdate }) => {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <label className="text-sm text-slate-700">
-                <span className="block font-medium mb-1">
-                  Receptionist voice
-                </span>
-                <select
-                  value={geminiVoice}
-                  onChange={(event) => setGeminiVoice(event.target.value)}
-                  className="w-full rounded-lg border border-slate-200 p-2.5 bg-white focus:ring-2 focus:ring-blue-500"
-                >
-                  {['Aoede', 'Puck', 'Charon', 'Kore', 'Fenrir'].map((name) => (
-                    <option key={name} value={name}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
               <label className="text-sm text-slate-700">
                 <span className="flex items-center gap-1 font-medium mb-1">
                   <PhoneForwarded size={14} /> Human handoff number
@@ -313,9 +338,9 @@ export const PhoneAgent: React.FC<PhoneAgentProps> = ({ user, onUpdate }) => {
               <div className="p-2 bg-blue-50 text-blue-900 rounded-lg">
                 <Mic size={18} />
               </div>
-              <h3 className="font-bold text-slate-800">Select Voice</h3>
+              <h3 className="font-bold text-slate-800">Fallback Voice</h3>
               <span className="text-xs text-slate-500 ml-auto">
-                Preview / fallback voice
+                Fallback calls only
               </span>
             </div>
 

@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { ApiRequest, ApiResponse } from '../lib/http-types.js';
 import {
   aiTeamKilled,
   callLLM,
@@ -31,7 +31,7 @@ const ROLE_NAMES: Record<string, string> = {
   'lead-researcher': 'Sarah Collins',
 };
 
-export async function pulseHandler(req: VercelRequest, res: VercelResponse) {
+export async function pulseHandler(req: ApiRequest, res: ApiResponse) {
   if (req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) {
     return res.status(401).end();
   }
