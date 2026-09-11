@@ -46,6 +46,7 @@ import {
   promptInitialGreeting,
   setupGeminiSession,
 } from '../api/voice/telnyx-live';
+import { CORPORATE_TRANSFER_HOLD_MS } from '../api/voice/ringback-tone';
 const context = {
   botId: CORPORATE.botId,
   logId: '42',
@@ -202,12 +203,16 @@ async function route(gemini: any, department: string, id = 'route1') {
               summary: 'Jordan at Acme Plumbing needs after-hours bookings',
               callerName: 'Jordan',
               company: 'Acme Plumbing',
+              reason: 'after-hours bookings',
             },
           },
         ],
       },
     }),
   );
+}
+async function afterTransferHold() {
+  await vi.advanceTimersByTimeAsync(CORPORATE_TRANSFER_HOLD_MS);
 }
 async function ready(gemini: any) {
   await gemini.deliver('open', undefined);
@@ -234,11 +239,17 @@ it('opens a distinct sales session with its own voice and shared context', async
   expect(sales.sent[0].setup.systemInstruction.parts[0].text).toContain(
     'Marcus',
   );
+  // Destination must not greet until transfer hold music finishes.
+  expect(sales.sent.some((m: any) => m.realtimeInput?.text)).toBe(false);
+  expect(gemini.readyState).toBe(3);
+  expect(phone.sent).toContainEqual({ event: 'clear' });
+  await vi.advanceTimersByTimeAsync(40);
+  expect(phone.sent.some((m: any) => m.event === 'media')).toBe(true);
+  await afterTransferHold();
   expect(sales.sent[1].realtimeInput.text).toContain('Jordan');
   expect(sales.sent[1].realtimeInput.text).toContain('Acme Plumbing');
   expect(sales.sent[1].realtimeInput.text).toContain('My name is Jordan.');
-  expect(gemini.readyState).toBe(3);
-  expect(phone.sent).toContainEqual({ event: 'clear' });
+  expect(sales.sent[1].realtimeInput.text).toMatch(/hold/i);
   // Intentionally closed source events cannot finalize or speak over Sales.
   await gemini.deliver('close', undefined);
   await gemini.deliver(
@@ -254,7 +265,6 @@ it('opens a distinct sales session with its own voice and shared context', async
     }),
   );
   await vi.advanceTimersByTimeAsync(40);
-  expect(phone.sent.filter((m: any) => m.event === 'media')).toHaveLength(0);
   expect(sales.readyState).toBe(1);
   await phone.deliver('close', undefined);
 });
@@ -278,6 +288,7 @@ it('changes identity and voice again for Support and Manager', async () => {
       name,
     );
     expect(source.readyState).toBe(3);
+    await afterTransferHold();
     source = destination;
   }
   await phone.deliver('close', undefined);
@@ -360,12 +371,13 @@ it('allows a new session of the same department to reuse a provider tool ID', as
   const {phone,gemini}=await connect();
   await gemini.deliver('message', JSON.stringify({setupComplete:{}}));
   let source=gemini;
-  for (const department of ['sales','receptionist','sales']) {
-    const count=state.sockets.length;
-    await route(source,department,'reused-id');
-    expect(state.sockets).toHaveLength(count+1);
-    source=state.sockets.at(-1);
+  for (const department of ['sales', 'receptionist', 'sales']) {
+    const count = state.sockets.length;
+    await route(source, department, 'reused-id');
+    expect(state.sockets).toHaveLength(count + 1);
+    source = state.sockets.at(-1);
     await ready(source);
+    await afterTransferHold();
   }
   await phone.deliver('close',undefined);
 });
@@ -385,5 +397,59 @@ it('plays corporate ringback then greets after pickup delay', async () => {
       String(m.realtimeInput?.text || '').includes('phone connection is ready'),
     ),
   ).toBe(true);
+  await phone.deliver('close', undefined);
+});
+
+it('uses balanced VAD timing for distant phone pickup', () => {
+  const socket = new Socket('wss://mock') as any;
+  setupGeminiSession(socket, context);
+  const vad =
+    socket.sent[0].setup.realtimeInputConfig.automaticActivityDetection;
+  expect(vad.startOfSpeechSensitivity).toBe('START_SENSITIVITY_HIGH');
+  expect(vad.endOfSpeechSensitivity).toBe('END_SENSITIVITY_LOW');
+  expect(vad.prefixPaddingMs).toBe(140);
+  expect(vad.silenceDurationMs).toBe(600);
+});
+
+it('rejects receptionist handoff without intake fields', async () => {
+  const { phone, gemini } = await connect();
+  await gemini.deliver('message', JSON.stringify({ setupComplete: {} }));
+  await gemini.deliver(
+    'message',
+    JSON.stringify({
+      toolCall: {
+        functionCalls: [
+          {
+            id: 'no-intake',
+            name: 'route_department',
+            args: {
+              department: 'sales',
+              summary: 'Caller wants pricing',
+            },
+          },
+        ],
+      },
+    }),
+  );
+  expect(state.sockets).toHaveLength(2);
+  const response = gemini.sent.find((m: any) => m.toolResponse)?.toolResponse
+    .functionResponses[0].response;
+  expect(response.success).toBe(false);
+  expect(String(response.reason)).toMatch(/Intake incomplete/i);
+  await phone.deliver('close', undefined);
+});
+
+it('plays hold music on department handoff before destination greets', async () => {
+  const { phone, gemini } = await connect();
+  await gemini.deliver('message', JSON.stringify({ setupComplete: {} }));
+  await route(gemini, 'sales');
+  const sales = state.sockets[2];
+  await ready(sales);
+  expect(sales.sent.some((m: any) => m.realtimeInput?.text)).toBe(false);
+  await vi.advanceTimersByTimeAsync(40);
+  const mediaBefore = phone.sent.filter((m: any) => m.event === 'media').length;
+  expect(mediaBefore).toBeGreaterThan(0);
+  await afterTransferHold();
+  expect(sales.sent.some((m: any) => m.realtimeInput?.text)).toBe(true);
   await phone.deliver('close', undefined);
 });
