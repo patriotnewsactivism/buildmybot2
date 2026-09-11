@@ -9,16 +9,15 @@
 import type { IncomingMessage } from 'node:http';
 import WebSocket from 'ws';
 import { validTelnyxClientState } from '../phone/tenant-telnyx-token.js';
-import { MAX_OUTBOUND_PENDING_BYTES } from './ringback-tone.js';
 import {
+  type DeepgramToolContext,
   executeServerTool,
   getToolDeclarationsForDeepgram,
-  type DeepgramToolContext,
 } from './deepgram-tools.js';
 import { MediaDiagnostics } from './media-diagnostics.js';
+import { MAX_OUTBOUND_PENDING_BYTES } from './ringback-tone.js';
 
-export const DEEPGRAM_AGENT_URL =
-  'wss://agent.deepgram.com/v1/agent/converse';
+export const DEEPGRAM_AGENT_URL = 'wss://agent.deepgram.com/v1/agent/converse';
 
 const MAX_PENDING_INBOUND_BYTES = 64_000;
 const PCMU_FRAME_BYTES = 160;
@@ -81,16 +80,10 @@ export function rawDataToBuffer(data: WebSocket.RawData): Buffer {
   return Buffer.from(data);
 }
 
-export function parseJsonArguments(
-  value?: string,
-): Record<string, unknown> {
+export function parseJsonArguments(value?: string): Record<string, unknown> {
   if (!value) return {};
   const parsed: unknown = JSON.parse(value);
-  if (
-    typeof parsed !== 'object' ||
-    parsed === null ||
-    Array.isArray(parsed)
-  ) {
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
     throw new Error('Function arguments must be a JSON object.');
   }
   return parsed as Record<string, unknown>;
@@ -192,10 +185,7 @@ export class DeepgramVoiceSession {
   private startDiagnosticsLogging(): void {
     this.diagnosticsTimer = setInterval(() => {
       if (this.cleaningUp) return;
-      this.diagnostics.log(
-        '[Deepgram Agent]',
-        this.callControlId || 'pending',
-      );
+      this.diagnostics.log('[Deepgram Agent]', this.callControlId || 'pending');
     }, DIAGNOSTICS_LOG_MS);
   }
 
@@ -215,9 +205,7 @@ export class DeepgramVoiceSession {
         this.enqueueOutboundAudio(rawDataToBuffer(data));
         return;
       }
-      this.handleDeepgramControlMessage(
-        rawDataToBuffer(data).toString('utf8'),
-      );
+      this.handleDeepgramControlMessage(rawDataToBuffer(data).toString('utf8'));
     });
 
     socket.on('error', (error) => {
@@ -226,9 +214,7 @@ export class DeepgramVoiceSession {
     });
 
     socket.on('close', (code, reason) => {
-      console.info(
-        `[Deepgram Agent] Closed: ${code} ${reason.toString()}`,
-      );
+      console.info(`[Deepgram Agent] Closed: ${code} ${reason.toString()}`);
       this.cleanup();
     });
   }
@@ -341,49 +327,42 @@ export class DeepgramVoiceSession {
   }
 
   private setupTelnyx(): void {
-    this.telnyxWs.on(
-      'message',
-      (raw: WebSocket.RawData, isBinary: boolean) => {
-        if (isBinary) {
-          console.warn(
-            '[Telnyx Media] Unexpected binary WebSocket frame.',
-          );
-          return;
-        }
+    this.telnyxWs.on('message', (raw: WebSocket.RawData, isBinary: boolean) => {
+      if (isBinary) {
+        console.warn('[Telnyx Media] Unexpected binary WebSocket frame.');
+        return;
+      }
 
-        let message:
+      let message:
+        | TelnyxMediaMessage
+        | TelnyxStartMessage
+        | Record<string, unknown>;
+      try {
+        message = JSON.parse(rawDataToBuffer(raw).toString('utf8')) as
           | TelnyxMediaMessage
           | TelnyxStartMessage
           | Record<string, unknown>;
-        try {
-          message = JSON.parse(
-            rawDataToBuffer(raw).toString('utf8'),
-          ) as
-            | TelnyxMediaMessage
-            | TelnyxStartMessage
-            | Record<string, unknown>;
-        } catch (error) {
-          console.error('[Telnyx Media] Invalid JSON frame:', error);
-          return;
-        }
+      } catch (error) {
+        console.error('[Telnyx Media] Invalid JSON frame:', error);
+        return;
+      }
 
-        if (message.event === 'start') {
-          this.handleTelnyxStart(message as TelnyxStartMessage);
-          return;
-        }
-        if (message.event === 'media') {
-          this.handleTelnyxMedia(message as TelnyxMediaMessage);
-          return;
-        }
-        if (message.event === 'stop') {
-          this.cleanup();
-          return;
-        }
-        if (message.event === 'error') {
-          console.error('[Telnyx Media] Stream error:', message);
-        }
-      },
-    );
+      if (message.event === 'start') {
+        this.handleTelnyxStart(message as TelnyxStartMessage);
+        return;
+      }
+      if (message.event === 'media') {
+        this.handleTelnyxMedia(message as TelnyxMediaMessage);
+        return;
+      }
+      if (message.event === 'stop') {
+        this.cleanup();
+        return;
+      }
+      if (message.event === 'error') {
+        console.error('[Telnyx Media] Stream error:', message);
+      }
+    });
 
     this.telnyxWs.on('error', (error) => {
       console.error('[Telnyx Media] WebSocket error:', error);
@@ -512,10 +491,7 @@ export class DeepgramVoiceSession {
   }
 
   private sendAudioToDeepgram(audio: Buffer): void {
-    if (
-      !this.deepgramReady ||
-      this.dgWs?.readyState !== WebSocket.OPEN
-    ) {
+    if (!this.deepgramReady || this.dgWs?.readyState !== WebSocket.OPEN) {
       return;
     }
     this.dgWs.send(audio);
@@ -524,8 +500,7 @@ export class DeepgramVoiceSession {
   private enqueueOutboundAudio(audio: Buffer): void {
     this.pendingOutbound = Buffer.concat([this.pendingOutbound, audio]);
     if (this.pendingOutbound.length > MAX_OUTBOUND_PENDING_BYTES) {
-      const overflow =
-        this.pendingOutbound.length - MAX_OUTBOUND_PENDING_BYTES;
+      const overflow = this.pendingOutbound.length - MAX_OUTBOUND_PENDING_BYTES;
       this.pendingOutbound = this.pendingOutbound.subarray(overflow);
       this.diagnostics.droppedOutboundBytes += overflow;
     }
@@ -632,10 +607,7 @@ export class DeepgramVoiceSession {
     this.cleaningUp = true;
     this.deepgramReady = false;
 
-    this.diagnostics.log(
-      '[Deepgram Agent]',
-      this.callControlId || 'pending',
-    );
+    this.diagnostics.log('[Deepgram Agent]', this.callControlId || 'pending');
 
     if (this.pacingTimer) clearInterval(this.pacingTimer);
     if (this.keepaliveTimer) clearInterval(this.keepaliveTimer);

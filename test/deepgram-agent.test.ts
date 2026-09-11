@@ -61,6 +61,8 @@ vi.mock('../api/lib/telephony-provider.js', () => ({
 }));
 
 import Socket from 'ws';
+import { sendSms, transferCall } from '../api/lib/telephony-provider.js';
+import { createTelnyxStreamToken } from '../api/phone/tenant-telnyx-token';
 import {
   DeepgramVoiceSession,
   isDeepgramVoiceEnabled,
@@ -68,8 +70,6 @@ import {
 } from '../api/voice/deepgram-agent';
 import { executeServerTool } from '../api/voice/deepgram-tools';
 import { MediaDiagnostics } from '../api/voice/media-diagnostics';
-import { sendSms, transferCall } from '../api/lib/telephony-provider.js';
-import { createTelnyxStreamToken } from '../api/phone/tenant-telnyx-token';
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -90,7 +90,7 @@ it('enables Deepgram only when VOICE_ENGINE=deepgram and key is set', () => {
   process.env.VOICE_ENGINE = 'gemini';
   expect(isDeepgramVoiceEnabled()).toBe(false);
   process.env.VOICE_ENGINE = 'deepgram';
-  delete process.env.DEEPGRAM_API_KEY;
+  process.env.DEEPGRAM_API_KEY = '';
   expect(isDeepgramVoiceEnabled()).toBe(false);
 });
 
@@ -177,8 +177,9 @@ it('bridges Telnyx start/media through Welcome→Settings→SettingsApplied', as
   expect(settings).toBeTruthy();
   expect(settings.audio.input.encoding).toBe('mulaw');
   expect(settings.audio.input.sample_rate).toBe(8000);
-  expect(settings.agent.think.functions.some((f: any) => f.defer_until_eot))
-    .toBe(true);
+  expect(
+    settings.agent.think.functions.some((f: any) => f.defer_until_eot),
+  ).toBe(true);
 
   await deepgram.deliver(
     'message',
@@ -235,9 +236,7 @@ it('clears Telnyx playback on barge-in and ignores text frames as audio', async 
   const beforeOut = telnyx.sent.length;
   await deepgram.deliver(
     'message',
-    Buffer.from(
-      JSON.stringify({ type: 'UserStartedSpeaking', timestamp: 1 }),
-    ),
+    Buffer.from(JSON.stringify({ type: 'UserStartedSpeaking', timestamp: 1 })),
     false,
   );
   expect(telnyx.sent.some((m: any) => m?.event === 'clear')).toBe(true);

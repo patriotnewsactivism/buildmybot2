@@ -23,11 +23,11 @@ import { recordProcessedStripeOutcome } from './api/lib/stripe-outcome.js';
 import tenantTelnyxWebhookHandler from './api/phone/tenant-telnyx.js';
 import smsWebhookHandler from './api/sms/webhooks.js';
 import stripeWebhookHandler from './api/stripe-webhook.js';
-import liveTokenHandler from './api/voice/live-token.js';
 import {
   handleDeepgramTelnyxMediaConnection,
   isDeepgramVoiceEnabled,
 } from './api/voice/deepgram-agent.js';
+import liveTokenHandler from './api/voice/live-token.js';
 import { handleTelnyxMediaConnection } from './api/voice/telnyx-live.js';
 import { handleTwilioMediaConnection } from './api/voice/twilio-live.js';
 
