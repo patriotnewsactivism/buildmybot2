@@ -83,7 +83,7 @@ describe('workspace incentive playbook', () => {
         reason: 'Trying to exceed free-month ceiling',
         config,
       }),
-    ).toThrow(/exceeds the authorized workspace\/offer ceiling/i);
+    ).toThrow(/exceed the authorized workspace\/offer ceiling/i);
   });
 
   it('returns offer code and customer-safe terms under cap', () => {
