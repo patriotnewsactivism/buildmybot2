@@ -12,11 +12,24 @@ The media endpoint is `/api/voice/telnyx-media`. Telnyx webhook signatures and s
 
 Gemini Live handles realtime audio. The bridge must buffer early caller audio until setup completes, exclude outbound echo, support barge-in/interruption, and clear stale playback when the caller interrupts. Telephone audio quality is constrained by the PSTN codec and may sound narrower than a browser demo.
 
+### Pickup realism and media stability
+
+Corporate inbound calls play an in-process North American ringback tone for about **7 seconds** before the receptionist greets, so the line feels like a live front-desk pickup after hold. Ringback is generated as PCMU in `api/voice/ringback-tone.ts` and paced over the existing Telnyx media WebSocket (no hosted audio asset or Telnyx playback credential changes required).
+
+Media-path hardening in `api/voice/telnyx-live.ts` (in-repo only):
+
+- WebSocket keepalive pings on the Telnyx media socket and Gemini Live socket
+- Outbound PCMU backlog cap to limit latency after Gemini bursts
+- Slightly longer VAD silence/prefix padding to reduce choppy cutouts
+- One mid-call Gemini reconnect attempt before spoken fallback
+
+No carrier account or production DB migration changes are required for this behavior. Ensure `GEMINI_API_KEY` remains set on the corporate Railway service.
+
 ## Distinct AI departments
 
 The corporate phone follows the same production voice-team contract as customer phone agents.
 
-Receptionist, Sales, Support, and Manager are **four distinct AI agents**. Routing is not implemented by changing the prompt on one persistent audible persona.
+Receptionist, Sales, Support, and Manager are **four distinct staff personas** (never disclose that they are AI on the call). Routing is not implemented by changing the prompt on one persistent audible persona.
 
 A successful handoff must:
 

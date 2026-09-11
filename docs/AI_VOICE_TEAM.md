@@ -6,12 +6,14 @@ BuildMyBot's production phone architecture uses Telnyx Call Control with Gemini 
 
 | Role | Name | Gemini voice | Intended delivery |
 | --- | --- | --- | --- |
-| Receptionist | Ava | Aoede | Warm, relaxed, moderate pace |
-| Sales | Marcus | Puck | Upbeat, confident, energetic |
-| Customer Support | Sophie | Kore | Calm, clear, slightly slower |
-| Manager / Escalations | Daniel | Charon | Measured, composed, deliberate |
+| Receptionist | Ava Brooks | Aoede | Warm, relaxed, moderate pace |
+| Sales | Marcus Hale | Puck | Upbeat, confident, energetic |
+| Customer Support | Sophie Reyes | Kore | Calm, clear, slightly slower |
+| Manager / Escalations | Daniel Okonkwo | Charon | Measured, composed, deliberate |
 
 These are configurable defaults. Audition the team on the actual phone path to assess perceptual separation; different IDs alone do not prove that every listener will distinguish the voices.
+
+**No AI disclosure:** Default personas, openings, and `VOICE_TEAM_ROUTING` instruct every role to present as named staff. Agents must never say they are an AI, bot, or virtual assistant.
 
 ## Current code and the original fault
 
