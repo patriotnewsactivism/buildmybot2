@@ -20,8 +20,12 @@ Media-path hardening in `api/voice/telnyx-live.ts` (in-repo only):
 
 - WebSocket keepalive pings on the Telnyx media socket and Gemini Live socket
 - Outbound PCMU backlog cap to limit latency after Gemini bursts
-- Slightly longer VAD silence/prefix padding to reduce choppy cutouts
+- Balanced VAD (140ms prefix / 600ms silence) plus modest inbound PCM gain for distant handsets
 - One mid-call Gemini reconnect attempt before spoken fallback
+
+### Department transfer realism
+
+After the receptionist completes intake (name, contact, interest) and verbally acknowledges hold, mid-call `route_department` handoffs play ~5s of continuous soft hold music (`generateHoldMusicMuLaw`) before the destination agent greets with shared caller context. Destination audio is suppressed until that hold finishes so the new agent does not talk over the tone.
 
 No carrier account or production DB migration changes are required for this behavior. Ensure `GEMINI_API_KEY` remains set on the corporate Railway service.
 
