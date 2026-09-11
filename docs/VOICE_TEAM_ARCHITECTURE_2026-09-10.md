@@ -2,7 +2,7 @@
 
 Status: production baseline as of 2026-09-10.
 
-BuildMyBot models Receptionist, Sales, Support, and Manager as four distinct realtime voice agents. They are not one assistant changing prompts.
+BuildMyBot models Receptionist, Sales, Support, Manager, Recruiting, and Partner as distinct realtime voice agents. They are not one assistant changing prompts.
 
 ## Non-negotiable identity boundary
 
@@ -14,7 +14,7 @@ Every AI-to-AI handoff must change all of the following together:
 - speaking style and behavioral policy;
 - opening/transfer acknowledgement behavior.
 
-Conversation context may follow the caller, but the receiving agent must establish a new audible identity. Reusing the receptionist voice for Sales, Support, or Manager is a production regression.
+Conversation context may follow the caller, but the receiving agent must establish a new audible identity. Reusing a single voice across different departments is a production regression.
 
 ## Call topology
 
@@ -22,10 +22,12 @@ Conversation context may follow the caller, but the receiving agent must establi
 Inbound call
     |
     v
-Receptionist (Voice A / front-desk persona)
-    |-- sales intent ------> Sales (Voice B / sales persona)
-    |-- support intent ----> Support (Voice C / support persona)
-    `-- escalation --------> Manager (Voice D / manager persona)
+Receptionist (Avery / Aoede / front-desk persona)
+    |-- sales intent --------------> Sales (Marcus Hale / Puck / sales persona)
+    |-- support intent ------------> Support (Sophie Reyes / Kore / support persona)
+    |-- sales careers/recruiting --> Recruiting (Jordan Reed / Zephyr / sales agent division)
+    |-- partner/white-label -------> Partner (Julian Vance / Orus / $499 partner program)
+    `-- escalation ----------------> Manager (Daniel Okonkwo / Charon / manager persona)
 ```
 
 The context envelope should preserve caller identity, authenticated tenant, conversation/call ID, concise transcript/history, facts already collected, current intent, tool results, promises/commitments, safety/compliance flags, and transfer reason. It must not preserve the outgoing agent's voice/persona as authoritative state.
@@ -61,7 +63,7 @@ A handoff should be an explicit state transition, not a prompt mutation.
 
 A release passes voice-team acceptance only when:
 
-- callers can clearly distinguish Receptionist, Sales, Support, and Manager by sound;
+- callers can clearly distinguish each department (Receptionist, Sales, Support, Manager, Recruiting, Partner) by sound;
 - each agent exhibits role-specific behavior instead of merely a renamed prompt;
 - context survives transfer without persona leakage;
 - the receiving agent does not replay the full conversation or ask for facts already captured;

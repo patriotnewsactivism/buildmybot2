@@ -46,12 +46,15 @@ const VOICES: Record<VoiceDepartment, string> = {
   sales: 'cedar',
   support: 'coral',
   manager: 'sage',
+  recruiting: 'ballad',
+  partner: 'ash',
 };
 
 function parseSocketMessage(data: RawData): JsonObject | null {
   try {
     if (typeof data === 'string') return JSON.parse(data) as JsonObject;
-    if (Buffer.isBuffer(data)) return JSON.parse(data.toString('utf8')) as JsonObject;
+    if (Buffer.isBuffer(data))
+      return JSON.parse(data.toString('utf8')) as JsonObject;
     if (Array.isArray(data))
       return JSON.parse(Buffer.concat(data).toString('utf8')) as JsonObject;
     return JSON.parse(Buffer.from(data).toString('utf8')) as JsonObject;
@@ -61,7 +64,8 @@ function parseSocketMessage(data: RawData): JsonObject | null {
 }
 
 function sendJson(socket: WebSocket, payload: unknown) {
-  if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(payload));
+  if (socket.readyState === WebSocket.OPEN)
+    socket.send(JSON.stringify(payload));
 }
 
 function normalizeSchema(value: unknown): unknown {
@@ -79,7 +83,9 @@ function normalizeSchema(value: unknown): unknown {
   return output;
 }
 
-export function openAIToolsFromGeminiTools(geminiTools: unknown): OpenAIRealtimeTool[] {
+export function openAIToolsFromGeminiTools(
+  geminiTools: unknown,
+): OpenAIRealtimeTool[] {
   if (!Array.isArray(geminiTools)) return [];
   const declarations: JsonObject[] = [];
   for (const bundle of geminiTools) {
@@ -87,7 +93,8 @@ export function openAIToolsFromGeminiTools(geminiTools: unknown): OpenAIRealtime
     const functions = (bundle as JsonObject).functionDeclarations;
     if (!Array.isArray(functions)) continue;
     for (const declaration of functions) {
-      if (declaration && typeof declaration === 'object') declarations.push(declaration as JsonObject);
+      if (declaration && typeof declaration === 'object')
+        declarations.push(declaration as JsonObject);
     }
   }
   return declarations
@@ -105,14 +112,23 @@ export function openAIToolsFromGeminiTools(geminiTools: unknown): OpenAIRealtime
     }));
 }
 
-function reasoningEffort(department: VoiceDepartment): 'minimal' | 'low' | 'medium' {
-  if (department === 'manager') return 'medium';
-  if (department === 'sales' || department === 'support') return 'low';
+function reasoningEffort(
+  department: VoiceDepartment,
+): 'minimal' | 'low' | 'medium' {
+  if (department === 'manager' || department === 'partner') return 'medium';
+  if (
+    department === 'sales' ||
+    department === 'support' ||
+    department === 'recruiting'
+  ) {
+    return 'low';
+  }
   return 'minimal';
 }
 
 function parseToolArguments(value: unknown): Record<string, unknown> {
-  if (value && typeof value === 'object') return value as Record<string, unknown>;
+  if (value && typeof value === 'object')
+    return value as Record<string, unknown>;
   if (typeof value !== 'string' || !value.trim()) return {};
   try {
     const parsed = JSON.parse(value) as unknown;
@@ -133,9 +149,12 @@ export function createOpenAIRealtimeConnection(options: {
   callbacks: OpenAIRealtimeCallbacks;
 }): OpenAIRealtimeConnection {
   const model = options.model?.trim() || DEFAULT_OPENAI_REALTIME_MODEL;
-  const socket = new WebSocket(`${OPENAI_REALTIME_URL}?model=${encodeURIComponent(model)}`, {
-    headers: { Authorization: `Bearer ${options.apiKey}` },
-  });
+  const socket = new WebSocket(
+    `${OPENAI_REALTIME_URL}?model=${encodeURIComponent(model)}`,
+    {
+      headers: { Authorization: `Bearer ${options.apiKey}` },
+    },
+  );
   let ready = false;
   let closing = false;
   const handledFunctionCalls = new Set<string>();
@@ -182,7 +201,10 @@ export function createOpenAIRealtimeConnection(options: {
       options.callbacks.onReady();
       return;
     }
-    if (type === 'response.output_audio.delta' && typeof event.delta === 'string') {
+    if (
+      type === 'response.output_audio.delta' &&
+      typeof event.delta === 'string'
+    ) {
       options.callbacks.onAudio(event.delta);
       return;
     }
@@ -223,7 +245,10 @@ export function createOpenAIRealtimeConnection(options: {
       return;
     }
     if (type === 'response.output_item.done') {
-      const item = event.item && typeof event.item === 'object' ? (event.item as JsonObject) : null;
+      const item =
+        event.item && typeof event.item === 'object'
+          ? (event.item as JsonObject)
+          : null;
       if (!item || item.type !== 'function_call') return;
       const id = String(item.call_id || item.id || '');
       const name = String(item.name || '');
@@ -237,22 +262,39 @@ export function createOpenAIRealtimeConnection(options: {
       return;
     }
     if (type === 'error') {
-      const error = event.error && typeof event.error === 'object' ? (event.error as JsonObject) : {};
+      const error =
+        event.error && typeof event.error === 'object'
+          ? (event.error as JsonObject)
+          : {};
       options.callbacks.onError(
-        typeof error.message === 'string' ? error.message : 'OpenAI Realtime returned an error',
+        typeof error.message === 'string'
+          ? error.message
+          : 'OpenAI Realtime returned an error',
       );
       return;
     }
     if (type === 'response.done') {
-      const response = event.response && typeof event.response === 'object' ? (event.response as JsonObject) : {};
-      if (response.status && response.status !== 'completed' && response.status !== 'cancelled') {
-        options.callbacks.onError(`OpenAI Realtime response ended with status ${String(response.status)}`);
+      const response =
+        event.response && typeof event.response === 'object'
+          ? (event.response as JsonObject)
+          : {};
+      if (
+        response.status &&
+        response.status !== 'completed' &&
+        response.status !== 'cancelled'
+      ) {
+        options.callbacks.onError(
+          `OpenAI Realtime response ended with status ${String(response.status)}`,
+        );
       }
     }
   });
 
   socket.on('error', (error) => {
-    if (!closing) options.callbacks.onError(error.message || 'OpenAI Realtime connection failed');
+    if (!closing)
+      options.callbacks.onError(
+        error.message || 'OpenAI Realtime connection failed',
+      );
   });
   socket.on('close', () => {
     if (!closing) options.callbacks.onClose();
@@ -287,7 +329,8 @@ export function createOpenAIRealtimeConnection(options: {
     close() {
       closing = true;
       if (socket.readyState === WebSocket.CONNECTING) socket.terminate();
-      else if (socket.readyState === WebSocket.OPEN) socket.close(1000, 'Fallback session finished');
+      else if (socket.readyState === WebSocket.OPEN)
+        socket.close(1000, 'Fallback session finished');
     },
   };
 }

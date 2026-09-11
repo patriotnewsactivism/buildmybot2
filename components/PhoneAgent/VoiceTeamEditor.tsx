@@ -8,6 +8,7 @@ import {
   type VoiceDepartment,
   type VoiceTeam,
   type VoiceTeamAgent,
+  createDefaultVoiceTeam,
   voiceTeamSchema,
 } from '../../shared/voice-team';
 
@@ -44,7 +45,15 @@ export function VoiceTeamEditor({ botId }: { botId: string }) {
         if (!response.ok)
           throw new Error(data.error || 'Could not load your Voice Team.');
         if (!controller.signal.aborted) {
-          setTeam(voiceTeamSchema.parse(data.config));
+          const defaultTeam = createDefaultVoiceTeam();
+          setTeam(
+            voiceTeamSchema.parse({
+              ...defaultTeam,
+              ...(typeof data.config === 'object' && data.config !== null
+                ? data.config
+                : {}),
+            }),
+          );
           setRevision(data.revision);
         }
       })
@@ -167,7 +176,7 @@ export function VoiceTeamEditor({ botId }: { botId: string }) {
         <div>
           <h3 className="text-xl font-bold text-slate-900">AI Voice Team</h3>
           <p className="text-sm text-slate-600 mt-1">
-            Four distinct agents. One shared conversation and business knowledge
+            Six distinct agents. One shared conversation and business knowledge
             base.
           </p>
           <p className="text-sm text-slate-600 mt-1">

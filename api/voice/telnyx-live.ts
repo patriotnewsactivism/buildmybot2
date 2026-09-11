@@ -8,6 +8,7 @@ import {
   retentionAuditSnapshot,
 } from '../../shared/voice-commercial-policy.js';
 import {
+  DEPARTMENT_IDS,
   GEMINI_LIVE_MODEL,
   NO_AI_DISCLOSURE_RULE,
   type SharedCallContext,
@@ -415,6 +416,10 @@ function departmentOperatingRules(context: SessionContext): string {
       return 'Resolve the operational, account, configuration or product issue first. Identify churn or cancellation risk without immediately offering a commercial concession. Escalate unresolved service issues or retention risk to manager with what has already been tried.';
     case 'manager':
       return 'Operate in this order: UNDERSTAND, ISOLATE, RESOLVE, VALUE, CONFIRM, INCENTIVIZE, CLOSE, ESCALATE. Never begin by discounting. Use grant_incentive only after an objection tag is set and a value-pitch attempt has been made; the server returns a pre-approved offer code under workspace caps. Corporate retention may still use request_retention_offer when available. Do not state or infer internal discount limits, remaining authority, ladders or floors. Before a stronger concession, establish whether resolving price allows the customer to proceed. Use escalate_to_owner only when owner-level judgment is genuinely required or the caller insists after reasonable resolution efforts.';
+    case 'recruiting':
+      return 'Discuss the independent sales agent career opportunity, recurring commission structure (20% to 50%), progression to partner, flexible schedule, and turnkey demo bot tools. Qualify their sales experience and motivation. Direct candidates to apply at buildmybot.app/reseller or request an onboarding interview.';
+    case 'partner':
+      return 'Explain the $499/mo Partner Program, white-label branding options (custom logo, domain), building a national sales force with unlimited sub-accounts, and the math: closing just 1-2 bot sales per month covers the $499/mo cost without needing an in-house sales team. Guide qualified prospects to sign up at buildmybot.app/partners.';
   }
 }
 
@@ -436,7 +441,7 @@ function buildSystemInstruction(context: SessionContext): string {
   return [
     `Shared business background for ${context.botName}:\n${context.systemPrompt}`,
     VOICE_TEAM_ROUTING,
-    `Active agent identity: ${agentIdentity(context.botId, department)}. You are ${agent.name}, ${department === 'receptionist' ? 'front-desk receptionist' : department === 'sales' ? 'sales specialist' : department === 'support' ? 'customer support specialist' : 'customer experience manager'} on this phone team.`,
+    `Active agent identity: ${agentIdentity(context.botId, department)}. You are ${agent.name}, ${department === 'receptionist' ? 'front-desk receptionist' : department === 'sales' ? 'sales specialist' : department === 'support' ? 'customer support specialist' : department === 'manager' ? 'customer experience manager' : department === 'recruiting' ? 'sales recruiting advisor' : 'partnership program director'} on this phone team.`,
     NO_AI_DISCLOSURE_RULE,
     agent.persona,
     `Speaking style: ${agent.speakingStyle}`,
@@ -480,7 +485,7 @@ function buildTools(context: SessionContext) {
         properties: {
           department: {
             type: 'STRING',
-            enum: ['receptionist', 'sales', 'support', 'manager'].filter(
+            enum: DEPARTMENT_IDS.filter(
               (d) => d !== (context.department || 'receptionist'),
             ),
           },
@@ -1059,8 +1064,14 @@ async function executeFunction(
 function thinkingLevelForDepartment(
   department: VoiceDepartment | undefined,
 ): 'minimal' | 'low' | 'medium' {
-  if (department === 'manager') return 'medium';
-  if (department === 'sales' || department === 'support') return 'low';
+  if (department === 'manager' || department === 'partner') return 'medium';
+  if (
+    department === 'sales' ||
+    department === 'support' ||
+    department === 'recruiting'
+  ) {
+    return 'low';
+  }
   return 'minimal';
 }
 

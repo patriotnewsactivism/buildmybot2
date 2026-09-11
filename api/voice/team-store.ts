@@ -67,8 +67,13 @@ export async function loadVoiceTeam(
     `voice_teams?${params}`,
   )) as VoiceTeamRecord[];
   if (!rows.length) return { config: createDefaultVoiceTeam(), revision: 0 };
+  const rawConfig = rows[0].config;
+  const merged = {
+    ...createDefaultVoiceTeam(),
+    ...(typeof rawConfig === 'object' && rawConfig !== null ? rawConfig : {}),
+  };
   return {
-    config: voiceTeamSchema.parse(rows[0].config),
+    config: voiceTeamSchema.parse(merged),
     revision: rows[0].revision,
   };
 }

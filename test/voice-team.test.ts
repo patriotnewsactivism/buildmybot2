@@ -6,7 +6,7 @@ import {
   voiceTeamSchema,
 } from '../shared/voice-team';
 describe('Voice Team constraints', () => {
-  it('requires four distinct names, roles and provider-supported voices', () => {
+  it('requires six distinct names, roles and provider-supported voices', () => {
     const team = createDefaultVoiceTeam();
     expect(voiceTeamSchema.safeParse(team).success).toBe(true);
     team.sales.voice.voiceId = team.receptionist.voice.voiceId;
@@ -17,11 +17,31 @@ describe('Voice Team constraints', () => {
     team.sales.voice.voiceId = 'Puck';
     team.sales.name = 'Avery';
     expect(voiceTeamSchema.safeParse(team).success).toBe(false);
+
+    // Check distinct voices across all six default agents
+    const voiceIds = Object.values(createDefaultVoiceTeam()).map(
+      (a) => a.voice.voiceId,
+    );
+    expect(new Set(voiceIds).size).toBe(6);
+    expect(voiceIds).toEqual([
+      'Aoede',
+      'Puck',
+      'Kore',
+      'Charon',
+      'Zephyr',
+      'Orus',
+    ]);
   });
   it('rejects invalid providers, missing roles and role impersonation', () => {
     const team = createDefaultVoiceTeam();
     expect(
       voiceTeamSchema.safeParse({ ...team, manager: undefined }).success,
+    ).toBe(false);
+    expect(
+      voiceTeamSchema.safeParse({ ...team, recruiting: undefined }).success,
+    ).toBe(false);
+    expect(
+      voiceTeamSchema.safeParse({ ...team, partner: undefined }).success,
     ).toBe(false);
     expect(
       voiceTeamSchema.safeParse({
@@ -32,12 +52,27 @@ describe('Voice Team constraints', () => {
     expect(
       voiceTeamSchema.safeParse({
         ...team,
+        recruiting: { ...team.recruiting, department: 'partner' },
+      }).success,
+    ).toBe(false);
+    expect(
+      voiceTeamSchema.safeParse({
+        ...team,
         sales: { ...team.sales, voice: { provider: 'vapi', voiceId: 'Puck' } },
       }).success,
     ).toBe(false);
   });
-  it('keeps legacy admin routing compatible with Manager', () => {
+  it('keeps legacy admin routing and routes career and partner aliases', () => {
     expect(destinationDepartment('admin')).toBe('manager');
+    expect(destinationDepartment('careers')).toBe('recruiting');
+    expect(destinationDepartment('hr')).toBe('recruiting');
+    expect(destinationDepartment('recruitment')).toBe('recruiting');
+    expect(destinationDepartment('sales_recruiting')).toBe('recruiting');
+    expect(destinationDepartment('recruiting')).toBe('recruiting');
+    expect(destinationDepartment('partner')).toBe('partner');
+    expect(destinationDepartment('partnerships')).toBe('partner');
+    expect(destinationDepartment('white_label')).toBe('partner');
+    expect(destinationDepartment('reseller')).toBe('partner');
     expect(destinationDepartment('unknown')).toBeNull();
   });
   it('bounds shared context and preserves the most recent conversation', () => {
@@ -78,6 +113,20 @@ describe('Voice Team constraints', () => {
     expect(team.sales.name).toMatch(/Marcus/);
     expect(team.support.name).toMatch(/Sophie/);
     expect(team.manager.name).toMatch(/Daniel/);
+    expect(team.recruiting.name).toMatch(/Jordan/);
+    expect(team.partner.name).toMatch(/Julian/);
+
+    // Verify recruiting talking points
+    expect(team.recruiting.persona).toContain('recurring commissions');
+    expect(team.recruiting.persona).toContain('20%');
+    expect(team.recruiting.persona).toContain('50%');
+    expect(team.recruiting.persona).toContain('Partner');
+
+    // Verify partner talking points
+    expect(team.partner.persona).toContain('$499/month');
+    expect(team.partner.persona).toContain('white-label');
+    expect(team.partner.persona).toContain('national sales force');
+    expect(team.partner.persona).toContain('1 or 2 bot sales');
   });
   it('generates dynamic time-of-day greetings for Avery in receptionist role', async () => {
     const { getTimeOfDayGreeting, getReceptionistGreeting } = await import(
