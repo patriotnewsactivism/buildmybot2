@@ -10,8 +10,13 @@ import {
 } from 'lucide-react';
 import type React from 'react';
 import { useEffect, useState } from 'react';
-import { SMS_MARKETING_PRICING } from '../../constants';
+import {
+  SMS_MARKETING_PRICING,
+  SMS_MARKETING_REGISTRATION_FEE,
+} from '../../constants';
 import { buildApiUrl } from '../../services/apiConfig';
+import { SmsAccountSettings } from './SmsAccountSettings';
+import { SmsProgramsPanel } from './SmsProgramsPanel';
 
 /**
  * Guided SMS (10DLC) setup + live provisioning status.
@@ -47,6 +52,13 @@ import { buildApiUrl } from '../../services/apiConfig';
 
 type WizardStep = 1 | 2 | 3 | 4 | 5;
 const TOTAL_STEPS = 5;
+
+type DashTab =
+  | 'programs'
+  | 'inbox'
+  | 'contacts'
+  | 'appointments'
+  | 'settings';
 
 /** Mirrors the `registration` zod schema in api/sms/register.ts exactly. */
 interface FormState {
@@ -228,6 +240,7 @@ export const SmsMarketing: React.FC = () => {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [tab, setTab] = useState<DashTab>('programs');
 
   const loadStatus = async () => {
     setLoadingStatus(true);
@@ -327,7 +340,7 @@ export const SmsMarketing: React.FC = () => {
   const registered = status?.registered === true;
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8 p-6">
+    <div className="mx-auto max-w-5xl space-y-8 p-6">
       <div>
         <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900">
           <MessageSquareText className="h-6 w-6 text-indigo-600" /> SMS
@@ -358,6 +371,14 @@ export const SmsMarketing: React.FC = () => {
             </div>
           ))}
         </div>
+        <p className="mt-3 text-xs text-gray-500">
+          <s>${SMS_MARKETING_REGISTRATION_FEE.listPrice}</s>{' '}
+          <span className="font-semibold text-gray-800">
+            ${SMS_MARKETING_REGISTRATION_FEE.price}
+          </span>{' '}
+          registration — for a limited time only. Non-refundable due to
+          provisioning costs.
+        </p>
       </div>
 
       <div className="rounded-lg border border-gray-200 bg-white p-5">
@@ -376,6 +397,53 @@ export const SmsMarketing: React.FC = () => {
           </p>
         )}
       </div>
+
+      {registered && !loadingStatus && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap gap-2 border-b border-gray-200 pb-2">
+            {(
+              [
+                ['programs', 'Programs'],
+                ['inbox', 'Inbox'],
+                ['contacts', 'Contacts'],
+                ['appointments', 'Appointments'],
+                ['settings', 'Settings'],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setTab(id)}
+                className={`rounded-md px-3 py-1.5 text-sm font-medium ${
+                  tab === id
+                    ? 'bg-indigo-100 text-indigo-800'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {tab === 'programs' && <SmsProgramsPanel />}
+          {tab === 'settings' && <SmsAccountSettings />}
+          {tab === 'inbox' && (
+            <p className="rounded-lg border border-dashed border-gray-300 bg-white p-4 text-sm text-gray-500">
+              Inbox panel next — wire GET /sms/inbox and POST /sms/send.
+            </p>
+          )}
+          {tab === 'contacts' && (
+            <p className="rounded-lg border border-dashed border-gray-300 bg-white p-4 text-sm text-gray-500">
+              Contacts panel next — wire GET/POST /sms/contacts.
+            </p>
+          )}
+          {tab === 'appointments' && (
+            <p className="rounded-lg border border-dashed border-gray-300 bg-white p-4 text-sm text-gray-500">
+              Appointments panel next — wire GET/POST /sms/appointments.
+            </p>
+          )}
+        </div>
+      )}
 
       {!registered && !loadingStatus && (
         <div className="rounded-lg border border-gray-200 bg-white p-5">
