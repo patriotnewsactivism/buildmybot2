@@ -29,7 +29,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Check changed voice source
+      - name: Format generated voice changes
+        run: npx --no-install biome check --write --unsafe shared/voice-commercial-policy.ts shared/voice-team.ts api/voice/telnyx-live.ts test/voice-commercial-policy.test.ts
+
+      - name: Verify changed voice source
         run: npx --no-install biome check --diagnostic-level=error shared/voice-commercial-policy.ts shared/voice-team.ts api/voice/telnyx-live.ts test/voice-commercial-policy.test.ts
 
       - name: Run retention policy tests
