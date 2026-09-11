@@ -14,6 +14,13 @@ Vertical slice for the Manager voice agent to turn price/competitor objections i
 
 ## Done-checks
 
+- **A)** Grant refuses unless `objectionTag` is set and `valuePitchAttempted === true`.
+- **B)** Successful grant writes who/when/why/offer code onto the lead timeline under workspace caps.
+- **C)** The same incentive terms are sent once via Telnyx SMS for that offer on the call.
+
+## Migration safety
+
+`supabase/migrations/20260911180000_workspace_incentive_playbook.sql` is added for a future durable table. Do **not** run `supabase db push` against production while the migration-history reconciliation hold is active. Runtime defaults + `organizations.settings.incentivePlaybook` are sufficient for this slice.
 - **A)** Grant refuses unless `objectionTag` is set and `valuePitchAttempted === true` (enforced in `authorizeGrantIncentive`; covered by unit tests).
 - **B)** Successful grant writes who/when/why/offer code onto the lead timeline under workspace caps (`executeGrantIncentive`).
 - **C)** The same incentive terms are sent once via Telnyx SMS for that offer on the call (`executeGrantIncentive` + call_logs metadata `incentiveGrants`).
