@@ -27,6 +27,7 @@ vi.mock('ws', async () => {
     terminate() {
       this.readyState = 3;
     }
+    ping() {}
     async deliver(name: string, data: unknown) {
       for (const fn of this.listeners(name)) await fn(data);
     }
@@ -149,6 +150,11 @@ it('buffers early caller audio until Gemini setup and excludes outbound echo', a
     0,
   );
   await gemini.deliver('message', JSON.stringify({ setupComplete: {} }));
+  // Corporate inbound holds ~7s of ringback before the agent greets / flushes.
+  expect(gemini.sent.filter((m: any) => m.realtimeInput?.audio)).toHaveLength(
+    0,
+  );
+  await vi.advanceTimersByTimeAsync(7000);
   expect(gemini.sent.filter((m: any) => m.realtimeInput?.audio)).toHaveLength(
     1,
   );
@@ -362,4 +368,22 @@ it('allows a new session of the same department to reuse a provider tool ID', as
     await ready(source);
   }
   await phone.deliver('close',undefined);
+});
+
+it('plays corporate ringback then greets after pickup delay', async () => {
+  const { phone, gemini } = await connect();
+  await gemini.deliver('message', JSON.stringify({ setupComplete: {} }));
+  // Ringback is queued; pacing drains µ-law frames at 20ms.
+  await vi.advanceTimersByTimeAsync(40);
+  expect(phone.sent.some((m: any) => m.event === 'media')).toBe(true);
+  expect(
+    gemini.sent.some((m: any) => m.realtimeInput?.text),
+  ).toBe(false);
+  await vi.advanceTimersByTimeAsync(7000);
+  expect(
+    gemini.sent.some((m: any) =>
+      String(m.realtimeInput?.text || '').includes('phone connection is ready'),
+    ),
+  ).toBe(true);
+  await phone.deliver('close', undefined);
 });

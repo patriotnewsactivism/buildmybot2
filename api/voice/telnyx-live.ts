@@ -9,6 +9,7 @@ import {
 } from '../../shared/voice-commercial-policy.js';
 import {
   GEMINI_LIVE_MODEL,
+  NO_AI_DISCLOSURE_RULE,
   type SharedCallContext,
   VOICE_TEAM_ROUTING,
   type VoiceDepartment,
@@ -24,6 +25,11 @@ import {
   GRANT_INCENTIVE_TOOL,
   executeGrantIncentive,
 } from './grant-incentive.js';
+import {
+  CORPORATE_PICKUP_DELAY_MS,
+  MAX_OUTBOUND_PENDING_BYTES,
+  generateRingbackMuLaw,
+} from './ringback-tone.js';
 /**
  * Telnyx bidirectional Call Control streaming -> Gemini Live voice pipeline.
  *
@@ -420,7 +426,8 @@ function buildSystemInstruction(context: SessionContext): string {
   return [
     `Shared business background for ${context.botName}:\n${context.systemPrompt}`,
     VOICE_TEAM_ROUTING,
-    `Active agent identity: ${agentIdentity(context.botId, department)}. You are ${agent.name}, the AI ${department}.`,
+    `Active agent identity: ${agentIdentity(context.botId, department)}. You are ${agent.name}, ${department === 'receptionist' ? 'front-desk receptionist' : department === 'sales' ? 'sales specialist' : department === 'support' ? 'customer support specialist' : 'customer experience manager'} on this phone team.`,
+    NO_AI_DISCLOSURE_RULE,
     agent.persona,
     `Speaking style: ${agent.speakingStyle}`,
     `Preferred opening greeting: ${agent.firstMessage}`,
@@ -455,7 +462,7 @@ function buildTools(context: SessionContext) {
     {
       name: 'route_department',
       description:
-        'Connect to a distinct AI department agent with a different voice, carrying caller context. Never use for a human transfer.',
+        'Connect to a distinct teammate in another department with a different voice, carrying caller context. Never use for an owner/human-transfer tool call.',
       parameters: {
         type: 'OBJECT',
         properties: {
@@ -1060,8 +1067,9 @@ export function setupGeminiSession(gemini: WebSocket, context: SessionContext) {
           disabled: false,
           startOfSpeechSensitivity: 'START_SENSITIVITY_HIGH',
           endOfSpeechSensitivity: 'END_SENSITIVITY_LOW',
-          prefixPaddingMs: 120,
-          silenceDurationMs: 500,
+          // Slightly longer padding/silence reduces choppy cutouts on PSTN.
+          prefixPaddingMs: 200,
+          silenceDurationMs: 750,
         },
         activityHandling: 'START_OF_ACTIVITY_INTERRUPTS',
       },
@@ -1093,6 +1101,8 @@ interface AgentConnection {
   ready: boolean;
   retired: boolean;
   timer: ReturnType<typeof setTimeout> | null;
+  resumeSilent?: boolean;
+  keepalive: ReturnType<typeof setInterval> | null;
   handoff?: {
     id: string;
     call: GeminiFunctionCall;
@@ -1118,10 +1128,22 @@ export function handleTelnyxMediaConnection(
   let outboundFrames = 0;
   let interruptions = 0;
   let handoffAttempts = 0;
+  let geminiReconnects = 0;
   let durationTimer: ReturnType<typeof setTimeout> | null = null;
+  let pickupTimer: ReturnType<typeof setTimeout> | null = null;
+  let pickupWaiting = false;
+  let greetingStarted = false;
   let auditWrites: Promise<unknown> = Promise.resolve();
   const inputQueue: string[] = [];
   let pendingAudio = Buffer.alloc(0);
+  const enqueueOutbound = (chunk: Buffer) => {
+    pendingAudio = Buffer.concat([pendingAudio, chunk]);
+    if (pendingAudio.length > MAX_OUTBOUND_PENDING_BYTES) {
+      pendingAudio = pendingAudio.subarray(
+        pendingAudio.length - MAX_OUTBOUND_PENDING_BYTES,
+      );
+    }
+  };
   const pacingTimer = setInterval(() => {
     if (
       finalized ||
@@ -1138,15 +1160,56 @@ export function handleTelnyxMediaConnection(
     });
   }, 20);
 
+  // Keep media + Gemini sockets alive through proxies / idle PSTN gaps.
+  const telnyxKeepalive = setInterval(() => {
+    if (finalized || telnyxSocket.readyState !== WebSocket.OPEN) return;
+    try {
+      telnyxSocket.ping();
+    } catch {
+      /* ignore */
+    }
+  }, 15000);
+
   const clearPlayback = () => {
     pendingAudio = Buffer.alloc(0);
     sendJson(telnyxSocket, { event: 'clear' });
+  };
+
+  const beginAgentGreeting = (connection: AgentConnection) => {
+    if (greetingStarted || connection.retired || finalized) return;
+    greetingStarted = true;
+    pickupWaiting = false;
+    if (pickupTimer) {
+      clearTimeout(pickupTimer);
+      pickupTimer = null;
+    }
+    clearPlayback();
+    promptInitialGreeting(connection.socket, connection.context);
+    flushInput(connection);
+  };
+
+  const startCorporatePickupHold = (connection: AgentConnection) => {
+    pickupWaiting = true;
+    greetingStarted = false;
+    // Play ringback while Gemini finishes warming up; greet after ~7s.
+    enqueueOutbound(generateRingbackMuLaw(CORPORATE_PICKUP_DELAY_MS));
+    pickupTimer = setTimeout(() => {
+      if (connection.retired || finalized) return;
+      if (connection.ready && active === connection) {
+        beginAgentGreeting(connection);
+      } else {
+        // Setup still pending: greet as soon as setupComplete fires.
+        pickupWaiting = false;
+      }
+    }, CORPORATE_PICKUP_DELAY_MS);
   };
   const retire = (connection: AgentConnection | null) => {
     if (!connection || connection.retired) return;
     connection.retired = true;
     if (connection.timer) clearTimeout(connection.timer);
     connection.timer = null;
+    if (connection.keepalive) clearInterval(connection.keepalive);
+    connection.keepalive = null;
     if (connection.socket.readyState === WebSocket.CONNECTING)
       connection.socket.terminate();
     else if (connection.socket.readyState === WebSocket.OPEN)
@@ -1214,8 +1277,11 @@ export function handleTelnyxMediaConnection(
     retire(active);
     pending = null;
     if (durationTimer) clearTimeout(durationTimer);
+    if (pickupTimer) clearTimeout(pickupTimer);
     clearInterval(pacingTimer);
+    clearInterval(telnyxKeepalive);
     pendingAudio = Buffer.alloc(0);
+    pickupWaiting = false;
     inputQueue.length = 0;
     if (context?.logId) {
       await auditWrites;
@@ -1273,6 +1339,8 @@ export function handleTelnyxMediaConnection(
   const failConnection = (connection: AgentConnection, reason: string) => {
     if (connection.retired || finalized) return;
     recordGeminiOutcome(false);
+    const wasActive = active === connection;
+    const wasHandoff = Boolean(connection.handoff) || pending === connection;
     retire(connection);
     if (pending === connection) {
       pending = null;
@@ -1287,10 +1355,39 @@ export function handleTelnyxMediaConnection(
         flushInput(active);
         return;
       }
-    } else if (active === connection && pending) {
+    } else if (wasActive && pending) {
       // The candidate can still complete if the source disconnects while waiting.
       connection.ready = false;
       return;
+    }
+    // One mid-call Gemini reconnect before falling back to spoken apology.
+    if (
+      wasActive &&
+      !wasHandoff &&
+      !pickupWaiting &&
+      greetingStarted &&
+      geminiReconnects < 1 &&
+      context
+    ) {
+      geminiReconnects += 1;
+      console.error(
+        `[telnyx-voice-live] Reconnecting Gemini once after: ${reason}`,
+      );
+      try {
+        clearPlayback();
+        openConnection(
+          {
+            ...context,
+            department: connection.context.department,
+            sharedContext: connection.context.sharedContext,
+          },
+          undefined,
+          true,
+        );
+        return;
+      } catch {
+        /* fall through to rescue */
+      }
     }
     void rescue(reason);
   };
@@ -1298,6 +1395,7 @@ export function handleTelnyxMediaConnection(
   const openConnection = (
     next: SessionContext,
     handoff?: AgentConnection['handoff'],
+    resumeSilent = false,
   ) => {
     const socket = new WebSocket(
       `${GEMINI_WS_URL}?key=${encodeURIComponent(process.env.GEMINI_API_KEY || '')}`,
@@ -1309,6 +1407,8 @@ export function handleTelnyxMediaConnection(
       ready: false,
       retired: false,
       timer: null,
+      resumeSilent,
+      keepalive: null,
       handoff,
     };
     if (handoff) pending = connection;
@@ -1317,6 +1417,22 @@ export function handleTelnyxMediaConnection(
       () => failConnection(connection, 'Destination setup timed out'),
       10000,
     );
+    connection.keepalive = setInterval(() => {
+      if (
+        connection.retired ||
+        finalized ||
+        socket.readyState !== WebSocket.OPEN
+      ) {
+        if (connection.keepalive) clearInterval(connection.keepalive);
+        connection.keepalive = null;
+        return;
+      }
+      try {
+        socket.ping();
+      } catch {
+        /* ignore */
+      }
+    }, 20000);
     socket.on('open', () => {
       if (!connection.retired && !finalized) setupGeminiSession(socket, next);
     });
@@ -1344,9 +1460,24 @@ export function handleTelnyxMediaConnection(
           clearPlayback();
           retire(source);
           finishHandoff(connection, 'completed');
+          // Department handoffs greet immediately (no ringback).
+          beginAgentGreeting(connection);
+        } else if (connection.resumeSilent) {
+          // Mid-call Gemini reconnect: resume listening without re-greeting.
+          greetingStarted = true;
+          pickupWaiting = false;
+          flushInput(connection);
+        } else if (
+          next.botId === CORPORATE.botId &&
+          !next.sharedContext &&
+          !greetingStarted
+        ) {
+          // Corporate inbound: ~7s ringback hold before receptionist greets.
+          if (!pickupWaiting) startCorporatePickupHold(connection);
+          else if (!pickupTimer) beginAgentGreeting(connection);
+        } else {
+          beginAgentGreeting(connection);
         }
-        promptInitialGreeting(socket, next);
-        flushInput(connection);
         writeAudit();
       }
       if (active !== connection || !connection.ready) return;
@@ -1375,10 +1506,11 @@ export function handleTelnyxMediaConnection(
         });
       for (const part of content?.modelTurn?.parts || []) {
         if (!part.inlineData?.data || content?.interrupted) continue;
-        pendingAudio = Buffer.concat([
-          pendingAudio,
+        // Hold ringback owns the line until pickup delay completes.
+        if (pickupWaiting) continue;
+        enqueueOutbound(
           Buffer.from(pcm24kToMuLaw8k(part.inlineData.data), 'base64'),
-        ]);
+        );
       }
       for (const call of response.toolCall?.functionCalls || []) {
         if (connection.retired || finalized || active !== connection) return;
@@ -1567,6 +1699,7 @@ export function handleTelnyxMediaConnection(
         return;
       inboundFrames++;
       if (
+        pickupWaiting ||
         pending ||
         !active?.ready ||
         active.socket.readyState !== WebSocket.OPEN

@@ -15,7 +15,7 @@ describe('Voice Team constraints', () => {
     if (!result.success)
       expect(result.error.issues[0].message).toContain('Receptionist');
     team.sales.voice.voiceId = 'Puck';
-    team.sales.name = 'ava';
+    team.sales.name = 'Ava Brooks';
     expect(voiceTeamSchema.safeParse(team).success).toBe(false);
   });
   it('rejects invalid providers, missing roles and role impersonation', () => {
@@ -59,5 +59,24 @@ describe('Voice Team constraints', () => {
     expect(serialized.length).toBeLessThan(15000);
     expect(shared.voice).toBeUndefined();
     expect(shared.persona).toBeUndefined();
+  });
+  it('never discloses AI identity in default staff names or openings', () => {
+    const team = createDefaultVoiceTeam();
+    const blob = JSON.stringify(team).toLowerCase();
+    for (const needle of [
+      'ai receptionist',
+      'ai sales',
+      'ai support',
+      'ai customer',
+      'virtual assistant',
+      "i'm an ai",
+      'i am an ai',
+    ]) {
+      expect(blob).not.toContain(needle);
+    }
+    expect(team.receptionist.name).toMatch(/Ava/);
+    expect(team.sales.name).toMatch(/Marcus/);
+    expect(team.support.name).toMatch(/Sophie/);
+    expect(team.manager.name).toMatch(/Daniel/);
   });
 });
