@@ -10,7 +10,9 @@ The Telnyx Call Control application points to:
 
 The media endpoint is `/api/voice/telnyx-media`. Telnyx webhook signatures and signed call state must bind media to a verified saved call and bot before the realtime AI session starts.
 
-Gemini Live handles realtime audio. The bridge must buffer early caller audio until setup completes, exclude outbound echo, support barge-in/interruption, and clear stale playback when the caller interrupts. Telephone audio quality is constrained by the PSTN codec and may sound narrower than a browser demo.
+Gemini Live handles realtime audio by default. Set `VOICE_ENGINE=deepgram` with `DEEPGRAM_API_KEY` to route `/api/voice/telnyx-media` to Deepgram Voice Agent (`wss://agent.deepgram.com/v1/agent/converse`) using raw PCMU/8 kHz both ways, Welcome→Settings→SettingsApplied gating, inbound-track filtering, 20 ms outbound pacing, and `{event:"clear"}` barge-in. Deepgram is a single-agent path and does not implement the four-agent voice-team handoffs.
+
+The bridge must buffer early caller audio until setup completes, exclude outbound echo, support barge-in/interruption, and clear stale playback when the caller interrupts. Telephone audio quality is constrained by the PSTN codec and may sound narrower than a browser demo. Answer/streaming always forces `stream_codec: PCMU` and bidirectional PCMU/8000 so the WebSocket stream does not inherit a mismatched negotiated call codec.
 
 ### Pickup realism and media stability
 

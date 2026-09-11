@@ -31,7 +31,7 @@ export function getToolDeclarationsForDeepgram(): DeepgramToolDeclaration[] {
           plan_key: {
             type: 'string',
             description:
-              'Plan key such as free, starter, professional, or business.',
+              'Plan key such as free, starter, professional, executive, or enterprise.',
           },
           discount_percent: {
             type: 'number',
@@ -128,7 +128,7 @@ export async function executeServerTool(
       if (!plan) {
         return {
           ok: false,
-          error: 'Unknown plan. Use free, starter, professional, or business.',
+          error: 'Unknown plan. Use free, starter, professional, executive, or enterprise.',
         };
       }
       const discountRaw = asNumber(args.discount_percent) ?? 0;

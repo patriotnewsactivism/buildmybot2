@@ -2,6 +2,8 @@
 
 BuildMyBot's production phone architecture uses Telnyx Call Control with Gemini Live. Receptionist, Sales, Support and Manager are independently configured agents. Every successful AI handoff opens a fresh Gemini session with the destination's voice, identity, role instructions and opening behavior while the phone connection and bounded caller context continue.
 
+Optional experimental path: set `VOICE_ENGINE=deepgram` and `DEEPGRAM_API_KEY` to route Telnyx media to Deepgram Voice Agent (`api/voice/deepgram-agent.ts`) with raw PCMU/8 kHz. That path is single-agent only and does not replace the four-agent Gemini voice-team handoffs.
+
 ## Default staff
 
 | Role | Name | Gemini voice | Intended delivery |

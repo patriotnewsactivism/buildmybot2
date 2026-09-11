@@ -221,6 +221,7 @@ export async function startMediaStream(options: {
   callControlId: string;
   streamUrl: string;
   bidirectional?: boolean;
+  clientState?: string;
 }): Promise<void> {
   await telnyxRequest(
     `/calls/${options.callControlId}/actions/streaming_start`,
@@ -229,9 +230,16 @@ export async function startMediaStream(options: {
       body: JSON.stringify({
         stream_url: options.streamUrl,
         stream_track: 'inbound_track',
+        // Force the Telnyx → app inbound WebSocket stream itself to PCMU,
+        // not merely the bidirectional return codec.
+        stream_codec: 'PCMU',
+        enable_dialogflow: false,
+        client_state: options.clientState || undefined,
         ...(options.bidirectional
           ? {
               stream_bidirectional_mode: 'rtp',
+              stream_bidirectional_codec: 'PCMU',
+              stream_bidirectional_sampling_rate: 8000,
               stream_bidirectional_target_legs: 'both',
             }
           : {}),
@@ -438,10 +446,14 @@ export async function answerCall(
           ? {
               stream_url: options.streamUrl,
               stream_track: 'inbound_track',
+              // Force inbound media stream codec to PCMU/8 kHz so the app
+              // does not inherit a mismatched negotiated call codec.
+              stream_codec: 'PCMU',
               ...(options.bidirectional
                 ? {
                     stream_bidirectional_mode: 'rtp',
                     stream_bidirectional_codec: 'PCMU',
+                    stream_bidirectional_sampling_rate: 8000,
                   }
                 : {}),
             }
@@ -449,6 +461,25 @@ export async function answerCall(
       }),
     },
   );
+}
+
+/**
+ * Answer first, then start bidirectional PCMU streaming. Prefer the
+ * single-shot answerCall({ streamUrl }) path for production inbound;
+ * this helper is for callers that must separate answer from streaming_start.
+ */
+export async function answerAndStartStreaming(
+  callControlId: string,
+  streamUrl: string,
+  clientState?: string,
+): Promise<void> {
+  await answerCall(callControlId, { clientState });
+  await startMediaStream({
+    callControlId,
+    streamUrl,
+    bidirectional: true,
+    clientState,
+  });
 }
 
 export async function speakText(
