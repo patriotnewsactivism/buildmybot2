@@ -1,1 +1,1 @@
-LOADING_FROM_FILE
+file:///workspace/bmb2-slice/telnyx-live.ts
