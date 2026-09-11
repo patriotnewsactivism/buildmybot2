@@ -3503,8 +3503,24 @@ async function handleClients(
     // above: this used to fall through to the client-by-id branch, treating
     // "leads" as a client id, returning `{}` and crashing ClientOverview /
     // any consumer that reads array-shaped fields off the result.
+    // Map snake_case Supabase rows → client Lead shape so CRM dates/scores
+    // are not `Invalid Date` / missing fields (see smoke #117).
     const orgFilter = ownerFilter(user);
-    res.json(await sbSelect('leads', '*', orgFilter).catch(() => []));
+    const rows = await sbSelect('leads', '*', orgFilter).catch(() => []);
+    res.json(
+      (rows as any[]).map((l) => ({
+        id: l.id,
+        name: l.name || '',
+        email: l.email || '',
+        phone: l.phone || undefined,
+        score: typeof l.score === 'number' ? l.score : 0,
+        status: l.status || 'New',
+        sourceBotId: l.source_bot_id || l.sourceBotId || '',
+        createdAt: l.created_at || l.createdAt || null,
+        userId: l.user_id || l.userId,
+        organizationId: l.organization_id || l.organizationId,
+      })),
+    );
   } else if (cid === 'overview') {
     // dbService.getClientOverview() calls GET /api/clients/overview expecting
     // {stats, usage, voice, conversationTrend, recentBots, recentLeads} --
