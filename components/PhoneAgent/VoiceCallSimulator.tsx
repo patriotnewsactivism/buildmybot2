@@ -318,9 +318,14 @@ export const VoiceCallSimulator: React.FC<VoiceCallSimulatorProps> = ({
           <X size={24} />
         </button>
         <div className="text-center">
-          <h2 className="text-2xl font-bold mb-2">Voice Call</h2>
+          <h2 className="text-2xl font-bold mb-2">Simulated Voice Call</h2>
+          <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-amber-300">
+            Browser simulation · Not a real phone call
+          </p>
           <p className="text-slate-400 mb-4">
-            {isCallActive ? 'Live AI Voice Agent' : 'Click Start to begin'}
+            {isCallActive
+              ? 'Simulated AI voice session (no carrier dial)'
+              : 'Click Start to begin a browser-only test'}
           </p>
 
           {/* Mic icon with speaking indicator */}
