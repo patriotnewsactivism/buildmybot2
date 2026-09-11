@@ -1222,7 +1222,6 @@ export function handleTelnyxMediaConnection(
     flushInput(connection);
   };
 
-
   /** Mid-call department handoff: hold music, then destination greets. */
   const startTransferHold = (connection: AgentConnection) => {
     pickupWaiting = true;

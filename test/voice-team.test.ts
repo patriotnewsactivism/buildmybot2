@@ -85,7 +85,9 @@ describe('Voice Team constraints', () => {
     );
     // Morning: 09:00 Central (14:00 UTC)
     const morning = new Date('2026-09-11T14:00:00Z');
-    expect(getTimeOfDayGreeting(morning, 'America/Chicago')).toBe('Good morning');
+    expect(getTimeOfDayGreeting(morning, 'America/Chicago')).toBe(
+      'Good morning',
+    );
     expect(getReceptionistGreeting(morning, 'America/Chicago')).toBe(
       'Good morning, thank you for calling BuildMyBot, my name is Avery how can I help you.',
     );
@@ -101,7 +103,9 @@ describe('Voice Team constraints', () => {
 
     // Evening: 19:00 Central (00:00 UTC next day)
     const evening = new Date('2026-09-12T00:00:00Z');
-    expect(getTimeOfDayGreeting(evening, 'America/Chicago')).toBe('Good evening');
+    expect(getTimeOfDayGreeting(evening, 'America/Chicago')).toBe(
+      'Good evening',
+    );
     expect(getReceptionistGreeting(evening, 'America/Chicago')).toBe(
       'Good evening, thank you for calling BuildMyBot, my name is Avery how can I help you.',
     );

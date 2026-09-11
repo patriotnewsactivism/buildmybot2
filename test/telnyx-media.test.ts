@@ -364,9 +364,9 @@ it('closes every agent and timer if the caller hangs up mid-handoff', async () =
 });
 
 it('allows a new session of the same department to reuse a provider tool ID', async () => {
-  const {phone,gemini}=await connect();
-  await gemini.deliver('message', JSON.stringify({setupComplete:{}}));
-  let source=gemini;
+  const { phone, gemini } = await connect();
+  await gemini.deliver('message', JSON.stringify({ setupComplete: {} }));
+  let source = gemini;
   for (const department of ['sales', 'receptionist', 'sales']) {
     const count = state.sockets.length;
     await route(source, department, 'reused-id');
@@ -375,16 +375,18 @@ it('allows a new session of the same department to reuse a provider tool ID', as
     await ready(source);
     await afterTransferHold();
   }
-  await phone.deliver('close',undefined);
+  await phone.deliver('close', undefined);
 });
 
 it('greets immediately upon corporate connection without pickup silence', async () => {
   const { phone, gemini } = await connect();
   await gemini.deliver('message', JSON.stringify({ setupComplete: {} }));
   expect(
-    gemini.sent.some((m: any) =>
-      String(m.realtimeInput?.text || '').includes('phone connection is ready') &&
-      String(m.realtimeInput?.text || '').includes('Avery'),
+    gemini.sent.some(
+      (m: any) =>
+        String(m.realtimeInput?.text || '').includes(
+          'phone connection is ready',
+        ) && String(m.realtimeInput?.text || '').includes('Avery'),
     ),
   ).toBe(true);
   await phone.deliver('close', undefined);

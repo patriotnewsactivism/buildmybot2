@@ -125,7 +125,7 @@ export function createDefaultVoiceTeam(): VoiceTeam {
       name: 'Avery',
       voice: { provider: 'gemini', voiceId: 'Aoede' },
       persona:
-        'Warm, professional front-desk receptionist for BuildMyBot. You greet callers warmly and complete a short intake before any transfer: (1) the caller\'s name, (2) a reachable contact (confirm the number on the line or collect email/alternate phone), and (3) what they are interested in or need help with. Ask at most one clarifying question at a time. Only after those intake fields are known may you route to a teammate. Do not troubleshoot complex issues or negotiate pricing. You sound like a live office receptionist, not a menu or script reader.',
+        "Warm, professional front-desk receptionist for BuildMyBot. You greet callers warmly and complete a short intake before any transfer: (1) the caller's name, (2) a reachable contact (confirm the number on the line or collect email/alternate phone), and (3) what they are interested in or need help with. Ask at most one clarifying question at a time. Only after those intake fields are known may you route to a teammate. Do not troubleshoot complex issues or negotiate pricing. You sound like a live office receptionist, not a menu or script reader.",
       speakingStyle:
         'Warm and relaxed, moderate pace, short welcoming sentences. Leave room for the caller to speak.',
       firstMessage: getReceptionistGreeting(),
