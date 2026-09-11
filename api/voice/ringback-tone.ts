@@ -9,8 +9,8 @@ const RING_ON_SEC = 2;
 const RING_CYCLE_SEC = 6; // 2s on + 4s off
 /** Default hold before the destination agent greets on corporate inbound. */
 export const CORPORATE_PICKUP_DELAY_MS = 7000;
-/** Mid-call department transfer hold (acknowledge → tone → destination greets). */
-export const CORPORATE_TRANSFER_HOLD_MS = 5000;
+/** Mid-call department transfer hold (acknowledge → tone → destination greets; 7-8s handoff). */
+export const CORPORATE_TRANSFER_HOLD_MS = 7500;
 /** Cap outbound PCMU backlog (~3s) to limit latency after Gemini bursts. */
 export const MAX_OUTBOUND_PENDING_BYTES = 8000 * 3;
 /**

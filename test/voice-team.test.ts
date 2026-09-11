@@ -15,7 +15,7 @@ describe('Voice Team constraints', () => {
     if (!result.success)
       expect(result.error.issues[0].message).toContain('Receptionist');
     team.sales.voice.voiceId = 'Puck';
-    team.sales.name = 'Ava Brooks';
+    team.sales.name = 'Avery';
     expect(voiceTeamSchema.safeParse(team).success).toBe(false);
   });
   it('rejects invalid providers, missing roles and role impersonation', () => {
@@ -74,9 +74,36 @@ describe('Voice Team constraints', () => {
     ]) {
       expect(blob).not.toContain(needle);
     }
-    expect(team.receptionist.name).toMatch(/Ava/);
+    expect(team.receptionist.name).toMatch(/Avery/);
     expect(team.sales.name).toMatch(/Marcus/);
     expect(team.support.name).toMatch(/Sophie/);
     expect(team.manager.name).toMatch(/Daniel/);
+  });
+  it('generates dynamic time-of-day greetings for Avery in receptionist role', async () => {
+    const { getTimeOfDayGreeting, getReceptionistGreeting } = await import(
+      '../shared/voice-team'
+    );
+    // Morning: 09:00 Central (14:00 UTC)
+    const morning = new Date('2026-09-11T14:00:00Z');
+    expect(getTimeOfDayGreeting(morning, 'America/Chicago')).toBe('Good morning');
+    expect(getReceptionistGreeting(morning, 'America/Chicago')).toBe(
+      'Good morning, thank you for calling BuildMyBot, my name is Avery how can I help you.',
+    );
+
+    // Afternoon: 14:00 Central (19:00 UTC)
+    const afternoon = new Date('2026-09-11T19:00:00Z');
+    expect(getTimeOfDayGreeting(afternoon, 'America/Chicago')).toBe(
+      'Good afternoon',
+    );
+    expect(getReceptionistGreeting(afternoon, 'America/Chicago')).toBe(
+      'Good afternoon, thank you for calling BuildMyBot, my name is Avery how can I help you.',
+    );
+
+    // Evening: 19:00 Central (00:00 UTC next day)
+    const evening = new Date('2026-09-12T00:00:00Z');
+    expect(getTimeOfDayGreeting(evening, 'America/Chicago')).toBe('Good evening');
+    expect(getReceptionistGreeting(evening, 'America/Chicago')).toBe(
+      'Good evening, thank you for calling BuildMyBot, my name is Avery how can I help you.',
+    );
   });
 });

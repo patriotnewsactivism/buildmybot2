@@ -21,12 +21,12 @@ describe('ringback tone', () => {
   });
 
   it('generates continuous soft hold music for mid-call transfers', () => {
-    expect(CORPORATE_TRANSFER_HOLD_MS).toBe(5000);
+    expect(CORPORATE_TRANSFER_HOLD_MS).toBe(7500);
     expect(INBOUND_PCM_GAIN).toBeGreaterThan(1);
     const buf = generateHoldMusicMuLaw(CORPORATE_TRANSFER_HOLD_MS);
-    expect(buf.length).toBe(8000 * 5);
+    expect(buf.length).toBe((8000 * 7500) / 1000);
     // No long silence gaps: every second should have audible variety.
-    for (let s = 0; s < 5; s++) {
+    for (let s = 0; s < 7; s++) {
       const slice = buf.subarray(8000 * s, 8000 * (s + 1));
       expect(new Set(slice).size).toBeGreaterThan(8);
     }

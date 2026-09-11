@@ -9,6 +9,7 @@
 import type { IncomingMessage } from 'node:http';
 import WebSocket from 'ws';
 import { validTelnyxClientState } from '../phone/tenant-telnyx-token.js';
+import { getReceptionistGreeting } from '../../shared/voice-team.js';
 import {
   type DeepgramToolContext,
   executeServerTool,
@@ -239,6 +240,7 @@ export class DeepgramVoiceSession {
         console.info(
           `[Deepgram Agent] Settings applied for ${this.callControlId}`,
         );
+        this.injectInitialGreeting();
         break;
       case 'UserStartedSpeaking':
         this.clearTelnyxPlayback();
@@ -305,7 +307,7 @@ export class DeepgramVoiceSession {
               model: 'gpt-4o-mini',
             },
             prompt: [
-              `You are the receptionist for ${botName}.`,
+              `You are Avery, the receptionist for ${botName}.`,
               'Answer questions concisely, professionally, and warmly in a conversational phone tone.',
               'Keep responses short, usually one or two sentences.',
               'If the caller asks for promotional discounts, use the quote_discounted_plan function.',
@@ -324,6 +326,16 @@ export class DeepgramVoiceSession {
         },
       }),
     );
+  }
+
+  private injectInitialGreeting(): void {
+    if (this.dgWs?.readyState === WebSocket.OPEN) {
+      const greeting = getReceptionistGreeting();
+      sendJson(this.dgWs, {
+        type: 'InjectAgentMessage',
+        message: greeting,
+      });
+    }
   }
 
   private setupTelnyx(): void {
