@@ -20,10 +20,6 @@ import {
 } from '../../shared/voice-team.js';
 import { departmentInstructions } from '../phone/corporate-routing.js';
 import { loadVoiceTeam } from './team-store.js';
-import {
-  GRANT_INCENTIVE_TOOL,
-  executeGrantIncentive,
-} from './grant-incentive.js';
 /**
  * Telnyx bidirectional Call Control streaming -> Gemini Live voice pipeline.
  *
@@ -196,17 +192,3 @@ type SessionContext = {
   department?: VoiceDepartment;
   sharedContext?: SharedCallContext;
   retentionState: RetentionState;
-  outboundObjective?: string;
-};
-
-async function sbRequest(
-  table: string,
-  params = '',
-  init?: RequestInit,
-): Promise<{ ok: boolean; data: unknown }> {
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return { ok: false, data: null };
-  try {
-    const response = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params}`, {
-      ...init,
-      signal: AbortSignal.timeout(5000),
-      headers: { ...SUPABASE_HEADERS, ...(init?.headers || {}) },
