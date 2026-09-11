@@ -380,13 +380,13 @@ export const DEFAULT_CHAT_MODEL = 'openrouter-minimax-m3';
 // are derived so the pricing page can never drift from what is charged.
 const VOICE_PLAN_FEATURES: Record<string, string[]> = {
   VOICE_BASIC: [
-    'Cartesia ultra-realistic voice',
+    'Realtime, two-way AI voice',
     'Basic call routing',
     'Call transcripts',
     'Email support',
   ],
   VOICE_STANDARD: [
-    'All Cartesia voices',
+    'Shared chatbot + voice knowledge base',
     'Advanced call routing',
     'Call transfers',
     'Scheduling workflows',
@@ -430,9 +430,11 @@ export const VOICE_AGENT_PRICING = Object.entries(VOICE_PLANS).map(
  * Requires the tenant to complete 10DLC brand+campaign registration
  * (api/sms/register.ts) before sending is unlocked -- see SmsMarketing.tsx.
  *
- * NOT YET PUBLISHED anywhere -- no route links to the page that renders
- * this yet (Don's call, 2026-09-04: build it now, keep it unpublished until
- * a real Telnyx account + registration flow is verified end-to-end).
+ * Published in navConfig.tsx client nav and on the pricing/features pages
+ * as of the 2026-09-05 product-surface refresh. Actual sending still gates
+ * on each tenant completing Telnyx 10DLC brand+campaign registration --
+ * that is a carrier compliance requirement, not a BuildMyBot-side hold, so
+ * it does not block advertising or linking the feature.
  *
  * `stripePriceEnv` follows the same convention as VOICE_PLANS -- checkout
  * resolves the real Stripe Price ID server-side, never trusts a
@@ -442,24 +444,46 @@ export const SMS_MARKETING_PLANS = {
   SMS_STARTER: {
     price: 39,
     messagesIncluded: 1000,
-    overagePerMessage: 0.02,
+    overagePerMessage: 0.029,
     name: 'SMS Marketing Starter',
     stripePriceEnv: 'STRIPE_PRICE_SMS_STARTER',
   },
   SMS_GROWTH: {
     price: 99,
     messagesIncluded: 5000,
-    overagePerMessage: 0.018,
+    overagePerMessage: 0.029,
     name: 'SMS Marketing Growth',
     stripePriceEnv: 'STRIPE_PRICE_SMS_GROWTH',
   },
   SMS_SCALE: {
     price: 249,
     messagesIncluded: 20000,
-    overagePerMessage: 0.015,
+    overagePerMessage: 0.029,
     name: 'SMS Marketing Scale',
     stripePriceEnv: 'STRIPE_PRICE_SMS_SCALE',
   },
+};
+
+/**
+ * One-time registration fee, charged alongside the first month at checkout
+ * (see api/sms/billing.ts createSmsCheckout -- bundled as a second Stripe
+ * line item on the SAME Checkout Session, not a separate charge/flow).
+ * `listPrice` ($99) is the real cost-covering price (TCR/Telnyx ~$60-65 +
+ * margin). Don's call, 2026-09-08, UPDATED same day: for now, charge only
+ * `price` ($29) as an introductory sign-on discount advertised against the
+ * crossed-out list price, "for a limited time only" -- Don is subsidizing
+ * the gap per signup during this promo. Customer-facing copy must show the
+ * list price struck through, the discounted price, the limited-time framing,
+ * AND must still state the fee is non-refundable due to costs incurred in
+ * provisioning.
+ */
+export const SMS_MARKETING_REGISTRATION_FEE = {
+  price: 29,
+  listPrice: 99,
+  name: 'SMS Marketing Registration Fee',
+  stripePriceEnv: 'STRIPE_PRICE_SMS_REGISTRATION_FEE',
+  disclosure:
+    'Introductory $29 registration fee for a limited time only (regularly $99). Covers regulatory fees associated with phone number and campaign registration and provisioning. Non-refundable due to costs incurred in provisioning.',
 };
 
 export const SMS_MARKETING_PRICING = Object.entries(SMS_MARKETING_PLANS).map(
@@ -478,6 +502,54 @@ export const SMS_MARKETING_PRICING = Object.entries(SMS_MARKETING_PLANS).map(
     ],
   }),
 );
+
+/**
+ * SMS overage commission safeguard.
+ *
+ * Added 2026-09-06 alongside the flat $0.029/msg overage rate: partner/
+ * reseller commission on the base SMS_MARKETING_PLANS subscription price
+ * is computed in api/stripe-webhook.ts, but overage revenue is billed
+ * through a completely separate path (api/sms/billing.ts reconcileOverages,
+ * one-off Stripe invoiceitems, no linked subscription event) and had NO
+ * commission logic at all -- wired in below, using the same
+ * MAX_COMMISSION_SHARE_OF_MARGIN(0.7) cap philosophy as
+ * applyCommissionSafeguard above, sized to actual per-message economics
+ * instead of a flat plan price.
+ *
+ * SMS_SEGMENT_COST_USD is Telnyx's approximate long-code A2P per-segment
+ * list price as of 2026-09 -- a documented estimate, not a live-metered
+ * number, same caveat as COST_PER_CONVERSATION_ESTIMATE_USD above.
+ */
+export const SMS_SEGMENT_COST_USD = 0.0035;
+
+/** Cap a computed SMS-overage commission dollar amount so it can never
+ * exceed MAX_COMMISSION_SHARE_OF_MARGIN of that overage revenue's
+ * estimated margin (revenue minus estimated Telnyx send cost, at the flat
+ * overage rate every SMS_MARKETING_PLANS tier now shares). */
+export function applySmsOverageCommissionSafeguard(
+  overageRevenueUsd: number,
+  computedCommissionUsd: number,
+): {
+  cappedCommissionUsd: number;
+  wasCapped: boolean;
+  estimatedMarginUsd: number;
+} {
+  const overageRateUsd = SMS_MARKETING_PLANS.SMS_STARTER.overagePerMessage;
+  const costRatio =
+    overageRateUsd > 0 ? SMS_SEGMENT_COST_USD / overageRateUsd : 0;
+  const estimatedMarginUsd = Math.max(0, overageRevenueUsd) * (1 - costRatio);
+  const maxSafeCommissionUsd =
+    estimatedMarginUsd * MAX_COMMISSION_SHARE_OF_MARGIN;
+  const cappedCommissionUsd = Math.max(
+    0,
+    Math.min(computedCommissionUsd, maxSafeCommissionUsd),
+  );
+  return {
+    cappedCommissionUsd,
+    wasCapped: cappedCommissionUsd < computedCommissionUsd,
+    estimatedMarginUsd,
+  };
+}
 
 export const EXPERT_SETUP_SERVICES = [
   {

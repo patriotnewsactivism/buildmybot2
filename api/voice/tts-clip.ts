@@ -1,6 +1,5 @@
 import { createHmac } from 'node:crypto';
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-
+import type { ApiRequest, ApiResponse } from '../lib/http-types.js';
 /**
  * GET /api/voice/tts-clip?text=...&voice=...&token=...
  * Generates a Grok TTS audio clip for use in Twilio <Play> elements.
@@ -18,7 +17,7 @@ function makeToken(text: string, voice: string): string {
     .slice(0, 16);
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'GET') return res.status(405).end();

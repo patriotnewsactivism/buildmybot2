@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { ApiRequest, ApiResponse } from '../lib/http-types.js';
 import { sendVerificationEmail } from '../lib/auth-tokens.js';
 import { RATE_LIMITS, enforceRateLimit } from '../lib/rate-limit.js';
 
@@ -19,7 +19,7 @@ const SESSION_JWT_TTL = 24 * 60 * 60;
 // access is granted out-of-band by an existing platform admin
 // (scripts/setAdminPermissions.ts) against the database.
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST')
     return res.status(405).json({ error: 'Method not allowed' });

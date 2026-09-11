@@ -602,8 +602,9 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({
                   Choose the voice and opening greeting
                 </h3>
                 <p className="mt-1 text-sm text-slate-600">
-                  Production calls use Gemini Live for realtime conversation.
-                  These voice options are used for previews and fallback speech.
+                  Production calls use our realtime voice engine for the
+                  conversation. These voice options are used for previews and
+                  fallback speech.
                 </p>
               </div>
 

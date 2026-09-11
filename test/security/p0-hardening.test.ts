@@ -12,7 +12,7 @@
  * mocked env + a mocked Supabase REST fetch, so the assertions exercise the
  * production code path rather than a re-implementation of it.
  */
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { ApiRequest, ApiResponse } from '../../api/lib/http-types.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const SESSION_SECRET = 'test-session-secret';
@@ -59,14 +59,14 @@ function mockRes(): any {
   return res;
 }
 
-function mockReq(overrides: Partial<VercelRequest> = {}): VercelRequest {
+function mockReq(overrides: Partial<ApiRequest> = {}): ApiRequest {
   return {
     method: 'GET',
     url: '/api/health',
     headers: {},
     body: {},
     ...overrides,
-  } as VercelRequest;
+  } as ApiRequest;
 }
 
 async function signToken(payload: Record<string, unknown>): Promise<string> {

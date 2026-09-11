@@ -70,6 +70,7 @@ import {
 } from '../../services/openaiService';
 import { PlanType } from '../../types';
 import { SEO, SEOConfig } from '../SEO/SEO';
+import { CorporatePhoneDemo } from './CorporatePhoneDemo';
 
 interface LandingProps {
   onLogin: () => void;
@@ -334,7 +335,7 @@ export const LandingPage: React.FC<LandingProps> = ({
     },
     {
       q: 'How realistic does the voice agent actually sound?',
-      a: "This is our biggest differentiator. We use Grok's cutting-edge neural voice synthesis — the same caliber of technology used in Hollywood productions. In real-world calls, the vast majority of callers cannot tell they're speaking with AI. It has natural inflection, appropriate pauses, and emotional warmth. It's not the robotic voice you've heard from other services.",
+      a: "This is our biggest differentiator. Calls run on BuildMyBot's own realtime, two-way voice engine — not an old-school record-transcribe-respond loop — so it handles natural pauses, interruptions, and barge-in the way a real receptionist would. In real-world calls, the vast majority of callers cannot tell they're speaking with AI. It has natural inflection, appropriate pauses, and emotional warmth. It's not the robotic voice you've heard from other services.",
     },
     {
       q: 'How quickly can I get started?',
@@ -354,7 +355,11 @@ export const LandingPage: React.FC<LandingProps> = ({
     },
     {
       q: 'How is this different from other AI chatbot/phone services?',
-      a: "Most AI solutions use basic text-to-speech that sounds obviously robotic. BuildMyBot uses Grok's state-of-the-art voice synthesis with sub-second latency, natural breathing patterns, and human-like inflection. Combined with advanced AI understanding, our voice agents have real conversations — not scripted responses. Plus you get both chatbot AND voice agent in one platform.",
+      a: "Most AI solutions use basic text-to-speech that sounds obviously robotic and reply in a slow ask-then-wait loop. BuildMyBot's voice receptionist runs on our own realtime voice engine with sub-second latency, natural breathing patterns, and human-like inflection — callers can even interrupt it mid-sentence like they would a real person. Combined with advanced AI understanding and the same knowledge base your chatbot uses, our voice agents have real conversations — not scripted responses. Plus you get chatbot, voice, and SMS marketing in one shared-knowledge platform.",
+    },
+    {
+      q: 'Do you offer SMS marketing too?',
+      a: 'Yes. Beyond chat and voice, BuildMyBot includes SMS marketing on your own business number — two-way campaigns, keyword auto-replies, drip sequences, Text-to-Win contests, birthday clubs, and appointment reminders, with STOP/HELP consent handling built in. It shares the same knowledge base as your chatbot and voice agent, so every channel knows your business.',
     },
     {
       q: 'Is there a free trial?',
@@ -695,10 +700,22 @@ export const LandingPage: React.FC<LandingProps> = ({
                 How It Works
               </a>
               <a
+                href="/features"
+                className="hover:text-blue-700 transition-colors"
+              >
+                Features
+              </a>
+              <a
                 href="#voice"
                 className="hover:text-blue-700 transition-colors font-bold text-blue-700"
               >
                 Voice Agent
+              </a>
+              <a
+                href="/sms-marketing"
+                className="hover:text-emerald-700 transition-colors font-bold text-emerald-600"
+              >
+                SMS Marketing
               </a>
               <a
                 href="#pricing"
@@ -749,11 +766,25 @@ export const LandingPage: React.FC<LandingProps> = ({
                 How It Works
               </a>
               <a
+                href="/features"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="text-lg font-medium text-slate-700 hover:text-blue-700 py-3 border-b border-slate-100"
+              >
+                Features
+              </a>
+              <a
                 href="#voice"
                 onClick={() => setIsMobileMenuOpen(false)}
                 className="text-lg font-bold text-blue-700 hover:text-blue-800 py-3 border-b border-slate-100"
               >
                 🎙️ Voice Agent
+              </a>
+              <a
+                href="/sms-marketing"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="text-lg font-bold text-emerald-600 hover:text-emerald-700 py-3 border-b border-slate-100"
+              >
+                💬 SMS Marketing
               </a>
               <a
                 href="#pricing"
@@ -890,11 +921,12 @@ export const LandingPage: React.FC<LandingProps> = ({
             </div>
             <div className="mt-6 pt-6 border-t border-slate-100 flex flex-wrap justify-center gap-4 sm:gap-8 text-xs text-slate-400">
               <span className="flex items-center gap-2">
-                <Sparkles size={14} className="text-blue-500" /> Powered by Grok
-                4.1
+                <Sparkles size={14} className="text-blue-500" /> Powered by
+                frontier AI
               </span>
               <span className="flex items-center gap-2">
-                <Mic size={14} className="text-purple-500" /> Grok Neural Voice
+                <Mic size={14} className="text-purple-500" /> Realtime Two-Way
+                Voice
               </span>
               <span className="flex items-center gap-2">
                 <Shield size={14} className="text-emerald-500" />{' '}
@@ -969,9 +1001,10 @@ export const LandingPage: React.FC<LandingProps> = ({
                   </span>
                 </h2>
                 <p className="text-slate-300 text-lg max-w-3xl mx-auto leading-relaxed">
-                  Powered by next-generation neural voice synthesis — the same
-                  technology used in Hollywood. Answers calls, qualifies leads,
-                  books appointments, and transfers when needed. No scripts. No
+                  Powered by BuildMyBot's own realtime, two-way voice engine —
+                  not an old-school record-and-respond loop. Answers calls,
+                  qualifies leads, books appointments, and transfers when
+                  needed, with natural pauses and barge-in. No scripts. No
                   robots.
                 </p>
               </div>
@@ -989,6 +1022,83 @@ export const LandingPage: React.FC<LandingProps> = ({
               </div>
             </div>
           </section>
+
+          {/* ──── 4b. SMS MARKETING SHOWCASE — Condensed ──── */}
+          <section
+            id="sms"
+            className="relative bg-gradient-to-br from-slate-900 via-emerald-950 to-teal-900 rounded-2xl sm:rounded-3xl p-6 sm:p-10 md:p-16 text-white shadow-2xl overflow-hidden"
+          >
+            <div className="absolute inset-0 opacity-5">
+              <div className="absolute top-10 left-10 w-72 h-72 bg-emerald-400 rounded-full blur-3xl" />
+              <div className="absolute bottom-10 right-10 w-96 h-96 bg-teal-500 rounded-full blur-3xl" />
+            </div>
+            <div className="relative z-10 grid gap-10 lg:grid-cols-2 lg:items-center">
+              <div>
+                <div className="inline-flex items-center gap-2 bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 px-4 py-2 rounded-full text-sm font-bold mb-6">
+                  <Smartphone size={16} /> ⭐ Flagship Feature: SMS Marketing
+                </div>
+                <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-4 leading-tight">
+                  Texts So On-Brand,
+                  <br className="hidden sm:block" />{' '}
+                  <span className="bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-transparent">
+                    Customers Reply Like You Sent Them
+                  </span>
+                </h2>
+                <p className="text-slate-300 text-lg leading-relaxed">
+                  Two-way campaigns, keyword auto-replies, Text-to-Win contests,
+                  birthday clubs, and appointment reminders — on your own
+                  business number, sharing the same knowledge base and CRM as
+                  your chatbot and voice receptionist. No separate tool. No
+                  separate lead list.
+                </p>
+                <div className="mt-8 flex flex-wrap gap-3">
+                  <a
+                    href="/sms-marketing"
+                    className="inline-flex items-center gap-2 bg-emerald-600 text-white px-6 py-3.5 rounded-xl font-bold hover:bg-emerald-500 transition-all shadow-xl shadow-emerald-600/30"
+                  >
+                    Explore SMS Marketing <ArrowRight size={18} />
+                  </a>
+                  <button
+                    type="button"
+                    onClick={onLogin}
+                    className="inline-flex items-center gap-2 bg-white/10 border border-white/20 text-white px-6 py-3.5 rounded-xl font-bold hover:bg-white/20 transition-all"
+                  >
+                    Start Free
+                  </button>
+                </div>
+              </div>
+
+              <div className="relative mx-auto w-full max-w-sm rounded-[2rem] border border-white/10 bg-white/[0.07] p-5 shadow-2xl backdrop-blur-xl sm:p-6">
+                <div className="flex items-center gap-3 border-b border-white/10 pb-4">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-300">
+                    <MessageSquare size={18} />
+                  </span>
+                  <div>
+                    <p className="font-bold">Your Business</p>
+                    <p className="text-xs text-slate-400">(555) 010-0142</p>
+                  </div>
+                </div>
+                <div className="mt-5 space-y-3">
+                  <div className="ml-auto max-w-[85%] rounded-2xl rounded-br-md bg-emerald-600 px-4 py-2.5 text-sm">
+                    Hi! Reply BOOK to grab this week's opening, or STOP to opt
+                    out.
+                  </div>
+                  <div className="max-w-[85%] rounded-2xl rounded-bl-md bg-white/10 px-4 py-2.5 text-sm">
+                    BOOK
+                  </div>
+                  <div className="ml-auto max-w-[85%] rounded-2xl rounded-br-md bg-emerald-600 px-4 py-2.5 text-sm">
+                    You're booked for Thursday at 2pm. We'll text a reminder the
+                    day before.
+                  </div>
+                </div>
+                <p className="mt-4 text-center text-xs text-slate-500">
+                  Illustrative example — sent and answered automatically.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <CorporatePhoneDemo />
 
           {/* ──── 5. INTERACTIVE DEMO — Try the chatbot ──── */}
           <section id="demo" className="space-y-8 sm:space-y-12">
@@ -1013,7 +1123,7 @@ export const LandingPage: React.FC<LandingProps> = ({
                       className="text-emerald-500 shrink-0"
                       size={20}
                     />{' '}
-                    Instant responses powered by MiniMax M3
+                    Instant AI responses around the clock
                   </li>
                   <li className="flex items-center gap-3 text-slate-700">
                     <CheckCircle
@@ -1658,32 +1768,31 @@ export const LandingPage: React.FC<LandingProps> = ({
             </div>
           </section>
 
-          {/* ──── 10b. BETA TESTERS + PARTNERS CTA ──── */}
+          {/* ──── 10b. START NOW + PARTNERS CTA ──── */}
           <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
-            {/* Beta Testers */}
+            {/* Start Now */}
             <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-6 sm:p-8 border-2 border-blue-200 relative overflow-hidden">
               <div className="absolute top-0 right-0 bg-blue-600 text-white text-xs font-bold px-4 py-1 rounded-bl-xl">
-                🧪 BETA
+                🚀 LIVE NOW
               </div>
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center text-white">
                   <Sparkles size={24} />
                 </div>
                 <h3 className="text-xl font-extrabold text-slate-900">
-                  Become a Beta Tester
+                  Start Your Free Trial
                 </h3>
               </div>
               <p className="text-slate-600 mb-4 leading-relaxed">
-                Get early access to our AI chatbot and voice receptionist
-                platform. Help shape the product, get priority support, and lock
-                in founder pricing.
+                Get your AI chatbot and voice receptionist live in minutes. No
+                setup fees, no contracts, cancel anytime.
               </p>
               <ul className="space-y-2 mb-6">
                 {[
-                  'Early access to all features',
-                  'Direct line to the dev team',
-                  'Founder pricing locked in forever',
-                  'Your feedback shapes the roadmap',
+                  'Full access to all features',
+                  'Live support when you need it',
+                  'Simple, transparent pricing',
+                  'Set up in under 5 minutes',
                 ].map((f) => (
                   <li
                     key={f}
@@ -1694,14 +1803,15 @@ export const LandingPage: React.FC<LandingProps> = ({
                   </li>
                 ))}
               </ul>
-              <a
-                href="mailto:support@buildmybot.app?subject=Beta%20Tester%20Application"
+              <button
+                type="button"
+                onClick={onLogin}
                 className="inline-flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 transition shadow-lg shadow-blue-600/25"
               >
-                <Mail size={18} /> Apply for Beta Access
-              </a>
+                <ArrowRight size={18} /> Get Started Now
+              </button>
               <p className="text-xs text-slate-500 mt-3">
-                Or email{' '}
+                Questions first? Email{' '}
                 <a
                   href="mailto:support@buildmybot.app"
                   className="text-blue-600 font-semibold hover:underline"

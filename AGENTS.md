@@ -1,144 +1,191 @@
-> **⚠️ 2026-07-12 correction:** This file describes a `server/` Express app (routes, migrations, seeds, services). That directory **does not exist anywhere in this repo's git history** — confirmed via `git log --diff-filter=D -- server/` (empty) and a live GitHub API check. The actual, deployed architecture is **100% Vercel serverless functions** under `api/*.ts` (see `api/gateway.ts`, `api/cron/`, `api/ai-team/`, `api/rag.ts`). `package.json`'s `start`/`server` scripts still reference the phantom `server/index.ts` and will fail if run — this is exactly why a Railway deployment attempt (`buildmybot2-api` service) has been failing. Treat every `server/` reference below as historical/aspirational, not current. For the real structure, see `DEPLOYMENT.md` and `ARCHITECTURE_REVIEW.md`.
->
+# Repository Agent Guidelines
 
+This file is the operating contract for coding agents working in `patriotnewsactivism/buildmybot2`.
 
-# Repository Guidelines
+## Production authority
 
-## Project Structure & Module Organization
-- `App.tsx`, `index.tsx`, and `index.html` in the repo root are the Vite entry points.
-- `components/` holds UI views by feature (for example, `components/BotBuilder/`).
-- `hooks/` stores React hooks; `services/` contains API/AI helpers; `shared/` defines database schema and shared models (see `shared/schema.ts`).
-- `server/` is the Express API and Stripe integration (`server/index.ts`, `server/webhookHandlers.ts`).
-- `public/` hosts static assets; `src/index.css` is the Tailwind/global stylesheet.
-- `scripts/` contains one-off Node scripts (for example, `scripts/createStripePlans.js`); `dist/` is build output; `uploads/` is runtime data.
-- `test/` contains all test files organized by type (services, server, middleware, integration, e2e, components).
+Production is **Railway-first**, fronted by Cloudflare, with Google Cloud Run retained as a GET/HEAD fallback. Vercel is not a production runtime for this repository.
 
-## Build, Lint, and Test Commands
+Current primary service:
 
-### Development Commands
-- `npm run dev` - Starts the Vite client and the API server together
-- `npm run client` - Runs only the Vite dev server
-- `npm run server` - Runs the Express API with `tsx`
-- `npm run build` - Type-checks with `tsc` and builds the client
-- `npm run preview` - Serves the production build locally
+- Railway project: `BuildMyBot2`
+- Railway service: `buildmybot2-web`
+- Production branch: `main`
+- Public site: `https://www.buildmybot.app`
+- Active Supabase project: `blyebndyrojmreensbxe`
 
-### Linting Commands
-- `npm run lint` - Runs Biome checks for formatting and linting
-- `npm run lint -- --write` - Auto-fixes fixable linting issues
+Read `DEPLOYMENT.md` before changing deployment behavior.
 
-### Database Commands
-- `npm run db:push` - Syncs schema via Drizzle
-- `npm run db:studio` - Opens Drizzle Studio
-- `npm run db:migrate` - Runs database migrations
-- `npm run db:migrate:status` - Checks migration status
-- `npm run db:migrate:up` - Runs migrations up
-- `npm run db:migrate:down` - Runs migrations down
-- `npm run db:seed` - Seeds database with test data
-- `npm run db:setup` - Runs migrations and seeds the database
-- `npm run db:reset` - Resets the database (drops tables, runs migrations, seeds)
+## Real repository structure
 
-### Testing Commands
-- `npm run test` - Runs Vitest in watch mode (interactive)
-- `npm run test:ui` - Runs Vitest with UI interface
-- `npm run test:run` - Runs all tests once (no watch)
-- `npm run test:coverage` - Runs all tests with coverage report
-- `npm run test:run -- <file-path>` - Runs a single test file
-  - Example: `npm run test:run -- test/services/webScraperService.test.ts`
-- `npm run test:run -- -t "<test-name>"` - Runs tests with matching name
-  - Example: `npm run test:run -- -t "extracts readable text"`
-- `npm run test:run -- --run --no-watch` - Runs all tests without watch mode
+Do not invent or rely on a `server/` directory. The production server is the root `server.ts` plus `Dockerfile`, which mounts handlers under `api/` and serves the built Vite SPA.
 
-## Coding Style & Naming Conventions
+Important areas:
 
-### TypeScript & React
-- TypeScript + React with strict mode (`tsconfig.json`); use `.tsx` for components
-- Indentation is 2 spaces and semicolons are used consistently
-- Component folders and component names use PascalCase (e.g., `components/Marketing/MarketingTools.tsx`)
-- Hooks follow the `useX` pattern in `hooks/`; shared types live in `types.ts` and `shared/`
-- Use Biome for formatting and linting (`biome.json` in the repo root); run `npm run lint` before pushing
+- `App.tsx`, `index.tsx`, `index.html` — Vite/React entry surface.
+- `components/` — product UI.
+- `components/Dashboard/navConfig.tsx` — canonical authenticated navigation.
+- `api/gateway.ts` — main API router.
+- `api/gateway-legacy.ts` — large legacy gateway implementation still used by the router.
+- `api/voice/` — realtime voice, voice-team, and telephony behavior.
+- `api/phone/` — phone activation and corporate/tenant phone workflows.
+- `api/sms/` — SMS marketing and carrier workflows.
+- `api/rag.ts` and related knowledge handlers — RAG/knowledge ingestion.
+- `api/ai-team/` — autonomous employee workflows.
+- `shared/` — shared types, schemas, and voice-team definitions.
+- `supabase/migrations/` — repository migration history.
+- `docs/` — implementation/runbook documentation.
 
-### Imports
-- Use absolute imports with `@/` alias (configured in `tsconfig.json`)
-- Organize imports into groups:
-  1. External dependencies (React, third-party libraries)
-  2. Internal components/hooks
-  3. Services/API calls
-  4. Types/interfaces
-  5. Styles
+## Non-negotiable voice-team architecture
 
-### Formatting Rules (Biome)
-- Quote style: Single quotes
-- Semicolons: Always
-- Indentation: 2 spaces
-- Organize imports: Enabled (Biome will auto-sort)
-- Trailing commas: Recommended for multi-line statements
+Receptionist, Sales, Support, and Manager are **four distinct realtime voice agents**. Never collapse them into one assistant that changes prompts.
 
-### Type Safety
-- Prefer explicit interfaces over type aliases for clarity
-- Avoid `any` type; use `unknown` instead with proper type guards
-- Validate external inputs before use with Zod schemas
-- Use TypeScript to enforce legally sound data structures
-- Enable strict mode in `tsconfig.json`
+At every AI-to-AI handoff, the destination must receive its own:
 
-### Error Handling
-- Use try-catch blocks for async operations
-- Create meaningful error messages that include context
-- Log errors with Winston logger (server-side)
-- Handle client-side errors with user-friendly messages
-- Use Zod validation errors for input validation
+1. stable role/agent identity;
+2. voice ID;
+3. persona/system prompt;
+4. speaking style and role policy;
+5. opening/transfer acknowledgement behavior.
 
-### Naming Conventions
-- Variables/functions: camelCase (e.g., `handleSubmit`, `userData`)
-- Components/Hooks: PascalCase (e.g., `UserProfile`, `useAuth`)
-- Constants: UPPER_SNAKE_CASE (e.g., `API_ENDPOINTS`, `MAX_FILE_SIZE`)
-- Interfaces/Types: PascalCase (e.g., `User`, `ProductConfig`)
-- Files/Folders: PascalCase for components, kebab-case for utilities
+The caller's bounded context may transfer, including transcript summary, facts already collected, intent, tool results, promises, compliance flags, and transfer reason. The outgoing agent's voice/persona must not leak into the receiving agent.
 
-### Architectural Principles
-- Follow Airbnb JavaScript Style Guide principles: clear module boundaries, descriptive naming, minimal side effects
-- Separate concerns: UI components, business logic, API calls, state management
-- Use React hooks for state and side effects
-- Server-side: Use Express with TypeScript, Drizzle ORM for database
-- Client-side: Use React with TypeScript, Tailwind CSS for styling
+A refactor that causes Receptionist, Sales, Support, or Manager to sound like the same person is a production regression even if the textual prompt changes correctly.
 
-## Testing Guidelines
+Authoritative voice documentation: `docs/VOICE_TEAM_ARCHITECTURE_2026-09-10.md` and `docs/AI_VOICE_TEAM.md`.
 
-### Test Framework
-- Vitest is the testing framework (configured in `vitest.config.ts`)
-- React Testing Library for component tests
-- jsdom environment for DOM simulation
-- Setup file: `test/setup.ts` - configures mocks and environment variables
+## Realtime voice and telephony
 
-### Test Structure
-- Test files are located in `test/` directory
-- Organized by type:
-  - `services/` - Unit tests for business logic
-  - `server/` - Tests for server-side functionality
-  - `middleware/` - Tests for Express middleware
-  - `integration/` - Integration tests for API endpoints
-  - `e2e/` - End-to-end user flow tests
-  - `components/` - React component tests
+Gemini Live is the realtime conversational voice engine. Telnyx is the preferred current telephony/SMS provisioning direction, while some Twilio-compatible realtime voice paths remain during migration.
 
-### Test Naming
-- Filename: `<feature>.test.ts` or `<Component>.test.tsx`
-- Test blocks: `describe('Feature', () => {})`
-- Test cases: `it('should do something', () => {})`
-- Use meaningful descriptions that follow the "should" pattern
+Do not remove or bypass a legacy telephony bridge until its replacement has passed a real inbound end-to-end test, including role transfer behavior.
 
-### Test Writing Tips
-- Mock external dependencies (e.g., OpenAI, database) using Vitest mocks
-- Use `vi.mock()` to mock modules
-- Test both success and failure scenarios
-- Keep tests isolated and independent
-- Use `expect` for assertions
+Voice changes require tests for at least:
 
-## Commit & Pull Request Guidelines
-- Git history contains only `Initial commit`; no commit convention is established
-- Recommended: short imperative subject (e.g., `Add billing webhook validation`) and details in the body if needed
-- PRs should include a concise description, linked issues, and screenshots/GIFs for UI changes; call out env/config changes
+- Receptionist -> Sales;
+- Receptionist -> Support;
+- escalation -> Manager;
+- repeated/multi-hop transfer without context loss;
+- distinct audible identity after every transfer;
+- preview voice matching production configuration.
 
-## Security & Configuration Tips
-- Use `.env.example` as the baseline for required environment variables; never commit secrets
-- Stripe setup steps live in `STRIPE_SETUP_GUIDE.md`
-- When touching database schema, update `shared/schema.ts` and re-run `npm run db:push`
-- Billing requires `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_WHITELABEL_PRICE_ID`, and `APP_BASE_URL` for redirects/webhooks
+## Local development and release gates
+
+Use Node.js 22+.
+
+```bash
+npm ci
+npm run client
+npm run lint
+npm run test:run
+npm run build
+```
+
+Do not rely on stale package scripts that reference a nonexistent `server/index.ts`. When in doubt, inspect `package.json` and the actual filesystem before invoking a script.
+
+Production container validation:
+
+```bash
+docker build -t buildmybot2 .
+docker run --rm -p 8080:8080 --env-file .env buildmybot2
+```
+
+## Database safety
+
+The active production Supabase project is `blyebndyrojmreensbxe`.
+
+There is a production migration-history reconciliation hold. Do **not** run `supabase db push`, destructive migrations, resets, or schema rewrites against production until `docs/MIGRATION_BASELINE_RECONCILIATION.md` has been completed and the hold is explicitly removed.
+
+Never infer that a repository migration is safe merely because it applies cleanly to a fresh/local database.
+
+Tenant-scoped queries must preserve organization isolation. Server-side authorization must be based on live trusted data, not client-supplied role or organization claims.
+
+## Authentication and authorization
+
+Session authentication uses the repository's custom signed session flow. Do not weaken authentication, authorization, tenant isolation, webhook verification, carrier compliance, or secrets handling for convenience.
+
+Any endpoint that mutates customer, billing, telephony, SMS, bot, or agent state must validate the caller and tenant scope server-side.
+
+## Secrets
+
+Never commit real credentials.
+
+- Server/provider secrets belong in Railway/GitHub production secrets and appropriate cloud secret stores.
+- `VITE_*` values are public at build time and must never contain service-role keys or private provider credentials.
+- Webhook secrets must be verified before processing inbound events.
+- Never log bearer tokens, service-role keys, API keys, full payment credentials, or sensitive customer content.
+
+Use `.env.example` as the documented environment-variable inventory.
+
+## Code style
+
+- TypeScript strict mode.
+- React/TypeScript for client components.
+- Biome for linting/formatting.
+- Single quotes, semicolons, 2-space indentation.
+- Prefer explicit types at API boundaries.
+- Validate untrusted input with Zod or equivalent runtime validation.
+- Avoid `any`; use `unknown` plus narrowing when practical.
+- Preserve existing path aliases and module boundaries.
+
+## Error handling and reliability
+
+Production errors must fail deterministically and observably. Do not create unbounded retries, provider loops, or fallback cascades that can burn tokens/credits indefinitely.
+
+For external AI/provider calls:
+
+- bound timeouts;
+- cap retries;
+- use backoff where appropriate;
+- distinguish provider, credential, quota, validation, and network failures;
+- avoid placing every credential into cooldown because one model/provider timed out;
+- log enough structured metadata to diagnose failures without leaking secrets.
+
+## Pricing and limits
+
+`constants.ts` `PLANS` is the canonical source for product plan pricing/limits used by the application. Do not duplicate plan pricing or limits in prompts or components when a shared helper/source already exists.
+
+## Pull requests and commits
+
+Prefer focused commits with imperative subjects. For significant changes, use a feature branch and PR. Include:
+
+- what changed;
+- why;
+- tests run;
+- deployment/configuration impact;
+- migrations or environment variables;
+- screenshots for material UI changes;
+- rollout/rollback notes for risky production changes.
+
+Do not merge a failing build merely to trigger deployment.
+
+## Release verification
+
+A change is not released just because it is merged into `main`.
+
+Verify:
+
+1. exact Git SHA on `main`;
+2. CI status;
+3. Railway deployment status;
+4. Railway `/api/health` SHA;
+5. public `https://www.buildmybot.app/api/health` origin/SHA;
+6. Cloudflare deployment when frontend/proxy functions changed;
+7. feature-specific smoke tests.
+
+For voice work, a health endpoint alone is insufficient. Execute an actual call-path or equivalent realtime integration test.
+
+## Documentation discipline
+
+When architecture changes, update the relevant documentation in the same change. At minimum check:
+
+- `README.md`;
+- `AGENTS.md`;
+- `CLAUDE.md`;
+- `DEPLOYMENT.md`;
+- `docs/VOICE_TEAM_ARCHITECTURE_2026-09-10.md` / `docs/AI_VOICE_TEAM.md` for voice changes;
+- `docs/CORPORATE_PHONE.md` for phone routing changes;
+- `SECURITY.md` for security-boundary changes;
+- `.env.example` for configuration changes.
+
+Do not preserve known-false documentation merely for historical continuity. Git history already preserves old text.

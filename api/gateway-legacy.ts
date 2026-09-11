@@ -1,6 +1,6 @@
 import { Readable } from 'node:stream';
 import * as Sentry from '@sentry/node';
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { ApiRequest, ApiResponse } from './lib/http-types.js';
 import multer from 'multer';
 import {
   PLAN_LIMITS,
@@ -44,6 +44,7 @@ import {
   assertSafeOutboundUrl,
   safeFetch,
 } from './security/ssrf.js';
+import { computeSmsOversight } from './sms/oversight.js';
 
 // Initialize Sentry for production error monitoring
 if (process.env.SENTRY_DSN) {
@@ -55,7 +56,7 @@ if (process.env.SENTRY_DSN) {
 }
 
 // =====================================================================
-// BuildMyBot API Gateway — Vercel Serverless Catch-All
+// BuildMyBot API Gateway — Railway/Express API Catch-All
 // Replaces the dead Render Express backend
 // Uses Supabase REST API for data, JWT cookies for auth
 // =====================================================================
@@ -108,7 +109,7 @@ function parseCookies(
   return cookies;
 }
 
-async function getAuthUser(req: VercelRequest): Promise<AuthUser | null> {
+async function getAuthUser(req: ApiRequest): Promise<AuthUser | null> {
   if (!SESSION_JWT_SECRET || !SUPABASE_SERVICE_KEY) return null;
 
   // Check Bearer token
@@ -458,7 +459,7 @@ async function sbDelete(table: string, filters: Record<string, string>) {
   return { success: true };
 }
 
-function setCors(res: VercelResponse, req?: VercelRequest) {
+function setCors(res: ApiResponse, req?: ApiRequest) {
   // Credentialed API responses are restricted to an origin allowlist;
   // `*` with credentials is both unsafe and rejected by browsers.
   const origin = (req?.headers?.origin as string | undefined) || '';
@@ -481,7 +482,7 @@ function setCors(res: VercelResponse, req?: VercelRequest) {
   );
 }
 
-function parseBody(req: VercelRequest): any {
+function parseBody(req: ApiRequest): any {
   if (typeof req.body === 'string') return JSON.parse(req.body);
   return req.body;
 }
@@ -500,7 +501,7 @@ const multipartUpload = multer({
  * that instead of `req` directly.
  */
 async function parseMultipartFile(
-  req: VercelRequest,
+  req: ApiRequest,
 ): Promise<Express.Multer.File | undefined> {
   let raw: Buffer;
   if (Buffer.isBuffer(req.body) && req.body.length > 0) {
@@ -554,7 +555,7 @@ async function extractTextFromFile(
 // Route Handlers
 // =====================================================================
 
-async function handleHealth(_req: VercelRequest, res: VercelResponse) {
+async function handleHealth(_req: ApiRequest, res: ApiResponse) {
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
@@ -573,8 +574,8 @@ async function handleHealth(_req: VercelRequest, res: VercelResponse) {
 }
 
 async function handleBots(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
 ) {
   const orgFilter = ownerFilter(user);
@@ -628,8 +629,8 @@ async function handleBots(
 }
 
 async function handleBotById(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   botId: string,
 ) {
@@ -658,8 +659,8 @@ async function handleBotById(
 }
 
 async function handlePublicBotById(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   botId: string,
 ) {
   if (req.method !== 'GET')
@@ -697,8 +698,8 @@ function analyticsScope(
 }
 
 async function handleAnalytics(
-  _req: VercelRequest,
-  res: VercelResponse,
+  _req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -794,8 +795,8 @@ async function handleAnalytics(
 }
 
 async function handleLeads(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -1011,7 +1012,7 @@ function scoreLeadIntent(conversationContext: string | undefined): number {
   return Math.max(0, Math.min(100, Math.round(score)));
 }
 
-async function handleLeadCapture(req: VercelRequest, res: VercelResponse) {
+async function handleLeadCapture(req: ApiRequest, res: ApiResponse) {
   if (req.method !== 'POST')
     return res.status(405).json({ error: 'Method not allowed' });
   const body = parseBody(req);
@@ -1165,14 +1166,108 @@ const PLAN_PRICES: Record<string, number> = {
 };
 
 async function handleAdmin(
-  _req: VercelRequest,
-  res: VercelResponse,
+  _req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
   if (!isPlatformAdmin(user))
     return res.status(403).json({ error: 'Admin access required' });
   const sub = pathParts[0] || '';
+
+  // GET /admin/sms -- cross-tenant SMS oversight.
+  //
+  // The only place in the codebase that reads sms_* rows across tenants. Every
+  // customer-facing SMS query goes through scoped() in api/sms/store.ts, which
+  // pins tenant_key, so before this endpoint no staff view of the 10DLC queue
+  // existed at all. Deliberately served here rather than from api/sms/handler.ts:
+  // that handler calls ensureAccount() on every request, which would have
+  // created an sms_accounts row for whichever admin opened the page -- and that
+  // row alone adds the SMS step to their own activation checklist.
+  if (sub === 'sms') {
+    if (_req.method !== 'GET')
+      return res.status(405).json({ error: 'Method not allowed' });
+
+    const TENANT_LIMIT = 500;
+    const JOB_SCAN_LIMIT = 5000;
+    const WINDOW_DAYS = 30;
+
+    // The accounts read is the one query NOT wrapped in .catch(): an empty
+    // accounts list renders as "no tenant has opened SMS yet", so swallowing a
+    // Supabase failure here would quietly tell staff the opposite of the
+    // truth. Promise.all propagates that rejection, and the gateway's
+    // top-level handler turns it into the 500 the UI shows as an error state.
+    //
+    // sms_provisioning.tenant_key is a PK referencing sms_accounts, so there
+    // is never more provisioning than accounts. Fetching both at the same cap
+    // therefore aligns exactly until one of them binds -- which the response
+    // reports as tenantsTruncated rather than silently showing a registered
+    // tenant as "not started".
+    const [accounts, provisioning] = await Promise.all([
+      sbSelect(
+        'sms_accounts',
+        'tenant_key,user_id,organization_id,business_name,plan_key,paid_until,sender,campaign_id,campaign_usecase,ready,included_segments,used_segments,overage_micros,overage_used_micros,spend_limit_micros,updated_at',
+        { order: 'updated_at.desc', limit: String(TENANT_LIMIT) },
+      ),
+      sbSelect(
+        'sms_provisioning',
+        'tenant_key,status,step,last_error,sender,provider_brand_id,provider_campaign_id,updated_at',
+        { order: 'tenant_key.asc', limit: String(TENANT_LIMIT) },
+      ).catch(() => []),
+    ]);
+
+    // Chunked because a single in.() over 500 uuids builds a URL long enough
+    // for PostgREST to reject outright.
+    const ownerIds = [
+      ...new Set(
+        (accounts as any[])
+          .map((a) => a.user_id)
+          .filter(
+            (id): id is string =>
+              typeof id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(id),
+          ),
+      ),
+    ];
+    const ownerChunks: string[][] = [];
+    for (let i = 0; i < ownerIds.length; i += 100)
+      ownerChunks.push(ownerIds.slice(i, i + 100));
+
+    // Message counts are aggregated in JS from a bounded recent window rather
+    // than by a Postgres GROUP BY: PostgREST cannot group, and an RPC for a
+    // read-only staff page would mean a migration the operator has to apply.
+    // JOB_SCAN_LIMIT rows back means the counts are a floor, and the response
+    // says so via jobsTruncated so the UI never implies a total it cannot see.
+    const since = new Date(Date.now() - WINDOW_DAYS * 86400000).toISOString();
+    const [ownerPages, jobs] = await Promise.all([
+      Promise.all(
+        ownerChunks.map((chunk) =>
+          sbSelect('users', 'id,email,name', {
+            id: `in.(${chunk.join(',')})`,
+          }).catch(() => []),
+        ),
+      ),
+      sbSelect('sms_jobs', 'tenant_key,status', {
+        created_at: `gte.${since}`,
+        order: 'created_at.desc',
+        limit: String(JOB_SCAN_LIMIT),
+      }).catch(() => []),
+    ]);
+
+    return res.json({
+      ...computeSmsOversight({
+        accounts: accounts as any[],
+        provisioning: provisioning as any[],
+        owners: ownerPages.flat() as any[],
+        jobs: jobs as any[],
+        jobsTruncated: (jobs as any[]).length >= JOB_SCAN_LIMIT,
+        launchEnabled: process.env.SMS_LAUNCH_ENABLED === 'true',
+      }),
+      tenantsTruncated:
+        (accounts as any[]).length >= TENANT_LIMIT ||
+        (provisioning as any[]).length >= TENANT_LIMIT,
+      windowDays: WINDOW_DAYS,
+    });
+  }
 
   if (sub === 'users') {
     // Backs the admin Users / Sales Agents / Clients / Affiliates pages
@@ -1243,7 +1338,7 @@ async function handleAdmin(
       }).catch(() => []);
       const target = targetRows[0];
       if (!target) return res.status(404).json({ error: 'User not found' });
-      const f = target.organization_id
+      const f: Record<string, string> = target.organization_id
         ? { organization_id: `eq.${target.organization_id}` }
         : { user_id: `eq.${targetId}` };
       const [bots, leads, conversations] = await Promise.all([
@@ -1611,8 +1706,8 @@ async function handleAdmin(
 }
 
 async function handleConversations(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -1644,8 +1739,8 @@ async function handleConversations(
 }
 
 async function handleImpersonation(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -1660,8 +1755,8 @@ async function handleImpersonation(
 }
 
 async function handleRevenue(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -1787,8 +1882,8 @@ async function handleRevenue(
 }
 
 async function handleVoice(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -2097,7 +2192,7 @@ async function countCrawledPages(sourceId: string): Promise<number> {
  * crawl ("crawl.page"), and once more on completion/failure. Each page is
  * chunked + embedded and appended to the source's knowledge_chunks.
  */
-async function handleFirecrawlWebhook(req: VercelRequest, res: VercelResponse) {
+async function handleFirecrawlWebhook(req: ApiRequest, res: ApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -2259,8 +2354,8 @@ async function getAccessibleKnowledgeSource(
 }
 
 async function handleKnowledge(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -2514,8 +2609,8 @@ async function handleKnowledge(
 }
 
 async function handleTemplates(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[] = [],
 ) {
@@ -2604,8 +2699,8 @@ async function getAccessibleTool(
 }
 
 async function handleTools(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -2667,8 +2762,8 @@ async function handleTools(
 }
 
 async function handleWebhooks(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -2807,8 +2902,8 @@ async function handleWebhooks(
 }
 
 async function handleAgency(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -2914,8 +3009,8 @@ async function handleAgency(
 }
 
 async function handleIntegrations(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -3040,8 +3135,8 @@ async function handleIntegrations(
 }
 
 async function handleChannels(
-  _req: VercelRequest,
-  res: VercelResponse,
+  _req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
 ) {
   res.json(
@@ -3081,12 +3176,12 @@ async function getTwilioClient() {
   const Twilio = (await import('twilio')).default;
   const accountSid = process.env.TWILIO_ACCOUNT_SID as string;
   const authToken = process.env.TWILIO_AUTH_TOKEN as string;
-  return new Twilio(accountSid, authToken);
+  return Twilio(accountSid, authToken);
 }
 
 async function handlePhone(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -3284,8 +3379,8 @@ async function handlePhone(
 }
 
 async function handleOrganizations(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
 ) {
   if (req.method === 'GET') {
@@ -3306,8 +3401,8 @@ async function handleOrganizations(
 }
 
 async function handleClients(
-  _req: VercelRequest,
-  res: VercelResponse,
+  _req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -3523,7 +3618,7 @@ function chatRateLimited(key: string, max = 30, windowMs = 60_000): boolean {
  *    the underlying scraper/SSRF error text (logged server-side instead)
  *  - no API keys or other secrets ever touch the response body
  */
-async function handleDemoScrape(req: VercelRequest, res: VercelResponse) {
+async function handleDemoScrape(req: ApiRequest, res: ApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -3572,8 +3667,8 @@ async function handleDemoScrape(req: VercelRequest, res: VercelResponse) {
  * `user` -- website visitors chatting with an embedded bot are never
  * logged into buildmybot.app. */
 async function handleChat(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   pathParts: string[],
 ) {
   if (req.method !== 'POST') {
@@ -3734,8 +3829,8 @@ async function handleChat(
 }
 
 async function handleSearch(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
 ) {
   // SECURITY: this had no tenant scoping at all -- any logged-in user could
@@ -3838,8 +3933,8 @@ async function getOrCreateStripeCustomer(userId: string): Promise<string> {
 }
 
 async function handleStripe(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -3973,8 +4068,8 @@ async function handleStripe(
 }
 
 async function handleNotifications(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -4041,8 +4136,8 @@ async function handleNotifications(
 }
 
 async function handleAuthExtra(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   pathParts: string[],
 ) {
   const sub = pathParts[0] || '';
@@ -4187,8 +4282,8 @@ async function handleAuthExtra(
 }
 
 async function handleBotHealth(
-  _req: VercelRequest,
-  res: VercelResponse,
+  _req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -4218,8 +4313,8 @@ async function handleBotHealth(
 }
 
 async function handleBotErrors(
-  _req: VercelRequest,
-  res: VercelResponse,
+  _req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -4248,8 +4343,8 @@ async function handleBotErrors(
 }
 
 async function handleLandingPages(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -4357,8 +4452,8 @@ const USER_SELF_UPDATE_FIELDS: Record<string, string> = {
 };
 
 async function handleUsers(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -4400,8 +4495,8 @@ async function handleUsers(
 }
 
 async function handleTeam(
-  _req: VercelRequest,
-  res: VercelResponse,
+  _req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
 ) {
   const [members, roles] = await Promise.all([
@@ -4412,8 +4507,8 @@ async function handleTeam(
 }
 
 async function handleAudit(
-  _req: VercelRequest,
-  res: VercelResponse,
+  _req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
 ) {
   // SECURITY: previously had no role check AND no tenant scoping -- any
@@ -4433,8 +4528,8 @@ async function handleAudit(
 }
 
 async function handleSupport(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -4498,15 +4593,9 @@ async function handleSupport(
   }
 }
 
-async function handleLaunchGate(_req: VercelRequest, res: VercelResponse) {
-  res.json({ enabled: false, message: 'Launch gate is open' });
-}
-
-// =====================================================================
-
 async function handleAiEmployees(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -4761,7 +4850,7 @@ async function handleAiEmployees(
             );
             const revenue = succeeded.reduce((s, c) => s + c.amount, 0) / 100;
             const renewalsSoon = activeSubs.data.filter(
-              (s) => s.current_period_end && s.current_period_end <= soon,
+              (s) => s.items.data.some((item) => item.current_period_end <= soon),
             ).length;
             status = 'completed';
             output = `Real check: $${revenue.toFixed(2)} revenue / ${charges.data.length} charges in last 24h, ${failed.length} failed, ${pastDueSubs.data.length} past-due subs, ${renewalsSoon} renewing in next 7 days.`;
@@ -5485,7 +5574,7 @@ async function logEmployeeWork(entry: {
 /** PUBLIC (webhook-secret) — POST /api/email/inbound
  * Body accepts the common inbound-parse field names from Cloudflare Email
  * Workers, Mailgun, Postmark, and SendGrid. */
-async function handleEmailInbound(req: VercelRequest, res: VercelResponse) {
+async function handleEmailInbound(req: ApiRequest, res: ApiResponse) {
   if (req.method !== 'POST')
     return res.status(405).json({ error: 'Method not allowed' });
 
@@ -5538,7 +5627,7 @@ async function handleEmailInbound(req: VercelRequest, res: VercelResponse) {
     const { simpleParser } = await import('mailparser');
     const parsed = await simpleParser(raw);
     to = String(
-      parsed.to?.value?.[0]?.address ||
+      (Array.isArray(parsed.to) ? parsed.to[0] : parsed.to)?.value?.[0]?.address ||
         parsed.headers.get('delivered-to') ||
         '',
     ).toLowerCase();
@@ -5858,8 +5947,8 @@ async function handleEmailInbound(req: VercelRequest, res: VercelResponse) {
 
 /** AUTHENTICATED (admin/owner) — /api/email/... management endpoints */
 async function handleEmail(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -5916,8 +6005,8 @@ async function handleEmail(
  * (GitHub Actions), authenticated via CRON_SECRET, since Resend already
  * handles its own scheduled sends and doesn't need this at all. */
 async function handleEmailDispatchScheduled(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
 ) {
   if (req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) {
     return res.status(401).json({ error: 'unauthorized' });
@@ -5977,8 +6066,8 @@ async function handleEmailDispatchScheduled(
 // =====================================================================
 // ─── Partners Dashboard (real data) ───────────────────────────────────
 async function handlePartners(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -6084,8 +6173,8 @@ async function handlePartners(
 
 // ─── Resellers Dashboard (real data) ──────────────────────────────────
 async function handleResellers(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
   pathParts: string[],
 ) {
@@ -6150,8 +6239,8 @@ async function handleResellers(
 
 // ─── Trial Management ─────────────────────────────────────────────────
 async function handleTrial(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
 ) {
   if (req.method === 'GET') {
@@ -6290,20 +6379,29 @@ async function enforceConversationQuota(
 
 // ─── P2: activation checklist ─────────────────────────────────────────
 async function handleActivation(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
 ) {
   if (req.method !== 'GET')
     return res.status(405).json({ error: 'Method not allowed' });
 
   const filter = ownerFilter(user);
-  const [bots, integrations, phoneNumbers, milestones] = await Promise.all([
-    sbSelect('bots', '*', filter).catch(() => []),
-    sbSelect('integrations', '*', filter).catch(() => []),
-    sbSelect('phone_numbers', '*', filter).catch(() => []),
-    listMilestones(user.id).catch(() => ({})),
-  ]);
+  // SMS tables are keyed by tenant_key, not by the owner columns the rest of
+  // this handler filters on -- mirrors authenticate() in api/sms/store.ts.
+  const tenantKey = user.organizationId
+    ? `org:${user.organizationId}`
+    : `user:${user.id}`;
+  const [bots, integrations, phoneNumbers, milestones, smsAccounts] =
+    await Promise.all([
+      sbSelect('bots', '*', filter).catch(() => []),
+      sbSelect('integrations', '*', filter).catch(() => []),
+      sbSelect('phone_numbers', '*', filter).catch(() => []),
+      listMilestones(user.id).catch(() => ({})),
+      sbSelect('sms_accounts', 'tenant_key,ready', {
+        tenant_key: `eq.${tenantKey}`,
+      }).catch(() => []),
+    ]);
 
   const botIds = (bots || []).map((b: any) => b.id);
   let knowledgeSourceCount = 0;
@@ -6314,6 +6412,7 @@ async function handleActivation(
     knowledgeSourceCount = (sources || []).length;
   }
 
+  const smsAccount = (smsAccounts || [])[0];
   return res.json(
     computeActivation({
       bots: bots || [],
@@ -6321,14 +6420,17 @@ async function handleActivation(
       integrations: integrations || [],
       phoneNumbers: phoneNumbers || [],
       milestones: milestones || {},
+      sms: smsAccount
+        ? { registered: true, ready: smsAccount.ready === true }
+        : null,
     }),
   );
 }
 
 // ─── Quota Check ──────────────────────────────────────────────────────
 async function handleQuota(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
   user: AuthUser,
 ) {
   const planKey = getUserPlanKey(user);
@@ -6411,7 +6513,7 @@ async function handleQuota(
 // frontend widgets actually expect, including profit-report.
 const _origHandleAgency = handleAgency;
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   setCors(res, req);
   if (req.method === 'OPTIONS') return res.status(204).end();
 
@@ -6461,7 +6563,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     if (routeName === 'leads' && pathParts[0] === 'capture')
       return await handleLeadCapture(req, res);
-    if (routeName === 'launch-gate') return await handleLaunchGate(req, res);
     // Inbound email webhook — authenticated by x-webhook-secret, not session
     if (routeName === 'email' && pathParts[0] === 'inbound')
       return await handleEmailInbound(req, res);

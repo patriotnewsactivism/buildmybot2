@@ -1,5 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-
+import type { ApiRequest, ApiResponse } from '../lib/http-types.js';
 const GEMINI_MODEL = 'models/gemini-3.1-flash-live-preview';
 const DEMO_VOICE = 'Sulafat';
 const TOKEN_ENDPOINT =
@@ -48,7 +47,7 @@ function isAllowedOrigin(origin: string): boolean {
   ]).has(origin);
 }
 
-function getClientIp(req: VercelRequest): string {
+function getClientIp(req: ApiRequest): string {
   const cloudflareIp = req.headers['cf-connecting-ip'];
   if (typeof cloudflareIp === 'string' && cloudflareIp.trim()) {
     return cloudflareIp.trim();
@@ -98,7 +97,7 @@ function getRateLimit(ip: string): {
   };
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   res.setHeader('Cache-Control', 'no-store');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');

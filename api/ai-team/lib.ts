@@ -9,15 +9,22 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 type Provider =
   | 'openrouter-minimax-m3'
   | 'openrouter-nemotron-ultra'
-  | 'openrouter-glm-5-2-free'
   | 'openrouter-nemotron-super'
+  | 'openrouter-deepseek-v4-flash-paid'
   | 'openrouter-gpt-oss-120b-paid'
-  | 'openrouter-deepseek-v3-paid';
+  | 'openrouter-deepseek-v3-paid'
+  | 'openrouter-grok-4-6-bedrock';
 
 interface ProviderConfig {
   baseURL: string;
   model: string;
   keyEnvs: string[];
+  // Optional OpenRouter reasoning-effort hint (reasoning models only).
+  reasoningEffort?: 'low' | 'medium' | 'high';
+  // Optional OpenRouter provider-routing block. Needed when a model is served
+  // by several providers and only one of them is the intended target — e.g. a
+  // BYOK endpoint, which is only used if the request lands on that provider.
+  providerRouting?: { only?: string[]; allow_fallbacks?: boolean };
 }
 
 // Free-tier key order: new-account free key first, then the old-account
@@ -29,6 +36,14 @@ const FREE_KEY_ENVS = [
 ];
 // Paid keys back ONLY the paid tail (last resort).
 const PAID_KEY_ENVS = ['OPENROUTER_API_KEY_3'];
+// BYOK is configured per OpenRouter ACCOUNT, so this key must belong to the
+// account holding the Amazon Bedrock provider key. If that is the same account
+// as the paid key above, leave OPENROUTER_BYOK_API_KEY unset.
+const BYOK_KEY_ENVS = [
+  'OPENROUTER_BYOK_API_KEY',
+  'OPENROUTER_API_KEY_3',
+  'OPENROUTER_API_KEY',
+];
 
 const PROVIDER_CONFIG: Record<Provider, ProviderConfig> = {
   'openrouter-minimax-m3': {
@@ -41,15 +56,20 @@ const PROVIDER_CONFIG: Record<Provider, ProviderConfig> = {
     model: 'nvidia/nemotron-3-ultra-550b-a55b:free',
     keyEnvs: FREE_KEY_ENVS,
   },
-  'openrouter-glm-5-2-free': {
-    baseURL: 'https://openrouter.ai/api/v1/chat/completions',
-    model: 'z-ai/glm-5.2:free',
-    keyEnvs: FREE_KEY_ENVS,
-  },
   'openrouter-nemotron-super': {
     baseURL: 'https://openrouter.ai/api/v1/chat/completions',
     model: 'nvidia/nemotron-3-super-120b-a12b:free',
     keyEnvs: FREE_KEY_ENVS,
+  },
+  'openrouter-deepseek-v4-flash-paid': {
+    // Operator-approved PRIMARY paid fallback (2026-09-05): kicks in only
+    // after all four free models exhaust. Reasoning model — runs at low
+    // effort and the null-content guard below keeps it from silently
+    // returning an empty reply when thinking eats the token budget.
+    baseURL: 'https://openrouter.ai/api/v1/chat/completions',
+    model: 'deepseek/deepseek-v4-flash-0731',
+    keyEnvs: PAID_KEY_ENVS,
+    reasoningEffort: 'low',
   },
   'openrouter-gpt-oss-120b-paid': {
     // Cheapest high-reasoning paid model on OpenRouter ($0.037/M in).
@@ -62,24 +82,70 @@ const PROVIDER_CONFIG: Record<Provider, ProviderConfig> = {
     model: 'deepseek/deepseek-v3.2',
     keyEnvs: PAID_KEY_ENVS,
   },
+  'openrouter-grok-4-6-bedrock': {
+    // Last-resort rung (operator-authorised 2026-09-07). Routed through the
+    // operator's own Amazon Bedrock BYOK credential, so it bills AWS instead
+    // of OpenRouter credits and keeps the AI team answering when the free
+    // models are daily-capped AND the paid credits are exhausted — the exact
+    // combination that took the fleet down on 2026-09-06.
+    //
+    // Pinning is required, not a preference: x-ai/grok-4.6 is served by five
+    // endpoints and xAI direct is cheaper and much faster, so an unpinned
+    // request routes there and bills the credits this rung exists to avoid.
+    // allow_fallbacks:false stops a Bedrock outage becoming a silent
+    // paid-credit call; the chain falls through instead.
+    //
+    // The `/us-west-2` suffix is REQUIRED. OpenRouter documents a base provider
+    // slug as matching every endpoint of that provider including regional ones,
+    // but for this model it does not: the bare slug is dropped by the router's
+    // "Filter by Regional Surcharge" step (Bedrock is $2.2/M against xAI's
+    // $2/M) before `only` is applied. Verified against the live API on
+    // 2026-09-07, same request otherwise:
+    //
+    //   only: ['amazon-bedrock']           -> HTTP 404 "No allowed providers
+    //                                         are available for the selected
+    //                                         model" (funnel: 5 endpoints -> 4
+    //                                         at the surcharge filter, leaving
+    //                                         only xai)
+    //   only: ['amazon-bedrock/us-west-2'] -> served, tokens returned
+    //
+    // Reverting to the bare slug does not widen the match, it disables the rung.
+    //
+    // reasoningEffort is mandatory: grok-4.6 has reasoning.mandatory = true
+    // and defaults to 'high', which spends the whole token budget thinking and
+    // returns content: null — caught by the empty-completion guard below, but
+    // only after wasting the call.
+    baseURL: 'https://openrouter.ai/api/v1/chat/completions',
+    model: 'x-ai/grok-4.6',
+    keyEnvs: BYOK_KEY_ENVS,
+    reasoningEffort: 'low',
+    providerRouting: {
+      only: ['amazon-bedrock/us-west-2'],
+      allow_fallbacks: false,
+    },
+  },
 };
 
 const FALLBACK_ORDER: Provider[] = [
   'openrouter-minimax-m3',
   'openrouter-nemotron-ultra',
-  'openrouter-glm-5-2-free',
   'openrouter-nemotron-super',
+  'openrouter-deepseek-v4-flash-paid',
   'openrouter-gpt-oss-120b-paid',
   'openrouter-deepseek-v3-paid',
+  // Last: BYOK, so it is only reached once everything cheaper is exhausted.
+  'openrouter-grok-4-6-bedrock',
 ];
 
-function resolveOpenRouterKey(config?: ProviderConfig): string | undefined {
+function resolveOpenRouterKeys(config?: ProviderConfig): string[] {
   const envNames = config?.keyEnvs ?? FREE_KEY_ENVS;
+  const keys: string[] = [];
   for (const envName of envNames) {
     const value = process.env[envName];
-    if (value) return value;
+    // Ignore placeholder/garbage values (real OpenRouter keys are long).
+    if (value && value.length >= 40 && !keys.includes(value)) keys.push(value);
   }
-  return undefined;
+  return keys;
 }
 
 export function salesAutomationDryRun(): boolean {
@@ -138,12 +204,15 @@ export async function callLLM(
   const errors: string[] = [];
   for (const provider of FALLBACK_ORDER) {
     const config = PROVIDER_CONFIG[provider];
-    const apiKey = resolveOpenRouterKey(config);
-    if (!apiKey) continue;
-    try {
-      return await callWithConfig(config, apiKey, systemPrompt, userPrompt);
-    } catch (error: any) {
-      errors.push(`${provider}: ${error.message}`);
+    // Try every configured key for this provider tier before moving on —
+    // a single exhausted key (daily free-model caps) must not strand the
+    // whole provider when a second live key exists.
+    for (const apiKey of resolveOpenRouterKeys(config)) {
+      try {
+        return await callWithConfig(config, apiKey, systemPrompt, userPrompt);
+      } catch (error: any) {
+        errors.push(`${provider}: ${error.message}`);
+      }
     }
   }
 
@@ -177,17 +246,20 @@ export async function callLLMMessages(
 
   for (const provider of order) {
     const config = PROVIDER_CONFIG[provider];
-    const apiKey = resolveOpenRouterKey(config);
-    if (!apiKey) continue;
-    try {
-      return await callWithConfigMessages(
-        config,
-        apiKey,
-        messages,
-        temperature,
-      );
-    } catch (error: any) {
-      errors.push(`${provider}: ${error.message}`);
+    // Try every configured key for this provider tier before moving on —
+    // a single exhausted key (daily free-model caps) must not strand the
+    // whole provider when a second live key exists.
+    for (const apiKey of resolveOpenRouterKeys(config)) {
+      try {
+        return await callWithConfigMessages(
+          config,
+          apiKey,
+          messages,
+          temperature,
+        );
+      } catch (error: any) {
+        errors.push(`${provider}: ${error.message}`);
+      }
     }
   }
 
@@ -241,6 +313,10 @@ async function callWithConfigMessages(
         messages,
         temperature,
         max_tokens: maxTokens,
+        ...(config.reasoningEffort
+          ? { reasoning: { effort: config.reasoningEffort } }
+          : {}),
+        ...(config.providerRouting ? { provider: config.providerRouting } : {}),
       }),
     });
     if (!response.ok) {
@@ -248,7 +324,19 @@ async function callWithConfigMessages(
       throw new Error(`${response.status} ${detail.slice(0, 200)}`);
     }
     const data = await response.json();
-    return data.choices?.[0]?.message?.content ?? '';
+    const content = data.choices?.[0]?.message?.content;
+    // Reasoning models (e.g. deepseek-v4-flash) can spend the whole token
+    // budget thinking and return content: null. That is NOT a success —
+    // throw so the chain falls through to the next provider instead of
+    // silently returning an empty reply.
+    if (typeof content !== 'string' || content.trim() === '') {
+      throw new Error(
+        `empty completion content (finish_reason: ${
+          data.choices?.[0]?.finish_reason ?? 'unknown'
+        })`,
+      );
+    }
+    return content;
   } finally {
     clearTimeout(timeout);
   }

@@ -11,17 +11,17 @@
  */
 
 import { createHmac } from 'node:crypto';
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { ApiRequest, ApiResponse } from '../lib/http-types.js';
 import { formatPricingForPrompt } from '../../constants.js';
 import { logCallOutcome } from './service.js';
 
-function setCors(res: VercelResponse) {
+function setCors(res: ApiResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 }
 
-function parseBody(req: VercelRequest): any {
+function parseBody(req: ApiRequest): any {
   if (typeof req.body === 'string') {
     try {
       return JSON.parse(req.body);
@@ -42,7 +42,7 @@ function parseBody(req: VercelRequest): any {
  * spend. It now fails closed in production; the field-shape fallback only
  * survives for local development (NODE_ENV !== 'production').
  */
-async function validateTwilioRequest(req: VercelRequest): Promise<boolean> {
+async function validateTwilioRequest(req: ApiRequest): Promise<boolean> {
   const authToken = process.env.TWILIO_AUTH_TOKEN;
   const isProduction = process.env.NODE_ENV === 'production';
 
@@ -123,7 +123,7 @@ function speakLine(text: string, voice = 'eve'): string {
  * Returns TwiML that greets the lead and connects them to a
  * <Gather> → webhook loop for real-time AI conversation.
  */
-export async function voiceHandler(req: VercelRequest, res: VercelResponse) {
+export async function voiceHandler(req: ApiRequest, res: ApiResponse) {
   setCors(res);
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST') return res.status(405).end();
@@ -183,7 +183,7 @@ export async function voiceHandler(req: VercelRequest, res: VercelResponse) {
  * Processes speech input from the lead, generates an AI response,
  * and continues the conversation loop.
  */
-export async function voiceRespond(req: VercelRequest, res: VercelResponse) {
+export async function voiceRespond(req: ApiRequest, res: ApiResponse) {
   setCors(res);
   if (req.method !== 'POST') return res.status(405).end();
 
@@ -266,7 +266,7 @@ Rules:
  * POST /api/twilio/status-callback
  * Twilio calls this when the call status changes.
  */
-export async function statusCallback(req: VercelRequest, res: VercelResponse) {
+export async function statusCallback(req: ApiRequest, res: ApiResponse) {
   setCors(res);
   if (req.method !== 'POST') return res.status(405).end();
 
@@ -301,8 +301,8 @@ export async function statusCallback(req: VercelRequest, res: VercelResponse) {
  * Twilio calls this when a recording/transcription is ready.
  */
 export async function recordingCallback(
-  req: VercelRequest,
-  res: VercelResponse,
+  req: ApiRequest,
+  res: ApiResponse,
 ) {
   setCors(res);
   if (req.method !== 'POST') return res.status(405).end();

@@ -1,0 +1,105 @@
+name: Sync secrets to Railway (buildmybot2)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/deploy-railway.yml'
+  workflow_dispatch: {}
+
+env:
+  RAILWAY_PROJECT_ID: e1170aa8-02f5-4fe3-8fce-e066133938c1
+  RAILWAY_SERVICE_ID: 60b6d260-f5d8-463d-87be-58339545eaaf
+  RAILWAY_ENVIRONMENT_ID: 6ce38db0-789b-4fe9-ad02-f068fe6866ae
+
+jobs:
+  sync-vars:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Push production secrets into Railway
+        env:
+          BASE44_SUPERAGENT_API_KEY: ${{ secrets.BASE44_SUPERAGENT_API_KEY }}
+          CARTESIA_API_KEY: ${{ secrets.CARTESIA_API_KEY }}
+          CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+          COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+          FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          INBOUND_EMAIL_WEBHOOK_SECRET: ${{ secrets.INBOUND_EMAIL_WEBHOOK_SECRET }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENROUTER_API_KEY_2: ${{ secrets.OPENROUTER_API_KEY_2 }}
+          PORTFOLIO_INTAKE_SECRET: ${{ secrets.PORTFOLIO_INTAKE_SECRET }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          RETELL_API_KEY: ${{ secrets.RETELL_API_KEY }}
+          RETELL_WEBHOOK_SECRET: ${{ secrets.RETELL_WEBHOOK_SECRET }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          SESSION_JWT_SECRET: ${{ secrets.SESSION_JWT_SECRET }}
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          STRIPE_WHITELABEL_PRICE_ID: ${{ secrets.STRIPE_WHITELABEL_PRICE_ID }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+          TELNYX_API_KEY: ${{ secrets.TELNYX_API_KEY }}
+          TELNYX_MESSAGING_PROFILE_ID: ${{ secrets.TELNYX_MESSAGING_PROFILE_ID }}
+          TELNYX_PUBLIC_KEY: ${{ secrets.TELNYX_PUBLIC_KEY }}
+          VAPI_API_KEY: ${{ secrets.VAPI_API_KEY }}
+          VAPI_WEBHOOK_SECRET: ${{ secrets.VAPI_WEBHOOK_SECRET }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          python3 - <<'PYEOF'
+          import json, os, urllib.request
+
+          keys = [
+            "BASE44_SUPERAGENT_API_KEY","CARTESIA_API_KEY","CEREBRAS_API_KEY","COHERE_API_KEY",
+            "CRON_SECRET","DATABASE_URL","ENCRYPTION_KEY","FIRECRAWL_API_KEY","GEMINI_API_KEY",
+            "GROQ_API_KEY","INBOUND_EMAIL_WEBHOOK_SECRET","OPENAI_API_KEY","OPENROUTER_API_KEY",
+            "OPENROUTER_API_KEY_2","PORTFOLIO_INTAKE_SECRET","RESEND_API_KEY","RETELL_API_KEY",
+            "RETELL_WEBHOOK_SECRET","SENTRY_DSN","SESSION_JWT_SECRET","SESSION_SECRET",
+            "STRIPE_SECRET_KEY","STRIPE_WEBHOOK_SECRET","STRIPE_WHITELABEL_PRICE_ID",
+            "SUPABASE_SERVICE_ROLE_KEY","TAVILY_API_KEY","TELNYX_API_KEY",
+            "TELNYX_MESSAGING_PROFILE_ID","TELNYX_PUBLIC_KEY","VAPI_API_KEY","VAPI_WEBHOOK_SECRET",
+          ]
+          variables = {k: os.environ[k] for k in keys if os.environ.get(k)}
+          variables["NODE_ENV"] = "production"
+          variables["PORT"] = "8080"
+          missing = [k for k in keys if not os.environ.get(k)]
+          print("Setting", len(variables), "variables. Missing/empty:", missing)
+
+          query = """
+          mutation($input: VariableCollectionUpsertInput!) {
+            variableCollectionUpsert(input: $input)
+          }
+          """
+          payload = {
+            "query": query,
+            "variables": {
+              "input": {
+                "projectId": os.environ["RAILWAY_PROJECT_ID"],
+                "environmentId": os.environ["RAILWAY_ENVIRONMENT_ID"],
+                "serviceId": os.environ["RAILWAY_SERVICE_ID"],
+                "variables": variables,
+              }
+            }
+          }
+          req = urllib.request.Request(
+            "https://backboard.railway.app/graphql/v2",
+            data=json.dumps(payload).encode(),
+            method="POST",
+            headers={
+              "Authorization": f"Bearer {os.environ['RAILWAY_TOKEN']}",
+              "Content-Type": "application/json",
+              "User-Agent": "buildmybot2-ci/1.0",
+            },
+          )
+          with urllib.request.urlopen(req) as resp:
+            body = resp.read().decode()
+            print("Railway response:", body)
+            data = json.loads(body)
+            if data.get("errors"):
+              raise SystemExit("Railway variable sync FAILED: " + body)
+          PYEOF

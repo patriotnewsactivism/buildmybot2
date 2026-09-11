@@ -1,10 +1,10 @@
-name: Apply Supabase Migrations
+name: Supabase Migration Baseline Audit
 
 on:
   workflow_dispatch:
     inputs:
       confirm:
-        description: Type APPLY to migrate production
+        description: Type BASELINE_AUDIT to inspect production migration state
         required: true
         type: string
 
@@ -16,7 +16,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  migrate:
+  audit:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: production
@@ -28,8 +28,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Require explicit production confirmation
-        run: test "$MIGRATION_CONFIRM" = "APPLY"
+      - name: Require explicit audit confirmation
+        run: test "$MIGRATION_CONFIRM" = "BASELINE_AUDIT"
 
       - name: Verify required secrets
         run: |
@@ -44,11 +44,12 @@ jobs:
       - name: Link production project
         run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
 
-      - name: Show migration plan
-        run: supabase db push --linked --dry-run
-
-      - name: Apply pending migrations
-        run: supabase db push --linked
-
-      - name: Verify migration history
+      - name: Inspect linked migration history only
         run: supabase migration list --linked
+
+      - name: Production migration hold
+        run: |
+          echo "Production db push is intentionally disabled."
+          echo "The live BuildMyBot database already contains application relations but did not expose a Supabase CLI migration-history table during the 2026-09-05 release audit."
+          echo "Reconcile and baseline migration history before re-enabling any supabase db push command."
+          echo "See docs/MIGRATION_BASELINE_RECONCILIATION.md."

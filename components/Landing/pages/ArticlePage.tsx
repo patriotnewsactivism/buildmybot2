@@ -55,12 +55,12 @@ const articleContent: Record<
         </p>
 
         <h2 className="text-2xl font-bold text-slate-900 mt-12 mb-4">
-          Voice Agents Powered by Cartesia
+          Ultra-Realistic Voice Agents
         </h2>
         <p className="text-slate-700 mb-6 leading-relaxed">
           Take customer engagement to the next level with our ultra-realistic
-          voice agents. Powered by Cartesia's advanced voice synthesis
-          technology, our voice agents sound remarkably human—complete with
+          voice agents. Built on our own realtime two-way voice engine, our
+          voice agents sound remarkably human—complete with
           natural intonation, appropriate pauses, and emotional nuance.
         </p>
         <p className="text-slate-700 mb-6 leading-relaxed">

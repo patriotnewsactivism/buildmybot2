@@ -6,7 +6,7 @@
  * error_logs sweep (step 4).
  */
 
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { ApiRequest, ApiResponse } from '../api/lib/http-types.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 process.env.SUPABASE_URL = 'https://test.supabase.co';
@@ -17,7 +17,7 @@ process.env.DISCORD_WEBHOOK_URL = undefined;
 process.env.SLACK_WEBHOOK_URL = undefined;
 
 function createMockResponse(): {
-  res: VercelResponse;
+  res: ApiResponse;
   get status(): number;
   get body(): any;
 } {
@@ -33,7 +33,7 @@ function createMockResponse(): {
       return res;
     }),
     end: vi.fn(() => res),
-  } as unknown as VercelResponse;
+  } as unknown as ApiResponse;
   return {
     res,
     get status() {
@@ -89,7 +89,7 @@ describe('pulse escalation-SLA sweep', () => {
     const { pulseHandler } = await import('../api/cron/_pulse.js');
     const req = {
       headers: { authorization: 'Bearer test-cron-secret' },
-    } as unknown as VercelRequest;
+    } as unknown as ApiRequest;
     const helper = createMockResponse();
 
     await pulseHandler(req, helper.res);
@@ -134,7 +134,7 @@ describe('pulse escalation-SLA sweep', () => {
     const { pulseHandler } = await import('../api/cron/_pulse.js');
     const req = {
       headers: { authorization: 'Bearer test-cron-secret' },
-    } as unknown as VercelRequest;
+    } as unknown as ApiRequest;
     const helper = createMockResponse();
 
     await pulseHandler(req, helper.res);

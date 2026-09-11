@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { ApiRequest, ApiResponse } from './lib/http-types.js';
 import { handleSmsBillingEvent } from './sms/billing.js';
 
 // This is a dedicated Vercel function (not routed through gateway.ts) so we
@@ -94,7 +94,7 @@ async function stripeGet(path: string) {
  * verification (silently dropping all billing events). We now prefer the raw
  * bytes the framework captured, and only fall back to reading the stream.
  */
-export function getRawBody(req: VercelRequest): Promise<Buffer> {
+export function getRawBody(req: ApiRequest): Promise<Buffer> {
   const anyReq = req as any;
   const captured = anyReq.rawBody ?? anyReq.body;
   if (Buffer.isBuffer(captured)) return Promise.resolve(captured);
@@ -109,7 +109,7 @@ export function getRawBody(req: VercelRequest): Promise<Buffer> {
   return readRawBody(req);
 }
 
-function readRawBody(req: VercelRequest): Promise<Buffer> {
+function readRawBody(req: ApiRequest): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     req.on('data', (c) => chunks.push(Buffer.from(c)));
@@ -497,7 +497,7 @@ async function handleOneTimeCheckout(session: any) {
   }
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (req.method !== 'POST')
     return res.status(405).json({ error: 'Method not allowed' });
   if (!STRIPE_WEBHOOK_SECRET) {
