@@ -8,8 +8,8 @@
 
 import type { IncomingMessage } from 'node:http';
 import WebSocket from 'ws';
-import { validTelnyxClientState } from '../phone/tenant-telnyx-token.js';
 import { getReceptionistGreeting } from '../../shared/voice-team.js';
+import { validTelnyxClientState } from '../phone/tenant-telnyx-token.js';
 import {
   type DeepgramToolContext,
   executeServerTool,

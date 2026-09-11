@@ -21,7 +21,6 @@ import {
   handoffContextText,
 } from '../../shared/voice-team.js';
 import { departmentInstructions } from '../phone/corporate-routing.js';
-import { loadVoiceTeam } from './team-store.js';
 import {
   GRANT_INCENTIVE_TOOL,
   executeGrantIncentive,
@@ -34,6 +33,7 @@ import {
   generateHoldMusicMuLaw,
   generateRingbackMuLaw,
 } from './ringback-tone.js';
+import { loadVoiceTeam } from './team-store.js';
 /**
  * Telnyx bidirectional Call Control streaming -> Gemini Live voice pipeline.
  *
