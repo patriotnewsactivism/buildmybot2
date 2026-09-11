@@ -1,0 +1,45 @@
+--- a/api/voice/telnyx-live.ts	2026-09-11 18:33:15.981526549 +0000
++++ b/api/voice/telnyx-live.ts	2026-09-11 18:33:15.981526549 +0000
+@@ -20,6 +20,10 @@
+ } from '../../shared/voice-team.js';
+ import { departmentInstructions } from '../phone/corporate-routing.js';
+ import { loadVoiceTeam } from './team-store.js';
++import {
++  GRANT_INCENTIVE_TOOL,
++  executeGrantIncentive,
++} from './grant-incentive.js';
+ /**
+  * Telnyx bidirectional Call Control streaming -> Gemini Live voice pipeline.
+  *
+@@ -398,7 +402,7 @@
+     case 'support':
+       return 'Resolve the operational, account, configuration or product issue first. Identify churn or cancellation risk without immediately offering a commercial concession. Escalate unresolved service issues or retention risk to manager with what has already been tried.';
+     case 'manager':
+-      return 'Operate in this order: UNDERSTAND, ISOLATE, RESOLVE, VALUE, CONFIRM, INCENTIVIZE, CLOSE, ESCALATE. Never begin by discounting. Use request_retention_offer only after the real blocker is isolated and value has been defended. Do not state or infer internal discount limits, remaining authority, ladders or floors. Before a stronger concession, establish whether resolving price allows the customer to proceed. Use escalate_to_owner only when owner-level judgment is genuinely required or the caller insists after reasonable resolution efforts.';
++      return 'Operate in this order: UNDERSTAND, ISOLATE, RESOLVE, VALUE, CONFIRM, INCENTIVIZE, CLOSE, ESCALATE. Never begin by discounting. Use grant_incentive only after an objection tag is set and a value-pitch attempt has been made; the server returns a pre-approved offer code under workspace caps. Corporate retention may still use request_retention_offer when available. Do not state or infer internal discount limits, remaining authority, ladders or floors. Before a stronger concession, establish whether resolving price allows the customer to proceed. Use escalate_to_owner only when owner-level judgment is genuinely required or the caller insists after reasonable resolution efforts.';
+   }
+ }
+ 
+@@ -540,6 +544,13 @@
+       },
+     });
+   }
++  if ((context.department || 'receptionist') === 'manager') {
++    functionDeclarations.push({
++      name: GRANT_INCENTIVE_TOOL.name,
++      description: GRANT_INCENTIVE_TOOL.description,
++      parameters: GRANT_INCENTIVE_TOOL.parameters,
++    });
++  }
+   if (
+     context.botId === CORPORATE.botId &&
+     (context.department || 'receptionist') === 'manager'
+@@ -999,6 +1010,8 @@
+       return captureLead(context, args);
+     case 'transfer_to_human':
+       return transferToHuman(context, args);
++    case 'grant_incentive':
++      return executeGrantIncentive(context, args);
+     case 'request_retention_offer':
+       return requestRetentionOffer(context, args);
+     case 'record_retention_offer_outcome':
