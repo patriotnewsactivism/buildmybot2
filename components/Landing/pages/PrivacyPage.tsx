@@ -161,12 +161,12 @@ export const PrivacyPage: React.FC = () => {
                 PCI-compliant transaction handling.
               </li>
               <li>
-                <strong>AI Services:</strong> OpenAI and Cartesia for generating
+                <strong>AI Services:</strong> OpenAI and Google Gemini for generating
                 chatbot and voice agent responses.
               </li>
               <li>
-                <strong>Communication:</strong> Twilio and Telnyx for telephony
-                and SMS services.
+                <strong>Communication:</strong> Telnyx for telephony and SMS services
+                (with Twilio on legacy voice bridges during migration).
               </li>
             </ul>
             <p className="text-slate-600 leading-relaxed mt-4">
