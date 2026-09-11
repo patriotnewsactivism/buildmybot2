@@ -31,7 +31,7 @@ export function getToolDeclarationsForDeepgram(): DeepgramToolDeclaration[] {
           plan_key: {
             type: 'string',
             description:
-              'Plan key such as free, starter, professional, or business.',
+              'Plan key such as free, starter, professional, executive, or enterprise.',
           },
           discount_percent: {
             type: 'number',
@@ -110,10 +110,9 @@ function resolvePlan(planKey: string): {
 }
 
 function checkoutUrl(planKey: string): string {
-  const base = (process.env.APP_BASE_URL || 'https://www.buildmybot.app').replace(
-    /\/$/,
-    '',
-  );
+  const base = (
+    process.env.APP_BASE_URL || 'https://www.buildmybot.app'
+  ).replace(/\/$/, '');
   return `${base}/billing?plan=${encodeURIComponent(planKey)}`;
 }
 
@@ -128,7 +127,8 @@ export async function executeServerTool(
       if (!plan) {
         return {
           ok: false,
-          error: 'Unknown plan. Use free, starter, professional, or business.',
+          error:
+            'Unknown plan. Use free, starter, professional, executive, or enterprise.',
         };
       }
       const discountRaw = asNumber(args.discount_percent) ?? 0;
@@ -173,7 +173,9 @@ export async function executeServerTool(
       };
     }
     case 'transfer_to_owner': {
-      const destination = (process.env.VOICE_OWNER_ESCALATION_NUMBER || '').trim();
+      const destination = (
+        process.env.VOICE_OWNER_ESCALATION_NUMBER || ''
+      ).trim();
       if (!destination) {
         return {
           ok: false,

@@ -19,30 +19,30 @@
  * tenant-twilio.ts's three exported handlers (tenantInboundVoiceHandler /
  * tenantInboundVoiceRespond / tenantInboundStatusCallback).
  *
- * Primary path (GEMINI_API_KEY configured, which is true in production):
- * call.initiated -> resolve bot/tenant by called number -> create call_logs
- * row -> answer the call with client_state encoding {botId, logId} AND
- * request bidirectional streaming to wss://.../api/voice/telnyx-media in
- * the SAME answer action (Telnyx supports requesting streaming directly on
- * the answer command, no need to wait for call.answered + a second action).
- * api/voice/telnyx-live.ts then owns the entire live Gemini Live turn from
- * there.
+ * Primary path (GEMINI_API_KEY configured, or VOICE_ENGINE=deepgram with
+ * DEEPGRAM_API_KEY): call.initiated -> resolve bot/tenant by called number ->
+ * create call_logs row -> answer the call with client_state encoding
+ * {botId, logId} AND request bidirectional PCMU streaming to
+ * wss://.../api/voice/telnyx-media in the SAME answer action. Default media
+ * owner is api/voice/telnyx-live.ts (Gemini Live voice-team). When
+ * VOICE_ENGINE=deepgram, server.ts routes the same WebSocket path to
+ * api/voice/deepgram-agent.ts instead.
  *
- * Fallback path (no GEMINI_API_KEY, or answer fails): a single spoken
+ * Fallback path (no realtime key, or answer fails): a single spoken
  * message via the `speak` Call Control action, then hang up. This is
  * DELIBERATELY simpler than tenant-twilio.ts's old multi-turn Gather/TTS
  * loop -- Telnyx's speech-gather mechanics (gather_using_speak) differ
  * enough from Twilio's <Gather input="speech"> that faithfully porting a
  * multi-turn loop without any way to test it against a real call risked
- * shipping something subtly broken. Since GEMINI_API_KEY is confirmed set
- * in production, this fallback exists only for defense-in-depth (Gemini
+ * shipping something subtly broken. Since a realtime key is confirmed set
+ * in production, this fallback exists only for defense-in-depth (provider
  * outage / misconfigured tenant), not as the normal path. Flagged
  * explicitly in the PR -- if Don wants full fallback IVR parity, that's a
  * scoped follow-up once this can be tested against a real call.
  */
 
-import type { ApiRequest, ApiResponse } from '../lib/http-types.js';
 import { z } from 'zod';
+import type { ApiRequest, ApiResponse } from '../lib/http-types.js';
 import {
   answerCall,
   hangupCall,
@@ -243,7 +243,12 @@ async function handleCallInitiated(payload: unknown): Promise<void> {
     callControlId,
   });
 
-  if (logId && process.env.GEMINI_API_KEY) {
+  if (
+    logId &&
+    (process.env.GEMINI_API_KEY ||
+      ((process.env.VOICE_ENGINE || '').trim().toLowerCase() === 'deepgram' &&
+        process.env.DEEPGRAM_API_KEY))
+  ) {
     const clientState = createTelnyxStreamToken({
       callControlId,
       botId: bot.id,

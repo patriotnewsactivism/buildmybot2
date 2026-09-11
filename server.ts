@@ -23,6 +23,10 @@ import { recordProcessedStripeOutcome } from './api/lib/stripe-outcome.js';
 import tenantTelnyxWebhookHandler from './api/phone/tenant-telnyx.js';
 import smsWebhookHandler from './api/sms/webhooks.js';
 import stripeWebhookHandler from './api/stripe-webhook.js';
+import {
+  handleDeepgramTelnyxMediaConnection,
+  isDeepgramVoiceEnabled,
+} from './api/voice/deepgram-agent.js';
 import liveTokenHandler from './api/voice/live-token.js';
 import { handleTelnyxMediaConnection } from './api/voice/telnyx-live.js';
 import { handleTwilioMediaConnection } from './api/voice/twilio-live.js';
@@ -46,6 +50,12 @@ server.on('upgrade', (request, socket, head) => {
 
   if (pathname === '/api/voice/telnyx-media') {
     telnyxMediaWss.handleUpgrade(request, socket, head, (webSocket) => {
+      // VOICE_ENGINE=deepgram + DEEPGRAM_API_KEY routes media to Deepgram
+      // Agent (raw PCMU). Default remains Gemini Live voice-team.
+      if (isDeepgramVoiceEnabled()) {
+        handleDeepgramTelnyxMediaConnection(webSocket, request);
+        return;
+      }
       handleTelnyxMediaConnection(webSocket, request);
     });
     return;
