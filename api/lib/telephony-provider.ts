@@ -528,3 +528,40 @@ export async function transferCall(
     },
   );
 }
+
+export interface RecordingOptions {
+  format?: 'mp3' | 'wav';
+  channels?: 'single' | 'dual';
+  playBeep?: boolean;
+  clientState?: string;
+  commandId?: string;
+}
+
+export async function startRecording(
+  callControlId: string,
+  options: RecordingOptions = {},
+): Promise<{ recordingId?: string }> {
+  const result = await telnyxRequest<{
+    data: { recording_id?: string; result?: string };
+  }>(`/calls/${encodeURIComponent(callControlId)}/actions/record_start`, {
+    method: 'POST',
+    body: JSON.stringify({
+      format: options.format || 'mp3',
+      channels: options.channels || 'dual',
+      play_beep: options.playBeep ?? false,
+      client_state: options.clientState || undefined,
+      command_id: options.commandId || undefined,
+    }),
+  });
+  return { recordingId: result.data?.recording_id };
+}
+
+export async function stopRecording(callControlId: string): Promise<void> {
+  await telnyxRequest(
+    `/calls/${encodeURIComponent(callControlId)}/actions/record_stop`,
+    {
+      method: 'POST',
+      body: JSON.stringify({}),
+    },
+  );
+}

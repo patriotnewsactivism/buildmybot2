@@ -1,7 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import type { ApiRequest, ApiResponse } from '../lib/http-types.js';
-import { hangupCall, telnyxRequest } from '../lib/telephony-provider.js';
+import {
+  hangupCall,
+  startRecording,
+  telnyxRequest,
+} from '../lib/telephony-provider.js';
 import { SmsError, authenticate, db, filter } from '../sms/store.js';
 import {
   CORPORATE,
@@ -56,7 +59,7 @@ export default async function corporatePhoneHandler(
       if (req.method === 'GET')
         return res.json(
           await db(
-            `call_logs?${filter({ ...scope, select: 'id,called_number,status,metadata,created_at', order: 'created_at.desc', limit: '30' })}`,
+            `call_logs?${filter({ ...scope, select: 'id,called_number,status,metadata,created_at,recording_url', order: 'created_at.desc', limit: '30' })}`,
           ),
         );
       if (req.method === 'POST') {
@@ -237,6 +240,18 @@ export async function handleCorporateAnswered(
         }),
       },
     );
+    try {
+      await startRecording(callId, {
+        format: 'mp3',
+        channels: 'dual',
+        playBeep: false,
+      });
+    } catch (recErr) {
+      console.warn(
+        `[corporate] Could not start recording for ${callId}:`,
+        recErr instanceof Error ? recErr.message : recErr,
+      );
+    }
   } catch {
     await hangupCall(callId);
     await db(`call_logs?${filter({ ...scope, id: `eq.${row.id}` })}`, 'PATCH', {

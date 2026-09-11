@@ -47,6 +47,7 @@ import {
   answerCall,
   hangupCall,
   speakText,
+  startRecording,
 } from '../lib/telephony-provider.js';
 import { verifyTelnyxSignature } from '../sms/webhooks.js';
 import { CORPORATE, corporateMediaUrl } from './corporate-config.js';
@@ -263,6 +264,18 @@ async function handleCallInitiated(payload: unknown): Promise<void> {
             : mediaStreamUrl(),
         bidirectional: true,
       });
+      // Start dual-channel recording for internal quality & monitoring purposes
+      void startRecording(callControlId, {
+        format: 'mp3',
+        channels: 'dual',
+        playBeep: false,
+        clientState,
+      }).catch((err) => {
+        console.warn(
+          `[tenant-telnyx] Start recording failed for ${callControlId}:`,
+          err instanceof Error ? err.message : err,
+        );
+      });
       return;
     } catch (error) {
       console.error(
@@ -300,6 +313,76 @@ async function handleCallHangup(payload: unknown): Promise<void> {
         ended_at: new Date().toISOString(),
       }),
     },
+  );
+}
+
+const recordingSavedSchema = z.object({
+  call_control_id: z.string().min(1),
+  recording_urls: z
+    .object({
+      mp3: z.string().optional(),
+      wav: z.string().optional(),
+    })
+    .optional(),
+  public_recording_urls: z
+    .object({
+      mp3: z.string().optional(),
+      wav: z.string().optional(),
+    })
+    .optional(),
+});
+
+async function handleRecordingSaved(payload: unknown): Promise<void> {
+  const parsed = recordingSavedSchema.safeParse(payload);
+  if (!parsed.success) {
+    console.error('[tenant-telnyx] Malformed call.recording.saved payload');
+    return;
+  }
+  const {
+    call_control_id: callControlId,
+    recording_urls,
+    public_recording_urls,
+  } = parsed.data;
+
+  const recordingUrl =
+    public_recording_urls?.mp3 ||
+    recording_urls?.mp3 ||
+    public_recording_urls?.wav ||
+    recording_urls?.wav ||
+    null;
+
+  if (!recordingUrl) {
+    console.warn(
+      `[tenant-telnyx] No recording URL in call.recording.saved for ${callControlId}`,
+    );
+    return;
+  }
+
+  // Update call_logs matching call_sid
+  const updatedLogs = await sbFetch(
+    'call_logs',
+    `call_sid=eq.${encodeURIComponent(callControlId)}&select=id,lead_id`,
+    {
+      method: 'PATCH',
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify({
+        recording_url: recordingUrl,
+      }),
+    },
+  );
+
+  // If call is linked to a lead, also populate call_transcript_url
+  const leadId = updatedLogs?.[0]?.lead_id;
+  if (leadId) {
+    await sbFetch('leads', `id=eq.${encodeURIComponent(leadId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        call_transcript_url: recordingUrl,
+      }),
+    });
+  }
+  console.log(
+    `[tenant-telnyx] Call recording saved for ${callControlId}: ${recordingUrl}`,
   );
 }
 
@@ -348,7 +431,10 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       case 'call.hangup':
         await handleCallHangup(event.data.payload);
         break;
-      // call.answered, streaming.started, streaming.stopped: no action
+      case 'call.recording.saved':
+        await handleRecordingSaved(event.data.payload);
+        break;
+      // streaming.started, streaming.stopped: no action
       // needed here -- streaming was already requested as part of the
       // answer command above, and api/voice/telnyx-live.ts owns everything
       // that happens once the media WebSocket connects.

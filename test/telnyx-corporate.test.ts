@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   answer: vi.fn(),
   speak: vi.fn(),
   hangup: vi.fn(),
+  startRecording: vi.fn().mockResolvedValue({ recordingId: 'corp-rec' }),
   telnyx: vi.fn(),
   db: vi.fn(),
   auth: vi.fn(),
@@ -18,6 +19,7 @@ vi.mock('../api/lib/telephony-provider.js', () => ({
   answerCall: mocks.answer,
   speakText: mocks.speak,
   hangupCall: mocks.hangup,
+  startRecording: mocks.startRecording,
   telnyxRequest: mocks.telnyx,
 }));
 vi.mock('../api/sms/store.js', async (original) => ({
@@ -55,6 +57,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   corporateStatus.voiceConfigured = true;
   process.env.TELNYX_CONNECTION_ID = 'test-connection';
+  process.env.TELNYX_API_KEY = 'test-telnyx-key';
   mocks.auth.mockResolvedValue({ id: CORPORATE.ownerId, role: 'OWNER' });
 });
 describe('corporate outbound approvals', () => {
@@ -160,5 +163,36 @@ describe('corporate outbound approvals', () => {
       ).toString('base64'),
     });
     expect(mocks.telnyx).not.toHaveBeenCalled();
+    expect(mocks.startRecording).not.toHaveBeenCalled();
+  });
+  it('connects valid answered outbound call and starts dual-channel recording', async () => {
+    mocks.db
+      .mockResolvedValueOnce([
+        {
+          id: 5,
+          called_number: '+12025550123',
+          metadata: { nonce: 'valid-nonce', approvedBy: CORPORATE.ownerId },
+        },
+      ])
+      .mockResolvedValueOnce([{ id: 5 }]);
+    mocks.telnyx.mockResolvedValue({ data: {} });
+
+    await handleCorporateAnswered({
+      call_control_id: 'call-out-1',
+      from: CORPORATE.number,
+      to: '+12025550123',
+      client_state: Buffer.from(
+        JSON.stringify({ corporateLogId: 5, nonce: 'valid-nonce' }),
+      ).toString('base64'),
+    });
+
+    expect(mocks.startRecording).toHaveBeenCalledWith(
+      'call-out-1',
+      expect.objectContaining({
+        format: 'mp3',
+        channels: 'dual',
+        playBeep: false,
+      }),
+    );
   });
 });

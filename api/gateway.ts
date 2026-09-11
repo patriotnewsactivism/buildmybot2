@@ -3,6 +3,7 @@ import legacyHandler from './gateway-legacy.js';
 import type { ApiRequest, ApiResponse } from './lib/http-types.js';
 import { handlePhoneActivation } from './phone/activation.js';
 import corporatePhoneHandler from './phone/corporate.js';
+import phoneRecordingHandler from './phone/recording.js';
 import tenantTelnyxWebhook from './phone/tenant-telnyx.js';
 import { handleTenantTwilioWebhook } from './phone/tenant-twilio.js';
 import smsHandler from './sms/handler.js';
@@ -17,6 +18,9 @@ function pathname(req: ApiRequest): string {
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   const path = pathname(req);
+  if (path === '/api/phone/recording') {
+    return phoneRecordingHandler(req, res);
+  }
   if (
     path === '/api/voice/team/bots' ||
     path === '/api/voice/team' ||

@@ -6,6 +6,7 @@ interface CallRow {
   called_number: string;
   status: string;
   metadata: { objective: string };
+  recording_url?: string | null;
 }
 export function CorporatePhonePanel() {
   const [calls, setCalls] = useState<CallRow[]>([]);
@@ -110,6 +111,21 @@ export function CorporatePhonePanel() {
             {call.called_number} · {call.status.replace(/_/g, ' ')}
           </p>
           <p className="text-sm text-slate-600">{call.metadata?.objective}</p>
+          {call.recording_url && (
+            <div className="pt-1 pb-1">
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 mb-1.5">
+                Recorded (Internal Quality Monitoring)
+              </span>
+              <audio
+                controls
+                className="w-full max-w-md h-9 block rounded border border-slate-200 mt-1"
+                src={`${API_BASE}/phone/recording?callId=${call.id}`}
+              >
+                <track kind="captions" />
+                Your browser does not support audio playback.
+              </audio>
+            </div>
+          )}
           {call.status === 'awaiting_approval' && (
             <div className="flex gap-3">
               <button

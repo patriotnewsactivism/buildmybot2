@@ -38,6 +38,7 @@ interface CallLogRow {
   status?: string;
   duration?: number;
   started_at?: string;
+  recording_url?: string | null;
 }
 
 export const PhoneAgent: React.FC<PhoneAgentProps> = ({ user, onUpdate }) => {
@@ -458,28 +459,49 @@ export const PhoneAgent: React.FC<PhoneAgentProps> = ({ user, onUpdate }) => {
                   return (
                     <div
                       key={call.id}
-                      className="flex justify-between items-center text-sm border-b border-slate-50 last:border-0 pb-2 last:pb-0"
+                      className="border-b border-slate-50 last:border-0 pb-3 last:pb-0 space-y-1.5"
                     >
-                      <div>
-                        <p className="font-medium text-slate-700">
-                          {call.caller_number || 'Unknown'}
-                        </p>
-                        <p className="text-xs text-slate-400">
-                          {call.started_at
-                            ? new Date(call.started_at).toLocaleString()
-                            : ''}
-                        </p>
+                      <div className="flex justify-between items-center text-sm">
+                        <div>
+                          <p className="font-medium text-slate-700">
+                            {call.caller_number || 'Unknown'}
+                          </p>
+                          <p className="text-xs text-slate-400">
+                            {call.started_at
+                              ? new Date(call.started_at).toLocaleString()
+                              : ''}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p
+                            className={`text-xs capitalize ${missed ? 'text-red-500' : 'text-emerald-500'}`}
+                          >
+                            {call.status || 'unknown'}
+                          </p>
+                          <p className="text-xs text-slate-400">
+                            {minutes}m {seconds.toString().padStart(2, '0')}s
+                          </p>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <p
-                          className={`text-xs capitalize ${missed ? 'text-red-500' : 'text-emerald-500'}`}
-                        >
-                          {call.status || 'unknown'}
-                        </p>
-                        <p className="text-xs text-slate-400">
-                          {minutes}m {seconds.toString().padStart(2, '0')}s
-                        </p>
-                      </div>
+                      {call.recording_url && (
+                        <div className="pt-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              Recording (Internal Quality)
+                            </span>
+                          </div>
+                          <audio
+                            controls
+                            className="w-full h-8 rounded border border-slate-200"
+                            src={buildApiUrl(
+                              `/phone/recording?callId=${call.id}`,
+                            )}
+                          >
+                            <track kind="captions" />
+                            Your browser does not support audio playback.
+                          </audio>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
