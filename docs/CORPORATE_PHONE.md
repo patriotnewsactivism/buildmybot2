@@ -16,7 +16,7 @@ The bridge must buffer early caller audio until setup completes, exclude outboun
 
 ### Pickup realism and media stability
 
-Corporate inbound calls play an in-process North American ringback tone for about **7 seconds** before the receptionist greets, so the line feels like a live front-desk pickup after hold. Ringback is generated as PCMU in `api/voice/ringback-tone.ts` and paced over the existing Telnyx media WebSocket (no hosted audio asset or Telnyx playback credential changes required).
+Corporate inbound calls greet immediately upon carrier connection as **Avery** with a dynamic time-of-day greeting (*"Good morning / afternoon / evening, thank you for calling BuildMyBot, my name is Avery how can I help you."*), preventing dead air or caller abandonment.
 
 Media-path hardening in `api/voice/telnyx-live.ts` (in-repo only):
 
@@ -27,7 +27,7 @@ Media-path hardening in `api/voice/telnyx-live.ts` (in-repo only):
 
 ### Department transfer realism
 
-After the receptionist completes intake (name, contact, interest) and verbally acknowledges hold, mid-call `route_department` handoffs play ~5s of continuous soft hold music (`generateHoldMusicMuLaw`) before the destination agent greets with shared caller context. Destination audio is suppressed until that hold finishes so the new agent does not talk over the tone.
+After the receptionist completes intake (name, contact, interest) and verbally acknowledges hold, mid-call `route_department` handoffs play **7.5 seconds** (7–8s) of continuous soft hold music (`generateHoldMusicMuLaw`) before the destination agent greets with shared caller context. Destination audio is suppressed until that hold finishes so the new agent does not talk over the tone.
 
 No carrier account or production DB migration changes are required for this behavior. Ensure `GEMINI_API_KEY` remains set on the corporate Railway service.
 

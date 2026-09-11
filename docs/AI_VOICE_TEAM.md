@@ -8,7 +8,7 @@ Optional experimental path: set `VOICE_ENGINE=deepgram` and `DEEPGRAM_API_KEY` t
 
 | Role | Name | Gemini voice | Intended delivery |
 | --- | --- | --- | --- |
-| Receptionist | Ava Brooks | Aoede | Warm, relaxed, moderate pace |
+| Receptionist | Avery | Aoede | Warm, conversational; dynamic time-of-day greeting |
 | Sales | Marcus Hale | Puck | Upbeat, confident, energetic |
 | Customer Support | Sophie Reyes | Kore | Calm, clear, slightly slower |
 | Manager / Escalations | Daniel Okonkwo | Charon | Measured, composed, deliberate |
