@@ -1,3 +1,4 @@
+import base44AgentHandler from './base44-agent.js';
 import legacyHandler from './gateway-legacy.js';
 import type { ApiRequest, ApiResponse } from './lib/http-types.js';
 import { handlePhoneActivation } from './phone/activation.js';
@@ -27,6 +28,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     path.startsWith('/api/corporate-phone/')
   )
     return corporatePhoneHandler(req, res);
+  if (path === '/api/base44-agent' || path.startsWith('/api/base44-agent/')) {
+    return base44AgentHandler(req, res);
+  }
   if (path === '/api/sms/register') return smsRegistration(req, res);
   if (path === '/api/sms' || path.startsWith('/api/sms/'))
     return smsHandler(req, res);

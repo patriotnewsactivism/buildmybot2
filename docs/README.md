@@ -24,8 +24,14 @@ Production Supabase currently has a migration-history reconciliation hold. Do no
 ## AI workforce
 
 - `AI_TEAM_DAILY_BLUEPRINT.md` — autonomous AI-team operating blueprint.
+- `BASE44_SUPERAGENT.md` — authenticated server-side Base44 Superagent integration guide and environment contract.
 
 AI/provider workflows must use bounded retries/timeouts and avoid uncontrolled token-spend/fallback cascades.
+
+## Setup and integration guides
+
+- `STRIPE_SETUP_GUIDE.md` — Stripe plans and billing configuration guide.
+- `PRODUCTION_ENV_SETUP.md` — reference guide for environment variables and secrets setup.
 
 ## Release state
 
