@@ -21,7 +21,6 @@ import { SmsAppointmentsPanel } from './SmsAppointmentsPanel';
 import { SmsContactsPanel } from './SmsContactsPanel';
 import { SmsInboxPanel } from './SmsInboxPanel';
 import { SmsProgramsPanel } from './SmsProgramsPanel';
-import { SmsProgramsPanel } from './SmsProgramsPanel';
 
 /**
  * Guided SMS (10DLC) setup + live provisioning status.
@@ -349,6 +348,59 @@ export const SmsMarketing: React.FC = () => {
         <p className="mt-1 text-sm text-gray-600">
           Text your customers from a number registered to your business. US
           carriers require every business to be verified before the first
+          message sends — we handle the filing. While you remain a client, our
+          studio designs up to 3 original digital signs for you each month at no
+          extra charge.
+        </p>
+      </div>
+
+      <DigitalSignageShowcase variant="studio" />
+
+      <div className="rounded-lg border border-gray-200 bg-white p-5">
+        <h2 className="mb-3 text-lg font-semibold text-gray-900">Plans</h2>
+        <div className="grid gap-3 sm:grid-cols-3">
+          {SMS_MARKETING_PRICING.map((plan) => (
+            <div
+              key={plan.id}
+              className="rounded-md border border-gray-200 p-3"
+            >
+              <p className="text-sm font-semibold text-gray-900">{plan.name}</p>
+              <p className="text-sm text-gray-600">
+                ${plan.price}/mo · {plan.messagesIncluded.toLocaleString()} msgs
+              </p>
+              <p className="mt-0.5 text-xs text-gray-500">
+                then ${plan.overagePerMessage.toFixed(3)}/msg
+              </p>
+            </div>
+          ))}
+        </div>
+        <p className="mt-3 text-xs text-gray-500">
+          <s>${SMS_MARKETING_REGISTRATION_FEE.listPrice}</s>{' '}
+          <span className="font-semibold text-gray-800">
+            ${SMS_MARKETING_REGISTRATION_FEE.price}
+          </span>{' '}
+          registration — for a limited time only. Non-refundable due to
+          provisioning costs.
+        </p>
+      </div>
+
+      <div className="rounded-lg border border-gray-200 bg-white p-5">
+        <h2 className="mb-3 text-lg font-semibold text-gray-900">
+          Registration status
+        </h2>
+        {loadingStatus ? (
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <Loader className="h-4 w-4 animate-spin" /> Checking…
+          </div>
+        ) : registered && status ? (
+          <StatusPanel status={status} onRefresh={loadStatus} />
+        ) : (
+          <p className="text-sm text-gray-500">
+            Not registered yet — the {TOTAL_STEPS} steps below get you approved.
+          </p>
+        )}
+      </div>
+
       {registered && !loadingStatus && (
         <div className="space-y-4">
           <div className="flex flex-wrap gap-2 border-b border-gray-200 pb-2">
@@ -383,6 +435,142 @@ export const SmsMarketing: React.FC = () => {
           {tab === 'settings' && <SmsAccountSettings />}
         </div>
       )}
+
+      {!registered && !loadingStatus && (
+        <div className="rounded-lg border border-gray-200 bg-white p-5">
+          <div className="mb-5">
+            <div className="mb-2 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900">
+                Step {step} of {TOTAL_STEPS}
+              </h2>
+              <span className="text-sm text-gray-500">
+                {Math.round(((step - 1) / TOTAL_STEPS) * 100)}% complete
+              </span>
+            </div>
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-200">
+              <div
+                className="h-full rounded-full bg-indigo-600 transition-all"
+                style={{ width: `${((step - 1) / TOTAL_STEPS) * 100}%` }}
+              />
+            </div>
+          </div>
+
+          {step === 1 && (
+            <div className="space-y-4">
+              <h3 className="font-semibold text-gray-900">Your business</h3>
+              <p className="text-sm text-gray-600">
+                This must match your legal registration exactly — carriers check
+                it against public records, and a mismatch is the most common
+                cause of rejection.
+              </p>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field
+                  label="Legal company name"
+                  value={form.companyName}
+                  onChange={update('companyName')}
+                  required
+                />
+                <Field
+                  label="EIN (XX-XXXXXXX)"
+                  value={form.ein}
+                  onChange={update('ein')}
+                  placeholder="12-3456789"
+                  required
+                />
+                <Select
+                  label="Entity type"
+                  value={form.entityType}
+                  onChange={update('entityType')}
+                  options={[
+                    ['PRIVATE_PROFIT', 'Private company'],
+                    ['PUBLIC_PROFIT', 'Publicly traded company'],
+                    ['NON_PROFIT', 'Non-profit'],
+                  ]}
+                />
+                <Select
+                  label="Industry"
+                  value={form.vertical}
+                  onChange={update('vertical')}
+                  options={[
+                    ['', 'Select an industry…'],
+                    ...VERTICALS.map(
+                      (v) =>
+                        [v, v.replace(/_/g, ' ').toLowerCase()] as [
+                          string,
+                          string,
+                        ],
+                    ),
+                  ]}
+                />
+                <Field
+                  label="Business phone"
+                  value={form.phone}
+                  onChange={update('phone')}
+                  placeholder="+15551234567"
+                  required
+                />
+                <Field
+                  label="Business email"
+                  value={form.email}
+                  onChange={update('email')}
+                  type="email"
+                  required
+                />
+              </div>
+              <Field
+                label="Website"
+                value={form.website}
+                onChange={update('website')}
+                placeholder="https://example.com"
+                required
+              />
+            </div>
+          )}
+
+          {step === 2 && (
+            <div className="space-y-4">
+              <h3 className="font-semibold text-gray-900">
+                Address and your number
+              </h3>
+              <p className="text-sm text-gray-600">
+                We buy and register an SMS-capable number for you in the area
+                code you choose. There is nothing to set up with a carrier
+                yourself.
+              </p>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field
+                  label="Street address"
+                  value={form.street}
+                  onChange={update('street')}
+                  required
+                />
+                <Field
+                  label="City"
+                  value={form.city}
+                  onChange={update('city')}
+                  required
+                />
+                <Field
+                  label="State (2 letters)"
+                  value={form.state}
+                  onChange={update('state')}
+                  placeholder="LA"
+                  required
+                />
+                <Field
+                  label="ZIP code"
+                  value={form.postalCode}
+                  onChange={update('postalCode')}
+                  placeholder="70801"
+                  required
+                />
+                <Field
+                  label="Preferred area code"
+                  value={form.areaCode}
+                  onChange={update('areaCode')}
+                  placeholder="225"
+                  required
+                />
               </div>
             </div>
           )}
@@ -538,6 +726,7 @@ export const SmsMarketing: React.FC = () => {
               {error}
             </p>
           )}
+
           <div className="mt-6 flex items-center justify-between border-t border-gray-100 pt-4">
             <button
               type="button"
