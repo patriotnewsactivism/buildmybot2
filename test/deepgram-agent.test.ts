@@ -72,9 +72,13 @@ import {
   isDeepgramVoiceEnabled,
   parseJsonArguments,
 } from '../api/voice/deepgram-agent';
+import { SALES_SEATS, pickSalesSeat } from '../api/voice/deepgram-team';
 import { executeServerTool } from '../api/voice/deepgram-tools';
 import { MediaDiagnostics } from '../api/voice/media-diagnostics';
-import { CORPORATE_TRANSFER_HOLD_MS } from '../api/voice/ringback-tone';
+import {
+  TRANSFER_MIN_HOLD_MS,
+  generateHoldMusicMuLaw,
+} from '../api/voice/ringback-tone';
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -107,6 +111,20 @@ it('enables Deepgram by default when the key is set, unless VOICE_ENGINE=gemini'
   process.env.DEEPGRAM_API_KEY = '';
   expect(isDeepgramVoiceEnabled()).toBe(false);
   process.env.GEMINI_API_KEY = previousGemini;
+});
+
+it('keeps two distinct sales-desk Flux voices', () => {
+  expect(SALES_SEATS.map((seat) => seat.voice)).toEqual([
+    'flux-marcus-en',
+    'flux-brooke-en',
+  ]);
+  expect(pickSalesSeat('call0').id).not.toBe(pickSalesSeat('call1').id);
+});
+
+it('generates audible hold music rather than a thin pad', () => {
+  const music = generateHoldMusicMuLaw(1000);
+  expect(music.length).toBe(8000);
+  expect(new Set(music).size).toBeGreaterThan(16);
 });
 
 it('parses function arguments as JSON objects only', () => {
@@ -477,10 +495,19 @@ it('transfers department with a distinct Flux voice and destination greeting', a
     ),
     false,
   );
-  await vi.advanceTimersByTimeAsync(0);
-  await vi.advanceTimersByTimeAsync(CORPORATE_TRANSFER_HOLD_MS);
+  await vi.advanceTimersByTimeAsync(40);
+  expect(telnyx.sent.some((m: any) => m?.event === 'media')).toBe(true);
+  expect(telnyx.sent.some((m: any) => m?.event === 'clear')).toBe(true);
+  const speakEarly = deepgram.sent.find((m: any) => m?.type === 'UpdateSpeak');
+  expect(['flux-marcus-en', 'flux-brooke-en']).toContain(
+    speakEarly?.speak?.provider?.model,
+  );
+  expect(deepgram.sent.some((m: any) => m?.type === 'InjectAgentMessage')).toBe(
+    false,
+  );
 
-  const speak = deepgram.sent.find((m: any) => m?.type === 'UpdateSpeak');
+  await vi.advanceTimersByTimeAsync(TRANSFER_MIN_HOLD_MS);
+
   const prompt = deepgram.sent.find((m: any) => m?.type === 'UpdatePrompt');
   const greeting = deepgram.sent.find(
     (m: any) => m?.type === 'InjectAgentMessage',
@@ -488,10 +515,57 @@ it('transfers department with a distinct Flux voice and destination greeting', a
   const response = deepgram.sent.find(
     (m: any) => m?.type === 'FunctionCallResponse' && m.id === 'fn_xfer',
   );
-  expect(speak?.speak?.provider?.model).toBe('flux-apollo-en');
-  expect(prompt?.prompt).toContain('Marcus');
-  expect(greeting?.message).toBeTruthy();
+  expect(prompt?.prompt).toMatch(/Marcus Hale|Maya Bennett/);
+  expect(greeting?.message).toMatch(/Marcus|Maya/);
   expect(JSON.parse(response.content).ok).toBe(true);
+  expect(JSON.parse(response.content).agent).toMatch(
+    /Marcus Hale|Maya Bennett/,
+  );
+});
+
+it('routes billing as a distinct department', async () => {
+  const telnyx = new Socket('wss://telnyx') as any;
+  const session = new DeepgramVoiceSession(telnyx, 'call-bill');
+  await session.start();
+  const deepgram = state.sockets[1] as any;
+  await deepgram.deliver(
+    'message',
+    Buffer.from(JSON.stringify({ type: 'Welcome' })),
+    false,
+  );
+  await deepgram.deliver(
+    'message',
+    Buffer.from(JSON.stringify({ type: 'SettingsApplied' })),
+    false,
+  );
+  void deepgram.deliver(
+    'message',
+    Buffer.from(
+      JSON.stringify({
+        type: 'FunctionCallRequest',
+        functions: [
+          {
+            id: 'fn_bill',
+            name: 'route_department',
+            arguments: JSON.stringify({
+              department: 'accounting',
+              callerName: 'Sam',
+              reason: 'invoice',
+            }),
+          },
+        ],
+      }),
+    ),
+    false,
+  );
+  await vi.advanceTimersByTimeAsync(0);
+  const speak = deepgram.sent.find((m: any) => m?.type === 'UpdateSpeak');
+  expect(speak?.speak?.provider?.model).toBe('flux-alexis-en');
+  await vi.advanceTimersByTimeAsync(TRANSFER_MIN_HOLD_MS);
+  const greeting = deepgram.sent.find(
+    (m: any) => m?.type === 'InjectAgentMessage',
+  );
+  expect(greeting?.message).toMatch(/Helen/);
 });
 
 it('records structured media diagnostics rates', () => {

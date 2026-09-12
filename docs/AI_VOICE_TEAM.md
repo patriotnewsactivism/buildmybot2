@@ -1,6 +1,6 @@
 # AI Voice Team
 
-BuildMyBot's production phone architecture uses Telnyx Call Control with Deepgram Voice Agent. Receptionist, Sales, Support and Manager are independently configured agents. Every successful AI handoff changes the destination's Flux voice, identity, role instructions and opening behavior (`UpdateSpeak` / `UpdatePrompt` / `InjectAgentMessage`) while the phone connection and bounded caller context continue.
+BuildMyBot's production phone architecture uses Telnyx Call Control with Deepgram Voice Agent. Receptionist, Sales, Customer Care, Manager, Sales Agent Recruitment, Partner, and Billing are independently configured agents. Every successful AI handoff changes the destination's Flux voice, identity, role instructions and opening behavior (`UpdateSpeak` / `UpdatePrompt` / `InjectAgentMessage`) while the phone connection and bounded caller context continue. The sales desk can pick up as Marcus or Maya so two different people answer sales.
 
 Gemini Live remains an explicit fallback: set `VOICE_ENGINE=gemini` to route the same Telnyx WebSocket to `api/voice/telnyx-live.ts`. Dashboard voice-team previews still use Gemini Live until a Deepgram preview path is added.
 
@@ -8,10 +8,13 @@ Gemini Live remains an explicit fallback: set `VOICE_ENGINE=gemini` to route the
 
 | Role | Name | Deepgram Flux voice | Gemini fallback | Intended delivery |
 | --- | --- | --- | --- | --- |
-| Receptionist | Avery | flux-kit-en | Aoede | Warm, conversational; dynamic time-of-day greeting |
-| Sales | Marcus Hale | flux-apollo-en | Puck | Upbeat, confident, energetic |
-| Customer Support | Sophie Reyes | flux-helena-en | Kore | Calm, clear, slightly slower |
-| Manager / Escalations | Daniel Okonkwo | flux-orion-en | Charon | Measured, composed, deliberate |
+| Receptionist | Avery | flux-sienna-en | Aoede | Warm American female; time-of-day greeting |
+| Sales | Marcus Hale or Maya Bennett | flux-marcus-en / flux-brooke-en | Puck | Distinct from Avery; commercial, objection-first |
+| Customer Care | Sophie Reyes | flux-haley-en | Kore | Calm, clear, slightly slower |
+| Billing & Accounts | Helen Cho | flux-alexis-en | Leda | Precise accounting-desk tone |
+| Sales Agent Recruitment | Jordan Reed | flux-cole-en | Zephyr | Energetic; commissions and becoming an agent |
+| Partner / White-label | Julian Vance | flux-colin-en | Orus | Executive, $499 partner program |
+| Manager / Escalations | Daniel Okonkwo | flux-cliff-en | Charon | Measured, composed, deliberate |
 
 These are configurable defaults. Audition the team on the actual phone path to assess perceptual separation; different IDs alone do not prove that every listener will distinguish the voices.
 
@@ -32,7 +35,7 @@ Previously, `route_department` returned instructions to the existing model conne
 
 ## Non-negotiable identity boundary
 
-Receptionist, Sales, Support, and Manager are four distinct production agents, not one assistant with dynamic role prompts.
+Receptionist, Sales, Customer Care, and Manager remain four distinct production agents, not one assistant with dynamic role prompts. Recruiting, Partner, and Billing are additional distinct agents with their own voices. The sales desk may be answered by Marcus or Maya.
 
 Every AI-to-AI handoff must change the destination agent's:
 

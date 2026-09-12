@@ -1,17 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import {
+  VOICE_BILLING_KNOWLEDGE,
+  VOICE_PARTNER_KNOWLEDGE,
+  VOICE_RECRUITING_KNOWLEDGE,
+  VOICE_SALES_KNOWLEDGE,
+  departmentKnowledge,
+} from '../shared/voice-department-knowledge';
+import {
   createDefaultVoiceTeam,
   destinationDepartment,
   handoffContextText,
   voiceTeamSchema,
 } from '../shared/voice-team';
-import {
-  VOICE_PARTNER_KNOWLEDGE,
-  VOICE_RECRUITING_KNOWLEDGE,
-  departmentKnowledge,
-} from '../shared/voice-department-knowledge';
 describe('Voice Team constraints', () => {
-  it('requires six distinct names, roles and provider-supported voices', () => {
+  it('requires seven distinct names, roles and provider-supported voices', () => {
     const team = createDefaultVoiceTeam();
     expect(voiceTeamSchema.safeParse(team).success).toBe(true);
     team.sales.voice.voiceId = team.receptionist.voice.voiceId;
@@ -23,11 +25,10 @@ describe('Voice Team constraints', () => {
     team.sales.name = 'Avery';
     expect(voiceTeamSchema.safeParse(team).success).toBe(false);
 
-    // Check distinct voices across all six default agents
     const voiceIds = Object.values(createDefaultVoiceTeam()).map(
       (a) => a.voice.voiceId,
     );
-    expect(new Set(voiceIds).size).toBe(6);
+    expect(new Set(voiceIds).size).toBe(7);
     expect(voiceIds).toEqual([
       'Aoede',
       'Puck',
@@ -35,6 +36,7 @@ describe('Voice Team constraints', () => {
       'Charon',
       'Zephyr',
       'Orus',
+      'Leda',
     ]);
   });
   it('rejects invalid providers, missing roles and role impersonation', () => {
@@ -47,6 +49,9 @@ describe('Voice Team constraints', () => {
     ).toBe(false);
     expect(
       voiceTeamSchema.safeParse({ ...team, partner: undefined }).success,
+    ).toBe(false);
+    expect(
+      voiceTeamSchema.safeParse({ ...team, billing: undefined }).success,
     ).toBe(false);
     expect(
       voiceTeamSchema.safeParse({
@@ -78,6 +83,10 @@ describe('Voice Team constraints', () => {
     expect(destinationDepartment('partnerships')).toBe('partner');
     expect(destinationDepartment('white_label')).toBe('partner');
     expect(destinationDepartment('reseller')).toBe('partner');
+    expect(destinationDepartment('billing')).toBe('billing');
+    expect(destinationDepartment('accounting')).toBe('billing');
+    expect(destinationDepartment('invoices')).toBe('billing');
+    expect(destinationDepartment('customer_care')).toBe('support');
     expect(destinationDepartment('unknown')).toBeNull();
   });
   it('bounds shared context and preserves the most recent conversation', () => {
@@ -120,6 +129,7 @@ describe('Voice Team constraints', () => {
     expect(team.manager.name).toMatch(/Daniel/);
     expect(team.recruiting.name).toMatch(/Jordan/);
     expect(team.partner.name).toMatch(/Julian/);
+    expect(team.billing.name).toMatch(/Helen/);
 
     // Verify recruiting talking points
     expect(team.recruiting.persona).toContain('recurring commissions');
@@ -165,10 +175,11 @@ describe('Voice Team constraints', () => {
     );
   });
 
-  it('exposes fully flushed recruiting and partner handoff knowledge', () => {
+  it('exposes fully flushed recruiting, partner, sales, and billing knowledge', () => {
     expect(departmentKnowledge('recruiting')).toBe(VOICE_RECRUITING_KNOWLEDGE);
     expect(departmentKnowledge('partner')).toBe(VOICE_PARTNER_KNOWLEDGE);
-    expect(departmentKnowledge('sales')).toBe('');
+    expect(departmentKnowledge('sales')).toBe(VOICE_SALES_KNOWLEDGE);
+    expect(departmentKnowledge('billing')).toBe(VOICE_BILLING_KNOWLEDGE);
     expect(VOICE_RECRUITING_KNOWLEDGE).toContain('Bronze');
     expect(VOICE_RECRUITING_KNOWLEDGE).toContain('buildmybot.app/reseller');
     expect(VOICE_RECRUITING_KNOWLEDGE).toContain('careers@buildmybot.app');

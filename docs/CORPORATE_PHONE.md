@@ -38,7 +38,7 @@ No carrier account or production DB migration changes are required for this beha
 
 The corporate phone follows the same production voice-team contract as customer phone agents.
 
-Receptionist, Sales, Support, Manager, Recruiting, and Partner are **distinct staff personas** (never disclose that they are AI on the call). Routing is not implemented by changing the prompt on one persistent audible persona.
+Receptionist, Sales (Marcus or Maya), Customer Care, Billing, Sales Agent Recruitment, Partner, and Manager are **distinct staff personas** (never disclose that they are AI on the call). Routing is not implemented by changing the prompt on one persistent audible persona. Transfers start hold music immediately, swap voice/prompt in parallel, then greet as the new person.
 
 A successful handoff must:
 
