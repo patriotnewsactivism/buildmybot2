@@ -65,6 +65,8 @@ import { sendSms, transferCall } from '../api/lib/telephony-provider.js';
 import { createTelnyxStreamToken } from '../api/phone/tenant-telnyx-token';
 import {
   DeepgramVoiceSession,
+  FLUX_EOT_THRESHOLD,
+  FLUX_EOT_TIMEOUT_MS,
   SPEAKING_HANGOVER_MS,
   isDeepgramVoiceEnabled,
   parseJsonArguments,
@@ -178,6 +180,13 @@ it('bridges Telnyx start/media through Welcome→Settings→SettingsApplied', as
   expect(settings).toBeTruthy();
   expect(settings.audio.input.encoding).toBe('mulaw');
   expect(settings.audio.input.sample_rate).toBe(8000);
+  expect(settings.agent.listen.provider.model).toBe('flux-general-en');
+  expect(settings.agent.listen.provider.eot_threshold).toBe(FLUX_EOT_THRESHOLD);
+  expect(settings.agent.listen.provider.eot_timeout_ms).toBe(
+    FLUX_EOT_TIMEOUT_MS,
+  );
+  expect(FLUX_EOT_THRESHOLD).toBe(0.8);
+  expect(FLUX_EOT_TIMEOUT_MS).toBe(5000);
   expect(
     settings.agent.think.functions.some((f: any) => f.defer_until_eot),
   ).toBe(true);

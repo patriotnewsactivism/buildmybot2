@@ -861,7 +861,7 @@ function setupGeminiSession(gemini: WebSocket, context: SessionContext) {
           startOfSpeechSensitivity: 'START_SENSITIVITY_HIGH',
           endOfSpeechSensitivity: 'END_SENSITIVITY_LOW',
           prefixPaddingMs: 120,
-          silenceDurationMs: 750,
+          silenceDurationMs: 800,
         },
         activityHandling: 'START_OF_ACTIVITY_INTERRUPTS',
       },

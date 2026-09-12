@@ -403,7 +403,7 @@ it('uses balanced VAD timing for distant phone pickup', () => {
   expect(vad.startOfSpeechSensitivity).toBe('START_SENSITIVITY_HIGH');
   expect(vad.endOfSpeechSensitivity).toBe('END_SENSITIVITY_LOW');
   expect(vad.prefixPaddingMs).toBe(140);
-  expect(vad.silenceDurationMs).toBe(600);
+  expect(vad.silenceDurationMs).toBe(800);
 });
 
 it('rejects receptionist handoff without intake fields', async () => {

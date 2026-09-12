@@ -39,7 +39,15 @@ const PCMU_FRAME_BYTES = 160;
 const PCMU_FRAME_MS = 20;
 const DIAGNOSTICS_LOG_MS = 10_000;
 /** Drop inbound after TTS so the acoustic echo tail is not transcribed. */
-export const SPEAKING_HANGOVER_MS = 400;
+export const SPEAKING_HANGOVER_MS = 500;
+/** Flux: higher confidence before declaring the caller finished. Default 0.7. */
+export const FLUX_EOT_THRESHOLD = 0.8;
+/**
+ * Flux: hard silence cap before forcing EndOfTurn. 1800ms was cutting PSTN
+ * pauses and starting a second reply while TTS was still on the wire.
+ * Deepgram default is 5000ms.
+ */
+export const FLUX_EOT_TIMEOUT_MS = 5000;
 
 const DEFERRED_TOOL_NAMES = new Set([
   'send_checkout_link',
@@ -320,8 +328,8 @@ export class DeepgramVoiceSession {
               type: 'deepgram',
               version: 'v2',
               model: 'flux-general-en',
-              eot_threshold: 0.75,
-              eot_timeout_ms: 1800,
+              eot_threshold: FLUX_EOT_THRESHOLD,
+              eot_timeout_ms: FLUX_EOT_TIMEOUT_MS,
             },
           },
           think: {

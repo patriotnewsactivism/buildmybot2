@@ -1130,10 +1130,10 @@ export function setupGeminiSession(gemini: WebSocket, context: SessionContext) {
           startOfSpeechSensitivity: 'START_SENSITIVITY_HIGH',
           // Low end sensitivity avoids chopping mid-sentence pauses on PSTN.
           endOfSpeechSensitivity: 'END_SENSITIVITY_LOW',
-          // Balanced vs PR #131 (200/750): shorter prefix restores pickup of
-          // quiet speech starts; mid silence keeps barge-in from feeling hair-trigger.
           prefixPaddingMs: 140,
-          silenceDurationMs: 600,
+          // 800ms of silence before the turn is done. 600ms was ending the
+          // caller turn early and starting a second reply over leftover audio.
+          silenceDurationMs: 800,
         },
         activityHandling: 'START_OF_ACTIVITY_INTERRUPTS',
       },
@@ -1852,7 +1852,7 @@ export function handleTelnyxMediaConnection(
         inputQueue.push(message.media.payload);
       } else {
         const isAgentSpeaking =
-          pendingAudio.length > 0 || Date.now() - lastOutboundAudioAt < 350;
+          pendingAudio.length > 0 || Date.now() - lastOutboundAudioAt < 500;
         if (isAgentSpeaking) {
           const rms = computeMuLawRms(message.media.payload);
           if (rms < ECHO_BARGE_IN_RMS_THRESHOLD) {
