@@ -1,7 +1,9 @@
 /**
  * Telnyx bidirectional media ↔ Deepgram Voice Agent bridge.
- * Echo / doubled-speech fix: drop pre-ready inbound, mute inbound while the
- * agent is talking, single greeting via Settings.agent.greeting.
+ * Half-duplex inbound: mute as soon as SettingsApplied (greeting starts),
+ * stay muted through TTS + a short hangover so line echo of our own voice
+ * never reaches Flux STT. Ignore UserStartedSpeaking during that window so
+ * a self-echo cannot barge-in and overlap a second reply.
  */
 
 import type { IncomingMessage } from 'node:http';
@@ -36,6 +38,8 @@ const MAX_PENDING_INBOUND_BYTES = 64_000;
 const PCMU_FRAME_BYTES = 160;
 const PCMU_FRAME_MS = 20;
 const DIAGNOSTICS_LOG_MS = 10_000;
+/** Drop inbound after TTS so the acoustic echo tail is not transcribed. */
+export const SPEAKING_HANGOVER_MS = 400;
 
 const DEFERRED_TOOL_NAMES = new Set([
   'send_checkout_link',
@@ -110,6 +114,7 @@ export class DeepgramVoiceSession {
   private cleaningUp = false;
   private formatValidated = false;
   private agentSpeaking = false;
+  private speakHangoverUntil = 0;
   private holdInProgress = false;
   private department: VoiceDepartment = 'receptionist';
   private callContext: SharedCallContext;
@@ -197,6 +202,7 @@ export class DeepgramVoiceSession {
     socket.on('message', (data: WebSocket.RawData, isBinary: boolean) => {
       if (isBinary) {
         if (this.holdInProgress) return;
+        this.markAgentSpeaking();
         this.enqueueOutboundAudio(rawDataToBuffer(data));
         return;
       }
@@ -227,18 +233,22 @@ export class DeepgramVoiceSession {
       case 'SettingsApplied':
         this.deepgramReady = true;
         this.diagnostics.markSettingsApplied();
+        // Greeting audio starts immediately; mute before AgentStartedSpeaking.
+        this.markAgentSpeaking();
         this.dropPendingInbound();
         console.info(`[Deepgram Agent] Settings applied for ${this.callControlId}`);
         break;
       case 'AgentStartedSpeaking':
-        this.agentSpeaking = true;
+        this.markAgentSpeaking();
         break;
       case 'AgentAudioDone':
       case 'AgentStartedListening':
-        this.agentSpeaking = false;
+        this.beginSpeakHangover();
         break;
       case 'UserStartedSpeaking':
+        if (this.shouldIgnoreBargeIn()) return;
         this.agentSpeaking = false;
+        this.speakHangoverUntil = 0;
         this.clearTelnyxPlayback();
         break;
       case 'FunctionCallRequest':
@@ -419,7 +429,7 @@ export class DeepgramVoiceSession {
       this.queuePendingInbound(audio);
       return;
     }
-    if (this.agentSpeaking || this.holdInProgress) return;
+    if (this.isInboundMuted()) return;
     this.sendAudioToDeepgram(audio);
   }
 
@@ -546,7 +556,8 @@ export class DeepgramVoiceSession {
     });
     sendJson(this.dgWs, { type: 'InjectAgentMessage', message: openingGreeting(destination) });
     this.holdInProgress = false;
-    this.agentSpeaking = false;
+    // Destination greeting is about to play — keep inbound muted.
+    this.markAgentSpeaking();
     return { ok: true, department: destination, hold_ms: CORPORATE_TRANSFER_HOLD_MS };
   }
 
@@ -555,6 +566,24 @@ export class DeepgramVoiceSession {
       this.cancelledFunctionCalls.add(functionCall.id);
       this.diagnostics.functionCancels += 1;
     }
+  }
+
+  private markAgentSpeaking(): void {
+    this.agentSpeaking = true;
+    this.speakHangoverUntil = 0;
+  }
+
+  private beginSpeakHangover(): void {
+    this.agentSpeaking = false;
+    this.speakHangoverUntil = Date.now() + SPEAKING_HANGOVER_MS;
+  }
+
+  private isInboundMuted(): boolean {
+    return this.agentSpeaking || this.holdInProgress || Date.now() < this.speakHangoverUntil;
+  }
+
+  private shouldIgnoreBargeIn(): boolean {
+    return this.isInboundMuted() || this.pendingOutbound.length > 0;
   }
 
   private closeTelnyx(code: number, reason: string): void {
