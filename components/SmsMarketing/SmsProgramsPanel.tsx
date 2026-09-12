@@ -130,7 +130,7 @@ export const SmsProgramsPanel: React.FC = () => {
 							<div className="min-w-0 flex-1">
 								<p className="font-medium text-gray-900">{row.name}</p>
 								<p className="text-xs text-gray-500">
-									{row.kind} · {row.status}
+									{KIND_LABELS[row.kind] || row.kind} · {row.status}
 								</p>
 							</div>
 							<button
