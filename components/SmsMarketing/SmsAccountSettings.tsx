@@ -19,6 +19,7 @@ type Account = {
   plan_key?: string | null;
 };
 
+/** Sends an authenticated request to an SMS account endpoint. */
 async function smsFetch(path: string, init?: RequestInit) {
   const res = await fetch(buildApiUrl(path), {
     credentials: 'include',
@@ -30,6 +31,7 @@ async function smsFetch(path: string, init?: RequestInit) {
   return data;
 }
 
+/** Renders billing, compliance, and delivery settings for an SMS account. */
 export const SmsAccountSettings: React.FC = () => {
   const [account, setAccount] = useState<Account | null>(null);
   const [launchEnabled, setLaunchEnabled] = useState(false);

@@ -12,6 +12,7 @@ type ProgramRow = {
   config?: SmsProgram;
 };
 
+/** Sends an authenticated request to an SMS programs endpoint. */
 async function smsFetch(path: string, init?: RequestInit) {
   const res = await fetch(buildApiUrl(path), {
     credentials: 'include',
@@ -23,6 +24,7 @@ async function smsFetch(path: string, init?: RequestInit) {
   return data;
 }
 
+/** Displays tenant SMS programs and coordinates their editing and status changes. */
 export const SmsProgramsPanel: React.FC = () => {
   const [rows, setRows] = useState<ProgramRow[]>([]);
   const [loading, setLoading] = useState(true);

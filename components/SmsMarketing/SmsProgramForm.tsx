@@ -17,6 +17,7 @@ const KINDS: SmsProgram['kind'][] = [
   'birthday',
 ];
 
+/** Creates the initial editable values for a program of the requested kind. */
 const emptyFor = (kind: SmsProgram['kind']): Partial<SmsProgram> => ({
   name: '',
   kind,
@@ -34,6 +35,7 @@ type Props = {
   busy?: boolean;
 };
 
+/** Renders and validates the editor used to create or update an SMS program. */
 export const SmsProgramForm: React.FC<Props> = ({
   initial,
   onSubmit,

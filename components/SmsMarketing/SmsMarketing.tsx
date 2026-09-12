@@ -157,6 +157,7 @@ const STEP_COPY: Record<string, string> = {
   complete: 'Setup complete',
 };
 
+/** Displays the current carrier-registration state and available next action. */
 function StatusPanel({
   status,
   onRefresh,
@@ -232,6 +233,7 @@ function StatusPanel({
   );
 }
 
+/** Guides a tenant through SMS registration and provides program management tabs. */
 export const SmsMarketing: React.FC = () => {
   const [status, setStatus] = useState<RegistrationStatus | null>(null);
   const [loadingStatus, setLoadingStatus] = useState(true);
@@ -763,6 +765,7 @@ export const SmsMarketing: React.FC = () => {
   );
 };
 
+/** Renders a consistently styled text input for the registration wizard. */
 function Field({
   label,
   value,
@@ -793,6 +796,7 @@ function Field({
   );
 }
 
+/** Renders a consistently styled select input for the registration wizard. */
 function Select({
   label,
   value,
@@ -822,6 +826,7 @@ function Select({
   );
 }
 
+/** Renders a consistently styled multiline input for the registration wizard. */
 function TextArea({
   label,
   value,
