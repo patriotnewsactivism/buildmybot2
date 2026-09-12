@@ -105,7 +105,13 @@ export function helmetOptions() {
         'font-src': ["'self'", 'https://fonts.gstatic.com', 'data:'],
         'img-src': ["'self'", 'data:', 'blob:', 'https:'],
         'connect-src': ["'self'", 'https:', 'wss:'],
-        'frame-src': ["'self'", 'https://js.stripe.com'],
+        'frame-src': [
+          "'self'",
+          'https://js.stripe.com',
+          // Demo / marketing embeds (see smoke #119 — CSP was blocking YouTube).
+          'https://www.youtube.com',
+          'https://www.youtube-nocookie.com',
+        ],
         'object-src': ["'none'"],
         'base-uri': ["'self'"],
         'form-action': ["'self'"],
