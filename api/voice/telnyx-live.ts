@@ -27,7 +27,7 @@ import {
   executeGrantIncentive,
 } from './grant-incentive.js';
 import {
-  CORPORATE_PICKUP_DELAY_MS,
+  CONNECT_COMFORT_MS,
   CORPORATE_TRANSFER_HOLD_MS,
   INBOUND_PCM_GAIN,
   MAX_OUTBOUND_PENDING_BYTES,
@@ -315,7 +315,7 @@ export const SILENCE_PCM16K_BASE64 = Buffer.alloc(640, 0).toString('base64');
  */
 export const ECHO_BARGE_IN_RMS_THRESHOLD = 1600;
 /** After the last outbound frame, keep the inbound gate closed this long. */
-export const AGENT_SPEAKING_TAIL_MS = 500;
+export const AGENT_SPEAKING_TAIL_MS = 250;
 /** Drop leftover Gemini audio after an interrupt so two generations cannot mix. */
 export const STALE_OUTPUT_GUARD_MS = 400;
 
@@ -1134,13 +1134,11 @@ export function setupGeminiSession(gemini: WebSocket, context: SessionContext) {
           // Low end sensitivity avoids chopping mid-sentence pauses on PSTN.
           endOfSpeechSensitivity: 'END_SENSITIVITY_LOW',
           prefixPaddingMs: 140,
-          // 800ms of silence before the turn is done. 600ms was ending the
-          // caller turn early and starting a second reply over leftover audio.
-          silenceDurationMs: 800,
+          // 500ms of silence ends the caller turn. Inbound is muted during
+          // agent TTS so echo cannot false-trigger a second generation.
+          silenceDurationMs: 500,
         },
-        // Half-duplex on PSTN: never let Gemini start a second generation
-        // from earpiece echo while the first reply is still playing.
-        activityHandling: 'NO_INTERRUPTION',
+        activityHandling: 'START_OF_ACTIVITY_INTERRUPTS',
       },
       inputAudioTranscription: {},
       outputAudioTranscription: {},
@@ -1209,6 +1207,7 @@ export function handleTelnyxMediaConnection(
   let pickupTimer: ReturnType<typeof setTimeout> | null = null;
   let pickupWaiting = false;
   let greetingStarted = false;
+  let comfortTonePlaying = false;
   let auditWrites: Promise<unknown> = Promise.resolve();
   const inputQueue: string[] = [];
   let pendingAudio = Buffer.alloc(0);
@@ -1229,6 +1228,17 @@ export function handleTelnyxMediaConnection(
       pendingAudio.length < 160
     ) {
       lastPacingTick = Date.now();
+      if (
+        active?.ready &&
+        !pickupWaiting &&
+        !pending &&
+        !comfortTonePlaying &&
+        inputQueue.length > 0 &&
+        lastOutboundAudioAt > 0 &&
+        Date.now() - lastOutboundAudioAt >= AGENT_SPEAKING_TAIL_MS
+      ) {
+        flushInput(active);
+      }
       return;
     }
     lastPacingTick = Date.now();
@@ -1274,9 +1284,7 @@ export function handleTelnyxMediaConnection(
       clearTimeout(pickupTimer);
       pickupTimer = null;
     }
-    clearPlayback();
-    // Discard hold-period silence/noise; keep only ~0.5s so Gemini VAD
-    // is not flooded with buffered ringback-era frames.
+    // Keep connect ringback on the line until the first Gemini audio arrives.
     if (inputQueue.length > 25) inputQueue.splice(0, inputQueue.length - 25);
     promptInitialGreeting(connection.socket, connection.context);
     flushInput(connection);
@@ -1605,9 +1613,12 @@ export function handleTelnyxMediaConnection(
           pcm24kToMuLaw8k(part.inlineData.data),
           'base64',
         );
-        // New utterance: drain Telnyx's jitter buffer so this reply cannot
-        // mix with leftover greeting/prior-turn RTP.
-        if (pendingAudio.length === 0) sendJson(telnyxSocket, { event: 'clear' });
+        // Cut connect ringback / leftover RTP so this utterance is alone.
+        if (comfortTonePlaying || pendingAudio.length === 0) {
+          pendingAudio = Buffer.alloc(0);
+          comfortTonePlaying = false;
+          sendJson(telnyxSocket, { event: 'clear' });
+        }
         enqueueOutbound(muLaw);
       }
       for (const call of response.toolCall?.functionCalls || []) {
@@ -1828,6 +1839,9 @@ export function handleTelnyxMediaConnection(
           Math.min(600, Number(context.phoneConfig.maxCallDuration) || 600),
         ) * 1000,
       );
+      pickupWaiting = true;
+      enqueueOutbound(generateRingbackMuLaw(CONNECT_COMFORT_MS));
+      comfortTonePlaying = true;
       try {
         openConnection(context);
       } catch {
@@ -1854,15 +1868,20 @@ export function handleTelnyxMediaConnection(
         if (inputQueue.length >= 500) inputQueue.shift();
         inputQueue.push(message.media.payload);
       } else {
-        const isAgentSpeaking =
-          pendingAudio.length > 0 ||
+        const ttsPlaying = pendingAudio.length > 0 && !comfortTonePlaying;
+        const inHangover =
+          lastOutboundAudioAt > 0 &&
           Date.now() - lastOutboundAudioAt < AGENT_SPEAKING_TAIL_MS;
-        if (isAgentSpeaking) {
-          // Hard half-duplex. Loud earpiece echo of the agent's own reply was
-          // crossing the barge-in threshold, interrupting Gemini, and mixing
-          // a second generation over the first. Caller waits until we finish.
+        if (ttsPlaying) {
+          // Drop earpiece echo of the agent's own voice.
           return;
         }
+        if (inHangover) {
+          if (inputQueue.length >= 500) inputQueue.shift();
+          inputQueue.push(message.media.payload);
+          return;
+        }
+        if (inputQueue.length) flushInput(active);
         sendAudio(active, message.media.payload);
       }
       return;

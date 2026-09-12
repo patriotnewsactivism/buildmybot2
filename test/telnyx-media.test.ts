@@ -110,7 +110,7 @@ it('uses Gemini 3.1 realtime input, automatic barge-in, and department routing',
     'models/gemini-3.1-flash-live-preview',
   );
   expect(socket.sent[0].setup.realtimeInputConfig.activityHandling).toBe(
-    'NO_INTERRUPTION',
+    'START_OF_ACTIVITY_INTERRUPTS',
   );
   expect(
     socket.sent[0].setup.tools[0].functionDeclarations.some(
@@ -380,6 +380,14 @@ it('allows a new session of the same department to reuse a provider tool ID', as
   await phone.deliver('close', undefined);
 });
 
+it('plays connect ringback until Gemini greeting audio is ready', async () => {
+  const { phone } = await connect();
+  await vi.advanceTimersByTimeAsync(40);
+  expect(phone.sent.filter((m: any) => m.event === 'media').length).toBeGreaterThan(
+    0,
+  );
+});
+
 it('greets immediately upon corporate connection without pickup silence', async () => {
   const { phone, gemini } = await connect();
   await gemini.deliver('message', JSON.stringify({ setupComplete: {} }));
@@ -402,7 +410,7 @@ it('uses balanced VAD timing for distant phone pickup', () => {
   expect(vad.startOfSpeechSensitivity).toBe('START_SENSITIVITY_HIGH');
   expect(vad.endOfSpeechSensitivity).toBe('END_SENSITIVITY_LOW');
   expect(vad.prefixPaddingMs).toBe(140);
-  expect(vad.silenceDurationMs).toBe(800);
+  expect(vad.silenceDurationMs).toBe(500);
 });
 
 it('rejects receptionist handoff without intake fields', async () => {
