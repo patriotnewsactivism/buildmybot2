@@ -97,7 +97,7 @@ export const SmsProgramForm: React.FC<Props> = ({
 					>
 						{KINDS.map((k) => (
 							<option key={k} value={k}>
-								{k}
+								{KIND_LABELS[k]}
 							</option>
 						))}
 					</select>
@@ -185,22 +185,26 @@ export const SmsProgramForm: React.FC<Props> = ({
 				<div className="grid gap-3 sm:grid-cols-2">
 					{(
 						[
-							["prize", "Prize"],
-							["rulesUrl", "Rules URL"],
-							["entryUrl", "Entry URL"],
-							["eligibility", "Eligibility"],
-							["opensAt", "Opens at (ISO)"],
-							["closesAt", "Closes at (ISO)"],
-							["winnerText", "Winner text"],
-							["confirmationText", "Confirmation text"],
+							["opensAt", "Opens at"],
+							["closesAt", "Closes at"],
+							["winnerAnnounceAt", "Winner announce"],
 						] as const
 					).map(([key, label]) => (
-						<label key={key} className="block text-sm sm:col-span-2">
+						<label key={key} className="block text-sm">
 							<span className="font-medium text-gray-700">{label}</span>
 							<input
-								className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-								value={(form[key] as string) || ""}
-								onChange={(e) => set(key, e.target.value as never)}
+								type="datetime-local"
+								className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
+								value={isoToLocalInput(
+									key === "opensAt"
+										? form.opensAt
+										: key === "closesAt"
+											? form.closesAt
+											: form.winnerAnnounceAt,
+								)}
+								onChange={(e) =>
+									setForm({ ...form, [key]: localInputToIso(e.target.value) })
+								}
 							/>
 						</label>
 					))}
