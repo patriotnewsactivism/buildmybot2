@@ -50,7 +50,7 @@ Caller context may transfer. Outgoing persona/voice state may not.
 ## Handoff lifecycle
 
 1. Validate the destination, require a factual summary, reject self-transfers, and enforce a bounded number of transfer attempts per call. Receptionist transfers are gated until name, contact, and interest/reason are present.
-2. Keep the source available while starting the destination (so the verbal hold acknowledgement can finish) and buffer recent caller audio during setup.
+2. Keep the source available while starting the destination (so a brief connecting sentence can finish) and buffer recent caller audio during setup. Do not wait for the caller to confirm or OK the transfer.
 3. When destination setup completes, clear queued source playback, retire the old session, play a short hold-music interval, then enable the destination greeting. Late source events cannot speak, execute tools, or finalize the new session.
 4. Give the destination the caller number, known name/company/reason, handoff summary and a bounded recent transcript. After hold music ends, it introduces its own name and role, acknowledges the issue and avoids repeat questions.
 5. If destination setup fails or times out, return a failed tool result to the source and preserve a deterministic fallback path.

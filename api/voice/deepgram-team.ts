@@ -3,6 +3,7 @@ import {
   NO_AI_DISCLOSURE_RULE,
   OBJECTION_HANDLING_RULE,
   type SharedCallContext,
+  TRANSFER_EXECUTION_RULE,
   VOICE_TEAM_ROUTING,
   type VoiceDepartment,
   type VoiceTeamAgent,
@@ -127,6 +128,7 @@ export function buildAgentPrompt(
     knowledge,
     contextBlock,
     'Keep spoken replies to one or two short sentences unless the caller asks for detail.',
+    TRANSFER_EXECUTION_RULE,
     'Never speak over hold music. After a transfer, greet once using your own name and the known caller details. You must sound like a different person than whoever just transferred the call.',
     'When shared caller context includes a name or reason, acknowledge it in your opening — do not make the caller repeat intake.',
   ].join('\n');

@@ -139,6 +139,7 @@ export class DeepgramVoiceSession {
   private telnyxStarted = false;
   private awaitingDestinationAudio = false;
   private holdTimer: ReturnType<typeof setInterval> | null = null;
+  private holdOffsetMs = 0;
   private salesSeat: SalesSeat | undefined;
   private department: VoiceDepartment = 'receptionist';
   private callContext: SharedCallContext;
@@ -688,17 +689,25 @@ export class DeepgramVoiceSession {
     }
   }
 
+  private enqueueHoldChunk(): void {
+    this.enqueueOutboundAudio(
+      generateHoldMusicMuLaw(HOLD_CHUNK_MS, this.holdOffsetMs),
+    );
+    this.holdOffsetMs += HOLD_CHUNK_MS;
+  }
+
   private beginHold(): void {
     this.holdInProgress = true;
     this.awaitingDestinationAudio = false;
     this.agentSpeaking = true;
+    this.holdOffsetMs = 0;
     this.clearTelnyxPlayback();
-    this.enqueueOutboundAudio(generateHoldMusicMuLaw(HOLD_CHUNK_MS));
+    this.enqueueHoldChunk();
     if (!this.holdTimer) {
       this.holdTimer = setInterval(() => {
         if (!this.holdInProgress || this.cleaningUp) return;
         if (this.pendingOutbound.length < HOLD_PENDING_WATERMARK) {
-          this.enqueueOutboundAudio(generateHoldMusicMuLaw(HOLD_CHUNK_MS));
+          this.enqueueHoldChunk();
         }
       }, 400);
     }
@@ -777,6 +786,7 @@ export class DeepgramVoiceSession {
     this.diagnosticsTimer = null;
     this.holdTimer = null;
     this.holdInProgress = false;
+    this.holdOffsetMs = 0;
     this.awaitingDestinationAudio = false;
     this.pendingInbound.length = 0;
     this.pendingInboundBytes = 0;

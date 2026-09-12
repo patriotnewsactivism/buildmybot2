@@ -112,11 +112,12 @@ it('uses Gemini 3.1 realtime input, automatic barge-in, and department routing',
   expect(socket.sent[0].setup.realtimeInputConfig.activityHandling).toBe(
     'START_OF_ACTIVITY_INTERRUPTS',
   );
-  expect(
-    socket.sent[0].setup.tools[0].functionDeclarations.some(
-      (t: any) => t.name === 'route_department',
-    ),
-  ).toBe(true);
+  const route = socket.sent[0].setup.tools[0].functionDeclarations.find(
+    (t: any) => t.name === 'route_department',
+  );
+  expect(route).toBeTruthy();
+  expect(route.description).toMatch(/do not wait for the caller to confirm/i);
+  expect(route.description).not.toMatch(/verbally acknowledge/i);
   expect(socket.sent[1].realtimeInput.text).toBeTruthy();
   expect(socket.sent[1].clientContent).toBeUndefined();
 });
@@ -383,9 +384,9 @@ it('allows a new session of the same department to reuse a provider tool ID', as
 it('plays connect ringback until Gemini greeting audio is ready', async () => {
   const { phone } = await connect();
   await vi.advanceTimersByTimeAsync(40);
-  expect(phone.sent.filter((m: any) => m.event === 'media').length).toBeGreaterThan(
-    0,
-  );
+  expect(
+    phone.sent.filter((m: any) => m.event === 'media').length,
+  ).toBeGreaterThan(0);
 });
 
 it('greets immediately upon corporate connection without pickup silence', async () => {
@@ -523,13 +524,13 @@ it('paces exactly one 20ms Telnyx frame per tick even when Gemini dumps a burst'
     }),
   );
   await vi.advanceTimersByTimeAsync(20);
-  expect(
-    phone.sent.filter((m: any) => m.event === 'media').length,
-  ).toBe(mediaBefore + 1);
+  expect(phone.sent.filter((m: any) => m.event === 'media').length).toBe(
+    mediaBefore + 1,
+  );
   await vi.advanceTimersByTimeAsync(20);
-  expect(
-    phone.sent.filter((m: any) => m.event === 'media').length,
-  ).toBe(mediaBefore + 2);
+  expect(phone.sent.filter((m: any) => m.event === 'media').length).toBe(
+    mediaBefore + 2,
+  );
   await phone.deliver('close', undefined);
 });
 
@@ -548,8 +549,8 @@ it('clears Telnyx playback before a new agent utterance', async () => {
       },
     }),
   );
-  expect(phone.sent.filter((m: any) => m.event === 'clear').length).toBeGreaterThan(
-    0,
-  );
+  expect(
+    phone.sent.filter((m: any) => m.event === 'clear').length,
+  ).toBeGreaterThan(0);
   await phone.deliver('close', undefined);
 });

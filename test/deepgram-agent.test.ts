@@ -220,6 +220,11 @@ it('bridges Telnyx start/media through Welcome→Settings→SettingsApplied', as
   expect(
     settings.agent.think.functions.some((f: any) => f.defer_until_eot),
   ).toBe(true);
+  const route = settings.agent.think.functions.find(
+    (f: any) => f.name === 'route_department',
+  );
+  expect(route.defer_until_eot).toBeUndefined();
+  expect(route.description).toMatch(/do not wait/i);
 
   await deepgram.deliver(
     'message',
