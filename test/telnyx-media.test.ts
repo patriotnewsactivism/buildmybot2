@@ -41,6 +41,7 @@ vi.mock('../api/growth/milestones.js', () => ({ recordMilestone: vi.fn() }));
 import Socket from 'ws';
 import { CORPORATE } from '../api/phone/corporate-config';
 import { createTelnyxStreamToken } from '../api/phone/tenant-telnyx-token';
+import { CORPORATE_TRANSFER_HOLD_MS } from '../api/voice/ringback-tone';
 import {
   ECHO_BARGE_IN_RMS_THRESHOLD,
   SILENCE_PCM16K_BASE64,
@@ -49,7 +50,6 @@ import {
   promptInitialGreeting,
   setupGeminiSession,
 } from '../api/voice/telnyx-live';
-import { CORPORATE_TRANSFER_HOLD_MS } from '../api/voice/ringback-tone';
 const context = {
   botId: CORPORATE.botId,
   logId: '42',
