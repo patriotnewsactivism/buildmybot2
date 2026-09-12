@@ -8,6 +8,7 @@ import {
   type VoiceDepartment,
   type VoiceTeamAgent,
 } from '../../shared/voice-team.js';
+import { departmentKnowledge } from '../../shared/voice-department-knowledge.js';
 
 /**
  * Distinct Flux TTS voices (Speak v2) — Deepgram's most realistic catalog.
@@ -54,6 +55,7 @@ export function buildAgentPrompt(
       )}`
     : 'No prior caller context yet.';
 
+  const knowledge = departmentKnowledge(department);
   return [
     VOICE_TEAM_ROUTING,
     NO_AI_DISCLOSURE_RULE,
@@ -61,9 +63,11 @@ export function buildAgentPrompt(
     `You are ${agent.name}, ${agent.department}.`,
     agent.persona,
     `Speaking style: ${agent.speakingStyle}`,
+    knowledge,
     contextBlock,
     'Keep spoken replies to one or two short sentences unless the caller asks for detail.',
     'Never speak over hold music. After a transfer, greet once using your own name and the known caller details.',
+    'When shared caller context includes a name or reason, acknowledge it in your opening — do not make the caller repeat intake.',
   ].join('\n');
 }
 

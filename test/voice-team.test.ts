@@ -5,6 +5,11 @@ import {
   handoffContextText,
   voiceTeamSchema,
 } from '../shared/voice-team';
+import {
+  VOICE_PARTNER_KNOWLEDGE,
+  VOICE_RECRUITING_KNOWLEDGE,
+  departmentKnowledge,
+} from '../shared/voice-department-knowledge';
 describe('Voice Team constraints', () => {
   it('requires six distinct names, roles and provider-supported voices', () => {
     const team = createDefaultVoiceTeam();
@@ -158,5 +163,19 @@ describe('Voice Team constraints', () => {
     expect(getReceptionistGreeting(evening, 'America/Chicago')).toBe(
       'Good evening, thank you for calling BuildMyBot, my name is Avery how can I help you.',
     );
+  });
+
+  it('exposes fully flushed recruiting and partner handoff knowledge', () => {
+    expect(departmentKnowledge('recruiting')).toBe(VOICE_RECRUITING_KNOWLEDGE);
+    expect(departmentKnowledge('partner')).toBe(VOICE_PARTNER_KNOWLEDGE);
+    expect(departmentKnowledge('sales')).toBe('');
+    expect(VOICE_RECRUITING_KNOWLEDGE).toContain('Bronze');
+    expect(VOICE_RECRUITING_KNOWLEDGE).toContain('buildmybot.app/reseller');
+    expect(VOICE_RECRUITING_KNOWLEDGE).toContain('careers@buildmybot.app');
+    expect(VOICE_RECRUITING_KNOWLEDGE).toContain('commission-only');
+    expect(VOICE_PARTNER_KNOWLEDGE).toContain('$499');
+    expect(VOICE_PARTNER_KNOWLEDGE).toContain('white-label');
+    expect(VOICE_PARTNER_KNOWLEDGE).toContain('buildmybot.app/partners');
+    expect(VOICE_PARTNER_KNOWLEDGE).toContain('50%');
   });
 });
