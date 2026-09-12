@@ -24,7 +24,10 @@ import tenantTelnyxWebhookHandler from './api/phone/tenant-telnyx.js';
 import smsWebhookHandler from './api/sms/webhooks.js';
 import stripeWebhookHandler from './api/stripe-webhook.js';
 import { handleDeepgramTelnyxMediaConnection } from './api/voice/deepgram-agent.js';
-import { isDeepgramVoiceEnabled } from './api/voice/engine.js';
+import {
+  isDeepgramVoiceEnabled,
+  liveVoiceEngineName,
+} from './api/voice/engine.js';
 import liveTokenHandler from './api/voice/live-token.js';
 import { handleTelnyxMediaConnection } from './api/voice/telnyx-live.js';
 import { handleTwilioMediaConnection } from './api/voice/twilio-live.js';
@@ -136,6 +139,9 @@ const healthPayload = () => ({
       process.env.K_REVISION ||
       'unknown',
     deployedAt: process.env.BUILD_TIME || null,
+  },
+  voice: {
+    engine: liveVoiceEngineName(),
   },
 });
 app.get('/health', (_req, res) => res.status(200).json(healthPayload()));
