@@ -4,9 +4,9 @@ import { SEO } from '../../SEO/SEO';
 import { PageLayout } from './PageLayout';
 
 const author = {
-  name: 'Matthew Reardon',
+  name: 'Don Matthews',
   role: 'Founder & CEO',
-  bio: 'Matthew Reardon is the founder and CEO of BuildMyBot. With over 10 years of experience in sales, business development, branding, and entrepreneurship, Matthew is passionate about helping businesses leverage AI to create better customer experiences.',
+  bio: 'Don Matthews is the founder and CEO of BuildMyBot. With over 10 years of experience in sales, business development, branding, and entrepreneurship, Don is passionate about helping businesses leverage AI to create better customer experiences.',
 };
 
 const articleContent: Record<

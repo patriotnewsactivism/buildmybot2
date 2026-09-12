@@ -102,7 +102,7 @@ export const BlogPage: React.FC = () => {
       datePublished: toIsoDate(post.date),
       author: {
         '@type': 'Person',
-        name: 'Matthew Reardon',
+        name: 'Don Matthews',
       },
     })),
   };
@@ -160,7 +160,7 @@ export const BlogPage: React.FC = () => {
                   <div className="flex items-center justify-between pt-2">
                     <div className="text-slate-500 text-sm">
                       <span className="text-slate-700 font-medium">
-                        Matthew Reardon
+                        Don Matthews
                       </span>{' '}
                       · {post.date}
                     </div>
@@ -217,7 +217,7 @@ export const BlogPage: React.FC = () => {
                 <div className="flex items-center justify-between text-sm text-slate-500">
                   <span>
                     <span className="text-slate-700 font-medium">
-                      Matthew Reardon
+                      Don Matthews
                     </span>{' '}
                     · {post.date}
                   </span>

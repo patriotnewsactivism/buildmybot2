@@ -22,6 +22,39 @@ export interface DeepgramToolContext {
 export function getToolDeclarationsForDeepgram(): DeepgramToolDeclaration[] {
   return [
     {
+      name: 'route_department',
+      description:
+        'Transfer the caller to another BuildMyBot teammate after verbally acknowledging the hold. Use sales, support, manager, recruiting, or partner.',
+      parameters: {
+        type: 'object',
+        properties: {
+          department: {
+            type: 'string',
+            description:
+              'Destination: sales, support, manager, recruiting, partner, hr, careers, white_label, or partnerships.',
+          },
+          callerName: {
+            type: 'string',
+            description: 'Caller name collected during intake.',
+          },
+          reason: {
+            type: 'string',
+            description: 'What the caller needs or is interested in.',
+          },
+          interest: {
+            type: 'string',
+            description: 'Alias for reason / interest.',
+          },
+          company: { type: 'string', description: 'Caller company if known.' },
+          summary: {
+            type: 'string',
+            description: 'Short factual summary for the destination teammate.',
+          },
+        },
+        required: ['department'],
+      },
+    },
+    {
       name: 'quote_discounted_plan',
       description:
         'Quote a BuildMyBot plan and an optional promotional monthly price for the caller.',

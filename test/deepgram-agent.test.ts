@@ -65,6 +65,7 @@ import { sendSms, transferCall } from '../api/lib/telephony-provider.js';
 import { createTelnyxStreamToken } from '../api/phone/tenant-telnyx-token';
 import {
   DeepgramVoiceSession,
+  SPEAKING_HANGOVER_MS,
   isDeepgramVoiceEnabled,
   parseJsonArguments,
 } from '../api/voice/deepgram-agent';
@@ -187,9 +188,8 @@ it('bridges Telnyx start/media through Welcome→Settings→SettingsApplied', as
     false,
   );
 
-  // Flushed pending + later media go as raw PCMU bytes.
-  const binarySends = deepgram.sentRaw.filter((v: any) => Buffer.isBuffer(v));
-  expect(binarySends.length).toBeGreaterThanOrEqual(1);
+  // Greeting window: drop pre-ready inbound and keep muting until TTS hangover.
+  expect(deepgram.sentRaw.filter((v: any) => Buffer.isBuffer(v)).length).toBe(0);
 
   await telnyx.deliver(
     'message',
@@ -201,9 +201,28 @@ it('bridges Telnyx start/media through Welcome→Settings→SettingsApplied', as
       },
     }),
   );
+  expect(deepgram.sentRaw.filter((v: any) => Buffer.isBuffer(v)).length).toBe(0);
+
+  await deepgram.deliver(
+    'message',
+    Buffer.from(JSON.stringify({ type: 'AgentAudioDone' })),
+    false,
+  );
+  await vi.advanceTimersByTimeAsync(SPEAKING_HANGOVER_MS);
+
+  await telnyx.deliver(
+    'message',
+    JSON.stringify({
+      event: 'media',
+      media: {
+        track: 'inbound_track',
+        payload: Buffer.alloc(160, 0x33).toString('base64'),
+      },
+    }),
+  );
   expect(
     deepgram.sentRaw.filter((v: any) => Buffer.isBuffer(v)).length,
-  ).toBeGreaterThanOrEqual(2);
+  ).toBeGreaterThanOrEqual(1);
 
   // Outbound binary from Deepgram is paced as Telnyx media frames.
   await deepgram.deliver('message', Buffer.alloc(320, 0x22), true);
@@ -232,11 +251,27 @@ it('clears Telnyx playback on barge-in and ignores text frames as audio', async 
     false,
   );
 
+  // Echo during the greeting must not cut playback or start a second voice.
+  await deepgram.deliver(
+    'message',
+    Buffer.from(JSON.stringify({ type: 'UserStartedSpeaking', timestamp: 1 })),
+    false,
+  );
+  expect(telnyx.sent.some((m: any) => m?.event === 'clear')).toBe(false);
+  expect(session.getDiagnosticsSnapshot().bargeIns).toBe(0);
+
+  await deepgram.deliver(
+    'message',
+    Buffer.from(JSON.stringify({ type: 'AgentAudioDone' })),
+    false,
+  );
+  await vi.advanceTimersByTimeAsync(SPEAKING_HANGOVER_MS);
+
   // Text frame delivered as Buffer but isBinary=false must NOT become audio.
   const beforeOut = telnyx.sent.length;
   await deepgram.deliver(
     'message',
-    Buffer.from(JSON.stringify({ type: 'UserStartedSpeaking', timestamp: 1 })),
+    Buffer.from(JSON.stringify({ type: 'UserStartedSpeaking', timestamp: 2 })),
     false,
   );
   expect(telnyx.sent.some((m: any) => m?.event === 'clear')).toBe(true);
