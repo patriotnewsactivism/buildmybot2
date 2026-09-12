@@ -44,7 +44,6 @@ import { createTelnyxStreamToken } from '../api/phone/tenant-telnyx-token';
 import { CORPORATE_TRANSFER_HOLD_MS } from '../api/voice/ringback-tone';
 import {
   ECHO_BARGE_IN_RMS_THRESHOLD,
-  STALE_OUTPUT_GUARD_MS,
   computeMuLawRms,
   handleTelnyxMediaConnection,
   promptInitialGreeting,
@@ -111,7 +110,7 @@ it('uses Gemini 3.1 realtime input, automatic barge-in, and department routing',
     'models/gemini-3.1-flash-live-preview',
   );
   expect(socket.sent[0].setup.realtimeInputConfig.activityHandling).toBe(
-    'START_OF_ACTIVITY_INTERRUPTS',
+    'NO_INTERRUPTION',
   );
   expect(
     socket.sent[0].setup.tools[0].functionDeclarations.some(
@@ -449,11 +448,10 @@ it('plays hold music on department handoff before destination greets', async () 
   await phone.deliver('close', undefined);
 });
 
-it('closes the inbound gate during agent playback and cuts Telnyx audio on barge-in', async () => {
+it('mutes all inbound while the agent is speaking, including loud earpiece echo', async () => {
   const { phone, gemini } = await connect();
   await gemini.deliver('message', JSON.stringify({ setupComplete: {} }));
 
-  // Simulate agent speaking (enqueuing audio to be played)
   await gemini.deliver(
     'message',
     JSON.stringify({
@@ -467,15 +465,12 @@ it('closes the inbound gate during agent playback and cuts Telnyx audio on barge
     }),
   );
 
-  const audioBeforeEcho = gemini.sent.filter(
+  const audioBefore = gemini.sent.filter(
     (m: any) => m.realtimeInput?.audio,
   ).length;
 
-  // An inbound frame with low energy (e.g. μ-law silence byte 255 -> amplitude 0)
-  // represents handset acoustic echo while the agent is speaking.
   const echoPayload = Buffer.alloc(160, 255).toString('base64');
   expect(computeMuLawRms(echoPayload)).toBe(0);
-
   await phone.deliver(
     'message',
     JSON.stringify({
@@ -484,16 +479,10 @@ it('closes the inbound gate during agent playback and cuts Telnyx audio on barge
     }),
   );
 
-  // Gate closed: echo must not be forwarded as audio or as silence.
-  expect(gemini.sent.filter((m: any) => m.realtimeInput?.audio)).toHaveLength(
-    audioBeforeEcho,
-  );
-
   const loudPayload = Buffer.alloc(160, 0x80).toString('base64');
   expect(computeMuLawRms(loudPayload)).toBeGreaterThan(
     ECHO_BARGE_IN_RMS_THRESHOLD,
   );
-
   await phone.deliver(
     'message',
     JSON.stringify({
@@ -502,19 +491,41 @@ it('closes the inbound gate during agent playback and cuts Telnyx audio on barge
     }),
   );
 
-  expect(phone.sent).toContainEqual({ event: 'clear' });
-  const bargeInMsg = gemini.sent
-    .filter((m: any) => m.realtimeInput?.audio)
-    .at(-1);
-  expect(bargeInMsg?.realtimeInput.audio.data).toBeTruthy();
   expect(gemini.sent.filter((m: any) => m.realtimeInput?.audio)).toHaveLength(
-    audioBeforeEcho + 1,
+    audioBefore,
   );
 
   await phone.deliver('close', undefined);
 });
 
-it('drops leftover model audio after barge-in so a second generation cannot mix', async () => {
+it('paces exactly one 20ms Telnyx frame per tick even when Gemini dumps a burst', async () => {
+  const { phone, gemini } = await connect();
+  await gemini.deliver('message', JSON.stringify({ setupComplete: {} }));
+  const mediaBefore = phone.sent.filter((m: any) => m.event === 'media').length;
+  await gemini.deliver(
+    'message',
+    JSON.stringify({
+      serverContent: {
+        modelTurn: {
+          parts: [
+            { inlineData: { data: Buffer.alloc(960 * 8).toString('base64') } },
+          ],
+        },
+      },
+    }),
+  );
+  await vi.advanceTimersByTimeAsync(20);
+  expect(
+    phone.sent.filter((m: any) => m.event === 'media').length,
+  ).toBe(mediaBefore + 1);
+  await vi.advanceTimersByTimeAsync(20);
+  expect(
+    phone.sent.filter((m: any) => m.event === 'media').length,
+  ).toBe(mediaBefore + 2);
+  await phone.deliver('close', undefined);
+});
+
+it('clears Telnyx playback before a new agent utterance', async () => {
   const { phone, gemini } = await connect();
   await gemini.deliver('message', JSON.stringify({ setupComplete: {} }));
   await gemini.deliver(
@@ -529,57 +540,8 @@ it('drops leftover model audio after barge-in so a second generation cannot mix'
       },
     }),
   );
-  await vi.advanceTimersByTimeAsync(40);
-  const mediaBefore = phone.sent.filter((m: any) => m.event === 'media').length;
-  expect(mediaBefore).toBeGreaterThan(0);
-
-  const loudPayload = Buffer.alloc(160, 0x80).toString('base64');
-  await phone.deliver(
-    'message',
-    JSON.stringify({
-      event: 'media',
-      media: { track: 'inbound', payload: loudPayload },
-    }),
+  expect(phone.sent.filter((m: any) => m.event === 'clear').length).toBeGreaterThan(
+    0,
   );
-  expect(phone.sent).toContainEqual({ event: 'clear' });
-
-  await gemini.deliver(
-    'message',
-    JSON.stringify({
-      serverContent: {
-        modelTurn: {
-          parts: [
-            { inlineData: { data: Buffer.alloc(960).toString('base64') } },
-          ],
-        },
-      },
-    }),
-  );
-  const mediaAfterStale = phone.sent.filter(
-    (m: any) => m.event === 'media',
-  ).length;
-  await vi.advanceTimersByTimeAsync(40);
-  expect(phone.sent.filter((m: any) => m.event === 'media')).toHaveLength(
-    mediaAfterStale,
-  );
-
-  await vi.advanceTimersByTimeAsync(STALE_OUTPUT_GUARD_MS);
-  await gemini.deliver(
-    'message',
-    JSON.stringify({
-      serverContent: {
-        modelTurn: {
-          parts: [
-            { inlineData: { data: Buffer.alloc(960).toString('base64') } },
-          ],
-        },
-      },
-    }),
-  );
-  await vi.advanceTimersByTimeAsync(40);
-  expect(
-    phone.sent.filter((m: any) => m.event === 'media').length,
-  ).toBeGreaterThan(mediaAfterStale);
-
   await phone.deliver('close', undefined);
 });

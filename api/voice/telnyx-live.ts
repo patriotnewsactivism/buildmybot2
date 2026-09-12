@@ -309,12 +309,15 @@ export function computeMuLawRms(payload: string): number {
 export const SILENCE_PCM16K_BASE64 = Buffer.alloc(640, 0).toString('base64');
 
 /**
- * RMS energy threshold to distinguish phone acoustic echo/earpiece bleed (<1600)
- * from intentional caller barge-in speech (>=1600) while the agent is speaking.
+ * RMS energy threshold kept for tests/diagnostics. Live inbound is fully
+ * muted while the agent is speaking — earpiece echo was crossing 1600 and
+ * being treated as barge-in, which started a second overlapping reply.
  */
 export const ECHO_BARGE_IN_RMS_THRESHOLD = 1600;
-/** Drop leftover Gemini audio after barge-in / interrupt so two generations cannot mix. */
-export const STALE_OUTPUT_GUARD_MS = 300;
+/** After the last outbound frame, keep the inbound gate closed this long. */
+export const AGENT_SPEAKING_TAIL_MS = 500;
+/** Drop leftover Gemini audio after an interrupt so two generations cannot mix. */
+export const STALE_OUTPUT_GUARD_MS = 400;
 
 export function pcm24kToMuLaw8k(payload: string): string {
   const input = Buffer.from(payload, 'base64');
@@ -1135,7 +1138,9 @@ export function setupGeminiSession(gemini: WebSocket, context: SessionContext) {
           // caller turn early and starting a second reply over leftover audio.
           silenceDurationMs: 800,
         },
-        activityHandling: 'START_OF_ACTIVITY_INTERRUPTS',
+        // Half-duplex on PSTN: never let Gemini start a second generation
+        // from earpiece echo while the first reply is still playing.
+        activityHandling: 'NO_INTERRUPTION',
       },
       inputAudioTranscription: {},
       outputAudioTranscription: {},
@@ -1226,23 +1231,18 @@ export function handleTelnyxMediaConnection(
       lastPacingTick = Date.now();
       return;
     }
-    const now = Date.now();
-    const elapsedMs = Math.max(0, now - lastPacingTick);
-    lastPacingTick = now;
-    const framesDue = Math.max(1, Math.min(4, Math.round(elapsedMs / 20)));
-    const availableFrames = Math.floor(pendingAudio.length / 160);
-    const framesToSend = Math.min(framesDue, availableFrames);
-
-    for (let i = 0; i < framesToSend; i++) {
-      const frame = pendingAudio.subarray(0, 160);
-      pendingAudio = pendingAudio.subarray(160);
-      outboundFrames++;
-      lastOutboundAudioAt = now;
-      sendJson(telnyxSocket, {
-        event: 'media',
-        media: { payload: frame.toString('base64') },
-      });
-    }
+    lastPacingTick = Date.now();
+    // Exactly one 20ms PCMU frame per tick. Catch-up bursts (2–4 frames in
+    // one WebSocket write) were injected as simultaneous RTP and sounded
+    // like two voices talking over each other.
+    const frame = pendingAudio.subarray(0, 160);
+    pendingAudio = pendingAudio.subarray(160);
+    outboundFrames++;
+    lastOutboundAudioAt = lastPacingTick;
+    sendJson(telnyxSocket, {
+      event: 'media',
+      media: { payload: frame.toString('base64') },
+    });
   }, 20);
 
   // Keep media + Gemini sockets alive through proxies / idle PSTN gaps.
@@ -1601,11 +1601,14 @@ export function handleTelnyxMediaConnection(
         // Hold ringback/music owns the line until pickup/transfer delay completes.
         if (pickupWaiting) continue;
         if (Date.now() < ignoreModelOutputUntil) continue;
-        // Once destination is connecting, stop new source speech after ack window
-        // is handled by clearPlayback on switch; still allow while pending.
-        enqueueOutbound(
-          Buffer.from(pcm24kToMuLaw8k(part.inlineData.data), 'base64'),
+        const muLaw = Buffer.from(
+          pcm24kToMuLaw8k(part.inlineData.data),
+          'base64',
         );
+        // New utterance: drain Telnyx's jitter buffer so this reply cannot
+        // mix with leftover greeting/prior-turn RTP.
+        if (pendingAudio.length === 0) sendJson(telnyxSocket, { event: 'clear' });
+        enqueueOutbound(muLaw);
       }
       for (const call of response.toolCall?.functionCalls || []) {
         if (connection.retired || finalized || active !== connection) return;
@@ -1852,21 +1855,15 @@ export function handleTelnyxMediaConnection(
         inputQueue.push(message.media.payload);
       } else {
         const isAgentSpeaking =
-          pendingAudio.length > 0 || Date.now() - lastOutboundAudioAt < 500;
+          pendingAudio.length > 0 ||
+          Date.now() - lastOutboundAudioAt < AGENT_SPEAKING_TAIL_MS;
         if (isAgentSpeaking) {
-          const rms = computeMuLawRms(message.media.payload);
-          if (rms < ECHO_BARGE_IN_RMS_THRESHOLD) {
-            // Gate closed: drop echo/bleed. Do not send silence — a continuous
-            // input stream keeps Gemini VAD open and starts a second generation.
-            return;
-          }
-          // Intentional caller barge-in: cut current playback immediately so
-          // the new answer cannot mix with the one still on the wire.
-          discardModelOutput();
-          sendAudio(active, message.media.payload);
-        } else {
-          sendAudio(active, message.media.payload);
+          // Hard half-duplex. Loud earpiece echo of the agent's own reply was
+          // crossing the barge-in threshold, interrupting Gemini, and mixing
+          // a second generation over the first. Caller waits until we finish.
+          return;
         }
+        sendAudio(active, message.media.payload);
       }
       return;
     }
