@@ -509,4 +509,3 @@ it('suppresses acoustic echo during agent playback while allowing loud barge-in 
 
   await phone.deliver('close', undefined);
 });
-
