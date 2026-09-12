@@ -431,7 +431,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         break;
       // streaming.started, streaming.stopped: no action
       // needed here -- streaming was already requested as part of the
-      // answer command above, and api/voice/telnyx-live.ts owns everything
+      // answer command above; the selected Deepgram/Gemini media bridge owns
+      // everything
       // that happens once the media WebSocket connects.
       default:
         break;

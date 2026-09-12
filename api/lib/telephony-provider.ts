@@ -9,15 +9,13 @@
  * (back to Twilio, or to SignalWire/Plivo) should only require a new
  * implementation of this interface, not another repo-wide grep-and-replace.
  *
- * IMPORTANT -- migration status (see PR description for full detail):
- * This module backs the NUMBER PURCHASING / ACCOUNT PROVISIONING path
- * (api/phone/activation.ts) and the NEW SMS marketing routes (api/sms/*).
- * It does NOT yet back live inbound-call webhook handling or the
- * WebSocket media-streaming pipeline -- api/twilio/*.ts, api/phone/tenant-twilio.ts,
- * and api/voice/twilio-*.ts are UNCHANGED and still call the Twilio SDK
- * directly for those flows. That is deliberate, documented, remaining work
- * (see PR description) -- rewriting a live bidirectional audio pipeline
- * without any way to test it against a real call is not something to rush.
+ * Current migration status:
+ * Telnyx owns the production provisioning, SMS, inbound Call Control,
+ * recording, transfer, and bidirectional media paths. The native webhook is
+ * api/phone/tenant-telnyx.ts; /api/voice/telnyx-media is handled by Deepgram
+ * Voice Agent by default, with api/voice/telnyx-live.ts as the explicit
+ * VOICE_ENGINE=gemini fallback. The older Twilio handlers remain isolated as
+ * a legacy compatibility path and retain Twilio signature validation.
  */
 
 const TELNYX_API_BASE = 'https://api.telnyx.com/v2';
@@ -213,9 +211,9 @@ export async function releaseNumber(providerNumberId: string): Promise<void> {
 /**
  * Ask Telnyx to start bidirectional media streaming for an in-progress call
  * to our own WebSocket endpoint. This is the Call Control equivalent of
- * TwiML's <Stream> verb. NOTE: this function is provided for the FUTURE
- * voice-webhook rewrite (see module doc) -- it is not yet called from any
- * inbound-call handler, since that rewrite is out of scope for this PR.
+ * TwiML's <Stream> verb. The primary inbound path can start streaming as part
+ * of answerCall(); this helper remains available when a stream must be
+ * started separately on an already-answered Call Control leg.
  */
 export async function startMediaStream(options: {
   callControlId: string;
