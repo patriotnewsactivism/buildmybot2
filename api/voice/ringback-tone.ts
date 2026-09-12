@@ -12,11 +12,12 @@ export const CORPORATE_PICKUP_DELAY_MS = 7000;
 /** Ringback while the voice engine connects so the caller is not on dead air after answer. */
 export const CONNECT_COMFORT_MS = 4000;
 /**
- * Minimum hold-music time after a transfer tool fires. Voice/prompt swap
- * happens immediately; destination greeting waits at least this long.
+ * Hold-music bed after a transfer tool fires. Voice/prompt swap happens
+ * immediately; destination greeting waits at least this long so the caller
+ * hears a realistic office hold, not a clipped beep.
  */
-export const TRANSFER_MIN_HOLD_MS = 2800;
-/** Legacy alias used by the Gemini fallback path. */
+export const TRANSFER_MIN_HOLD_MS = 7500;
+/** Gemini fallback uses the same mid-call hold interval. */
 export const CORPORATE_TRANSFER_HOLD_MS = TRANSFER_MIN_HOLD_MS;
 /** Cap outbound PCMU backlog (~3s) to limit latency after Gemini bursts. */
 export const MAX_OUTBOUND_PENDING_BYTES = 8000 * 3;
@@ -61,63 +62,122 @@ export function generateRingbackMuLaw(durationMs: number): Buffer {
 }
 
 /**
- * Classic on-hold loop: walking bass, electric-piano chords, light melody.
- * Louder and more musical than a sine pad so PSTN callers hear real music.
+ * Soft telephony hold-music bed: warm Rhodes, rounded bass, slow pad.
+ * 16s loop, band-limited to the PSTN voice channel, crossfaded so Deepgram
+ * chunked playback can continue from an offset without a restart click.
  */
-const HOLD_LOOP_SECONDS = 4;
-const HOLD_BPM = 100;
+const HOLD_LOOP_SECONDS = 16;
+const HOLD_BPM = 80;
+const HOLD_CROSSFADE_SEC = 0.16;
+const HOLD_HP_HZ = 280;
+const HOLD_LP_HZ = 3400;
 let holdLoopCache: Buffer | null = null;
 
-function hashedNoise(index: number): number {
-  const x = Math.imul(index ^ 0x9e3779b9, 0x85ebca6b) >>> 0;
-  return (x / 0xffffffff) * 2 - 1;
+function onePoleCoeffs(cutoffHz: number): number {
+  const rc = 1 / (2 * Math.PI * cutoffHz);
+  const dt = 1 / SAMPLE_RATE;
+  return dt / (rc + dt);
 }
 
-function holdSample(t: number, index: number): number {
-  const spb = 60 / HOLD_BPM;
-  const beatIndex = Math.floor(t / spb) % 8;
-  const bassFreqs = [65.41, 98.0, 110.0, 98.0, 87.31, 65.41, 73.42, 98.0];
-  const bass = 0.2 * Math.sin(2 * Math.PI * bassFreqs[beatIndex] * t);
-  const chordSets = [
-    [261.63, 329.63, 392.0],
-    [220.0, 261.63, 329.63],
-    [174.61, 220.0, 261.63],
-    [196.0, 246.94, 293.66],
+function rhodesTone(freq: number, t: number, age: number): number {
+  const env = Math.exp(-age * 1.15) * (1 - Math.exp(-age * 28));
+  return (
+    env *
+    (0.46 * Math.sin(2 * Math.PI * freq * t) +
+      0.2 * Math.sin(2 * Math.PI * freq * 2 * t) +
+      0.1 * Math.sin(2 * Math.PI * freq * 3.005 * t) +
+      0.05 * Math.sin(2 * Math.PI * freq * 4.02 * t) +
+      0.04 * Math.sin(2 * Math.PI * freq * 6.7 * t))
+  );
+}
+
+function holdSample(t: number): number {
+  const beat = t * (HOLD_BPM / 60);
+  const chordIndex = Math.floor(beat / 2) % 8;
+  const age = (beat % 2) * (60 / HOLD_BPM);
+  const chords = [
+    [261.63, 329.63, 392.0, 493.88],
+    [220.0, 261.63, 329.63, 392.0],
+    [293.66, 349.23, 440.0, 523.25],
+    [196.0, 246.94, 293.66, 349.23],
+    [329.63, 392.0, 493.88, 587.33],
+    [220.0, 261.63, 329.63, 392.0],
+    [174.61, 220.0, 261.63, 329.63],
+    [196.0, 246.94, 293.66, 349.23],
   ];
-  const chord = chordSets[Math.floor(beatIndex / 2) % 4];
+  const bassFreqs = [65.41, 55.0, 73.42, 98.0, 82.41, 55.0, 87.31, 98.0];
+  const chord = chords[chordIndex];
+  const bassFreq = bassFreqs[chordIndex];
+  const bassEnv =
+    (1 - Math.exp(-age * 36)) * (0.74 + 0.26 * Math.exp(-age * 1.8));
+  const bass =
+    bassEnv *
+    (0.16 * Math.sin(2 * Math.PI * bassFreq * t) +
+      0.05 * Math.sin(2 * Math.PI * bassFreq * 2 * t));
   const keys =
-    0.1 * Math.sin(2 * Math.PI * chord[0] * t) +
-    0.08 * Math.sin(2 * Math.PI * chord[1] * t) +
-    0.07 * Math.sin(2 * Math.PI * chord[2] * t);
-  const melodyNotes = [523.25, 0, 587.33, 523.25, 659.25, 0, 587.33, 392.0];
-  const melodyFreq = melodyNotes[beatIndex];
-  const decay = Math.exp(-((t % spb) * 3.6));
-  const melody = melodyFreq
-    ? 0.11 * Math.sin(2 * Math.PI * melodyFreq * t) * decay
-    : 0;
-  const hatPhase = t % (spb / 2);
-  const hat =
-    hatPhase < 0.025 ? hashedNoise(index) * 0.05 * (1 - hatPhase / 0.025) : 0;
-  return Math.max(-1, Math.min(1, bass + keys + melody + hat));
+    0.11 * rhodesTone(chord[0], t, age) +
+    0.09 * rhodesTone(chord[1], t, age) +
+    0.07 * rhodesTone(chord[2], t, age) +
+    0.05 * rhodesTone(chord[3], t, age);
+  const tremolo = 0.78 + 0.22 * Math.sin(2 * Math.PI * 0.22 * t);
+  const pad =
+    tremolo *
+    (0.045 * Math.sin(2 * Math.PI * chord[0] * 0.5 * t) +
+      0.035 * Math.sin(2 * Math.PI * chord[1] * 0.5 * 1.003 * t) +
+      0.028 * Math.sin(2 * Math.PI * chord[2] * 0.5 * t));
+  const melodyNotes = [0, 523.25, 0, 587.33, 523.25, 0, 659.25, 392.0];
+  const melodyFreq = melodyNotes[chordIndex];
+  const melody =
+    melodyFreq && age < 1.15
+      ? 0.045 * Math.sin(2 * Math.PI * melodyFreq * t) * Math.exp(-age * 1.8)
+      : 0;
+  return bass + keys + pad + melody;
 }
 
 function holdLoopMuLaw(): Buffer {
   if (holdLoopCache) return holdLoopCache;
   const samples = HOLD_LOOP_SECONDS * SAMPLE_RATE;
+  const fade = Math.floor(HOLD_CROSSFADE_SEC * SAMPLE_RATE);
+  const raw = new Float64Array(samples);
+  const hpA = onePoleCoeffs(HOLD_HP_HZ);
+  const lpA = onePoleCoeffs(HOLD_LP_HZ);
+  let hpY = 0;
+  let lpY = 0;
+  for (let i = 0; i < samples; i++) {
+    const x = holdSample(i / SAMPLE_RATE);
+    hpY += hpA * (x - hpY);
+    const highpassed = x - hpY;
+    lpY += lpA * (highpassed - lpY);
+    raw[i] = Math.tanh(lpY * 1.15);
+  }
+  for (let i = 0; i < fade; i++) {
+    const w = i / fade;
+    const mixed = raw[i] * w + raw[samples - fade + i] * (1 - w);
+    raw[i] = mixed;
+    raw[samples - fade + i] = mixed;
+  }
   const out = Buffer.allocUnsafe(samples);
   for (let i = 0; i < samples; i++) {
-    out[i] = encodeMuLawSample(holdSample(i / SAMPLE_RATE, i) * 32767);
+    out[i] = encodeMuLawSample(raw[i] * 0.72 * 32767);
   }
   holdLoopCache = out;
   return out;
 }
 
-export function generateHoldMusicMuLaw(durationMs: number): Buffer {
+/**
+ * Generate `durationMs` of hold music. `offsetMs` continues through the
+ * cached loop so chunked Deepgram playback does not restart the bed.
+ */
+export function generateHoldMusicMuLaw(
+  durationMs: number,
+  offsetMs = 0,
+): Buffer {
   const loop = holdLoopMuLaw();
   const samples = Math.max(0, Math.floor((durationMs / 1000) * SAMPLE_RATE));
+  const start = Math.max(0, Math.floor((offsetMs / 1000) * SAMPLE_RATE));
   const out = Buffer.allocUnsafe(samples);
   for (let i = 0; i < samples; i++) {
-    out[i] = loop[i % loop.length];
+    out[i] = loop[(start + i) % loop.length];
   }
   return out;
 }

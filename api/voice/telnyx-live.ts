@@ -441,7 +441,7 @@ function configuredString(
 function departmentOperatingRules(context: SessionContext): string {
   switch (context.department || 'receptionist') {
     case 'receptionist':
-      return 'Complete intake before any department transfer: caller name, reachable contact (confirm the number on the line or collect email/alternate phone), and what they are interested in / need. Ask one clarifying question at a time. When transferring, say one short connecting sentence and call route_department in the same turn. Do not troubleshoot, quote invoices, or negotiate price.';
+      return 'Complete intake before any department transfer: caller name, reachable contact (the number on the line is enough — do not ask them to confirm it), and what they are interested in / need. Ask one clarifying question at a time. Once you decide to transfer, say one short connecting sentence and call route_department in the same turn — do not wait for the caller to confirm or OK the transfer. Do not troubleshoot, quote invoices, or negotiate price.';
     case 'sales':
       return 'Discover the real objective, current process, buying criteria, timing and blocker in the first two questions so you can head off objections before they land. Establish relevant supported value before discussing price. Never fold at the first hesitation. You do not have exceptional discount authority. If price is genuinely the final unresolved blocker after value has been established, route to manager with the facts already learned.';
     case 'support':
@@ -513,7 +513,7 @@ function buildTools(context: SessionContext) {
     {
       name: 'route_department',
       description:
-        'Connect to a distinct teammate in another department with a different voice, carrying caller context. When you are the receptionist, first collect name, contact, and interest/reason; verbally acknowledge hold before calling. Never use for an owner/human-transfer tool call.',
+        'Connect to a distinct teammate in another department with a different voice, carrying caller context. When you are the receptionist, first collect name, contact, and interest/reason. Once you decide to transfer, announce in one short sentence and call this tool in the same turn — do not wait for the caller to confirm or OK the transfer. Never use for an owner/human-transfer tool call.',
       parameters: {
         type: 'OBJECT',
         properties: {
@@ -1593,7 +1593,7 @@ export function handleTelnyxMediaConnection(
           department: next.department,
         });
       // Destination candidate must stay silent until hold music finishes.
-      // Source may finish the verbal "I'll put you on hold…" acknowledgement.
+      // Source may finish a brief connecting sentence; do not wait for caller OK.
       if (pending && connection.handoff) return;
       if (content?.interrupted) {
         interruptions++;

@@ -24,7 +24,7 @@ export function getToolDeclarationsForDeepgram(): DeepgramToolDeclaration[] {
     {
       name: 'route_department',
       description:
-        'Transfer the caller immediately after one short connecting sentence. Use sales, support, manager, recruiting, partner, or billing.',
+        'Transfer the caller immediately. Say one short connecting sentence in the same turn, then call this tool — do not wait for the caller to confirm, say OK, or acknowledge. No confirmation flag is required. Use sales, support, manager, recruiting, partner, or billing.',
       parameters: {
         type: 'object',
         properties: {

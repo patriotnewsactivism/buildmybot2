@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { CORPORATE_ROUTING_PROMPT } from '../api/phone/corporate-routing';
+import { getToolDeclarationsForDeepgram } from '../api/voice/deepgram-tools';
 import {
   VOICE_BILLING_KNOWLEDGE,
   VOICE_PARTNER_KNOWLEDGE,
@@ -7,6 +9,8 @@ import {
   departmentKnowledge,
 } from '../shared/voice-department-knowledge';
 import {
+  TRANSFER_EXECUTION_RULE,
+  VOICE_TEAM_ROUTING,
   createDefaultVoiceTeam,
   destinationDepartment,
   handoffContextText,
@@ -188,5 +192,24 @@ describe('Voice Team constraints', () => {
     expect(VOICE_PARTNER_KNOWLEDGE).toContain('white-label');
     expect(VOICE_PARTNER_KNOWLEDGE).toContain('buildmybot.app/partners');
     expect(VOICE_PARTNER_KNOWLEDGE).toContain('50%');
+  });
+
+  it('executes transfers without waiting for caller acknowledgement', () => {
+    expect(TRANSFER_EXECUTION_RULE).toMatch(/do not wait/i);
+    expect(TRANSFER_EXECUTION_RULE).toMatch(/is that OK/i);
+    expect(VOICE_TEAM_ROUTING).toContain(TRANSFER_EXECUTION_RULE);
+    expect(CORPORATE_ROUTING_PROMPT).toContain(TRANSFER_EXECUTION_RULE);
+    expect(createDefaultVoiceTeam().receptionist.persona).toMatch(
+      /do not ask permission/i,
+    );
+    expect(createDefaultVoiceTeam().receptionist.persona).not.toMatch(
+      /confirm the number on the line/,
+    );
+    const route = getToolDeclarationsForDeepgram().find(
+      (tool) => tool.name === 'route_department',
+    );
+    expect(route?.description).toMatch(/do not wait/i);
+    expect(route?.description).not.toMatch(/verbally acknowledge/i);
+    expect(JSON.stringify(route?.parameters)).not.toMatch(/confirm/i);
   });
 });

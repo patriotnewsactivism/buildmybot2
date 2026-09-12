@@ -30,7 +30,7 @@ Media-path hardening in `api/voice/deepgram-agent.ts` (in-repo only):
 
 ### Department transfer realism
 
-After the receptionist completes intake (name, contact, interest) and verbally acknowledges hold, mid-call `route_department` handoffs play **7.5 seconds** (7–8s) of continuous soft hold music (`generateHoldMusicMuLaw`) before the destination agent greets with shared caller context. Destination audio is suppressed until that hold finishes so the new agent does not talk over the tone.
+After the receptionist completes intake (name, contact, interest), mid-call `route_department` handoffs start immediately — one short connecting sentence, then the tool, with **no wait for the caller to confirm or OK the transfer**. The system plays **7.5 seconds** of continuous soft telephony hold music (`generateHoldMusicMuLaw`) before the destination agent greets with shared caller context. Destination audio is suppressed until that hold finishes so the new agent does not talk over the bed.
 
 No carrier account or production DB migration changes are required for this behavior. Ensure `DEEPGRAM_API_KEY` and `VOICE_ENGINE=deepgram` are set on the corporate Railway service. Keep `GEMINI_API_KEY` only as the explicit `VOICE_ENGINE=gemini` fallback.
 
