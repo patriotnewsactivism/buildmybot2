@@ -147,7 +147,7 @@ export const DemoPage: React.FC<DemoPageProps> = ({ onLogin }) => {
 					<div className="max-w-4xl mx-auto">
 						<div className="relative aspect-video rounded-2xl overflow-hidden shadow-2xl border border-slate-200">
 							<iframe
-								src="https://www.youtube-nocookie.com/embed/H8bIoQiDSNk?rel=0"
+								src="https://www.youtube-nocookie.com/embed/H8bIoQiDSNk?rel=0&modestbranding=1&playsinline=1"
 								title="BuildMyBot introduction"
 								allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
 								allowFullScreen
