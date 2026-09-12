@@ -30,6 +30,7 @@ import {
 import type React from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { SEO, SEOConfig } from '../../SEO/SEO';
+import { DigitalSignageShowcase } from '../../SmsMarketing/DigitalSignageShowcase';
 import { PageLayout } from './PageLayout';
 
 const coreFeatures = [
@@ -87,7 +88,7 @@ const coreFeatures = [
     highlights: [
       'Campaigns, sequences & keyword replies',
       'Text-to-Win contests & birthday clubs',
-      'Automated appointment reminders',
+      '3 custom digital signs / month, free while you stay a client',
       'Built-in STOP/HELP consent compliance',
     ],
     gradient: 'from-teal-500 to-emerald-600',
@@ -272,7 +273,7 @@ const faqs = [
   },
   {
     q: 'Does SMS marketing share the same knowledge base as chat and voice?',
-    a: 'Yes. Your website, PDFs, and FAQs are ingested once into a shared knowledge base that powers chat, the voice receptionist, and SMS auto-replies alike. On top of that, SMS Marketing adds two-way campaigns, keyword auto-replies, drip sequences, Text-to-Win contests, birthday clubs, and appointment reminders, with STOP/HELP consent compliance built in.',
+    a: 'Yes. Your website, PDFs, and FAQs are ingested once into a shared knowledge base that powers chat, the voice receptionist, and SMS auto-replies alike. On top of that, SMS Marketing adds two-way campaigns, keyword auto-replies, drip sequences, Text-to-Win contests, birthday clubs, and appointment reminders, with STOP/HELP consent compliance built in. Active SMS clients also receive up to 3 custom digital sign designs each month at no extra charge for as long as they remain a client.',
   },
   {
     q: 'What integrations are available?',
@@ -528,6 +529,32 @@ export const FeaturesPage: React.FC = () => {
                 </div>
               ))}
             </div>
+          </div>
+        </section>
+
+        <section className="bg-slate-950 py-20 text-white">
+          <div className="mx-auto max-w-7xl px-6 lg:px-12">
+            <div className="mb-10 max-w-3xl">
+              <p className="text-xs font-bold uppercase tracking-[0.22em] text-amber-200">
+                SMS Marketing · Complimentary studio
+              </p>
+              <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">
+                Eye-popping signs. Instant opt-ins. Designed for you.
+              </h2>
+              <p className="mt-4 text-lg leading-8 text-slate-300">
+                Active SMS clients receive up to 3 custom digital sign designs
+                every month — free for as long as they remain a client. These
+                sample campaigns show the incentives and polish we can build
+                around your brand.
+              </p>
+            </div>
+            <DigitalSignageShowcase variant="mosaic" />
+            <a
+              href="/sms-marketing#digital-signage"
+              className="mt-8 inline-flex items-center gap-2 text-sm font-bold text-amber-200 hover:text-white"
+            >
+              See the full sign studio <ArrowRight size={16} />
+            </a>
           </div>
         </section>
 

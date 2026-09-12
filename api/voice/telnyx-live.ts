@@ -66,6 +66,11 @@ import { loadVoiceTeam } from './team-store.js';
  *
  * Barge-in clears both local PCM queues and Telnyx playback using its
  * documented {event:"clear"} control message.
+ *
+ * While the agent is speaking, inbound audio is gated closed (dropped, not
+ * replaced with silence). Feeding a continuous silence stream keeps Gemini VAD
+ * open, so it starts a second generation that interleaves with the first and
+ * sounds like two overlapping voices.
  */
 
 import { randomUUID, timingSafeEqual } from 'node:crypto';
@@ -186,6 +191,8 @@ type GeminiMessage = {
       parts?: Array<{ inlineData?: { data?: string; mimeType?: string } }>;
     };
     interrupted?: boolean;
+    turnComplete?: boolean;
+    generationComplete?: boolean;
   };
   toolCall?: { functionCalls?: GeminiFunctionCall[] };
   error?: { message?: string };
@@ -306,6 +313,8 @@ export const SILENCE_PCM16K_BASE64 = Buffer.alloc(640, 0).toString('base64');
  * from intentional caller barge-in speech (>=1600) while the agent is speaking.
  */
 export const ECHO_BARGE_IN_RMS_THRESHOLD = 1600;
+/** Drop leftover Gemini audio after barge-in / interrupt so two generations cannot mix. */
+export const STALE_OUTPUT_GUARD_MS = 300;
 
 export function pcm24kToMuLaw8k(payload: string): string {
   const input = Buffer.from(payload, 'base64');
@@ -1251,6 +1260,11 @@ export function handleTelnyxMediaConnection(
     lastOutboundAudioAt = 0;
     sendJson(telnyxSocket, { event: 'clear' });
   };
+  let ignoreModelOutputUntil = 0;
+  const discardModelOutput = () => {
+    clearPlayback();
+    ignoreModelOutputUntil = Date.now() + STALE_OUTPUT_GUARD_MS;
+  };
 
   const beginAgentGreeting = (connection: AgentConnection) => {
     if (greetingStarted || connection.retired || finalized) return;
@@ -1402,15 +1416,6 @@ export function handleTelnyxMediaConnection(
       realtimeInput: {
         audio: {
           data: muLaw8kToPcm16k(payload),
-          mimeType: 'audio/pcm;rate=16000',
-        },
-      },
-    });
-  const sendSilence = (connection: AgentConnection) =>
-    sendJson(connection.socket, {
-      realtimeInput: {
-        audio: {
-          data: SILENCE_PCM16K_BASE64,
           mimeType: 'audio/pcm;rate=16000',
         },
       },
@@ -1581,7 +1586,7 @@ export function handleTelnyxMediaConnection(
       if (pending && connection.handoff) return;
       if (content?.interrupted) {
         interruptions++;
-        clearPlayback();
+        discardModelOutput();
       }
       const agentText = content?.outputTranscription?.text?.trim();
       if (agentText)
@@ -1595,6 +1600,7 @@ export function handleTelnyxMediaConnection(
         if (!part.inlineData?.data || content?.interrupted) continue;
         // Hold ringback/music owns the line until pickup/transfer delay completes.
         if (pickupWaiting) continue;
+        if (Date.now() < ignoreModelOutputUntil) continue;
         // Once destination is connecting, stop new source speech after ack window
         // is handled by clearPlayback on switch; still allow while pending.
         enqueueOutbound(
@@ -1850,15 +1856,15 @@ export function handleTelnyxMediaConnection(
         if (isAgentSpeaking) {
           const rms = computeMuLawRms(message.media.payload);
           if (rms < ECHO_BARGE_IN_RMS_THRESHOLD) {
-            // Echo suppression: handset/line echo or room bleed while agent is speaking.
-            // Feed silence to Gemini so it does not hear itself or trigger self-interruptions.
-            sendSilence(active);
-          } else {
-            // Intentional caller barge-in: loud enough to indicate real speech.
-            sendAudio(active, message.media.payload);
+            // Gate closed: drop echo/bleed. Do not send silence — a continuous
+            // input stream keeps Gemini VAD open and starts a second generation.
+            return;
           }
+          // Intentional caller barge-in: cut current playback immediately so
+          // the new answer cannot mix with the one still on the wire.
+          discardModelOutput();
+          sendAudio(active, message.media.payload);
         } else {
-          // Full sensitivity when the agent is not speaking.
           sendAudio(active, message.media.payload);
         }
       }

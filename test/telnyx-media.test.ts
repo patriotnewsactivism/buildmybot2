@@ -44,7 +44,7 @@ import { createTelnyxStreamToken } from '../api/phone/tenant-telnyx-token';
 import { CORPORATE_TRANSFER_HOLD_MS } from '../api/voice/ringback-tone';
 import {
   ECHO_BARGE_IN_RMS_THRESHOLD,
-  SILENCE_PCM16K_BASE64,
+  STALE_OUTPUT_GUARD_MS,
   computeMuLawRms,
   handleTelnyxMediaConnection,
   promptInitialGreeting,
@@ -449,7 +449,7 @@ it('plays hold music on department handoff before destination greets', async () 
   await phone.deliver('close', undefined);
 });
 
-it('suppresses acoustic echo during agent playback while allowing loud barge-in speech', async () => {
+it('closes the inbound gate during agent playback and cuts Telnyx audio on barge-in', async () => {
   const { phone, gemini } = await connect();
   await gemini.deliver('message', JSON.stringify({ setupComplete: {} }));
 
@@ -467,6 +467,10 @@ it('suppresses acoustic echo during agent playback while allowing loud barge-in 
     }),
   );
 
+  const audioBeforeEcho = gemini.sent.filter(
+    (m: any) => m.realtimeInput?.audio,
+  ).length;
+
   // An inbound frame with low energy (e.g. μ-law silence byte 255 -> amplitude 0)
   // represents handset acoustic echo while the agent is speaking.
   const echoPayload = Buffer.alloc(160, 255).toString('base64');
@@ -480,14 +484,11 @@ it('suppresses acoustic echo during agent playback while allowing loud barge-in 
     }),
   );
 
-  // The echo should be suppressed and replaced with silence PCM so Gemini doesn't hear itself
-  const lastAudioMsg = gemini.sent
-    .filter((m: any) => m.realtimeInput?.audio)
-    .at(-1);
-  expect(lastAudioMsg.realtimeInput.audio.data).toBe(SILENCE_PCM16K_BASE64);
+  // Gate closed: echo must not be forwarded as audio or as silence.
+  expect(gemini.sent.filter((m: any) => m.realtimeInput?.audio)).toHaveLength(
+    audioBeforeEcho,
+  );
 
-  // An inbound frame with loud speech (high amplitude samples) represents intentional barge-in
-  // In μ-law, byte 0x80 decodes to maximum negative sample (~ -32124)
   const loudPayload = Buffer.alloc(160, 0x80).toString('base64');
   expect(computeMuLawRms(loudPayload)).toBeGreaterThan(
     ECHO_BARGE_IN_RMS_THRESHOLD,
@@ -501,11 +502,84 @@ it('suppresses acoustic echo during agent playback while allowing loud barge-in 
     }),
   );
 
-  // Loud barge-in audio MUST NOT be replaced with silence; real audio is forwarded
+  expect(phone.sent).toContainEqual({ event: 'clear' });
   const bargeInMsg = gemini.sent
     .filter((m: any) => m.realtimeInput?.audio)
     .at(-1);
-  expect(bargeInMsg.realtimeInput.audio.data).not.toBe(SILENCE_PCM16K_BASE64);
+  expect(bargeInMsg?.realtimeInput.audio.data).toBeTruthy();
+  expect(gemini.sent.filter((m: any) => m.realtimeInput?.audio)).toHaveLength(
+    audioBeforeEcho + 1,
+  );
+
+  await phone.deliver('close', undefined);
+});
+
+it('drops leftover model audio after barge-in so a second generation cannot mix', async () => {
+  const { phone, gemini } = await connect();
+  await gemini.deliver('message', JSON.stringify({ setupComplete: {} }));
+  await gemini.deliver(
+    'message',
+    JSON.stringify({
+      serverContent: {
+        modelTurn: {
+          parts: [
+            { inlineData: { data: Buffer.alloc(960).toString('base64') } },
+          ],
+        },
+      },
+    }),
+  );
+  await vi.advanceTimersByTimeAsync(40);
+  const mediaBefore = phone.sent.filter((m: any) => m.event === 'media').length;
+  expect(mediaBefore).toBeGreaterThan(0);
+
+  const loudPayload = Buffer.alloc(160, 0x80).toString('base64');
+  await phone.deliver(
+    'message',
+    JSON.stringify({
+      event: 'media',
+      media: { track: 'inbound', payload: loudPayload },
+    }),
+  );
+  expect(phone.sent).toContainEqual({ event: 'clear' });
+
+  await gemini.deliver(
+    'message',
+    JSON.stringify({
+      serverContent: {
+        modelTurn: {
+          parts: [
+            { inlineData: { data: Buffer.alloc(960).toString('base64') } },
+          ],
+        },
+      },
+    }),
+  );
+  const mediaAfterStale = phone.sent.filter(
+    (m: any) => m.event === 'media',
+  ).length;
+  await vi.advanceTimersByTimeAsync(40);
+  expect(phone.sent.filter((m: any) => m.event === 'media')).toHaveLength(
+    mediaAfterStale,
+  );
+
+  await vi.advanceTimersByTimeAsync(STALE_OUTPUT_GUARD_MS);
+  await gemini.deliver(
+    'message',
+    JSON.stringify({
+      serverContent: {
+        modelTurn: {
+          parts: [
+            { inlineData: { data: Buffer.alloc(960).toString('base64') } },
+          ],
+        },
+      },
+    }),
+  );
+  await vi.advanceTimersByTimeAsync(40);
+  expect(
+    phone.sent.filter((m: any) => m.event === 'media').length,
+  ).toBeGreaterThan(mediaAfterStale);
 
   await phone.deliver('close', undefined);
 });

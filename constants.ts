@@ -497,6 +497,7 @@ export const SMS_MARKETING_PRICING = Object.entries(SMS_MARKETING_PLANS).map(
     features: [
       `${plan.messagesIncluded.toLocaleString()} messages/month`,
       'Two-way SMS marketing campaigns',
+      'Up to 3 custom digital sign designs each month',
       'Built-in opt-out (STOP/HELP) compliance',
       `$${plan.overagePerMessage.toFixed(3)}/msg overage`,
     ],

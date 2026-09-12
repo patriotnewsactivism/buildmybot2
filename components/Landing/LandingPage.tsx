@@ -70,6 +70,7 @@ import {
 } from '../../services/openaiService';
 import { PlanType } from '../../types';
 import { SEO, SEOConfig } from '../SEO/SEO';
+import { DigitalSignageShowcase } from '../SmsMarketing/DigitalSignageShowcase';
 import { CorporatePhoneDemo } from './CorporatePhoneDemo';
 
 interface LandingProps {
@@ -1048,12 +1049,13 @@ export const LandingPage: React.FC<LandingProps> = ({
                   Two-way campaigns, keyword auto-replies, Text-to-Win contests,
                   birthday clubs, and appointment reminders — on your own
                   business number, sharing the same knowledge base and CRM as
-                  your chatbot and voice receptionist. No separate tool. No
-                  separate lead list.
+                  your chatbot and voice receptionist. Active clients also get
+                  up to 3 custom digital sign designs every month, free, for as
+                  long as they remain a client.
                 </p>
                 <div className="mt-8 flex flex-wrap gap-3">
                   <a
-                    href="/sms-marketing"
+                    href="/sms-marketing#digital-signage"
                     className="inline-flex items-center gap-2 bg-emerald-600 text-white px-6 py-3.5 rounded-xl font-bold hover:bg-emerald-500 transition-all shadow-xl shadow-emerald-600/30"
                   >
                     Explore SMS Marketing <ArrowRight size={18} />
@@ -1068,33 +1070,7 @@ export const LandingPage: React.FC<LandingProps> = ({
                 </div>
               </div>
 
-              <div className="relative mx-auto w-full max-w-sm rounded-[2rem] border border-white/10 bg-white/[0.07] p-5 shadow-2xl backdrop-blur-xl sm:p-6">
-                <div className="flex items-center gap-3 border-b border-white/10 pb-4">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-300">
-                    <MessageSquare size={18} />
-                  </span>
-                  <div>
-                    <p className="font-bold">Your Business</p>
-                    <p className="text-xs text-slate-400">(555) 010-0142</p>
-                  </div>
-                </div>
-                <div className="mt-5 space-y-3">
-                  <div className="ml-auto max-w-[85%] rounded-2xl rounded-br-md bg-emerald-600 px-4 py-2.5 text-sm">
-                    Hi! Reply BOOK to grab this week's opening, or STOP to opt
-                    out.
-                  </div>
-                  <div className="max-w-[85%] rounded-2xl rounded-bl-md bg-white/10 px-4 py-2.5 text-sm">
-                    BOOK
-                  </div>
-                  <div className="ml-auto max-w-[85%] rounded-2xl rounded-br-md bg-emerald-600 px-4 py-2.5 text-sm">
-                    You're booked for Thursday at 2pm. We'll text a reminder the
-                    day before.
-                  </div>
-                </div>
-                <p className="mt-4 text-center text-xs text-slate-500">
-                  Illustrative example — sent and answered automatically.
-                </p>
-              </div>
+              <DigitalSignageShowcase variant="mosaic" />
             </div>
           </section>
 

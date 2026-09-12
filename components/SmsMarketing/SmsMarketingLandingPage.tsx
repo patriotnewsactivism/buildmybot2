@@ -96,6 +96,12 @@ export function SmsMarketingLandingPage() {
               <span className="text-xl">BuildMyBot</span>
             </Link>
             <nav className="hidden items-center gap-7 text-sm font-semibold text-slate-300 md:flex">
+              <a
+                href="#digital-signage"
+                className="transition hover:text-white"
+              >
+                Signs
+              </a>
               <a href="#capabilities" className="transition hover:text-white">
                 Capabilities
               </a>
@@ -152,6 +158,7 @@ export function SmsMarketingLandingPage() {
                 'Two-way campaigns',
                 'Keyword auto-replies',
                 'Text-to-Win contests',
+                '3 free sign designs / month',
                 'STOP/HELP built in',
               ].map((item) => (
                 <span

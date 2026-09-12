@@ -24,6 +24,7 @@ import {
 } from '../../../constants';
 import { PlanType } from '../../../types';
 import { SEO, SEOConfig } from '../../SEO/SEO';
+import { DigitalSignageShowcase } from '../../SmsMarketing/DigitalSignageShowcase';
 import { PageLayout } from './PageLayout';
 
 interface PricingPageProps {
@@ -428,8 +429,13 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onLogin }) => {
               Two-way SMS campaigns, keyword auto-replies, sequences,
               Text-to-Win contests, birthday clubs, and appointment reminders —
               on your own dedicated business number, sharing the same knowledge
-              base as your chatbot and voice agent.
+              base as your chatbot and voice agent. Active clients also receive
+              up to 3 custom digital sign designs each month, free, for as long
+              as they remain a client.
             </p>
+          </div>
+          <div className="overflow-hidden rounded-[1.75rem] bg-slate-950 p-5 sm:p-8">
+            <DigitalSignageShowcase variant="mosaic" />
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {SMS_MARKETING_PRICING.map((plan) => (
