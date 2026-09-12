@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import {
   hangupCall,
+  startMediaStream,
   startRecording,
   telnyxRequest,
 } from '../lib/telephony-provider.js';
@@ -227,19 +228,12 @@ export async function handleCorporateAnswered(
       `/calls/${encodeURIComponent(callId)}/actions/client_state_update`,
       { method: 'PUT', body: JSON.stringify({ client_state: clientState }) },
     );
-    await telnyxRequest(
-      `/calls/${encodeURIComponent(callId)}/actions/streaming_start`,
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          stream_url: corporateMediaUrl(),
-          stream_track: 'inbound_track',
-          stream_bidirectional_mode: 'rtp',
-          stream_bidirectional_codec: 'PCMU',
-          stream_bidirectional_sampling_rate: 8000,
-        }),
-      },
-    );
+    await startMediaStream({
+      callControlId: callId,
+      streamUrl: corporateMediaUrl(),
+      bidirectional: true,
+      clientState,
+    });
     try {
       await startRecording(callId, {
         format: 'mp3',

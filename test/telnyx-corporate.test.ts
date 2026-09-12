@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   speak: vi.fn(),
   hangup: vi.fn(),
   startRecording: vi.fn().mockResolvedValue({ recordingId: 'corp-rec' }),
+  startMediaStream: vi.fn().mockResolvedValue(undefined),
   telnyx: vi.fn(),
   db: vi.fn(),
   auth: vi.fn(),
@@ -20,6 +21,7 @@ vi.mock('../api/lib/telephony-provider.js', () => ({
   speakText: mocks.speak,
   hangupCall: mocks.hangup,
   startRecording: mocks.startRecording,
+  startMediaStream: mocks.startMediaStream,
   telnyxRequest: mocks.telnyx,
 }));
 vi.mock('../api/sms/store.js', async (original) => ({
@@ -186,6 +188,12 @@ describe('corporate outbound approvals', () => {
       ).toString('base64'),
     });
 
+    expect(mocks.startMediaStream).toHaveBeenCalledWith(
+      expect.objectContaining({
+        callControlId: 'call-out-1',
+        bidirectional: true,
+      }),
+    );
     expect(mocks.startRecording).toHaveBeenCalledWith(
       'call-out-1',
       expect.objectContaining({

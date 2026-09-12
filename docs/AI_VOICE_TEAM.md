@@ -1,17 +1,17 @@
 # AI Voice Team
 
-BuildMyBot's production phone architecture uses Telnyx Call Control with Gemini Live. Receptionist, Sales, Support and Manager are independently configured agents. Every successful AI handoff opens a fresh Gemini session with the destination's voice, identity, role instructions and opening behavior while the phone connection and bounded caller context continue.
+BuildMyBot's production phone architecture uses Telnyx Call Control with Deepgram Voice Agent. Receptionist, Sales, Support and Manager are independently configured agents. Every successful AI handoff changes the destination's Flux voice, identity, role instructions and opening behavior (`UpdateSpeak` / `UpdatePrompt` / `InjectAgentMessage`) while the phone connection and bounded caller context continue.
 
-Optional experimental path: set `VOICE_ENGINE=deepgram` and `DEEPGRAM_API_KEY` to route Telnyx media to Deepgram Voice Agent (`api/voice/deepgram-agent.ts`) with raw PCMU/8 kHz. That path is single-agent only and does not replace the four-agent Gemini voice-team handoffs.
+Gemini Live remains an explicit fallback: set `VOICE_ENGINE=gemini` to route the same Telnyx WebSocket to `api/voice/telnyx-live.ts`. Dashboard voice-team previews still use Gemini Live until a Deepgram preview path is added.
 
 ## Default staff
 
-| Role | Name | Gemini voice | Intended delivery |
-| --- | --- | --- | --- |
-| Receptionist | Avery | Aoede | Warm, conversational; dynamic time-of-day greeting |
-| Sales | Marcus Hale | Puck | Upbeat, confident, energetic |
-| Customer Support | Sophie Reyes | Kore | Calm, clear, slightly slower |
-| Manager / Escalations | Daniel Okonkwo | Charon | Measured, composed, deliberate |
+| Role | Name | Deepgram Flux voice | Gemini fallback | Intended delivery |
+| --- | --- | --- | --- | --- |
+| Receptionist | Avery | flux-kit-en | Aoede | Warm, conversational; dynamic time-of-day greeting |
+| Sales | Marcus Hale | flux-apollo-en | Puck | Upbeat, confident, energetic |
+| Customer Support | Sophie Reyes | flux-helena-en | Kore | Calm, clear, slightly slower |
+| Manager / Escalations | Daniel Okonkwo | flux-orion-en | Charon | Measured, composed, deliberate |
 
 These are configurable defaults. Audition the team on the actual phone path to assess perceptual separation; different IDs alone do not prove that every listener will distinguish the voices.
 
@@ -19,7 +19,8 @@ These are configurable defaults. Audition the team on the actual phone path to a
 
 ## Current code and the original fault
 
-- `api/voice/telnyx-live.ts`: phone media, Gemini sessions, department handoffs, caller context and call logging.
+- `api/voice/deepgram-agent.ts`: production Telnyx media, Deepgram Voice Agent, department handoffs, caller context.
+- `api/voice/telnyx-live.ts`: Gemini Live fallback media path.
 - `shared/voice-team.ts`: four independent agent definitions, supported voices, strict validation and routing policy.
 - `api/voice/team.ts`: authenticated settings and preview API.
 - `api/voice/team-store.ts`: tenant-scoped persistence.

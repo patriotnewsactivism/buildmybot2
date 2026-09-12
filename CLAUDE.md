@@ -48,7 +48,7 @@ Primary implementation/documentation:
 - `docs/AI_VOICE_TEAM.md`
 - `docs/CORPORATE_PHONE.md`
 
-Gemini Live is the realtime conversational voice engine. Telnyx is the preferred current telephony/SMS path. Some legacy Twilio-compatible code may remain during migration; do not delete it until the replacement passes an actual inbound end-to-end test.
+Deepgram Voice Agent is the realtime conversational voice engine on the Telnyx live phone path. Gemini Live remains an explicit `VOICE_ENGINE=gemini` fallback and is still used by some Twilio/browser preview paths. Telnyx is the telephony/SMS carrier. Some legacy Twilio-compatible code may remain during migration; do not delete it until the replacement passes an actual inbound end-to-end test.
 
 ## Database safety
 

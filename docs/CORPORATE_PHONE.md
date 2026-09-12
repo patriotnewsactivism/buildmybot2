@@ -10,26 +10,29 @@ The Telnyx Call Control application points to:
 
 The media endpoint is `/api/voice/telnyx-media`. Telnyx webhook signatures and signed call state must bind media to a verified saved call and bot before the realtime AI session starts.
 
-Gemini Live handles realtime audio by default. Set `VOICE_ENGINE=deepgram` with `DEEPGRAM_API_KEY` to route `/api/voice/telnyx-media` to Deepgram Voice Agent (`wss://agent.deepgram.com/v1/agent/converse`) using raw PCMU/8 kHz both ways, Welcome→Settings→SettingsApplied gating, inbound-track filtering, 20 ms outbound pacing, and `{event:"clear"}` barge-in. Deepgram is a single-agent path and does not implement the four-agent voice-team handoffs.
+Deepgram Voice Agent handles realtime audio by default. `/api/voice/telnyx-media` bridges Telnyx Call Control bidirectional PCMU/8 kHz to Deepgram (`wss://agent.deepgram.com/v1/agent/converse`) using native mulaw both ways, Welcome→Settings→SettingsApplied gating, inbound-track filtering, 20 ms outbound pacing, connect ringback until first TTS, and `{event:"clear"}` barge-in. Set `VOICE_ENGINE=gemini` to fall back to Gemini Live on the same WebSocket.
+
+Department transfers stay on one Deepgram socket but **must** change Flux voice, prompt, and opening via `UpdateSpeak` / `UpdatePrompt` / `InjectAgentMessage` plus hold music. Collapsing Receptionist/Sales/Support/Manager into one audible person is a production regression.
 
 The bridge must buffer early caller audio until setup completes, exclude outbound echo, support barge-in/interruption, and clear stale playback when the caller interrupts. Telephone audio quality is constrained by the PSTN codec and may sound narrower than a browser demo. Answer/streaming always forces `stream_codec: PCMU` and bidirectional PCMU/8000 so the WebSocket stream does not inherit a mismatched negotiated call codec.
 
 ### Pickup realism and media stability
 
-Corporate inbound calls greet immediately upon carrier connection as **Avery** with a dynamic time-of-day greeting (*"Good morning / afternoon / evening, thank you for calling BuildMyBot, my name is Avery how can I help you."*), preventing dead air or caller abandonment.
+Corporate inbound calls greet upon carrier connection as **Avery** with a dynamic time-of-day greeting (*"Good morning / afternoon / evening, thank you for calling BuildMyBot, my name is Avery how can I help you."*). A short ringback plays until Deepgram's greeting audio arrives so pickup is not dead air.
 
-Media-path hardening in `api/voice/telnyx-live.ts` (in-repo only):
+Media-path hardening in `api/voice/deepgram-agent.ts` (in-repo only):
 
-- WebSocket keepalive pings on the Telnyx media socket and Gemini Live socket
-- Outbound PCMU backlog cap to limit latency after Gemini bursts
-- Balanced VAD (140ms prefix / 600ms silence) plus modest inbound PCM gain for distant handsets
-- One mid-call Gemini reconnect attempt before spoken fallback
+- Native PCMU/8 kHz in both directions (no 24 kHz resample)
+- WebSocket keepalive pings on the Telnyx media socket
+- Half-duplex mute during TTS plus a 500 ms hangover so earpiece echo is not transcribed
+- One outbound PCMU frame every 20 ms
+- Outbound PCMU backlog cap to limit latency after TTS bursts
 
 ### Department transfer realism
 
 After the receptionist completes intake (name, contact, interest) and verbally acknowledges hold, mid-call `route_department` handoffs play **7.5 seconds** (7–8s) of continuous soft hold music (`generateHoldMusicMuLaw`) before the destination agent greets with shared caller context. Destination audio is suppressed until that hold finishes so the new agent does not talk over the tone.
 
-No carrier account or production DB migration changes are required for this behavior. Ensure `GEMINI_API_KEY` remains set on the corporate Railway service.
+No carrier account or production DB migration changes are required for this behavior. Ensure `DEEPGRAM_API_KEY` and `VOICE_ENGINE=deepgram` are set on the corporate Railway service. Keep `GEMINI_API_KEY` only as the explicit `VOICE_ENGINE=gemini` fallback.
 
 ## Distinct AI departments
 

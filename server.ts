@@ -23,10 +23,8 @@ import { recordProcessedStripeOutcome } from './api/lib/stripe-outcome.js';
 import tenantTelnyxWebhookHandler from './api/phone/tenant-telnyx.js';
 import smsWebhookHandler from './api/sms/webhooks.js';
 import stripeWebhookHandler from './api/stripe-webhook.js';
-import {
-  handleDeepgramTelnyxMediaConnection,
-  isDeepgramVoiceEnabled,
-} from './api/voice/deepgram-agent.js';
+import { handleDeepgramTelnyxMediaConnection } from './api/voice/deepgram-agent.js';
+import { isDeepgramVoiceEnabled } from './api/voice/engine.js';
 import liveTokenHandler from './api/voice/live-token.js';
 import { handleTelnyxMediaConnection } from './api/voice/telnyx-live.js';
 import { handleTwilioMediaConnection } from './api/voice/twilio-live.js';
@@ -50,8 +48,8 @@ server.on('upgrade', (request, socket, head) => {
 
   if (pathname === '/api/voice/telnyx-media') {
     telnyxMediaWss.handleUpgrade(request, socket, head, (webSocket) => {
-      // VOICE_ENGINE=deepgram + DEEPGRAM_API_KEY routes media to Deepgram
-      // Agent (raw PCMU). Default remains Gemini Live voice-team.
+      // Deepgram Voice Agent is the production Telnyx media owner (native
+      // PCMU/8 kHz). Gemini Live is only used when VOICE_ENGINE=gemini.
       if (isDeepgramVoiceEnabled()) {
         handleDeepgramTelnyxMediaConnection(webSocket, request);
         return;

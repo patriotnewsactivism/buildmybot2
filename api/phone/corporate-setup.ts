@@ -1,5 +1,6 @@
 import { telnyxRequest } from '../lib/telephony-provider.js';
 import { db, filter } from '../sms/store.js';
+import { hasLiveVoiceEngine } from '../voice/engine.js';
 import { CORPORATE, corporateOrigin } from './corporate-config.js';
 export const corporateStatus = {
   number: CORPORATE.number,
@@ -63,7 +64,7 @@ export async function connectCorporatePhone() {
       'PATCH',
       { provider_number_id: owned[0].id },
     );
-    corporateStatus.voiceConfigured = Boolean(process.env.GEMINI_API_KEY);
+    corporateStatus.voiceConfigured = hasLiveVoiceEngine();
     if (process.env.CORPORATE_VOICE_PROBE === 'true') {
       const { probeCorporateVoice } = await import(
         './corporate-voice-probe.js'
