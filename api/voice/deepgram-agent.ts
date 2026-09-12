@@ -15,10 +15,12 @@ import {
 } from '../../shared/voice-team.js';
 import { validTelnyxClientState } from '../phone/tenant-telnyx-token.js';
 import {
+  type SalesSeat,
   buildAgentPrompt,
   deepgramSpeakProvider,
   defaultSharedContext,
   openingGreeting,
+  pickSalesSeat,
 } from './deepgram-team.js';
 import {
   type DeepgramToolContext,
@@ -27,8 +29,8 @@ import {
 } from './deepgram-tools.js';
 import { MediaDiagnostics } from './media-diagnostics.js';
 import {
-  CORPORATE_TRANSFER_HOLD_MS,
   MAX_OUTBOUND_PENDING_BYTES,
+  TRANSFER_MIN_HOLD_MS,
   generateHoldMusicMuLaw,
   generateRingbackMuLaw,
 } from './ringback-tone.js';
@@ -57,8 +59,9 @@ const DEEPGRAM_CONNECT_COMFORT_MS = 2000;
 const DEFERRED_TOOL_NAMES = new Set([
   'send_checkout_link',
   'transfer_to_owner',
-  'route_department',
 ]);
+const HOLD_CHUNK_MS = 2000;
+const HOLD_PENDING_WATERMARK = 8000;
 
 interface DeepgramFunctionCall {
   id: string;
@@ -134,6 +137,9 @@ export class DeepgramVoiceSession {
   private comfortPlaying = false;
   private welcomeReceived = false;
   private telnyxStarted = false;
+  private awaitingDestinationAudio = false;
+  private holdTimer: ReturnType<typeof setInterval> | null = null;
+  private salesSeat: SalesSeat | undefined;
   private department: VoiceDepartment = 'receptionist';
   private callContext: SharedCallContext;
   private readonly pendingInbound: Buffer[] = [];
@@ -222,7 +228,10 @@ export class DeepgramVoiceSession {
     });
     socket.on('message', (data: WebSocket.RawData, isBinary: boolean) => {
       if (isBinary) {
-        if (this.holdInProgress) return;
+        if (this.holdInProgress && !this.awaitingDestinationAudio) return;
+        if (this.holdInProgress && this.awaitingDestinationAudio) {
+          this.endHold();
+        }
         this.stopConnectComfort();
         this.markAgentSpeaking();
         this.enqueueOutboundAudio(rawDataToBuffer(data));
@@ -351,7 +360,7 @@ export class DeepgramVoiceSession {
           output: { encoding: 'mulaw', sample_rate: 8000, container: 'none' },
         },
         agent: {
-          greeting: openingGreeting(this.department),
+          greeting: openingGreeting(this.department, this.salesSeat),
           listen: {
             provider: {
               type: 'deepgram',
@@ -367,10 +376,13 @@ export class DeepgramVoiceSession {
               this.department,
               botName,
               this.callContext,
+              this.salesSeat,
             ),
             functions,
           },
-          speak: { provider: deepgramSpeakProvider(this.department) },
+          speak: {
+            provider: deepgramSpeakProvider(this.department, this.salesSeat),
+          },
         },
       }),
     );
@@ -619,44 +631,51 @@ export class DeepgramVoiceSession {
     const company = typeof args.company === 'string' ? args.company.trim() : '';
     const summary =
       typeof args.summary === 'string' ? args.summary.trim() : reason;
+    const objection =
+      typeof args.objection === 'string' ? args.objection.trim() : '';
     if (callerName) this.callContext.callerName = callerName;
     if (reason) this.callContext.reason = reason;
     if (company) this.callContext.company = company;
     if (summary) this.callContext.summary = summary.slice(0, 2000);
-    this.holdInProgress = true;
-    this.agentSpeaking = true;
-    this.clearTelnyxPlayback();
-    this.enqueueOutboundAudio(
-      generateHoldMusicMuLaw(CORPORATE_TRANSFER_HOLD_MS),
-    );
-    await new Promise((resolve) =>
-      setTimeout(resolve, CORPORATE_TRANSFER_HOLD_MS),
-    );
+    if (objection) this.callContext.objection = objection;
+    this.beginHold();
+    this.department = destination;
+    this.salesSeat =
+      destination === 'sales'
+        ? pickSalesSeat(this.callControlId || callerName || 'sales')
+        : undefined;
+    const botName = this.toolContext.botName || 'BuildMyBot';
+    if (this.dgWs?.readyState === WebSocket.OPEN) {
+      sendJson(this.dgWs, {
+        type: 'UpdateSpeak',
+        speak: { provider: deepgramSpeakProvider(destination, this.salesSeat) },
+      });
+      sendJson(this.dgWs, {
+        type: 'UpdatePrompt',
+        prompt: buildAgentPrompt(
+          destination,
+          botName,
+          this.callContext,
+          this.salesSeat,
+        ),
+      });
+    }
+    await new Promise((resolve) => setTimeout(resolve, TRANSFER_MIN_HOLD_MS));
     if (this.cleaningUp || this.dgWs?.readyState !== WebSocket.OPEN) {
-      this.holdInProgress = false;
+      this.endHold();
       return { ok: false, error: 'Call ended during transfer.' };
     }
-    this.department = destination;
-    const botName = this.toolContext.botName || 'BuildMyBot';
-    sendJson(this.dgWs, {
-      type: 'UpdateSpeak',
-      speak: { provider: deepgramSpeakProvider(destination) },
-    });
-    sendJson(this.dgWs, {
-      type: 'UpdatePrompt',
-      prompt: buildAgentPrompt(destination, botName, this.callContext),
-    });
     sendJson(this.dgWs, {
       type: 'InjectAgentMessage',
-      message: openingGreeting(destination),
+      message: openingGreeting(destination, this.salesSeat),
     });
-    this.holdInProgress = false;
-    // Destination greeting is about to play — keep inbound muted.
+    this.awaitingDestinationAudio = true;
     this.markAgentSpeaking();
     return {
       ok: true,
       department: destination,
-      hold_ms: CORPORATE_TRANSFER_HOLD_MS,
+      agent: this.salesSeat?.name || destination,
+      hold_ms: TRANSFER_MIN_HOLD_MS,
     };
   }
 
@@ -667,6 +686,34 @@ export class DeepgramVoiceSession {
       this.cancelledFunctionCalls.add(functionCall.id);
       this.diagnostics.functionCancels += 1;
     }
+  }
+
+  private beginHold(): void {
+    this.holdInProgress = true;
+    this.awaitingDestinationAudio = false;
+    this.agentSpeaking = true;
+    this.clearTelnyxPlayback();
+    this.enqueueOutboundAudio(generateHoldMusicMuLaw(HOLD_CHUNK_MS));
+    if (!this.holdTimer) {
+      this.holdTimer = setInterval(() => {
+        if (!this.holdInProgress || this.cleaningUp) return;
+        if (this.pendingOutbound.length < HOLD_PENDING_WATERMARK) {
+          this.enqueueOutboundAudio(generateHoldMusicMuLaw(HOLD_CHUNK_MS));
+        }
+      }, 400);
+    }
+  }
+
+  private endHold(): void {
+    this.holdInProgress = false;
+    this.awaitingDestinationAudio = false;
+    if (this.holdTimer) {
+      clearInterval(this.holdTimer);
+      this.holdTimer = null;
+    }
+    this.pendingOutbound = Buffer.alloc(0);
+    this.diagnostics.pendingOutboundBytes = 0;
+    sendJson(this.telnyxWs, { event: 'clear' });
   }
 
   private startConnectComfort(): void {
@@ -724,9 +771,13 @@ export class DeepgramVoiceSession {
     if (this.pacingTimer) clearInterval(this.pacingTimer);
     if (this.keepaliveTimer) clearInterval(this.keepaliveTimer);
     if (this.diagnosticsTimer) clearInterval(this.diagnosticsTimer);
+    if (this.holdTimer) clearInterval(this.holdTimer);
     this.pacingTimer = null;
     this.keepaliveTimer = null;
     this.diagnosticsTimer = null;
+    this.holdTimer = null;
+    this.holdInProgress = false;
+    this.awaitingDestinationAudio = false;
     this.pendingInbound.length = 0;
     this.pendingInboundBytes = 0;
     this.pendingOutbound = Buffer.alloc(0);

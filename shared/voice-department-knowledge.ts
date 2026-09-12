@@ -4,6 +4,8 @@
  * Keep identity/style in voice-team personas; put durable Q&A facts here.
  */
 
+import type { VoiceDepartment } from './voice-team.js';
+
 export const VOICE_RECRUITING_KNOWLEDGE = `Sales Agent careers knowledge (speak accurately; never invent rates or guaranteed income):
 Role: BuildMyBot is hiring commission-only remote Sales Agents — not salaried or in-office roles right now. Agents own the full sales cycle for AI chatbot / voice products that businesses buy on monthly plans.
 Commission tiers on active client accounts (recurring monthly residuals):
@@ -40,10 +42,26 @@ Objections:
 - Fee sticker shock → Walk the cover-the-fee math with 1–2 sales and residual retention; do not invent case-study numbers not in your brief.
 Route individual employment / becoming a solo sales agent to Jordan (recruiting). Route an end business that just wants to buy a bot for itself to Marcus (sales).`;
 
-export function departmentKnowledge(
-  department: 'receptionist' | 'sales' | 'support' | 'manager' | 'recruiting' | 'partner',
-): string {
+export const VOICE_SALES_KNOWLEDGE = `Sales desk knowledge (speak accurately; never invent ROI or unlisted discounts):
+You sell BuildMyBot chatbot and voice products to businesses. Published chatbot plans: Free $0, Starter $29/mo, Professional $99/mo, Executive $199/mo, Enterprise custom. Voice/phone agent is included on Executive; do not invent minute bundles.
+Early discovery (do this before a pitch): what they do, how they capture leads today, what is leaking, who decides, and what would make this a no. That last question is how you head off the objection before it is made.
+Head-offs:
+- Price: name the plan that fits and the cost of missed leads; do not volunteer a discount.
+- "We already have a chatbot": we can replace or sit beside it; offer a short pilot on one page or one number.
+- "I need to think": isolate what is actually unresolved; book a concrete next step, not a vague maybe.
+- Timing / not the decision maker: get the other person's name and offer a three-way follow-up.
+Route becoming a sales agent to Jordan (recruiting). Route white-label / $499 Partner Access to Julian (partner). Route invoices and failed charges to Helen (billing). Route broken product/setup to Sophie (customer care).`;
+
+export const VOICE_BILLING_KNOWLEDGE = `Billing & accounts knowledge (speak accurately; never invent credits):
+Published chatbot plans: Free $0, Starter $29/mo, Professional $99/mo, Executive $199/mo, Enterprise custom. Partner Access is $499 per 30 days. Confirm the account email before discussing a specific invoice. Caller ID is not authorization to inspect another customer's bill.
+You can explain plan charges, billing dates, payment methods, and failed-card retries at a high level. You cannot issue refunds, credits, or courtesy months yourself. If a charge looks wrong, collect the invoice date/amount and account email for follow-up.
+Cancellation: isolate why first (unexpected charge, not using it, moving vendors). If it is a billing error, stay and fix the explanation. If they still want to cancel, route to Daniel with the reason — do not argue them in circles.
+Route product/login/setup problems to Sophie (customer care). Route a new purchase to sales.`;
+
+export function departmentKnowledge(department: VoiceDepartment): string {
+  if (department === 'sales') return VOICE_SALES_KNOWLEDGE;
   if (department === 'recruiting') return VOICE_RECRUITING_KNOWLEDGE;
   if (department === 'partner') return VOICE_PARTNER_KNOWLEDGE;
+  if (department === 'billing') return VOICE_BILLING_KNOWLEDGE;
   return '';
 }

@@ -2,7 +2,7 @@
 
 Status: production baseline as of 2026-09-10.
 
-BuildMyBot models Receptionist, Sales, Support, Manager, Recruiting, and Partner as distinct realtime voice agents. They are not one assistant changing prompts.
+BuildMyBot models Receptionist, Sales, Customer Care, Manager, Sales Agent Recruitment, Partner, and Billing as distinct realtime voice agents. They are not one assistant changing prompts. The sales desk may be answered by more than one person (Marcus or Maya).
 
 ## Non-negotiable identity boundary
 
@@ -22,12 +22,13 @@ Conversation context may follow the caller, but the receiving agent must establi
 Inbound call
     |
     v
-Receptionist (Avery / Aoede / front-desk persona)
-    |-- sales intent --------------> Sales (Marcus Hale / Puck / sales persona)
-    |-- support intent ------------> Support (Sophie Reyes / Kore / support persona)
-    |-- sales careers/recruiting --> Recruiting (Jordan Reed / Zephyr / sales agent division)
-    |-- partner/white-label -------> Partner (Julian Vance / Orus / $499 partner program)
-    `-- escalation ----------------> Manager (Daniel Okonkwo / Charon / manager persona)
+Receptionist (Avery / Sienna / front-desk persona)
+    |-- sales intent --------------> Sales desk (Marcus or Maya / distinct sales voices)
+    |-- product/account care ------> Customer Care (Sophie Reyes / Haley)
+    |-- invoices/charges ----------> Billing (Helen Cho / Alexis)
+    |-- sales-agent careers -------> Recruitment (Jordan Reed / Cole)
+    |-- partner/white-label -------> Partner (Julian Vance / Colin)
+    `-- escalation ----------------> Manager (Daniel Okonkwo / Cliff)
 ```
 
 The context envelope should preserve caller identity, authenticated tenant, conversation/call ID, concise transcript/history, facts already collected, current intent, tool results, promises/commitments, safety/compliance flags, and transfer reason. It must not preserve the outgoing agent's voice/persona as authoritative state.

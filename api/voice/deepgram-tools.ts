@@ -24,14 +24,14 @@ export function getToolDeclarationsForDeepgram(): DeepgramToolDeclaration[] {
     {
       name: 'route_department',
       description:
-        'Transfer the caller to another BuildMyBot teammate after verbally acknowledging the hold. Use sales, support, manager, recruiting, or partner.',
+        'Transfer the caller immediately after one short connecting sentence. Use sales, support, manager, recruiting, partner, or billing.',
       parameters: {
         type: 'object',
         properties: {
           department: {
             type: 'string',
             description:
-              'Destination: sales, support, manager, recruiting, partner, hr, careers, white_label, or partnerships.',
+              'Destination: sales, support, manager, recruiting, partner, billing, hr, careers, white_label, partnerships, accounting, or customer_care.',
           },
           callerName: {
             type: 'string',
@@ -49,6 +49,11 @@ export function getToolDeclarationsForDeepgram(): DeepgramToolDeclaration[] {
           summary: {
             type: 'string',
             description: 'Short factual summary for the destination teammate.',
+          },
+          objection: {
+            type: 'string',
+            description:
+              'Any concern already heard (price, timing, trust, cancel).',
           },
         },
         required: ['department'],

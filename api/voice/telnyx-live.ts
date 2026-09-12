@@ -441,17 +441,19 @@ function configuredString(
 function departmentOperatingRules(context: SessionContext): string {
   switch (context.department || 'receptionist') {
     case 'receptionist':
-      return 'Complete intake before any department transfer: caller name, reachable contact (confirm the number on the line or collect email/alternate phone), and what they are interested in / need. Ask one clarifying question at a time. Before calling route_department, verbally acknowledge putting them on hold. Do not troubleshoot complex issues or negotiate price.';
+      return 'Complete intake before any department transfer: caller name, reachable contact (confirm the number on the line or collect email/alternate phone), and what they are interested in / need. Ask one clarifying question at a time. When transferring, say one short connecting sentence and call route_department in the same turn. Do not troubleshoot, quote invoices, or negotiate price.';
     case 'sales':
-      return 'Discover the real objective, current process, buying criteria, timing and blocker. Establish relevant supported value before discussing price. You do not have exceptional discount authority. If price is genuinely the final unresolved blocker after value has been established, route to manager with the facts already learned.';
+      return 'Discover the real objective, current process, buying criteria, timing and blocker in the first two questions so you can head off objections before they land. Establish relevant supported value before discussing price. Never fold at the first hesitation. You do not have exceptional discount authority. If price is genuinely the final unresolved blocker after value has been established, route to manager with the facts already learned.';
     case 'support':
-      return 'Resolve the operational, account, configuration or product issue first. Identify churn or cancellation risk without immediately offering a commercial concession. Escalate unresolved service issues or retention risk to manager with what has already been tried.';
+      return 'Resolve the operational, account, configuration or product issue first. Invoices and failed payments go to billing. Identify churn or cancellation risk without immediately offering a commercial concession. Escalate unresolved service issues or retention risk to manager with what has already been tried.';
     case 'manager':
       return 'Operate in this order: UNDERSTAND, ISOLATE, RESOLVE, VALUE, CONFIRM, INCENTIVIZE, CLOSE, ESCALATE. Never begin by discounting. Use grant_incentive only after an objection tag is set and a value-pitch attempt has been made; the server returns a pre-approved offer code under workspace caps. Corporate retention may still use request_retention_offer when available. Do not state or infer internal discount limits, remaining authority, ladders or floors. Before a stronger concession, establish whether resolving price allows the customer to proceed. Use escalate_to_owner only when owner-level judgment is genuinely required or the caller insists after reasonable resolution efforts.';
     case 'recruiting':
       return 'Discuss the independent sales agent career opportunity, recurring commission structure (20% to 50%), progression to partner, flexible schedule, and turnkey demo bot tools. Qualify their sales experience and motivation. Direct candidates to apply at buildmybot.app/reseller or request an onboarding interview.';
     case 'partner':
       return 'Explain the $499/mo Partner Program, white-label branding options (custom logo, domain), building a national sales force with unlimited sub-accounts, and the math: closing just 1-2 bot sales per month covers the $499/mo cost without needing an in-house sales team. Guide qualified prospects to sign up at buildmybot.app/partners.';
+    case 'billing':
+      return 'Handle invoices, plan charges, payment methods, and failed cards. Confirm account email first. Do not invent refunds or credits. Isolate cancellation reasons and route remaining churn to manager.';
   }
 }
 
@@ -1100,7 +1102,8 @@ function thinkingLevelForDepartment(
   if (
     department === 'sales' ||
     department === 'support' ||
-    department === 'recruiting'
+    department === 'recruiting' ||
+    department === 'billing'
   ) {
     return 'low';
   }
