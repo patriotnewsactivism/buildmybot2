@@ -251,6 +251,31 @@ export const SmsAccountSettings: React.FC = () => {
 					</label>
 				</div>
 
+				<div className="rounded-lg border border-amber-200 bg-amber-50 p-4 space-y-2">
+					<h3 className="text-sm font-semibold text-amber-900">
+						Compliance & consent
+					</h3>
+					<ul className="list-disc space-y-1 pl-5 text-xs text-amber-900/90">
+						<li>
+							<strong>STOP</strong> opts the contact out of marketing SMS
+							immediately. Never re-add without fresh consent.
+						</li>
+						<li>
+							<strong>HELP</strong> returns your support info;{" "}
+							<strong>START</strong> / <strong>UNSTOP</strong> re-opts in only
+							when allowed by your brand rules.
+						</li>
+						<li>
+							Quiet hours and spend limits above apply to automated sends.
+							Manual inbox replies still respect opt-outs.
+						</li>
+						<li>
+							Record a consent source whenever you import contacts or schedule
+							reminders (Contacts & Appointments tabs).
+						</li>
+					</ul>
+				</div>
+
 				<button
 					type="button"
 					disabled={busy}
