@@ -84,10 +84,17 @@ export async function receiveCorporateSms(
   let reply =
     'BuildMyBot: Thanks for reaching our sales team. Explore chat, voice and SMS at https://www.buildmybot.app. Reply STOP to stop.';
   const examples: Record<string, string> = {
+    BLOOM:
+      'Urban Bloom Boutique demo: a shopper joins the VIP club and enters the $100 monthly drawing.',
+    COFFEE:
+      'Main Street Coffee demo: a customer receives an instant free coffee reward and VIP text club perks.',
+    GLOW: 'Glow Med Spa demo: a client receives $25 off their first visit and VIP beauty offers.',
+    GLOWVIP:
+      'Glow Med Spa demo: a client receives $25 off their first visit and VIP beauty offers.',
+    PIZZA:
+      'Bella Slice Pizza demo: a diner receives a free appetizer voucher and VIP club specials.',
     BBQGIFT:
       'Restaurant demo: a customer could receive a brisket queso offer and a feast giveaway entry.',
-    GLOWVIP:
-      'Spa demo: a customer could receive a facial voucher and a spa-day giveaway entry.',
     PEAKPASS:
       'Gym demo: a customer could receive a seven-day pass and a membership giveaway entry.',
     SAVE20:
