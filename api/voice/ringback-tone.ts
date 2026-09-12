@@ -17,7 +17,7 @@ export const MAX_OUTBOUND_PENDING_BYTES = 8000 * 3;
  * Modest inbound PCM gain for distant phone mics. Applied after µ-law decode
  * so Gemini VAD hears realistic handset levels without aggressive barge-in.
  */
-export const INBOUND_PCM_GAIN = 1.55;
+export const INBOUND_PCM_GAIN = 1.1;
 
 function encodeMuLawSample(sample: number): number {
   const bias = 0x84;

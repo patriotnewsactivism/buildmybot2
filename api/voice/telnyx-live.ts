@@ -287,6 +287,26 @@ export function muLaw8kToPcm16k(payload: string): string {
   return output.toString('base64');
 }
 
+export function computeMuLawRms(payload: string): number {
+  const input = Buffer.from(payload, 'base64');
+  if (input.length === 0) return 0;
+  let sumSquares = 0;
+  for (let index = 0; index < input.length; index += 1) {
+    const sample = decodeMuLawByte(input[index]);
+    sumSquares += sample * sample;
+  }
+  return Math.sqrt(sumSquares / input.length);
+}
+
+/** 20ms of 16kHz 16-bit linear PCM silence (320 samples = 640 zero bytes). */
+export const SILENCE_PCM16K_BASE64 = Buffer.alloc(640, 0).toString('base64');
+
+/**
+ * RMS energy threshold to distinguish phone acoustic echo/earpiece bleed (<1600)
+ * from intentional caller barge-in speech (>=1600) while the agent is speaking.
+ */
+export const ECHO_BARGE_IN_RMS_THRESHOLD = 1600;
+
 export function pcm24kToMuLaw8k(payload: string): string {
   const input = Buffer.from(payload, 'base64');
   const sampleCount = Math.floor(input.length / 2);
@@ -1178,6 +1198,7 @@ export function handleTelnyxMediaConnection(
   let auditWrites: Promise<unknown> = Promise.resolve();
   const inputQueue: string[] = [];
   let pendingAudio = Buffer.alloc(0);
+  let lastOutboundAudioAt = 0;
   const enqueueOutbound = (chunk: Buffer) => {
     pendingAudio = Buffer.concat([pendingAudio, chunk]);
     if (pendingAudio.length > MAX_OUTBOUND_PENDING_BYTES) {
@@ -1186,20 +1207,33 @@ export function handleTelnyxMediaConnection(
       );
     }
   };
+  let lastPacingTick = Date.now();
   const pacingTimer = setInterval(() => {
     if (
       finalized ||
       telnyxSocket.readyState !== WebSocket.OPEN ||
       pendingAudio.length < 160
-    )
+    ) {
+      lastPacingTick = Date.now();
       return;
-    const frame = pendingAudio.subarray(0, 160);
-    pendingAudio = pendingAudio.subarray(160);
-    outboundFrames++;
-    sendJson(telnyxSocket, {
-      event: 'media',
-      media: { payload: frame.toString('base64') },
-    });
+    }
+    const now = Date.now();
+    const elapsedMs = Math.max(0, now - lastPacingTick);
+    lastPacingTick = now;
+    const framesDue = Math.max(1, Math.min(4, Math.round(elapsedMs / 20)));
+    const availableFrames = Math.floor(pendingAudio.length / 160);
+    const framesToSend = Math.min(framesDue, availableFrames);
+
+    for (let i = 0; i < framesToSend; i++) {
+      const frame = pendingAudio.subarray(0, 160);
+      pendingAudio = pendingAudio.subarray(160);
+      outboundFrames++;
+      lastOutboundAudioAt = now;
+      sendJson(telnyxSocket, {
+        event: 'media',
+        media: { payload: frame.toString('base64') },
+      });
+    }
   }, 20);
 
   // Keep media + Gemini sockets alive through proxies / idle PSTN gaps.
@@ -1214,6 +1248,7 @@ export function handleTelnyxMediaConnection(
 
   const clearPlayback = () => {
     pendingAudio = Buffer.alloc(0);
+    lastOutboundAudioAt = 0;
     sendJson(telnyxSocket, { event: 'clear' });
   };
 
@@ -1371,6 +1406,15 @@ export function handleTelnyxMediaConnection(
         },
       },
     });
+  const sendSilence = (connection: AgentConnection) =>
+    sendJson(connection.socket, {
+      realtimeInput: {
+        audio: {
+          data: SILENCE_PCM16K_BASE64,
+          mimeType: 'audio/pcm;rate=16000',
+        },
+      },
+    });
   const flushInput = (connection: AgentConnection) => {
     for (const audio of inputQueue.splice(0)) sendAudio(connection, audio);
   };
@@ -1510,11 +1554,6 @@ export function handleTelnyxMediaConnection(
           finishHandoff(connection, 'completed');
           // Mid-call handoff: hold music, then destination greets (no barge-in).
           startTransferHold(connection);
-        } else if (connection.resumeSilent) {
-          // Mid-call Gemini reconnect: resume listening without re-greeting.
-          greetingStarted = true;
-          pickupWaiting = false;
-          flushInput(connection);
         } else if (connection.resumeSilent) {
           // Mid-call Gemini reconnect: resume listening without re-greeting.
           greetingStarted = true;
@@ -1805,7 +1844,24 @@ export function handleTelnyxMediaConnection(
         // Keep the most recent 10 seconds, bounded even if a provider stalls.
         if (inputQueue.length >= 500) inputQueue.shift();
         inputQueue.push(message.media.payload);
-      } else sendAudio(active, message.media.payload);
+      } else {
+        const isAgentSpeaking =
+          pendingAudio.length > 0 || Date.now() - lastOutboundAudioAt < 350;
+        if (isAgentSpeaking) {
+          const rms = computeMuLawRms(message.media.payload);
+          if (rms < ECHO_BARGE_IN_RMS_THRESHOLD) {
+            // Echo suppression: handset/line echo or room bleed while agent is speaking.
+            // Feed silence to Gemini so it does not hear itself or trigger self-interruptions.
+            sendSilence(active);
+          } else {
+            // Intentional caller barge-in: loud enough to indicate real speech.
+            sendAudio(active, message.media.payload);
+          }
+        } else {
+          // Full sensitivity when the agent is not speaking.
+          sendAudio(active, message.media.payload);
+        }
+      }
       return;
     }
     if (message.event === 'stop') await finalize('completed');

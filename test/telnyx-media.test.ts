@@ -42,6 +42,9 @@ import Socket from 'ws';
 import { CORPORATE } from '../api/phone/corporate-config';
 import { createTelnyxStreamToken } from '../api/phone/tenant-telnyx-token';
 import {
+  ECHO_BARGE_IN_RMS_THRESHOLD,
+  SILENCE_PCM16K_BASE64,
+  computeMuLawRms,
   handleTelnyxMediaConnection,
   promptInitialGreeting,
   setupGeminiSession,
@@ -445,3 +448,65 @@ it('plays hold music on department handoff before destination greets', async () 
   expect(sales.sent.some((m: any) => m.realtimeInput?.text)).toBe(true);
   await phone.deliver('close', undefined);
 });
+
+it('suppresses acoustic echo during agent playback while allowing loud barge-in speech', async () => {
+  const { phone, gemini } = await connect();
+  await gemini.deliver('message', JSON.stringify({ setupComplete: {} }));
+
+  // Simulate agent speaking (enqueuing audio to be played)
+  await gemini.deliver(
+    'message',
+    JSON.stringify({
+      serverContent: {
+        modelTurn: {
+          parts: [
+            { inlineData: { data: Buffer.alloc(960).toString('base64') } },
+          ],
+        },
+      },
+    }),
+  );
+
+  // An inbound frame with low energy (e.g. μ-law silence byte 255 -> amplitude 0)
+  // represents handset acoustic echo while the agent is speaking.
+  const echoPayload = Buffer.alloc(160, 255).toString('base64');
+  expect(computeMuLawRms(echoPayload)).toBe(0);
+
+  await phone.deliver(
+    'message',
+    JSON.stringify({
+      event: 'media',
+      media: { track: 'inbound', payload: echoPayload },
+    }),
+  );
+
+  // The echo should be suppressed and replaced with silence PCM so Gemini doesn't hear itself
+  const lastAudioMsg = gemini.sent
+    .filter((m: any) => m.realtimeInput?.audio)
+    .at(-1);
+  expect(lastAudioMsg.realtimeInput.audio.data).toBe(SILENCE_PCM16K_BASE64);
+
+  // An inbound frame with loud speech (high amplitude samples) represents intentional barge-in
+  // In μ-law, byte 0x80 decodes to maximum negative sample (~ -32124)
+  const loudPayload = Buffer.alloc(160, 0x80).toString('base64');
+  expect(computeMuLawRms(loudPayload)).toBeGreaterThan(
+    ECHO_BARGE_IN_RMS_THRESHOLD,
+  );
+
+  await phone.deliver(
+    'message',
+    JSON.stringify({
+      event: 'media',
+      media: { track: 'inbound', payload: loudPayload },
+    }),
+  );
+
+  // Loud barge-in audio MUST NOT be replaced with silence; real audio is forwarded
+  const bargeInMsg = gemini.sent
+    .filter((m: any) => m.realtimeInput?.audio)
+    .at(-1);
+  expect(bargeInMsg.realtimeInput.audio.data).not.toBe(SILENCE_PCM16K_BASE64);
+
+  await phone.deliver('close', undefined);
+});
+
