@@ -9,28 +9,31 @@
 import type { IncomingMessage } from 'node:http';
 import WebSocket from 'ws';
 import {
-  destinationDepartment,
   type SharedCallContext,
   type VoiceDepartment,
+  destinationDepartment,
 } from '../../shared/voice-team.js';
 import { validTelnyxClientState } from '../phone/tenant-telnyx-token.js';
-import {
-  type DeepgramToolContext,
-  executeServerTool,
-  getToolDeclarationsForDeepgram,
-} from './deepgram-tools.js';
 import {
   buildAgentPrompt,
   deepgramSpeakProvider,
   defaultSharedContext,
   openingGreeting,
 } from './deepgram-team.js';
+import {
+  type DeepgramToolContext,
+  executeServerTool,
+  getToolDeclarationsForDeepgram,
+} from './deepgram-tools.js';
 import { MediaDiagnostics } from './media-diagnostics.js';
 import {
   CORPORATE_TRANSFER_HOLD_MS,
   MAX_OUTBOUND_PENDING_BYTES,
   generateHoldMusicMuLaw,
+  generateRingbackMuLaw,
 } from './ringback-tone.js';
+
+export { hasLiveVoiceEngine, isDeepgramVoiceEnabled } from './engine.js';
 
 export const DEEPGRAM_AGENT_URL = 'wss://agent.deepgram.com/v1/agent/converse';
 
@@ -48,6 +51,8 @@ export const FLUX_EOT_THRESHOLD = 0.8;
  * Deepgram default is 5000ms.
  */
 export const FLUX_EOT_TIMEOUT_MS = 5000;
+/** Ringback until Deepgram greeting audio; keep under the 3s outbound cap. */
+const DEEPGRAM_CONNECT_COMFORT_MS = 2000;
 
 const DEFERRED_TOOL_NAMES = new Set([
   'send_checkout_link',
@@ -83,13 +88,14 @@ interface TelnyxStartMessage {
   start?: {
     call_control_id?: string;
     client_state?: string;
-    media_format?: { encoding?: string; sample_rate?: number; channels?: number };
+    from?: string;
+    to?: string;
+    media_format?: {
+      encoding?: string;
+      sample_rate?: number;
+      channels?: number;
+    };
   };
-}
-
-export function isDeepgramVoiceEnabled(): boolean {
-  const engine = (process.env.VOICE_ENGINE || '').trim().toLowerCase();
-  return engine === 'deepgram' && Boolean(process.env.DEEPGRAM_API_KEY);
 }
 
 export function rawDataToBuffer(data: WebSocket.RawData): Buffer {
@@ -109,7 +115,8 @@ export function parseJsonArguments(value?: string): Record<string, unknown> {
 }
 
 function sendJson(socket: WebSocket, payload: unknown): void {
-  if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(payload));
+  if (socket.readyState === WebSocket.OPEN)
+    socket.send(JSON.stringify(payload));
 }
 
 export class DeepgramVoiceSession {
@@ -124,6 +131,9 @@ export class DeepgramVoiceSession {
   private agentSpeaking = false;
   private speakHangoverUntil = 0;
   private holdInProgress = false;
+  private comfortPlaying = false;
+  private welcomeReceived = false;
+  private telnyxStarted = false;
   private department: VoiceDepartment = 'receptionist';
   private callContext: SharedCallContext;
   private readonly pendingInbound: Buffer[] = [];
@@ -185,7 +195,8 @@ export class DeepgramVoiceSession {
 
   private startKeepalive(): void {
     this.keepaliveTimer = setInterval(() => {
-      if (this.cleaningUp || this.telnyxWs.readyState !== WebSocket.OPEN) return;
+      if (this.cleaningUp || this.telnyxWs.readyState !== WebSocket.OPEN)
+        return;
       try {
         this.telnyxWs.ping();
       } catch {
@@ -205,11 +216,14 @@ export class DeepgramVoiceSession {
     const socket = this.dgWs;
     if (!socket) return;
     socket.on('open', () => {
-      console.info(`[Deepgram Agent] Connected for ${this.callControlId || 'pending'}`);
+      console.info(
+        `[Deepgram Agent] Connected for ${this.callControlId || 'pending'}`,
+      );
     });
     socket.on('message', (data: WebSocket.RawData, isBinary: boolean) => {
       if (isBinary) {
         if (this.holdInProgress) return;
+        this.stopConnectComfort();
         this.markAgentSpeaking();
         this.enqueueOutboundAudio(rawDataToBuffer(data));
         return;
@@ -236,7 +250,8 @@ export class DeepgramVoiceSession {
     }
     switch (event.type) {
       case 'Welcome':
-        this.sendDeepgramSettings();
+        this.welcomeReceived = true;
+        this.maybeSendDeepgramSettings();
         break;
       case 'SettingsApplied':
         this.deepgramReady = true;
@@ -244,7 +259,9 @@ export class DeepgramVoiceSession {
         // Greeting audio starts immediately; mute before AgentStartedSpeaking.
         this.markAgentSpeaking();
         this.dropPendingInbound();
-        console.info(`[Deepgram Agent] Settings applied for ${this.callControlId}`);
+        console.info(
+          `[Deepgram Agent] Settings applied for ${this.callControlId}`,
+        );
         break;
       case 'AgentStartedSpeaking':
         this.markAgentSpeaking();
@@ -260,10 +277,14 @@ export class DeepgramVoiceSession {
         this.clearTelnyxPlayback();
         break;
       case 'FunctionCallRequest':
-        void this.handleFunctionCalls(event as unknown as DeepgramFunctionCallRequest);
+        void this.handleFunctionCalls(
+          event as unknown as DeepgramFunctionCallRequest,
+        );
         break;
       case 'FunctionCallCancelled':
-        this.handleFunctionCallCancelled(event as unknown as DeepgramFunctionCallCancelled);
+        this.handleFunctionCallCancelled(
+          event as unknown as DeepgramFunctionCallCancelled,
+        );
         break;
       case 'ConversationText':
         this.recordConversation(event);
@@ -305,6 +326,14 @@ export class DeepgramVoiceSession {
       .slice(0, 2000);
   }
 
+  private maybeSendDeepgramSettings(): void {
+    if (this.settingsSent || this.dgWs?.readyState !== WebSocket.OPEN) return;
+    if (!this.welcomeReceived) return;
+    // Tests construct a session with a known callControlId; production waits for Telnyx start.
+    if (!this.telnyxStarted && !this.callControlId) return;
+    this.sendDeepgramSettings();
+  }
+
   private sendDeepgramSettings(): void {
     if (this.settingsSent || this.dgWs?.readyState !== WebSocket.OPEN) return;
     this.settingsSent = true;
@@ -334,7 +363,11 @@ export class DeepgramVoiceSession {
           },
           think: {
             provider: { type: 'open_ai', model: 'gpt-4o-mini' },
-            prompt: buildAgentPrompt(this.department, botName, this.callContext),
+            prompt: buildAgentPrompt(
+              this.department,
+              botName,
+              this.callContext,
+            ),
             functions,
           },
           speak: { provider: deepgramSpeakProvider(this.department) },
@@ -349,7 +382,10 @@ export class DeepgramVoiceSession {
         console.warn('[Telnyx Media] Unexpected binary WebSocket frame.');
         return;
       }
-      let message: TelnyxMediaMessage | TelnyxStartMessage | Record<string, unknown>;
+      let message:
+        | TelnyxMediaMessage
+        | TelnyxStartMessage
+        | Record<string, unknown>;
       try {
         message = JSON.parse(rawDataToBuffer(raw).toString('utf8')) as
           | TelnyxMediaMessage
@@ -371,7 +407,8 @@ export class DeepgramVoiceSession {
         this.cleanup();
         return;
       }
-      if (message.event === 'error') console.error('[Telnyx Media] Stream error:', message);
+      if (message.event === 'error')
+        console.error('[Telnyx Media] Stream error:', message);
     });
     this.telnyxWs.on('error', (error) => {
       console.error('[Telnyx Media] WebSocket error:', error);
@@ -391,22 +428,37 @@ export class DeepgramVoiceSession {
     if (callControlId && clientState) {
       const state = validTelnyxClientState(clientState, callControlId);
       if (!state) {
-        console.error('[Deepgram Agent] Invalid Telnyx client_state; closing media.');
+        console.error(
+          '[Deepgram Agent] Invalid Telnyx client_state; closing media.',
+        );
         this.cleanup();
         return;
       }
     } else if (!callControlId) {
-      console.error('[Deepgram Agent] Missing call_control_id on start; closing media.');
+      console.error(
+        '[Deepgram Agent] Missing call_control_id on start; closing media.',
+      );
       this.cleanup();
       return;
     }
+    if (start?.from) {
+      this.toolContext.callerNumber = start.from;
+      this.callContext.callerNumber = start.from;
+    }
+    if (start?.to) this.toolContext.calledNumber = start.to;
     this.validateTelnyxFormat(message);
+    if (this.cleaningUp) return;
+    this.telnyxStarted = true;
+    this.startConnectComfort();
+    this.maybeSendDeepgramSettings();
   }
 
   private validateTelnyxFormat(message: TelnyxStartMessage): void {
     const format = message.start?.media_format;
     if (!format) {
-      console.warn(`[Telnyx Media] No media_format on start for ${this.callControlId}`);
+      console.warn(
+        `[Telnyx Media] No media_format on start for ${this.callControlId}`,
+      );
       this.formatValidated = true;
       return;
     }
@@ -418,7 +470,9 @@ export class DeepgramVoiceSession {
       return;
     }
     this.formatValidated = true;
-    console.info(`[Telnyx Media] PCMU/8000 confirmed for ${this.callControlId}`);
+    console.info(
+      `[Telnyx Media] PCMU/8000 confirmed for ${this.callControlId}`,
+    );
   }
 
   private handleTelnyxMedia(message: TelnyxMediaMessage): void {
@@ -445,7 +499,10 @@ export class DeepgramVoiceSession {
     this.pendingInbound.push(audio);
     this.pendingInboundBytes += audio.length;
     this.diagnostics.pendingInboundBytes = this.pendingInboundBytes;
-    while (this.pendingInboundBytes > MAX_PENDING_INBOUND_BYTES && this.pendingInbound.length > 1) {
+    while (
+      this.pendingInboundBytes > MAX_PENDING_INBOUND_BYTES &&
+      this.pendingInbound.length > 1
+    ) {
       const removed = this.pendingInbound.shift();
       if (removed) {
         this.pendingInboundBytes -= removed.length;
@@ -486,7 +543,9 @@ export class DeepgramVoiceSession {
     sendJson(this.telnyxWs, { event: 'clear' });
   }
 
-  private async handleFunctionCalls(event: DeepgramFunctionCallRequest): Promise<void> {
+  private async handleFunctionCalls(
+    event: DeepgramFunctionCallRequest,
+  ): Promise<void> {
     const functions = event.functions ?? [];
     for (const functionCall of functions) {
       if (functionCall.client_side === false) continue;
@@ -496,7 +555,11 @@ export class DeepgramVoiceSession {
         const result =
           functionCall.name === 'route_department'
             ? await this.transferDepartment(args)
-            : await executeServerTool(functionCall.name, args, this.toolContext);
+            : await executeServerTool(
+                functionCall.name,
+                args,
+                this.toolContext,
+              );
         if (this.cancelledFunctionCalls.has(functionCall.id)) continue;
         if (this.dgWs?.readyState !== WebSocket.OPEN) continue;
         const response: Record<string, unknown> = {
@@ -505,11 +568,18 @@ export class DeepgramVoiceSession {
           name: functionCall.name,
           content: JSON.stringify(result),
         };
-        if (functionCall.thought_signature) response.thought_signature = functionCall.thought_signature;
+        if (functionCall.thought_signature)
+          response.thought_signature = functionCall.thought_signature;
         this.dgWs.send(JSON.stringify(response));
       } catch (error) {
-        console.error(`[Deepgram Agent] Function ${functionCall.name} failed:`, error);
-        if (this.cancelledFunctionCalls.has(functionCall.id) || this.dgWs?.readyState !== WebSocket.OPEN) {
+        console.error(
+          `[Deepgram Agent] Function ${functionCall.name} failed:`,
+          error,
+        );
+        if (
+          this.cancelledFunctionCalls.has(functionCall.id) ||
+          this.dgWs?.readyState !== WebSocket.OPEN
+        ) {
           continue;
         }
         this.dgWs.send(
@@ -519,7 +589,10 @@ export class DeepgramVoiceSession {
             name: functionCall.name,
             content: JSON.stringify({
               ok: false,
-              error: error instanceof Error ? error.message : 'Tool execution failed.',
+              error:
+                error instanceof Error
+                  ? error.message
+                  : 'Tool execution failed.',
             }),
           }),
         );
@@ -527,13 +600,16 @@ export class DeepgramVoiceSession {
     }
   }
 
-  private async transferDepartment(args: Record<string, unknown>): Promise<Record<string, unknown>> {
+  private async transferDepartment(
+    args: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
     const destination = destinationDepartment(args.department);
     if (!destination) return { ok: false, error: 'Unknown department.' };
     if (destination === this.department) {
       return { ok: false, error: 'Already speaking with that department.' };
     }
-    const callerName = typeof args.callerName === 'string' ? args.callerName.trim() : '';
+    const callerName =
+      typeof args.callerName === 'string' ? args.callerName.trim() : '';
     const reason =
       typeof args.reason === 'string'
         ? args.reason.trim()
@@ -541,7 +617,8 @@ export class DeepgramVoiceSession {
           ? args.interest.trim()
           : '';
     const company = typeof args.company === 'string' ? args.company.trim() : '';
-    const summary = typeof args.summary === 'string' ? args.summary.trim() : reason;
+    const summary =
+      typeof args.summary === 'string' ? args.summary.trim() : reason;
     if (callerName) this.callContext.callerName = callerName;
     if (reason) this.callContext.reason = reason;
     if (company) this.callContext.company = company;
@@ -549,31 +626,63 @@ export class DeepgramVoiceSession {
     this.holdInProgress = true;
     this.agentSpeaking = true;
     this.clearTelnyxPlayback();
-    this.enqueueOutboundAudio(generateHoldMusicMuLaw(CORPORATE_TRANSFER_HOLD_MS));
-    await new Promise((resolve) => setTimeout(resolve, CORPORATE_TRANSFER_HOLD_MS));
+    this.enqueueOutboundAudio(
+      generateHoldMusicMuLaw(CORPORATE_TRANSFER_HOLD_MS),
+    );
+    await new Promise((resolve) =>
+      setTimeout(resolve, CORPORATE_TRANSFER_HOLD_MS),
+    );
     if (this.cleaningUp || this.dgWs?.readyState !== WebSocket.OPEN) {
       this.holdInProgress = false;
       return { ok: false, error: 'Call ended during transfer.' };
     }
     this.department = destination;
     const botName = this.toolContext.botName || 'BuildMyBot';
-    sendJson(this.dgWs, { type: 'UpdateSpeak', speak: { provider: deepgramSpeakProvider(destination) } });
+    sendJson(this.dgWs, {
+      type: 'UpdateSpeak',
+      speak: { provider: deepgramSpeakProvider(destination) },
+    });
     sendJson(this.dgWs, {
       type: 'UpdatePrompt',
       prompt: buildAgentPrompt(destination, botName, this.callContext),
     });
-    sendJson(this.dgWs, { type: 'InjectAgentMessage', message: openingGreeting(destination) });
+    sendJson(this.dgWs, {
+      type: 'InjectAgentMessage',
+      message: openingGreeting(destination),
+    });
     this.holdInProgress = false;
     // Destination greeting is about to play — keep inbound muted.
     this.markAgentSpeaking();
-    return { ok: true, department: destination, hold_ms: CORPORATE_TRANSFER_HOLD_MS };
+    return {
+      ok: true,
+      department: destination,
+      hold_ms: CORPORATE_TRANSFER_HOLD_MS,
+    };
   }
 
-  private handleFunctionCallCancelled(event: DeepgramFunctionCallCancelled): void {
+  private handleFunctionCallCancelled(
+    event: DeepgramFunctionCallCancelled,
+  ): void {
     for (const functionCall of event.functions ?? []) {
       this.cancelledFunctionCalls.add(functionCall.id);
       this.diagnostics.functionCancels += 1;
     }
+  }
+
+  private startConnectComfort(): void {
+    if (this.comfortPlaying || this.cleaningUp) return;
+    this.comfortPlaying = true;
+    this.enqueueOutboundAudio(
+      generateRingbackMuLaw(DEEPGRAM_CONNECT_COMFORT_MS),
+    );
+  }
+
+  private stopConnectComfort(): void {
+    if (!this.comfortPlaying) return;
+    this.comfortPlaying = false;
+    this.pendingOutbound = Buffer.alloc(0);
+    this.diagnostics.pendingOutboundBytes = 0;
+    sendJson(this.telnyxWs, { event: 'clear' });
   }
 
   private markAgentSpeaking(): void {
@@ -587,7 +696,11 @@ export class DeepgramVoiceSession {
   }
 
   private isInboundMuted(): boolean {
-    return this.agentSpeaking || this.holdInProgress || Date.now() < this.speakHangoverUntil;
+    return (
+      this.agentSpeaking ||
+      this.holdInProgress ||
+      Date.now() < this.speakHangoverUntil
+    );
   }
 
   private shouldIgnoreBargeIn(): boolean {
@@ -595,7 +708,8 @@ export class DeepgramVoiceSession {
   }
 
   private closeTelnyx(code: number, reason: string): void {
-    if (this.telnyxWs.readyState === WebSocket.OPEN) this.telnyxWs.close(code, reason);
+    if (this.telnyxWs.readyState === WebSocket.OPEN)
+      this.telnyxWs.close(code, reason);
   }
 
   public getDiagnosticsSnapshot() {
@@ -620,7 +734,8 @@ export class DeepgramVoiceSession {
     this.dgWs = null;
     if (
       deepgramSocket &&
-      (deepgramSocket.readyState === WebSocket.OPEN || deepgramSocket.readyState === WebSocket.CONNECTING)
+      (deepgramSocket.readyState === WebSocket.OPEN ||
+        deepgramSocket.readyState === WebSocket.CONNECTING)
     ) {
       try {
         deepgramSocket.close();
@@ -645,6 +760,7 @@ export function handleDeepgramTelnyxMediaConnection(
   telnyxSocket: WebSocket,
   _request: IncomingMessage,
 ): void {
+  console.info('[Deepgram Agent] Telnyx media WebSocket accepted');
   const session = new DeepgramVoiceSession(telnyxSocket);
   void session.start();
 }

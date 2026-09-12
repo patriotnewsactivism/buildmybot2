@@ -81,7 +81,7 @@ beforeEach(() => {
   vi.stubGlobal('fetch', mocks.fetch);
   process.env.TELNYX_PUBLIC_KEY = publicBytes.toString('base64');
 });
-it('persists required voice_agent_id before starting Gemini streaming and starts dual-channel recording', async () => {
+it('persists required voice_agent_id before starting live streaming and starts dual-channel recording', async () => {
   mocks.fetch.mockImplementation(async (url: string, init: RequestInit) => {
     let rows: unknown[] = [];
     if (url.includes('/phone_numbers?'))
@@ -121,6 +121,32 @@ it('persists required voice_agent_id before starting Gemini streaming and starts
     ([u, i]) => u.includes('/call_logs?') && i.method === 'POST',
   );
   expect(JSON.parse(insert?.[1].body).voice_agent_id).toBe('voice1');
+});
+it('answers with media streaming when only Deepgram is configured', async () => {
+  const previousGemini = process.env.GEMINI_API_KEY;
+  const previousEngine = process.env.VOICE_ENGINE;
+  process.env.GEMINI_API_KEY = '';
+  process.env.DEEPGRAM_API_KEY = 'dg-test';
+  process.env.VOICE_ENGINE = 'deepgram';
+  mocks.fetch.mockImplementation(async (url: string, init: RequestInit) => {
+    let rows: unknown[] = [];
+    if (url.includes('/phone_numbers?'))
+      rows = [{ user_id: 'owner', voice_agent_id: 'voice1' }];
+    if (url.includes('/voice_agents?'))
+      rows = [{ id: 'voice1', bot_id: 'bot1', greeting: 'Hi' }];
+    if (url.includes('/bots?')) rows = [{ id: 'bot1', name: 'BuildMyBot' }];
+    if (url.includes('/call_logs?') && init?.method === 'POST') {
+      rows = [{ id: 42 }];
+    }
+    return new Response(JSON.stringify(rows));
+  });
+  await handler(req(), res() as never);
+  expect(mocks.answer).toHaveBeenCalledWith(
+    'call1',
+    expect.objectContaining({ bidirectional: true }),
+  );
+  process.env.GEMINI_API_KEY = previousGemini;
+  process.env.VOICE_ENGINE = previousEngine;
 });
 it('saves recording_url to call_logs on call.recording.saved event', async () => {
   let patchBody: unknown = null;

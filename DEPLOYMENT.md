@@ -58,7 +58,7 @@ Container:  Dockerfile
 Port:       8080
 Frontend:   Vite output in dist/
 Backend:    api/* mounted through Express handlers
-Voice:      Gemini Live + Telnyx-oriented realtime/telephony paths
+Voice:      Deepgram Voice Agent + Telnyx Call Control (Gemini Live fallback)
 ```
 
 Core release gates:

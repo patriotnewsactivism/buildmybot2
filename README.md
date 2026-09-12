@@ -57,7 +57,7 @@ The production migration workflow is intentionally audit-only. Follow `docs/MIGR
 ### AI phone agent
 
 - Customer activation flow for a new number, forwarding an existing number, or porting a number.
-- Gemini Live is the realtime voice engine.
+- Deepgram Voice Agent is the realtime voice engine on the live Telnyx phone path (native PCMU/8 kHz). Gemini Live remains an explicit `VOICE_ENGINE=gemini` fallback.
 - Four distinct production voice identities: Receptionist, Sales, Support, and Manager.
 - Shared caller context survives handoffs, while destination voice/persona/style identity changes at every AI-to-AI transfer.
 - Shared chatbot/voice knowledge by default, with channel-specific knowledge modes supported by the activation model.

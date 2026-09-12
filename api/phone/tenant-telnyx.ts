@@ -19,14 +19,13 @@
  * tenant-twilio.ts's three exported handlers (tenantInboundVoiceHandler /
  * tenantInboundVoiceRespond / tenantInboundStatusCallback).
  *
- * Primary path (GEMINI_API_KEY configured, or VOICE_ENGINE=deepgram with
- * DEEPGRAM_API_KEY): call.initiated -> resolve bot/tenant by called number ->
+ * Primary path (DEEPGRAM_API_KEY, or explicit VOICE_ENGINE=gemini with
+ * GEMINI_API_KEY): call.initiated -> resolve bot/tenant by called number ->
  * create call_logs row -> answer the call with client_state encoding
  * {botId, logId} AND request bidirectional PCMU streaming to
  * wss://.../api/voice/telnyx-media in the SAME answer action. Default media
- * owner is api/voice/telnyx-live.ts (Gemini Live voice-team). When
- * VOICE_ENGINE=deepgram, server.ts routes the same WebSocket path to
- * api/voice/deepgram-agent.ts instead.
+ * owner is api/voice/deepgram-agent.ts (Deepgram Voice Agent, native PCMU).
+ * Gemini Live (api/voice/telnyx-live.ts) is only used when VOICE_ENGINE=gemini.
  *
  * Fallback path (no realtime key, or answer fails): a single spoken
  * message via the `speak` Call Control action, then hang up. This is
@@ -50,6 +49,7 @@ import {
   startRecording,
 } from '../lib/telephony-provider.js';
 import { verifyTelnyxSignature } from '../sms/webhooks.js';
+import { hasLiveVoiceEngine } from '../voice/engine.js';
 import { CORPORATE, corporateMediaUrl } from './corporate-config.js';
 import { handleCorporateAnswered } from './corporate.js';
 import { createTelnyxStreamToken } from './tenant-telnyx-token.js';
@@ -244,12 +244,7 @@ async function handleCallInitiated(payload: unknown): Promise<void> {
     callControlId,
   });
 
-  if (
-    logId &&
-    (process.env.GEMINI_API_KEY ||
-      ((process.env.VOICE_ENGINE || '').trim().toLowerCase() === 'deepgram' &&
-        process.env.DEEPGRAM_API_KEY))
-  ) {
+  if (logId && hasLiveVoiceEngine()) {
     const clientState = createTelnyxStreamToken({
       callControlId,
       botId: bot.id,
@@ -285,9 +280,9 @@ async function handleCallInitiated(payload: unknown): Promise<void> {
     }
   }
 
-  // Fallback: no Gemini configured, or streaming answer failed. See module
-  // header -- deliberately a single spoken message, not a full multi-turn
-  // IVR loop.
+  // Fallback: no live voice engine configured, or streaming answer failed.
+  // See module header -- deliberately a single spoken message, not a full
+  // multi-turn IVR loop.
   try {
     await answerCall(callControlId);
     const greeting = `Thanks for calling ${bot.name}. Our voice connection is temporarily unavailable. Please call back shortly or contact our team through our website.`;

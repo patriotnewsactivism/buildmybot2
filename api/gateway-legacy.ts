@@ -45,6 +45,7 @@ import {
   safeFetch,
 } from './security/ssrf.js';
 import { computeSmsOversight } from './sms/oversight.js';
+import { liveVoiceEngineName } from './voice/engine.js';
 
 // Initialize Sentry for production error monitoring
 if (process.env.SENTRY_DSN) {
@@ -569,6 +570,9 @@ async function handleHealth(_req: ApiRequest, res: ApiResponse) {
         process.env.K_REVISION ||
         'unknown',
       deployedAt: process.env.BUILD_TIME || null,
+    },
+    voice: {
+      engine: liveVoiceEngineName(),
     },
   });
 }

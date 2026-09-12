@@ -40,12 +40,13 @@ Primary components include:
 
 - `shared/voice-team.ts` for shared voice-team definitions and model configuration;
 - `api/voice/team.ts` for voice-team API behavior;
-- `api/voice/team-preview.ts` for Gemini Live previews using the same configured voice identity as production calls;
+- `api/voice/deepgram-agent.ts` and `api/voice/deepgram-team.ts` for the production Telnyx/Deepgram phone path with distinct Flux voices per department;
+- `api/voice/team-preview.ts` for Gemini Live previews (dashboard audition; not the live PSTN path);
 - `api/gateway.ts` routes `/api/voice/team`, `/api/voice/team/bots`, and `/api/voice/team/preview`;
 - corporate phone integration exposes the configured voice-team bot to the production phone path;
 - UI surfaces allow operators to inspect/configure the distinct team rather than treating voice as a single global persona.
 
-Gemini Live remains the realtime conversational voice engine. Telnyx is the preferred telephony/SMS platform for current provisioning work; legacy Twilio-compatible paths may still exist during migration and must not be removed without an end-to-end replacement test.
+Deepgram Voice Agent is the realtime conversational voice engine on the live Telnyx phone path. Telnyx is the telephony/SMS carrier (Call Control + bidirectional PCMU). Gemini Live remains an explicit `VOICE_ENGINE=gemini` fallback. Legacy Twilio-compatible paths may still exist during migration and must not be removed without an end-to-end replacement test.
 
 ## Handoff contract
 

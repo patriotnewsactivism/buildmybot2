@@ -68,11 +68,13 @@ import {
   FLUX_EOT_THRESHOLD,
   FLUX_EOT_TIMEOUT_MS,
   SPEAKING_HANGOVER_MS,
+  hasLiveVoiceEngine,
   isDeepgramVoiceEnabled,
   parseJsonArguments,
 } from '../api/voice/deepgram-agent';
 import { executeServerTool } from '../api/voice/deepgram-tools';
 import { MediaDiagnostics } from '../api/voice/media-diagnostics';
+import { CORPORATE_TRANSFER_HOLD_MS } from '../api/voice/ringback-tone';
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -88,13 +90,23 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-it('enables Deepgram only when VOICE_ENGINE=deepgram and key is set', () => {
+it('enables Deepgram by default when the key is set, unless VOICE_ENGINE=gemini', () => {
+  const previousGemini = process.env.GEMINI_API_KEY;
+  process.env.VOICE_ENGINE = '';
+  expect(isDeepgramVoiceEnabled()).toBe(true);
+  expect(hasLiveVoiceEngine()).toBe(true);
+  process.env.VOICE_ENGINE = 'deepgram';
   expect(isDeepgramVoiceEnabled()).toBe(true);
   process.env.VOICE_ENGINE = 'gemini';
+  process.env.GEMINI_API_KEY = 'gemini-test';
   expect(isDeepgramVoiceEnabled()).toBe(false);
+  expect(hasLiveVoiceEngine()).toBe(true);
+  process.env.GEMINI_API_KEY = '';
+  expect(hasLiveVoiceEngine()).toBe(false);
   process.env.VOICE_ENGINE = 'deepgram';
   process.env.DEEPGRAM_API_KEY = '';
   expect(isDeepgramVoiceEnabled()).toBe(false);
+  process.env.GEMINI_API_KEY = previousGemini;
 });
 
 it('parses function arguments as JSON objects only', () => {
@@ -198,7 +210,9 @@ it('bridges Telnyx start/media through Welcome→Settings→SettingsApplied', as
   );
 
   // Greeting window: drop pre-ready inbound and keep muting until TTS hangover.
-  expect(deepgram.sentRaw.filter((v: any) => Buffer.isBuffer(v)).length).toBe(0);
+  expect(deepgram.sentRaw.filter((v: any) => Buffer.isBuffer(v)).length).toBe(
+    0,
+  );
 
   await telnyx.deliver(
     'message',
@@ -210,7 +224,9 @@ it('bridges Telnyx start/media through Welcome→Settings→SettingsApplied', as
       },
     }),
   );
-  expect(deepgram.sentRaw.filter((v: any) => Buffer.isBuffer(v)).length).toBe(0);
+  expect(deepgram.sentRaw.filter((v: any) => Buffer.isBuffer(v)).length).toBe(
+    0,
+  );
 
   await deepgram.deliver(
     'message',
@@ -384,6 +400,98 @@ it('executes FunctionCallRequest and suppresses cancelled responses', async () =
   expect(cancelledResponse).toBeUndefined();
   expect(session.getDiagnosticsSnapshot().functionCancels).toBe(1);
   expect(transferCall).toHaveBeenCalled();
+});
+
+it('applies Telnyx from/to before Settings and plays ringback until first TTS', async () => {
+  const telnyx = new Socket('wss://telnyx') as any;
+  const session = new DeepgramVoiceSession(telnyx);
+  await session.start();
+  const deepgram = state.sockets[1] as any;
+
+  await telnyx.deliver(
+    'message',
+    JSON.stringify({
+      event: 'start',
+      start: {
+        call_control_id: 'call-from-to',
+        from: '+18328804970',
+        to: '+13466460065',
+        media_format: { encoding: 'PCMU', sample_rate: 8000, channels: 1 },
+      },
+    }),
+  );
+  await vi.advanceTimersByTimeAsync(40);
+  expect(telnyx.sent.some((m: any) => m?.event === 'media')).toBe(true);
+
+  await deepgram.deliver(
+    'message',
+    Buffer.from(JSON.stringify({ type: 'Welcome' })),
+    false,
+  );
+  const settings = deepgram.sent.find((m: any) => m?.type === 'Settings');
+  expect(settings.agent.think.prompt).toContain('+18328804970');
+
+  await deepgram.deliver(
+    'message',
+    Buffer.from(JSON.stringify({ type: 'SettingsApplied' })),
+    false,
+  );
+  await deepgram.deliver('message', Buffer.alloc(160, 0x22), true);
+  expect(telnyx.sent.some((m: any) => m?.event === 'clear')).toBe(true);
+  expect(session.getDiagnosticsSnapshot().outboundFrames).toBeGreaterThan(0);
+});
+
+it('transfers department with a distinct Flux voice and destination greeting', async () => {
+  const telnyx = new Socket('wss://telnyx') as any;
+  const session = new DeepgramVoiceSession(telnyx, 'call1');
+  await session.start();
+  const deepgram = state.sockets[1] as any;
+  await deepgram.deliver(
+    'message',
+    Buffer.from(JSON.stringify({ type: 'Welcome' })),
+    false,
+  );
+  await deepgram.deliver(
+    'message',
+    Buffer.from(JSON.stringify({ type: 'SettingsApplied' })),
+    false,
+  );
+
+  void deepgram.deliver(
+    'message',
+    Buffer.from(
+      JSON.stringify({
+        type: 'FunctionCallRequest',
+        functions: [
+          {
+            id: 'fn_xfer',
+            name: 'route_department',
+            arguments: JSON.stringify({
+              department: 'sales',
+              callerName: 'Sam',
+              reason: 'pricing',
+            }),
+          },
+        ],
+      }),
+    ),
+    false,
+  );
+  await vi.advanceTimersByTimeAsync(0);
+  await vi.advanceTimersByTimeAsync(CORPORATE_TRANSFER_HOLD_MS);
+
+  const speak = deepgram.sent.find((m: any) => m?.type === 'UpdateSpeak');
+  const prompt = deepgram.sent.find((m: any) => m?.type === 'UpdatePrompt');
+  const greeting = deepgram.sent.find(
+    (m: any) => m?.type === 'InjectAgentMessage',
+  );
+  const response = deepgram.sent.find(
+    (m: any) => m?.type === 'FunctionCallResponse' && m.id === 'fn_xfer',
+  );
+  expect(speak?.speak?.provider?.model).toBe('flux-apollo-en');
+  expect(prompt?.prompt).toContain('Marcus');
+  expect(greeting?.message).toBeTruthy();
+  expect(JSON.parse(response.content).ok).toBe(true);
 });
 
 it('records structured media diagnostics rates', () => {
