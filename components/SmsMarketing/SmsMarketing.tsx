@@ -16,6 +16,9 @@ import {
 } from "../../constants";
 import { buildApiUrl } from "../../services/apiConfig";
 import { SmsAccountSettings } from "./SmsAccountSettings";
+import { SmsAppointmentsPanel } from "./SmsAppointmentsPanel";
+import { SmsContactsPanel } from "./SmsContactsPanel";
+import { SmsInboxPanel } from "./SmsInboxPanel";
 import { SmsProgramsPanel } from "./SmsProgramsPanel";
 
 /**
@@ -421,22 +424,10 @@ export const SmsMarketing: React.FC = () => {
 					</div>
 
 					{tab === "programs" && <SmsProgramsPanel />}
+					{tab === "inbox" && <SmsInboxPanel />}
+					{tab === "contacts" && <SmsContactsPanel />}
+					{tab === "appointments" && <SmsAppointmentsPanel />}
 					{tab === "settings" && <SmsAccountSettings />}
-					{tab === "inbox" && (
-						<p className="rounded-lg border border-dashed border-gray-300 bg-white p-4 text-sm text-gray-500">
-							Inbox panel next — wire GET /sms/inbox and POST /sms/send.
-						</p>
-					)}
-					{tab === "contacts" && (
-						<p className="rounded-lg border border-dashed border-gray-300 bg-white p-4 text-sm text-gray-500">
-							Contacts panel next — wire GET/POST /sms/contacts.
-						</p>
-					)}
-					{tab === "appointments" && (
-						<p className="rounded-lg border border-dashed border-gray-300 bg-white p-4 text-sm text-gray-500">
-							Appointments panel next — wire GET/POST /sms/appointments.
-						</p>
-					)}
 				</div>
 			)}
 
