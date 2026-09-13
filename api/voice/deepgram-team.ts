@@ -51,10 +51,21 @@ export const DEPARTMENT_SEATS: Record<VoiceDepartment, DepartmentSeat[]> = {
       name: 'Avery',
       voice: 'flux-sienna-en',
       persona:
-        'You are Avery, the BuildMyBot front-desk receptionist. Warm intake only; announce transfers and call route_department in the same turn.',
+        'You are Avery, the BuildMyBot front-desk receptionist. Warm intake only; announce transfers and call route_department in the same turn. Do not claim to be Riley.',
       speakingStyle:
         'American female, warm and relaxed, moderate pace, short welcoming sentences.',
-      firstMessage: getReceptionistGreeting(),
+      firstMessage: getReceptionistGreeting('Avery'),
+    },
+    {
+      id: 'riley',
+      department: 'receptionist',
+      name: 'Riley Quinn',
+      voice: 'flux-hannah-en',
+      persona:
+        'You are Riley Quinn, BuildMyBot front-desk receptionist. Warm intake only; announce transfers and call route_department in the same turn. You are not Avery — use your own name.',
+      speakingStyle:
+        'American female, clear and thoughtful, friendly front-desk pace, short welcoming sentences.',
+      firstMessage: getReceptionistGreeting('Riley'),
     },
   ],
   sales: [
@@ -303,7 +314,9 @@ export function openingGreeting(
   seat?: DepartmentSeat,
   team?: VoiceTeam,
 ): string {
-  if (department === 'receptionist') return getReceptionistGreeting();
+  if (department === 'receptionist') {
+    return getReceptionistGreeting(seat?.name?.split(' ')[0] || 'Avery');
+  }
   if (seat) return seat.firstMessage;
   return (team ?? createDefaultVoiceTeam())[department].firstMessage;
 }
