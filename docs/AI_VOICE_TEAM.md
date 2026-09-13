@@ -8,7 +8,7 @@ Gemini Live remains an explicit fallback: set `VOICE_ENGINE=gemini` to route the
 
 | Role | Name | Deepgram Flux voice | Gemini fallback | Intended delivery |
 | --- | --- | --- | --- | --- |
-| Receptionist | Avery | flux-sienna-en | Aoede | Warm American female; time-of-day greeting |
+| Receptionist | Avery or Riley Quinn | flux-sienna-en / flux-hannah-en | Aoede | Rotating front desk; time-of-day greeting |
 | Sales | Marcus Hale or Maya Bennett | flux-marcus-en / flux-brooke-en | Puck | Rotating sales desk; commercial, objection-first |
 | Customer Care | Sophie Reyes or Nina Castillo | flux-haley-en / flux-kelsey-en | Kore | Rotating care desk; calm troubleshooting |
 | Billing & Accounts | Helen Cho or Grace Patel | flux-alexis-en / flux-paige-en | Leda | Rotating billing desk; precise charges |
