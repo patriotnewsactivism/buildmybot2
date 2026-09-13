@@ -87,6 +87,13 @@ describe('Voice Team constraints', () => {
     expect(destinationDepartment('partnerships')).toBe('partner');
     expect(destinationDepartment('white_label')).toBe('partner');
     expect(destinationDepartment('reseller')).toBe('partner');
+    expect(destinationDepartment('pricing')).toBe('sales');
+    expect(destinationDepartment('demo')).toBe('sales');
+    expect(destinationDepartment('broken')).toBe('support');
+    expect(destinationDepartment('refund')).toBe('billing');
+    expect(destinationDepartment('employment')).toBe('recruiting');
+    expect(destinationDepartment('escalate')).toBe('manager');
+    expect(destinationDepartment('agency')).toBe('partner');
     expect(destinationDepartment('billing')).toBe('billing');
     expect(destinationDepartment('accounting')).toBe('billing');
     expect(destinationDepartment('invoices')).toBe('billing');
