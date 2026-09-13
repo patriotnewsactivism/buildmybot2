@@ -172,11 +172,23 @@ export function getTimeOfDayGreeting(
 }
 
 export function getReceptionistGreeting(
-  date = new Date(),
+  nameOrDate: string | Date = 'Avery',
+  dateOrTimeZone?: Date | string,
   timeZone = 'America/Chicago',
 ): string {
-  const salutation = getTimeOfDayGreeting(date, timeZone);
-  return `${salutation}, thank you for calling BuildMyBot, my name is Avery how can I help you.`;
+  let name = 'Avery';
+  let date = new Date();
+  let zone = timeZone;
+  if (typeof nameOrDate === 'string') {
+    name = nameOrDate.trim() || 'Avery';
+    if (dateOrTimeZone instanceof Date) date = dateOrTimeZone;
+    else if (typeof dateOrTimeZone === 'string') zone = dateOrTimeZone;
+  } else {
+    date = nameOrDate;
+    if (typeof dateOrTimeZone === 'string') zone = dateOrTimeZone;
+  }
+  const salutation = getTimeOfDayGreeting(date, zone);
+  return `${salutation}, thank you for calling BuildMyBot, my name is ${name} how can I help you.`;
 }
 
 export function createDefaultVoiceTeam(): VoiceTeam {
