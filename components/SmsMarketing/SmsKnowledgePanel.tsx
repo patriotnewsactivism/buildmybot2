@@ -17,6 +17,16 @@ type Review = {
   missing?: string[];
 };
 
+type Account = {
+  business_name?: string;
+  timezone?: string;
+  spend_limit_micros?: number;
+  ai_enabled?: boolean;
+  knowledge_base_id?: string | null;
+  quiet_start?: number;
+  quiet_end?: number;
+};
+
 async function smsFetch(path: string, init?: RequestInit) {
   const res = await fetch(buildApiUrl(path), {
     credentials: 'include',
@@ -28,24 +38,15 @@ async function smsFetch(path: string, init?: RequestInit) {
   return data;
 }
 
-type Props = {
-  businessName: string;
-  knowledgeBaseId: string;
-  aiEnabled: boolean;
-  onKnowledgeBaseId: (id: string) => void;
-  onAiEnabled: (enabled: boolean) => void;
-};
-
 /** Crawl, review, publish, and attach shared business knowledge for SMS AI replies. */
-export const SmsKnowledgePanel: React.FC<Props> = ({
-  businessName,
-  knowledgeBaseId,
-  aiEnabled,
-  onKnowledgeBaseId,
-  onAiEnabled,
-}) => {
+export const SmsKnowledgePanel: React.FC<{
+  businessName?: string;
+}> = ({ businessName }) => {
+  const [account, setAccount] = useState<Account | null>(null);
   const [bases, setBases] = useState<KnowledgeBase[]>([]);
   const [bots, setBots] = useState<BotOption[]>([]);
+  const [knowledgeBaseId, setKnowledgeBaseId] = useState('');
+  const [aiEnabled, setAiEnabled] = useState(false);
   const [botId, setBotId] = useState('');
   const [review, setReview] = useState<Review | null>(null);
   const [crawlUrl, setCrawlUrl] = useState('');
@@ -62,6 +63,15 @@ export const SmsKnowledgePanel: React.FC<Props> = ({
     return nextBases as KnowledgeBase[];
   }, []);
 
+  const loadAccount = useCallback(async () => {
+    const data = await smsFetch('/sms/account');
+    const next = (data.account || {}) as Account;
+    setAccount(next);
+    setKnowledgeBaseId(next.knowledge_base_id || '');
+    setAiEnabled(Boolean(next.ai_enabled));
+    return next;
+  }, []);
+
   const loadDetail = useCallback(async (id: string) => {
     if (!id) {
       setReview(null);
@@ -72,10 +82,10 @@ export const SmsKnowledgePanel: React.FC<Props> = ({
   }, []);
 
   useEffect(() => {
-    void loadList().catch((e) =>
+    void Promise.all([loadAccount(), loadList()]).catch((e) =>
       setError(e instanceof Error ? e.message : 'Could not load knowledge'),
     );
-  }, [loadList]);
+  }, [loadAccount, loadList]);
 
   useEffect(() => {
     void loadDetail(knowledgeBaseId).catch(() => setReview(null));
@@ -92,6 +102,35 @@ export const SmsKnowledgePanel: React.FC<Props> = ({
     }, 3000);
     return () => clearInterval(timer);
   }, [knowledgeBaseId, crawling, loadDetail]);
+
+  const persistAccount = async (patch: {
+    knowledgeBaseId?: string | null;
+    aiEnabled?: boolean;
+  }) => {
+    const current = account || (await loadAccount());
+    const nextId =
+      patch.knowledgeBaseId !== undefined
+        ? patch.knowledgeBaseId
+        : current.knowledge_base_id || null;
+    const nextAi =
+      patch.aiEnabled !== undefined ? patch.aiEnabled : Boolean(current.ai_enabled);
+    await smsFetch('/sms/account', {
+      method: 'PATCH',
+      body: JSON.stringify({
+        businessName: current.business_name || businessName || 'Business',
+        timezone: current.timezone || 'America/Chicago',
+        spendLimit:
+          typeof current.spend_limit_micros === 'number'
+            ? current.spend_limit_micros / 1_000_000
+            : 50,
+        aiEnabled: nextAi,
+        knowledgeBaseId: nextId,
+        quietStart: current.quiet_start ?? 9,
+        quietEnd: current.quiet_end ?? 20,
+      }),
+    });
+    await loadAccount();
+  };
 
   const run = async (work: () => Promise<void>, ok?: string) => {
     setBusy(true);
@@ -111,7 +150,11 @@ export const SmsKnowledgePanel: React.FC<Props> = ({
     run(async () => {
       const name =
         newName.trim() ||
-        (businessName.trim() ? `${businessName.trim()} knowledge` : '');
+        (businessName?.trim()
+          ? `${businessName.trim()} knowledge`
+          : account?.business_name
+            ? `${account.business_name} knowledge`
+            : '');
       if (name.length < 2) {
         throw new Error('Name the knowledge base first');
       }
@@ -121,8 +164,11 @@ export const SmsKnowledgePanel: React.FC<Props> = ({
       });
       setNewName('');
       await loadList();
-      if (created?.id) onKnowledgeBaseId(created.id);
-    }, 'Knowledge base created. Crawl a website next.');
+      if (created?.id) {
+        setKnowledgeBaseId(created.id);
+        await persistAccount({ knowledgeBaseId: created.id });
+      }
+    }, 'Knowledge base created. Extract a website next.');
 
   const crawl = () =>
     run(async () => {
@@ -146,8 +192,12 @@ export const SmsKnowledgePanel: React.FC<Props> = ({
       });
       await loadList();
       await loadDetail(knowledgeBaseId);
-      if (!aiEnabled) onAiEnabled(true);
-    }, 'Published. AI replies will use these facts after you save settings.');
+      await persistAccount({
+        knowledgeBaseId,
+        aiEnabled: true,
+      });
+      setAiEnabled(true);
+    }, 'Published. AI SMS replies now use these facts.');
 
   const linkBot = () =>
     run(async () => {
@@ -166,12 +216,15 @@ export const SmsKnowledgePanel: React.FC<Props> = ({
   const missing = review?.missing || [];
 
   return (
-    <div className="space-y-3 rounded-lg border border-indigo-100 bg-indigo-50/40 p-4 sm:col-span-2">
+    <section
+      className="space-y-3 rounded-lg border border-indigo-100 bg-white p-5"
+      aria-label="Shared business knowledge"
+    >
       <div>
-        <h3 className="text-sm font-semibold text-gray-900">
+        <h3 className="text-lg font-semibold text-gray-900">
           Shared business knowledge
         </h3>
-        <p className="mt-1 text-xs text-gray-600">
+        <p className="mt-1 text-sm text-gray-600">
           Chat, voice, and SMS answers come from the same published facts. Crawl
           your website, publish, then turn on AI replies.
         </p>
@@ -182,7 +235,14 @@ export const SmsKnowledgePanel: React.FC<Props> = ({
         <select
           className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
           value={knowledgeBaseId}
-          onChange={(e) => onKnowledgeBaseId(e.target.value)}
+          onChange={(e) => {
+            const id = e.target.value;
+            setKnowledgeBaseId(id);
+            void run(
+              () => persistAccount({ knowledgeBaseId: id || null }),
+              id ? 'Knowledge base linked.' : 'Knowledge base unlinked.',
+            );
+          }}
         >
           <option value="">Not linked</option>
           {bases.map((base) => (
@@ -232,7 +292,7 @@ export const SmsKnowledgePanel: React.FC<Props> = ({
       </label>
 
       {selected && (
-        <div className="rounded-md bg-white p-3 text-xs text-gray-600 space-y-1">
+        <div className="rounded-md bg-slate-50 p-3 text-xs text-gray-600 space-y-1">
           <p>
             Status:{' '}
             <span className="font-medium text-gray-800">
@@ -253,9 +313,7 @@ export const SmsKnowledgePanel: React.FC<Props> = ({
               {conflicts.length === 1 ? '' : 's'} before publishing.
             </p>
           )}
-          {missing.length > 0 && (
-            <p>Still missing: {missing.join(', ')}.</p>
-          )}
+          {missing.length > 0 && <p>Still missing: {missing.join(', ')}.</p>}
           <button
             type="button"
             disabled={busy || !review?.version?.id || conflicts.length > 0}
@@ -271,7 +329,16 @@ export const SmsKnowledgePanel: React.FC<Props> = ({
         <input
           type="checkbox"
           checked={aiEnabled}
-          onChange={(e) => onAiEnabled(e.target.checked)}
+          onChange={(e) => {
+            const enabled = e.target.checked;
+            setAiEnabled(enabled);
+            void run(
+              () => persistAccount({ aiEnabled: enabled }),
+              enabled
+                ? 'AI replies on. Unanswered texts use published facts.'
+                : 'AI replies off.',
+            );
+          }}
         />
         <span className="font-medium text-gray-700">
           AI replies from published knowledge
@@ -305,6 +372,6 @@ export const SmsKnowledgePanel: React.FC<Props> = ({
 
       {error && <p className="text-sm text-red-700">{error}</p>}
       {notice && <p className="text-sm text-emerald-800">{notice}</p>}
-    </div>
+    </section>
   );
 };

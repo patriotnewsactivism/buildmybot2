@@ -39,8 +39,6 @@ export const SmsAccountSettings: React.FC = () => {
   const [businessName, setBusinessName] = useState('');
   const [timezone, setTimezone] = useState('America/Chicago');
   const [spendLimit, setSpendLimit] = useState(50);
-  const [aiEnabled, setAiEnabled] = useState(false);
-  const [knowledgeBaseId, setKnowledgeBaseId] = useState('');
   const [quietStart, setQuietStart] = useState(9);
   const [quietEnd, setQuietEnd] = useState(20);
   const [loading, setLoading] = useState(true);
@@ -67,8 +65,6 @@ export const SmsAccountSettings: React.FC = () => {
           ? a.spend_limit_micros / 1_000_000
           : 50,
       );
-      setAiEnabled(Boolean(a.ai_enabled));
-      setKnowledgeBaseId(a.knowledge_base_id || '');
       setQuietStart(a.quiet_start ?? 9);
       setQuietEnd(a.quiet_end ?? 20);
     } catch (e) {
@@ -93,8 +89,6 @@ export const SmsAccountSettings: React.FC = () => {
           businessName,
           timezone,
           spendLimit,
-          aiEnabled,
-          knowledgeBaseId: knowledgeBaseId.trim() || null,
           quietStart,
           quietEnd,
         }),
@@ -228,14 +222,9 @@ export const SmsAccountSettings: React.FC = () => {
               onChange={(e) => setQuietEnd(Number(e.target.value))}
             />
           </label>
-          <SmsKnowledgePanel
-            businessName={businessName}
-            knowledgeBaseId={knowledgeBaseId}
-            aiEnabled={aiEnabled}
-            onKnowledgeBaseId={setKnowledgeBaseId}
-            onAiEnabled={setAiEnabled}
-          />
         </div>
+
+        <SmsKnowledgePanel businessName={businessName} />
 
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 space-y-2">
           <h3 className="text-sm font-semibold text-amber-900">
