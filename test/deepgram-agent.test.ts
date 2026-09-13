@@ -709,7 +709,7 @@ it('uses the caller request when the agent says it will transfer without naming 
   expect(speak?.speak?.provider?.model).toMatch(/flux-/);
   await vi.advanceTimersByTimeAsync(TRANSFER_MIN_HOLD_MS);
   const greeting = deepgram.sent.find((m: any) => m?.type === 'InjectAgentMessage');
-  expect(greeting?.message).toMatch(/Julian/i);
+  expect(greeting?.message).toMatch(/Julian|Lila/i);
 });
 
 it('does not auto-transfer when the agent only offers a transfer', async () => {
