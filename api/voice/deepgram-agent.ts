@@ -32,6 +32,12 @@ import {
 } from './deepgram-tools.js';
 import { MediaDiagnostics } from './media-diagnostics.js';
 import {
+  inferDepartmentFromContext,
+  inferRequestedDepartment,
+  inferSpokenTransfer,
+  looksLikeTransferCommit,
+} from './spoken-transfer.js';
+import {
   MAX_OUTBOUND_PENDING_BYTES,
   TRANSFER_MIN_HOLD_MS,
   generateHoldMusicMuLaw,
@@ -145,6 +151,8 @@ export class DeepgramVoiceSession {
   private holdOffsetMs = 0;
   private salesSeat: SalesSeat | undefined;
   private department: VoiceDepartment = 'receptionist';
+  private pendingSpokenTransfer: VoiceDepartment | null = null;
+  private lastRequestedDepartment: VoiceDepartment | null = null;
   private team: VoiceTeam = createDefaultVoiceTeam();
   private callContext: SharedCallContext;
   private readonly pendingInbound: Buffer[] = [];
@@ -283,6 +291,7 @@ export class DeepgramVoiceSession {
       case 'AgentAudioDone':
       case 'AgentStartedListening':
         this.beginSpeakHangover();
+        void this.commitSpokenTransferIfNeeded();
         break;
       case 'UserStartedSpeaking':
         if (this.shouldIgnoreBargeIn()) return;
@@ -333,6 +342,7 @@ export class DeepgramVoiceSession {
     if (role === 'caller' && !this.callContext.reason) {
       this.callContext.reason = content.slice(0, 400);
     }
+    this.noteTransferSpeech(role, content);
     this.callContext.summary = this.callContext.transcript
       .slice(-8)
       .map((turn) => `${turn.role}: ${turn.text}`)
@@ -654,6 +664,7 @@ export class DeepgramVoiceSession {
     if (destination === this.department) {
       return { ok: false, error: 'Already speaking with that department.' };
     }
+    this.pendingSpokenTransfer = null;
     const callerName =
       typeof args.callerName === 'string' ? args.callerName.trim() : '';
     const reason =
@@ -773,6 +784,37 @@ export class DeepgramVoiceSession {
     this.pendingOutbound = Buffer.alloc(0);
     this.diagnostics.pendingOutboundBytes = 0;
     sendJson(this.telnyxWs, { event: 'clear' });
+  }
+
+  private noteTransferSpeech(role: 'caller' | 'agent', content: string): void {
+    if (role === 'caller') {
+      const requested = inferRequestedDepartment(content);
+      if (requested) this.lastRequestedDepartment = requested;
+      return;
+    }
+    const spoken = inferSpokenTransfer(content);
+    if (spoken) {
+      this.pendingSpokenTransfer = spoken;
+      return;
+    }
+    if (looksLikeTransferCommit(content)) {
+      this.pendingSpokenTransfer =
+        this.lastRequestedDepartment ||
+        inferDepartmentFromContext(this.callContext.reason || '');
+    }
+  }
+
+  private async commitSpokenTransferIfNeeded(): Promise<void> {
+    if (this.holdInProgress || this.cleaningUp) return;
+    const destination = this.pendingSpokenTransfer;
+    if (!destination || destination === this.department) return;
+    this.pendingSpokenTransfer = null;
+    await this.transferDepartment({
+      department: destination,
+      callerName: this.callContext.callerName || '',
+      reason: this.callContext.reason || '',
+      summary: this.callContext.summary || '',
+    });
   }
 
   private markAgentSpeaking(): void {

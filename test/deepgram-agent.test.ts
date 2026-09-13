@@ -585,3 +585,134 @@ it('records structured media diagnostics rates', () => {
   expect(snap.outboundFrames).toBe(1);
   expect(snap.inboundFrameRateHz).toBeGreaterThan(0);
 });
+
+it('auto-commits a spoken sales transfer without a tool call or caller OK', async () => {
+  const telnyx = new Socket('wss://telnyx') as any;
+  const session = new DeepgramVoiceSession(telnyx, 'call-auto');
+  await session.start();
+  const deepgram = state.sockets[1] as any;
+  await deepgram.deliver(
+    'message',
+    Buffer.from(JSON.stringify({ type: 'Welcome' })),
+    false,
+  );
+  await deepgram.deliver(
+    'message',
+    Buffer.from(JSON.stringify({ type: 'SettingsApplied' })),
+    false,
+  );
+
+  await deepgram.deliver(
+    'message',
+    Buffer.from(
+      JSON.stringify({
+        type: 'ConversationText',
+        role: 'assistant',
+        content: 'Connecting you with sales now.',
+      }),
+    ),
+    false,
+  );
+  await deepgram.deliver(
+    'message',
+    Buffer.from(JSON.stringify({ type: 'AgentAudioDone' })),
+    false,
+  );
+  await vi.advanceTimersByTimeAsync(40);
+
+  expect(telnyx.sent.some((m: any) => m?.event === 'media')).toBe(true);
+  const speak = deepgram.sent.find((m: any) => m?.type === 'UpdateSpeak');
+  expect(['flux-marcus-en', 'flux-brooke-en']).toContain(
+    speak?.speak?.provider?.model,
+  );
+
+  await vi.advanceTimersByTimeAsync(TRANSFER_MIN_HOLD_MS);
+  expect(deepgram.sent.some((m: any) => m?.type === 'InjectAgentMessage')).toBe(
+    true,
+  );
+});
+
+it('uses the caller request when the agent says it will transfer without naming a desk', async () => {
+  const telnyx = new Socket('wss://telnyx') as any;
+  const session = new DeepgramVoiceSession(telnyx, 'call-partner');
+  await session.start();
+  const deepgram = state.sockets[1] as any;
+  await deepgram.deliver(
+    'message',
+    Buffer.from(JSON.stringify({ type: 'Welcome' })),
+    false,
+  );
+  await deepgram.deliver(
+    'message',
+    Buffer.from(JSON.stringify({ type: 'SettingsApplied' })),
+    false,
+  );
+  await deepgram.deliver(
+    'message',
+    Buffer.from(
+      JSON.stringify({
+        type: 'ConversationText',
+        role: 'user',
+        content: 'Transfer me to the partner program.',
+      }),
+    ),
+    false,
+  );
+  await deepgram.deliver(
+    'message',
+    Buffer.from(
+      JSON.stringify({
+        type: 'ConversationText',
+        role: 'assistant',
+        content: "I'll transfer you now.",
+      }),
+    ),
+    false,
+  );
+  await deepgram.deliver(
+    'message',
+    Buffer.from(JSON.stringify({ type: 'AgentAudioDone' })),
+    false,
+  );
+  await vi.advanceTimersByTimeAsync(0);
+  const speak = deepgram.sent.find((m: any) => m?.type === 'UpdateSpeak');
+  expect(speak?.speak?.provider?.model).toMatch(/flux-/);
+  await vi.advanceTimersByTimeAsync(TRANSFER_MIN_HOLD_MS);
+  const greeting = deepgram.sent.find((m: any) => m?.type === 'InjectAgentMessage');
+  expect(greeting?.message).toMatch(/Julian/i);
+});
+
+it('does not auto-transfer when the agent only offers a transfer', async () => {
+  const telnyx = new Socket('wss://telnyx') as any;
+  const session = new DeepgramVoiceSession(telnyx, 'call-ask');
+  await session.start();
+  const deepgram = state.sockets[1] as any;
+  await deepgram.deliver(
+    'message',
+    Buffer.from(JSON.stringify({ type: 'Welcome' })),
+    false,
+  );
+  await deepgram.deliver(
+    'message',
+    Buffer.from(JSON.stringify({ type: 'SettingsApplied' })),
+    false,
+  );
+  await deepgram.deliver(
+    'message',
+    Buffer.from(
+      JSON.stringify({
+        type: 'ConversationText',
+        role: 'assistant',
+        content: 'Would you like me to transfer you to sales?',
+      }),
+    ),
+    false,
+  );
+  await deepgram.deliver(
+    'message',
+    Buffer.from(JSON.stringify({ type: 'AgentAudioDone' })),
+    false,
+  );
+  await vi.advanceTimersByTimeAsync(TRANSFER_MIN_HOLD_MS);
+  expect(deepgram.sent.some((m: any) => m?.type === 'UpdateSpeak')).toBe(false);
+});
