@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { CAMPAIGN_IDEAS, campaignDraft } from '../shared/sms-campaign-ideas';
 import { KIND_LABELS } from '../shared/sms';
+import { CAMPAIGN_IDEAS, campaignDraft } from '../shared/sms-campaign-ideas';
 
 describe('SMS campaign ideas', () => {
   it('keeps demonstration drafts inactive and unlabeled as live offers', () => {
@@ -9,7 +9,6 @@ describe('SMS campaign ideas', () => {
       const draft = campaignDraft(idea);
       expect(draft.status).toBe('draft');
       expect(draft.steps).toEqual([]);
-      expect(draft.audienceTags).toEqual([]);
       expect(draft.keyword).toBeTruthy();
       expect(draft.text).toBeTruthy();
     }

@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { CAMPAIGN_IDEAS, campaignDraft } from '../../shared/sms-campaign-ideas';
 import { type SmsProgram, smsSegments } from '../../shared/sms';
+import { CAMPAIGN_IDEAS, campaignDraft } from '../../shared/sms-campaign-ideas';
 
 export function SmsCampaignIdeas({
   onUseTemplate,
@@ -123,9 +123,8 @@ export function SmsCampaignIdeas({
               : 'Replay demo'}
           </button>
           <p className="mt-2 text-center text-xs text-slate-500">
-            Draft reply estimate:{' '}
-            {smsSegments(selected.draft.text || '')} segments before
-            personalization.
+            Draft reply estimate: {smsSegments(selected.draft.text || '')}{' '}
+            segments before personalization.
           </p>
         </div>
       </div>

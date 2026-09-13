@@ -208,7 +208,9 @@ export const SmsProgramForm: React.FC<Props> = ({
                 type="datetime-local"
                 className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
                 value={isoToLocalInput(form.opensAt)}
-                onChange={(e) => set('opensAt', localInputToIso(e.target.value))}
+                onChange={(e) =>
+                  set('opensAt', localInputToIso(e.target.value))
+                }
               />
             </label>
             <label className="block text-sm">
@@ -244,7 +246,9 @@ export const SmsProgramForm: React.FC<Props> = ({
           </label>
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block text-sm">
-              <span className="font-medium text-gray-700">Official rules URL</span>
+              <span className="font-medium text-gray-700">
+                Official rules URL
+              </span>
               <input
                 className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
                 value={form.rulesUrl || ''}

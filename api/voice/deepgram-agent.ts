@@ -16,7 +16,6 @@ import {
   destinationDepartment,
 } from '../../shared/voice-team.js';
 import { validTelnyxClientState } from '../phone/tenant-telnyx-token.js';
-import { loadVoiceTeamByBotId } from './team-store.js';
 import {
   type SalesSeat,
   buildAgentPrompt,
@@ -37,6 +36,7 @@ import {
   generateHoldMusicMuLaw,
   generateRingbackMuLaw,
 } from './ringback-tone.js';
+import { loadVoiceTeamByBotId } from './team-store.js';
 
 export { hasLiveVoiceEngine, isDeepgramVoiceEnabled } from './engine.js';
 
@@ -365,11 +365,7 @@ export class DeepgramVoiceSession {
           output: { encoding: 'mulaw', sample_rate: 8000, container: 'none' },
         },
         agent: {
-          greeting: openingGreeting(
-            this.department,
-            this.salesSeat,
-            this.team,
-          ),
+          greeting: openingGreeting(this.department, this.salesSeat, this.team),
           listen: {
             provider: {
               type: 'deepgram',
@@ -399,10 +395,8 @@ export class DeepgramVoiceSession {
   }
 
   private setupTelnyx(): void {
-    this.telnyxWs.on(
-      'message',
-      (raw: WebSocket.RawData, isBinary: boolean) =>
-        this.handleTelnyxSocketMessage(raw, isBinary),
+    this.telnyxWs.on('message', (raw: WebSocket.RawData, isBinary: boolean) =>
+      this.handleTelnyxSocketMessage(raw, isBinary),
     );
     this.telnyxWs.on('error', (error) => {
       console.error('[Telnyx Media] WebSocket error:', error);

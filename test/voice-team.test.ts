@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CORPORATE_ROUTING_PROMPT } from '../api/phone/corporate-routing';
+import { buildAgentPrompt } from '../api/voice/deepgram-team';
 import { getToolDeclarationsForDeepgram } from '../api/voice/deepgram-tools';
 import {
   VOICE_BILLING_KNOWLEDGE,
@@ -20,7 +21,6 @@ import {
   speakingCadenceText,
   voiceTeamSchema,
 } from '../shared/voice-team';
-import { buildAgentPrompt } from '../api/voice/deepgram-team';
 describe('Voice Team constraints', () => {
   it('requires seven distinct names, roles and provider-supported voices', () => {
     const team = createDefaultVoiceTeam();
@@ -247,7 +247,8 @@ describe('Voice Team constraints', () => {
       ...createDefaultVoiceTeam(),
       sales: {
         ...createDefaultVoiceTeam().sales,
-        speakingStyle: 'Custom style that still sounds like sales on the phone.',
+        speakingStyle:
+          'Custom style that still sounds like sales on the phone.',
       },
     });
     expect(parsed.sales.pace).toBe('brisk');

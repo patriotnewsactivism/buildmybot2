@@ -11,7 +11,12 @@ type KnowledgeBase = {
 type BotOption = { id: string; name: string };
 
 type Review = {
-  version?: { id: string; status?: string; url?: string; error?: string | null };
+  version?: {
+    id: string;
+    status?: string;
+    url?: string;
+    error?: string | null;
+  };
   facts?: Array<{ category: string; key: string; value: string }>;
   conflicts?: string[];
   missing?: string[];
@@ -92,8 +97,7 @@ export const SmsKnowledgePanel: React.FC<{
   }, [knowledgeBaseId, loadDetail]);
 
   const versionStatus = review?.version?.status || '';
-  const crawling =
-    versionStatus === 'starting' || versionStatus === 'crawling';
+  const crawling = versionStatus === 'starting' || versionStatus === 'crawling';
 
   useEffect(() => {
     if (!knowledgeBaseId || !crawling) return;
@@ -113,7 +117,9 @@ export const SmsKnowledgePanel: React.FC<{
         ? patch.knowledgeBaseId
         : current.knowledge_base_id || null;
     const nextAi =
-      patch.aiEnabled !== undefined ? patch.aiEnabled : Boolean(current.ai_enabled);
+      patch.aiEnabled !== undefined
+        ? patch.aiEnabled
+        : Boolean(current.ai_enabled);
     await smsFetch('/sms/account', {
       method: 'PATCH',
       body: JSON.stringify({
@@ -172,7 +178,8 @@ export const SmsKnowledgePanel: React.FC<{
 
   const crawl = () =>
     run(async () => {
-      if (!knowledgeBaseId) throw new Error('Select or create a knowledge base');
+      if (!knowledgeBaseId)
+        throw new Error('Select or create a knowledge base');
       await smsFetch(`/sms/knowledge/${knowledgeBaseId}/crawl`, {
         method: 'POST',
         body: JSON.stringify({ url: crawlUrl }),

@@ -17,7 +17,9 @@ describe('SmsCampaignIdeas', () => {
     fireEvent.click(
       screen.getByRole('button', { name: /see what happens next/i }),
     );
-    fireEvent.click(screen.getByRole('button', { name: /customize this draft/i }));
+    fireEvent.click(
+      screen.getByRole('button', { name: /customize this draft/i }),
+    );
 
     expect(onUseTemplate).toHaveBeenCalledTimes(1);
     expect(onUseTemplate.mock.calls[0][0]).toMatchObject({

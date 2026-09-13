@@ -141,7 +141,8 @@ export function speakingCadenceText(agent: {
   pace?: VoicePace;
   acknowledgements?: VoiceAcknowledgements;
 }): string {
-  const pace = agent.pace && VOICE_PACES.includes(agent.pace) ? agent.pace : 'moderate';
+  const pace =
+    agent.pace && VOICE_PACES.includes(agent.pace) ? agent.pace : 'moderate';
   const acknowledgements =
     agent.acknowledgements &&
     VOICE_ACKNOWLEDGEMENTS.includes(agent.acknowledgements)
