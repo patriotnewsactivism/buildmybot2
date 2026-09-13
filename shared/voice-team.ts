@@ -172,11 +172,23 @@ export function getTimeOfDayGreeting(
 }
 
 export function getReceptionistGreeting(
-  date = new Date(),
+  nameOrDate: string | Date = 'Avery',
+  dateOrTimeZone?: Date | string,
   timeZone = 'America/Chicago',
 ): string {
-  const salutation = getTimeOfDayGreeting(date, timeZone);
-  return `${salutation}, thank you for calling BuildMyBot, my name is Avery how can I help you.`;
+  let name = 'Avery';
+  let date = new Date();
+  let zone = timeZone;
+  if (typeof nameOrDate === 'string') {
+    name = nameOrDate.trim() || 'Avery';
+    if (dateOrTimeZone instanceof Date) date = dateOrTimeZone;
+    else if (typeof dateOrTimeZone === 'string') zone = dateOrTimeZone;
+  } else {
+    date = nameOrDate;
+    if (typeof dateOrTimeZone === 'string') zone = dateOrTimeZone;
+  }
+  const salutation = getTimeOfDayGreeting(date, zone);
+  return `${salutation}, thank you for calling BuildMyBot, my name is ${name} how can I help you.`;
 }
 
 export function createDefaultVoiceTeam(): VoiceTeam {
@@ -281,13 +293,20 @@ export function agentIdentity(
 }
 export function destinationDepartment(value: unknown): VoiceDepartment | null {
   // Existing admin routing remains compatible with the manager role.
-  if (value === 'admin') return 'manager';
+  if (value === 'admin' || value === 'owner' || value === 'escalation' || value === 'escalate' || value === 'complaint' || value === 'complaints' || value === 'cancel' || value === 'cancellation') {
+    return 'manager';
+  }
   if (
     value === 'careers' ||
     value === 'hr' ||
     value === 'recruiting_agent' ||
     value === 'recruitment' ||
-    value === 'sales_recruiting'
+    value === 'sales_recruiting' ||
+    value === 'employment' ||
+    value === 'job' ||
+    value === 'jobs' ||
+    value === 'hiring' ||
+    value === 'commission'
   ) {
     return 'recruiting';
   }
@@ -296,7 +315,9 @@ export function destinationDepartment(value: unknown): VoiceDepartment | null {
     value === 'partnerships' ||
     value === 'white_label' ||
     value === 'whitelabel' ||
-    value === 'reseller'
+    value === 'reseller' ||
+    value === 'agency' ||
+    value === 'partner_program'
   ) {
     return 'partner';
   }
@@ -306,7 +327,12 @@ export function destinationDepartment(value: unknown): VoiceDepartment | null {
     value === 'invoices' ||
     value === 'finance' ||
     value === 'payments' ||
-    value === 'collections'
+    value === 'collections' ||
+    value === 'refund' ||
+    value === 'refunds' ||
+    value === 'charge' ||
+    value === 'charges' ||
+    value === 'invoice'
   ) {
     return 'billing';
   }
@@ -314,9 +340,24 @@ export function destinationDepartment(value: unknown): VoiceDepartment | null {
     value === 'customer_care' ||
     value === 'customer_service' ||
     value === 'care' ||
-    value === 'helpdesk'
+    value === 'helpdesk' ||
+    value === 'help' ||
+    value === 'broken' ||
+    value === 'bug' ||
+    value === 'troubleshooting' ||
+    value === 'tech_support'
   ) {
     return 'support';
+  }
+  if (
+    value === 'pricing' ||
+    value === 'demo' ||
+    value === 'buy' ||
+    value === 'purchase' ||
+    value === 'quote' ||
+    value === 'business_fit'
+  ) {
+    return 'sales';
   }
   return DEPARTMENT_IDS.includes(value as VoiceDepartment)
     ? (value as VoiceDepartment)
@@ -363,7 +404,15 @@ export const VOICE_TEAM_ROUTING = `You are one member of a live phone staff team
 ${NO_AI_DISCLOSURE_RULE}
 ${OBJECTION_HANDLING_RULE}
 ${SPOKEN_CADENCE_RULE}
-When the caller needs another department, use route_department. Buying, product pricing, demos and business fit go to sales (a sales specialist will pick up — do not promise a specific first name). Becoming a sales agent, sales-agent procurement, commission structure, and sales careers go to recruiting (Jordan). The $499/mo Partner Program, white-labeling, agency licensing, and building an agency sales force go to partner (Julian). Existing product/account troubleshooting goes to customer care (Sophie). Invoices, charges, refunds, failed payments, and plan billing go to billing (Helen). Complaints, unresolved issues, explicit manager requests, retention risk and genuine unresolved commercial objections go to manager (Daniel). Existing-customer problems take priority over incidental sales language.
+When the caller needs another department, you MUST call route_department in the same turn as your handoff sentence — never promise a transfer without the tool, and never wait for the caller to say OK.
+Hard routing matrix (pick one destination; do not soft-promise a first name):
+- pricing, demos, buying, quotes, and business fit → sales
+- product broken, troubleshooting, account/config help → support (customer care)
+- invoices, charges, refunds, failed payments, plan billing → billing
+- becoming a sales agent, careers, commissions, employment/HR for sales roles → recruiting
+- $499 Partner Program, white-label, agency licensing, building a partner sales force → partner
+- escalate, owner request, complaints, cancellation risk, unresolved commercial objections → manager
+Existing-customer product problems take priority over incidental sales language. Billing money questions take priority over general support when the caller is asking about a charge.
 Reception intake before transfer (mandatory when you are the receptionist): do not call route_department until you have the caller's name, a usable contact (the number on the line is enough — do not ask them to confirm it), and what they are interested in / need. If a field is missing, ask for it briefly, then transfer.
 ${TRANSFER_EXECUTION_RULE}
 Pass callerName, reason/interest, company, any objection already heard, and a useful factual summary. The destination is a distinct teammate with their own voice and name. Never claim an outside human joined from another company line. Never route to your own department or repeatedly retry a failed handoff. If the caller explicitly asks for a different human / owner transfer beyond this staff team, use an authorized human-transfer tool or offer follow-up; the manager role is still a staff persona, not a guarantee of the business owner.

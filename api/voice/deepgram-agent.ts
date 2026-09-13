@@ -18,12 +18,12 @@ import {
 import { validTelnyxClientState } from '../phone/tenant-telnyx-token.js';
 import { loadVoiceTeamByBotId } from './team-store.js';
 import {
-  type SalesSeat,
+  type DepartmentSeat,
   buildAgentPrompt,
   deepgramSpeakProvider,
   defaultSharedContext,
   openingGreeting,
-  pickSalesSeat,
+  pickDepartmentSeat,
 } from './deepgram-team.js';
 import {
   type DeepgramToolContext,
@@ -149,7 +149,7 @@ export class DeepgramVoiceSession {
   private awaitingDestinationAudio = false;
   private holdTimer: ReturnType<typeof setInterval> | null = null;
   private holdOffsetMs = 0;
-  private salesSeat: SalesSeat | undefined;
+  private activeSeat: DepartmentSeat | undefined;
   private department: VoiceDepartment = 'receptionist';
   private pendingSpokenTransfer: VoiceDepartment | null = null;
   private lastRequestedDepartment: VoiceDepartment | null = null;
@@ -361,6 +361,12 @@ export class DeepgramVoiceSession {
   private sendDeepgramSettings(): void {
     if (this.settingsSent || this.dgWs?.readyState !== WebSocket.OPEN) return;
     this.settingsSent = true;
+    if (!this.activeSeat) {
+      this.activeSeat = pickDepartmentSeat(
+        this.department,
+        this.callControlId || this.toolContext.callerNumber || 'receptionist',
+      );
+    }
     const functions = getToolDeclarationsForDeepgram().map((tool) => {
       if (!DEFERRED_TOOL_NAMES.has(tool.name)) return tool;
       return { ...tool, defer_until_eot: true };
@@ -377,7 +383,7 @@ export class DeepgramVoiceSession {
         agent: {
           greeting: openingGreeting(
             this.department,
-            this.salesSeat,
+            this.activeSeat,
             this.team,
           ),
           listen: {
@@ -395,13 +401,13 @@ export class DeepgramVoiceSession {
               this.department,
               botName,
               this.callContext,
-              this.salesSeat,
+              this.activeSeat,
               this.team,
             ),
             functions,
           },
           speak: {
-            provider: deepgramSpeakProvider(this.department, this.salesSeat),
+            provider: deepgramSpeakProvider(this.department, this.activeSeat),
           },
         },
       }),
@@ -685,15 +691,15 @@ export class DeepgramVoiceSession {
     if (objection) this.callContext.objection = objection;
     this.beginHold();
     this.department = destination;
-    this.salesSeat =
-      destination === 'sales'
-        ? pickSalesSeat(this.callControlId || callerName || 'sales')
-        : undefined;
+    this.activeSeat = pickDepartmentSeat(
+      destination,
+      this.callControlId || callerName || destination,
+    );
     const botName = this.toolContext.botName || 'BuildMyBot';
     if (this.dgWs?.readyState === WebSocket.OPEN) {
       sendJson(this.dgWs, {
         type: 'UpdateSpeak',
-        speak: { provider: deepgramSpeakProvider(destination, this.salesSeat) },
+        speak: { provider: deepgramSpeakProvider(destination, this.activeSeat) },
       });
       sendJson(this.dgWs, {
         type: 'UpdatePrompt',
@@ -701,7 +707,7 @@ export class DeepgramVoiceSession {
           destination,
           botName,
           this.callContext,
-          this.salesSeat,
+          this.activeSeat,
           this.team,
         ),
       });
@@ -713,14 +719,14 @@ export class DeepgramVoiceSession {
     }
     sendJson(this.dgWs, {
       type: 'InjectAgentMessage',
-      message: openingGreeting(destination, this.salesSeat, this.team),
+      message: openingGreeting(destination, this.activeSeat, this.team),
     });
     this.awaitingDestinationAudio = true;
     this.markAgentSpeaking();
     return {
       ok: true,
       department: destination,
-      agent: this.salesSeat?.name || destination,
+      agent: this.activeSeat?.name || destination,
       hold_ms: TRANSFER_MIN_HOLD_MS,
     };
   }

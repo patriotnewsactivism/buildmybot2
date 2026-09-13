@@ -72,7 +72,13 @@ import {
   isDeepgramVoiceEnabled,
   parseJsonArguments,
 } from '../api/voice/deepgram-agent';
-import { SALES_SEATS, pickSalesSeat } from '../api/voice/deepgram-team';
+import {
+  DEPARTMENT_SEATS,
+  SALES_SEATS,
+  allSeatVoices,
+  pickDepartmentSeat,
+  pickSalesSeat,
+} from '../api/voice/deepgram-team';
 import { executeServerTool } from '../api/voice/deepgram-tools';
 import { MediaDiagnostics } from '../api/voice/media-diagnostics';
 import {
@@ -119,6 +125,30 @@ it('keeps two distinct sales-desk Flux voices', () => {
     'flux-brooke-en',
   ]);
   expect(pickSalesSeat('call0').id).not.toBe(pickSalesSeat('call1').id);
+  for (const department of [
+    'sales',
+    'support',
+    'manager',
+    'recruiting',
+    'partner',
+    'billing',
+  ] as const) {
+    expect(DEPARTMENT_SEATS[department].length).toBeGreaterThanOrEqual(2);
+  }
+  expect(DEPARTMENT_SEATS.receptionist.length).toBeGreaterThanOrEqual(2);
+  expect(DEPARTMENT_SEATS.receptionist.map((s) => s.id).sort()).toEqual([
+    'avery',
+    'riley',
+  ]);
+  expect(pickDepartmentSeat('receptionist', 'call0').id).not.toBe(
+    pickDepartmentSeat('receptionist', 'call1').id,
+  );
+  const voices = allSeatVoices();
+  expect(new Set(voices).size).toBe(voices.length);
+  expect(pickDepartmentSeat('partner', 'call0').id).not.toBe(
+    pickDepartmentSeat('partner', 'call1').id,
+  );
+  expect(pickDepartmentSeat('support', 'seed-a').name).toMatch(/Sophie|Nina/);
 });
 
 it('generates audible hold music rather than a thin pad', () => {
