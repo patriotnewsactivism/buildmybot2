@@ -5,6 +5,7 @@ import { appointmentSchema, contactSchema, programSchema, smsSegments, SMS_PLANS
 import { accountFor, contactFor, enqueue, ensureAccount, runWorker, saveAppointment, type Contact } from './runtime.js';
 import { authenticate, db, filter, requireLaunch, requireWorker, rpc, scoped, SmsError } from './store.js';
 import { createSmsCheckout } from './billing.js';
+import { smsKnowledge } from './knowledge.js';
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   try {
@@ -26,6 +27,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     }
     const user = await authenticate(req);
     await ensureAccount(user);
+    if (resource === 'knowledge') return smsKnowledge(req, res, user, id, action);
     if (resource === 'account') {
       if (req.method === 'GET') return res.json({ account: await accountFor(user.tenant), plans: SMS_PLANS, launchEnabled: process.env.SMS_LAUNCH_ENABLED === 'true' });
       if (req.method === 'PATCH') {
