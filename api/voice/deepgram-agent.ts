@@ -351,6 +351,12 @@ export class DeepgramVoiceSession {
   private sendDeepgramSettings(): void {
     if (this.settingsSent || this.dgWs?.readyState !== WebSocket.OPEN) return;
     this.settingsSent = true;
+    if (!this.activeSeat) {
+      this.activeSeat = pickDepartmentSeat(
+        this.department,
+        this.callControlId || this.toolContext.callerNumber || 'receptionist',
+      );
+    }
     const functions = getToolDeclarationsForDeepgram().map((tool) => {
       if (!DEFERRED_TOOL_NAMES.has(tool.name)) return tool;
       return { ...tool, defer_until_eot: true };
