@@ -135,6 +135,14 @@ it('keeps two distinct sales-desk Flux voices', () => {
   ] as const) {
     expect(DEPARTMENT_SEATS[department].length).toBeGreaterThanOrEqual(2);
   }
+  expect(DEPARTMENT_SEATS.receptionist.length).toBeGreaterThanOrEqual(2);
+  expect(DEPARTMENT_SEATS.receptionist.map((s) => s.id).sort()).toEqual([
+    'avery',
+    'riley',
+  ]);
+  expect(pickDepartmentSeat('receptionist', 'call0').id).not.toBe(
+    pickDepartmentSeat('receptionist', 'call1').id,
+  );
   const voices = allSeatVoices();
   expect(new Set(voices).size).toBe(voices.length);
   expect(pickDepartmentSeat('partner', 'call0').id).not.toBe(
