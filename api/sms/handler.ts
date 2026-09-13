@@ -48,14 +48,17 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       }
       if (req.method === 'PATCH') {
         const input = z.object({ businessName: z.string().trim().min(1).max(160), timezone: timezoneSchema,
-          spendLimit: z.number().min(0).max(1000), aiEnabled: z.boolean(), knowledgeBaseId: z.uuid().nullable().optional(),
+          spendLimit: z.number().min(0).max(1000), aiEnabled: z.boolean().optional(), knowledgeBaseId: z.uuid().nullable().optional(),
           quietStart: z.number().int().min(9).max(19).default(9), quietEnd: z.number().int().min(10).max(20).default(20),
         }).refine(v => v.quietStart < v.quietEnd, 'Quiet-hour range is invalid').parse(body);
         if (input.knowledgeBaseId) {
           const owned = await db<unknown[]>(`business_knowledge_bases?${scoped(user.tenant, { id: `eq.${input.knowledgeBaseId}` })}`);
           if (!owned.length) throw new SmsError(404, 'Knowledge base not found');
         }
-        return res.json(await db(`sms_accounts?${scoped(user.tenant)}`, 'PATCH', { business_name: input.businessName, timezone: input.timezone, spend_limit_micros: Math.round(input.spendLimit * 1000000), ai_enabled: input.aiEnabled, knowledge_base_id: input.knowledgeBaseId || null, quiet_start: input.quietStart, quiet_end: input.quietEnd }));
+        const patch: Record<string, unknown> = { business_name: input.businessName, timezone: input.timezone, spend_limit_micros: Math.round(input.spendLimit * 1000000), quiet_start: input.quietStart, quiet_end: input.quietEnd };
+        if (input.aiEnabled !== undefined) patch.ai_enabled = input.aiEnabled;
+        if (input.knowledgeBaseId !== undefined) patch.knowledge_base_id = input.knowledgeBaseId;
+        return res.json(await db(`sms_accounts?${scoped(user.tenant)}`, 'PATCH', patch));
       }
     }
     if (resource === 'checkout' && req.method === 'POST') {

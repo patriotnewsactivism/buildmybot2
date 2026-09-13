@@ -22,6 +22,7 @@ import {
 } from '../../constants';
 import { SEO, SEOConfig } from '../SEO/SEO';
 import { DigitalSignageShowcase } from './DigitalSignageShowcase';
+import { SmsCampaignIdeas } from './SmsCampaignIdeas';
 
 const CAPABILITIES = [
   {
@@ -225,6 +226,9 @@ export function SmsMarketingLandingPage() {
         </section>
 
         <DigitalSignageShowcase />
+        <div className="mx-auto max-w-7xl px-5 py-12 sm:px-8">
+          <SmsCampaignIdeas />
+        </div>
 
         <section className="border-y border-white/10 bg-white/[0.03]">
           <div className="mx-auto grid max-w-7xl grid-cols-2 gap-px px-5 py-8 sm:grid-cols-4 sm:px-8">

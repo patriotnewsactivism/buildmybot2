@@ -33,7 +33,6 @@ export const SmsProgramsPanel: React.FC<{
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [editing, setEditing] = useState<ProgramRow | 'new' | null>(null);
-  const [template, setTemplate] = useState<Partial<SmsProgram> | undefined>();
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {

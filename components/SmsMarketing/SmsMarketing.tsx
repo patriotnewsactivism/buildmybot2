@@ -495,7 +495,7 @@ export const SmsMarketing: React.FC = () => {
         }}
       />
 
-      <SmsKnowledgePanel />
+      {!registered && <SmsKnowledgePanel businessName={form.companyName} />}
 
       <div className="rounded-lg border border-gray-200 bg-white p-5">
         <h2 className="mb-3 text-lg font-semibold text-gray-900">
