@@ -208,6 +208,34 @@ export async function releaseNumber(providerNumberId: string): Promise<void> {
   });
 }
 
+/** Attach an already-owned Telnyx number to the SMS messaging profile. */
+export async function assignNumberMessagingProfile(phoneNumber: string): Promise<{
+  providerNumberId: string;
+  phoneNumber: string;
+}> {
+  const messagingProfileId = process.env.TELNYX_MESSAGING_PROFILE_ID;
+  if (!messagingProfileId) {
+    throw new Error('TELNYX_MESSAGING_PROFILE_ID is not configured');
+  }
+  const listed = await telnyxRequest<{
+    data: Array<{ id: string; phone_number: string }>;
+  }>(
+    `/phone_numbers?${new URLSearchParams({ 'filter[phone_number]': phoneNumber })}`,
+  );
+  const record = listed.data?.[0];
+  if (!record?.id) {
+    throw new Error('Existing number was not found on the provider account');
+  }
+  await telnyxRequest(`/phone_numbers/${encodeURIComponent(record.id)}/messaging`, {
+    method: 'PATCH',
+    body: JSON.stringify({ messaging_profile_id: messagingProfileId }),
+  });
+  return {
+    providerNumberId: record.id,
+    phoneNumber: record.phone_number || phoneNumber,
+  };
+}
+
 /**
  * Ask Telnyx to start bidirectional media streaming for an in-progress call
  * to our own WebSocket endpoint. This is the Call Control equivalent of

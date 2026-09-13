@@ -11,9 +11,12 @@ import WebSocket from 'ws';
 import {
   type SharedCallContext,
   type VoiceDepartment,
+  type VoiceTeam,
+  createDefaultVoiceTeam,
   destinationDepartment,
 } from '../../shared/voice-team.js';
 import { validTelnyxClientState } from '../phone/tenant-telnyx-token.js';
+import { loadVoiceTeamByBotId } from './team-store.js';
 import {
   type SalesSeat,
   buildAgentPrompt,
@@ -142,6 +145,7 @@ export class DeepgramVoiceSession {
   private holdOffsetMs = 0;
   private salesSeat: SalesSeat | undefined;
   private department: VoiceDepartment = 'receptionist';
+  private team: VoiceTeam = createDefaultVoiceTeam();
   private callContext: SharedCallContext;
   private readonly pendingInbound: Buffer[] = [];
   private pendingInboundBytes = 0;
@@ -361,7 +365,11 @@ export class DeepgramVoiceSession {
           output: { encoding: 'mulaw', sample_rate: 8000, container: 'none' },
         },
         agent: {
-          greeting: openingGreeting(this.department, this.salesSeat),
+          greeting: openingGreeting(
+            this.department,
+            this.salesSeat,
+            this.team,
+          ),
           listen: {
             provider: {
               type: 'deepgram',
@@ -378,6 +386,7 @@ export class DeepgramVoiceSession {
               botName,
               this.callContext,
               this.salesSeat,
+              this.team,
             ),
             functions,
           },
@@ -390,39 +399,11 @@ export class DeepgramVoiceSession {
   }
 
   private setupTelnyx(): void {
-    this.telnyxWs.on('message', (raw: WebSocket.RawData, isBinary: boolean) => {
-      if (isBinary) {
-        console.warn('[Telnyx Media] Unexpected binary WebSocket frame.');
-        return;
-      }
-      let message:
-        | TelnyxMediaMessage
-        | TelnyxStartMessage
-        | Record<string, unknown>;
-      try {
-        message = JSON.parse(rawDataToBuffer(raw).toString('utf8')) as
-          | TelnyxMediaMessage
-          | TelnyxStartMessage
-          | Record<string, unknown>;
-      } catch (error) {
-        console.error('[Telnyx Media] Invalid JSON frame:', error);
-        return;
-      }
-      if (message.event === 'start') {
-        this.handleTelnyxStart(message as TelnyxStartMessage);
-        return;
-      }
-      if (message.event === 'media') {
-        this.handleTelnyxMedia(message as TelnyxMediaMessage);
-        return;
-      }
-      if (message.event === 'stop') {
-        this.cleanup();
-        return;
-      }
-      if (message.event === 'error')
-        console.error('[Telnyx Media] Stream error:', message);
-    });
+    this.telnyxWs.on(
+      'message',
+      (raw: WebSocket.RawData, isBinary: boolean) =>
+        this.handleTelnyxSocketMessage(raw, isBinary),
+    );
     this.telnyxWs.on('error', (error) => {
       console.error('[Telnyx Media] WebSocket error:', error);
       this.cleanup();
@@ -430,7 +411,58 @@ export class DeepgramVoiceSession {
     this.telnyxWs.on('close', () => this.cleanup());
   }
 
-  private handleTelnyxStart(message: TelnyxStartMessage): void {
+  private async handleTelnyxSocketMessage(
+    raw: WebSocket.RawData,
+    isBinary: boolean,
+  ): Promise<void> {
+    if (isBinary) {
+      console.warn('[Telnyx Media] Unexpected binary WebSocket frame.');
+      return;
+    }
+    let message:
+      | TelnyxMediaMessage
+      | TelnyxStartMessage
+      | Record<string, unknown>;
+    try {
+      message = JSON.parse(rawDataToBuffer(raw).toString('utf8')) as
+        | TelnyxMediaMessage
+        | TelnyxStartMessage
+        | Record<string, unknown>;
+    } catch (error) {
+      console.error('[Telnyx Media] Invalid JSON frame:', error);
+      return;
+    }
+    if (message.event === 'start') {
+      await this.handleTelnyxStart(message as TelnyxStartMessage);
+      return;
+    }
+    if (message.event === 'media') {
+      this.handleTelnyxMedia(message as TelnyxMediaMessage);
+      return;
+    }
+    if (message.event === 'stop') {
+      this.cleanup();
+      return;
+    }
+    if (message.event === 'error')
+      console.error('[Telnyx Media] Stream error:', message);
+  }
+
+  private async resolveSavedTeam(botId: string): Promise<void> {
+    try {
+      const loaded = await loadVoiceTeamByBotId(botId);
+      this.team = loaded.config;
+      this.toolContext.botName = loaded.botName;
+    } catch (error) {
+      console.warn(
+        '[Deepgram Agent] Saved Voice Team unavailable; using defaults.',
+        error instanceof Error ? error.message : error,
+      );
+      this.team = createDefaultVoiceTeam();
+    }
+  }
+
+  private async handleTelnyxStart(message: TelnyxStartMessage): Promise<void> {
     const start = message.start;
     const callControlId = start?.call_control_id || this.callControlId;
     const clientState = start?.client_state || '';
@@ -447,6 +479,7 @@ export class DeepgramVoiceSession {
         this.cleanup();
         return;
       }
+      await this.resolveSavedTeam(state.botId);
     } else if (!callControlId) {
       console.error(
         '[Deepgram Agent] Missing call_control_id on start; closing media.',
@@ -658,6 +691,7 @@ export class DeepgramVoiceSession {
           botName,
           this.callContext,
           this.salesSeat,
+          this.team,
         ),
       });
     }
@@ -668,7 +702,7 @@ export class DeepgramVoiceSession {
     }
     sendJson(this.dgWs, {
       type: 'InjectAgentMessage',
-      message: openingGreeting(destination, this.salesSeat),
+      message: openingGreeting(destination, this.salesSeat, this.team),
     });
     this.awaitingDestinationAudio = true;
     this.markAgentSpeaking();

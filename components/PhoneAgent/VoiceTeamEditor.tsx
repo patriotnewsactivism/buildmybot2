@@ -5,7 +5,13 @@ import {
   DEPARTMENT_IDS,
   DEPARTMENT_LABELS,
   LIVE_VOICES,
+  VOICE_ACKNOWLEDGEMENTS,
+  VOICE_ACK_LABELS,
+  VOICE_PACES,
+  VOICE_PACE_LABELS,
+  type VoiceAcknowledgements,
   type VoiceDepartment,
+  type VoicePace,
   type VoiceTeam,
   type VoiceTeamAgent,
   createDefaultVoiceTeam,
@@ -255,6 +261,54 @@ export function VoiceTeamEditor({ botId }: { botId: string }) {
                       {issue.message}
                     </p>
                   ))}
+                  <fieldset className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-3">
+                    <legend className="px-1 text-sm font-medium text-slate-800">
+                      Conversation realism
+                    </legend>
+                    <p className="text-xs text-slate-500">
+                      Pace and acknowledgements change how this person sounds on
+                      live calls. They do not change the voice itself.
+                    </p>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <label className="block text-sm text-slate-700">
+                        Pace
+                        <select
+                          value={agent.pace}
+                          onChange={(e) =>
+                            update(department, {
+                              pace: e.target.value as VoicePace,
+                            })
+                          }
+                          className="mt-1 block w-full rounded-lg border border-slate-300 bg-white p-2"
+                        >
+                          {VOICE_PACES.map((pace) => (
+                            <option key={pace} value={pace}>
+                              {VOICE_PACE_LABELS[pace]}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="block text-sm text-slate-700">
+                        Acknowledgements
+                        <select
+                          value={agent.acknowledgements}
+                          onChange={(e) =>
+                            update(department, {
+                              acknowledgements: e.target
+                                .value as VoiceAcknowledgements,
+                            })
+                          }
+                          className="mt-1 block w-full rounded-lg border border-slate-300 bg-white p-2"
+                        >
+                          {VOICE_ACKNOWLEDGEMENTS.map((style) => (
+                            <option key={style} value={style}>
+                              {VOICE_ACK_LABELS[style]}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+                  </fieldset>
                   <label className="block text-sm text-slate-700">
                     Speaking style
                     <textarea

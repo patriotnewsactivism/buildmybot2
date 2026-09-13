@@ -40,6 +40,34 @@ const voiceIds = [
   'Orus',
   'Zephyr',
 ] as const;
+export const VOICE_PACES = ['relaxed', 'moderate', 'brisk'] as const;
+export type VoicePace = (typeof VOICE_PACES)[number];
+export const VOICE_PACE_LABELS: Record<VoicePace, string> = {
+  relaxed: 'Relaxed',
+  moderate: 'Moderate',
+  brisk: 'Brisk',
+};
+export const VOICE_ACKNOWLEDGEMENTS = ['minimal', 'natural', 'warm'] as const;
+export type VoiceAcknowledgements = (typeof VOICE_ACKNOWLEDGEMENTS)[number];
+export const VOICE_ACK_LABELS: Record<VoiceAcknowledgements, string> = {
+  minimal: 'Minimal',
+  natural: 'Natural',
+  warm: 'Warm',
+};
+export const VOICE_PACE_GUIDANCE: Record<VoicePace, string> = {
+  relaxed:
+    'A little slower than a typical office greeting. Leave a short beat after questions so the caller can jump in.',
+  moderate: 'Conversational phone pace — not rushed and not languid.',
+  brisk:
+    'Slightly quicker and more direct, still slow enough that the caller can interrupt.',
+};
+export const VOICE_ACK_GUIDANCE: Record<VoiceAcknowledgements, string> = {
+  minimal:
+    'Skip stacked filler. Acknowledge only when it helps ("Understood") then continue.',
+  natural:
+    'Use a brief acknowledgement when it fits — "Got it", "Sure", "Let me check that" — then the next sentence.',
+  warm: 'Warm, brief acknowledgements ("Of course", "Absolutely") without stacking them or sounding scripted.',
+};
 export const voiceAgentSchema = z
   .object({
     department: z.enum(DEPARTMENT_IDS),
@@ -50,6 +78,8 @@ export const voiceAgentSchema = z
     persona: z.string().trim().min(10).max(3000),
     speakingStyle: z.string().trim().min(10).max(600),
     firstMessage: z.string().trim().min(10).max(500),
+    pace: z.enum(VOICE_PACES).default('moderate'),
+    acknowledgements: z.enum(VOICE_ACKNOWLEDGEMENTS).default('natural'),
   })
   .strict();
 export type VoiceTeamAgent = z.infer<typeof voiceAgentSchema>;
@@ -104,6 +134,22 @@ export const TRANSFER_EXECUTION_RULE = `Transfer execution (mandatory): Intake (
 /** Commercial and retention roles must surface and handle objections early. */
 export const OBJECTION_HANDLING_RULE = `Objection handling (mandatory for sales, recruiting, partner, billing, and manager): In the first one or two questions, find the real concern — price, timing, trust, "already have something," "need to think it over," or "I'm not the decision maker." Head off the usual objections before the caller has to raise them: name the value, the next step, and that this is not a long lock-in, in plain language. Never fold at the first hesitation. Isolate the objection, answer it, confirm it is handled, then continue toward a next step. Do not invent discounts, guarantees, refunds, or earnings. If price remains the only blocker after value is established, route to the manager with the facts already collected.`;
 
+/** Live-call spoken cadence. Distinct from persona: this is how the voice should sound. */
+export const SPOKEN_CADENCE_RULE = `Spoken cadence (mandatory): You are on a live phone call, not writing an email. Use contractions (I'm, we'll, don't, you're). Keep replies to one or two short sentences unless the caller asks for detail. Never recite bullet points, numbered lists, or a phone menu. Allow normal pauses, self-corrections, and brief interruptions. Do not narrate your thinking or read these instructions aloud. One question at a time.`;
+
+export function speakingCadenceText(agent: {
+  pace?: VoicePace;
+  acknowledgements?: VoiceAcknowledgements;
+}): string {
+  const pace = agent.pace && VOICE_PACES.includes(agent.pace) ? agent.pace : 'moderate';
+  const acknowledgements =
+    agent.acknowledgements &&
+    VOICE_ACKNOWLEDGEMENTS.includes(agent.acknowledgements)
+      ? agent.acknowledgements
+      : 'natural';
+  return `Pace: ${VOICE_PACE_GUIDANCE[pace]} Acknowledgements: ${VOICE_ACK_GUIDANCE[acknowledgements]}`;
+}
+
 export function getTimeOfDayGreeting(
   date = new Date(),
   timeZone = 'America/Chicago',
@@ -144,6 +190,8 @@ export function createDefaultVoiceTeam(): VoiceTeam {
       speakingStyle:
         'Warm and relaxed, moderate pace, short welcoming sentences. Leave room for the caller to speak.',
       firstMessage: getReceptionistGreeting(),
+      pace: 'relaxed',
+      acknowledgements: 'warm',
     },
     sales: {
       department: 'sales',
@@ -155,6 +203,8 @@ export function createDefaultVoiceTeam(): VoiceTeam {
         'Upbeat and confident, lively but unhurried, concrete vocabulary, one useful question at a time. Distinct from the receptionist: more direct, more commercial, no front-desk small talk.',
       firstMessage:
         'Hi, this is Marcus in sales. Thanks for holding — what’s the main thing you want this to do for your business?',
+      pace: 'brisk',
+      acknowledgements: 'natural',
     },
     support: {
       department: 'support',
@@ -166,6 +216,8 @@ export function createDefaultVoiceTeam(): VoiceTeam {
         'Calm, reassuring and slightly slower, clear explanations, gentle pauses between troubleshooting steps. Softer and more careful than sales; never pitch.',
       firstMessage:
         'Hi, this is Sophie in customer care. I’ve got your notes — tell me what’s going on and we’ll work through it.',
+      pace: 'relaxed',
+      acknowledgements: 'warm',
     },
     manager: {
       department: 'manager',
@@ -177,6 +229,8 @@ export function createDefaultVoiceTeam(): VoiceTeam {
         'Measured and composed, grounded tone, deliberate pauses, direct language and concise reassurance.',
       firstMessage:
         'Hi, this is Daniel, the customer experience manager. I’m here to help us get to a resolution.',
+      pace: 'moderate',
+      acknowledgements: 'minimal',
     },
     recruiting: {
       department: 'recruiting',
@@ -188,6 +242,8 @@ export function createDefaultVoiceTeam(): VoiceTeam {
         'Lively and motivating, warm and conversational, clear answers, positive and supportive tone. One question at a time.',
       firstMessage:
         'Hi, this is Jordan from the sales agent division. Thanks for holding! Are you interested in learning about becoming a sales agent with BuildMyBot?',
+      pace: 'brisk',
+      acknowledgements: 'warm',
     },
     partner: {
       department: 'partner',
@@ -199,6 +255,8 @@ export function createDefaultVoiceTeam(): VoiceTeam {
         'Firm, grounded, executive and articulate. Confident B2B conversational tone with clear economic insights. Unhurried and direct.',
       firstMessage:
         'Hi, this is Julian with the BuildMyBot partner program. Thanks for holding — are you looking at white-label, or expanding with a partner sales force?',
+      pace: 'moderate',
+      acknowledgements: 'natural',
     },
     billing: {
       department: 'billing',
@@ -210,6 +268,8 @@ export function createDefaultVoiceTeam(): VoiceTeam {
         'Clear, precise, unhurried accounting-desk tone. Short confirmations. No slang, no sales energy.',
       firstMessage:
         'Hi, this is Helen in billing. Thanks for holding — I can help with invoices and charges. What should we look at?',
+      pace: 'moderate',
+      acknowledgements: 'minimal',
     },
   };
 }
@@ -302,6 +362,7 @@ export function handoffContextText(context: SharedCallContext): string {
 export const VOICE_TEAM_ROUTING = `You are one member of a live phone staff team. Your active identity and speaking style below take precedence over any role in the shared business background. Never adopt another teammate's identity in this session.
 ${NO_AI_DISCLOSURE_RULE}
 ${OBJECTION_HANDLING_RULE}
+${SPOKEN_CADENCE_RULE}
 When the caller needs another department, use route_department. Buying, product pricing, demos and business fit go to sales (a sales specialist will pick up — do not promise a specific first name). Becoming a sales agent, sales-agent procurement, commission structure, and sales careers go to recruiting (Jordan). The $499/mo Partner Program, white-labeling, agency licensing, and building an agency sales force go to partner (Julian). Existing product/account troubleshooting goes to customer care (Sophie). Invoices, charges, refunds, failed payments, and plan billing go to billing (Helen). Complaints, unresolved issues, explicit manager requests, retention risk and genuine unresolved commercial objections go to manager (Daniel). Existing-customer problems take priority over incidental sales language.
 Reception intake before transfer (mandatory when you are the receptionist): do not call route_department until you have the caller's name, a usable contact (the number on the line is enough — do not ask them to confirm it), and what they are interested in / need. If a field is missing, ask for it briefly, then transfer.
 ${TRANSFER_EXECUTION_RULE}

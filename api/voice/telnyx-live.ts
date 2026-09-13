@@ -20,6 +20,7 @@ import {
   destinationDepartment,
   getReceptionistGreeting,
   handoffContextText,
+  speakingCadenceText,
 } from '../../shared/voice-team.js';
 import { departmentInstructions } from '../phone/corporate-routing.js';
 import {
@@ -490,9 +491,8 @@ function buildSystemInstruction(context: SessionContext): string {
       ? 'All outbound calls need separate owner approval. Capture callback requests without promising a callback time or initiating a call.'
       : '',
     context.outboundObjective || '',
-    'Speak naturally and concisely in a relaxed, conversational phone cadence. Keep responses brief (typically one or two sentences).',
-    'Use natural conversational contractions ("I\'m", "we\'ll", "don\'t", "you\'re") and brief verbal acknowledgements ("Got it", "Understood", "Sure thing", "Let me check that").',
-    'Allow normal pauses, corrections, filler words, and brief phone interruptions. Never sound robotic, recite bullet points, or sound like a recorded phone menu.',
+    speakingCadenceText(agent),
+    'Never sound robotic, recite bullet points, or sound like a recorded phone menu.',
     'Never claim that a transfer, appointment, CRM update, text message, payment, or any external action succeeded unless the matching tool returned success.',
     'Use search_business_knowledge for business-specific facts that are not already explicit in your instructions.',
     'Use capture_lead when the caller provides usable contact information or shows meaningful buying intent.',

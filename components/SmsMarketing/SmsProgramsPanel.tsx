@@ -1,7 +1,7 @@
 import type React from 'react';
 import { useCallback, useEffect, useState } from 'react';
 import { buildApiUrl } from '../../services/apiConfig';
-import type { SmsProgram } from '../../shared/sms';
+import { KIND_LABELS, type SmsProgram } from '../../shared/sms';
 import { SmsProgramForm } from './SmsProgramForm';
 
 type ProgramRow = {
@@ -25,11 +25,15 @@ async function smsFetch(path: string, init?: RequestInit) {
 }
 
 /** Displays tenant SMS programs and coordinates their editing and status changes. */
-export const SmsProgramsPanel: React.FC = () => {
+export const SmsProgramsPanel: React.FC<{
+  seedDraft?: Partial<SmsProgram> | null;
+  onSeedConsumed?: () => void;
+}> = ({ seedDraft, onSeedConsumed }) => {
   const [rows, setRows] = useState<ProgramRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [editing, setEditing] = useState<ProgramRow | 'new' | null>(null);
+  const [template, setTemplate] = useState<Partial<SmsProgram> | undefined>();
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -49,6 +53,10 @@ export const SmsProgramsPanel: React.FC = () => {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    if (seedDraft) setEditing('new');
+  }, [seedDraft]);
+
   const save = async (program: SmsProgram) => {
     setBusy(true);
     try {
@@ -58,6 +66,7 @@ export const SmsProgramsPanel: React.FC = () => {
         body: JSON.stringify(program),
       });
       setEditing(null);
+      onSeedConsumed?.();
       await load();
     } finally {
       setBusy(false);
@@ -87,16 +96,24 @@ export const SmsProgramsPanel: React.FC = () => {
   if (editing) {
     const initial =
       editing === 'new'
-        ? undefined
+        ? seedDraft || undefined
         : {
             ...(editing.config || (editing as unknown as SmsProgram)),
             id: editing.id,
           };
     return (
       <SmsProgramForm
+        key={
+          editing === 'new'
+            ? `new-${seedDraft?.keyword || seedDraft?.name || 'blank'}`
+            : editing.id
+        }
         initial={initial}
         busy={busy}
-        onCancel={() => setEditing(null)}
+        onCancel={() => {
+          setEditing(null);
+          onSeedConsumed?.();
+        }}
         onSubmit={save}
       />
     );
@@ -132,7 +149,9 @@ export const SmsProgramsPanel: React.FC = () => {
               <div className="min-w-0 flex-1">
                 <p className="font-medium text-gray-900">{row.name}</p>
                 <p className="text-xs text-gray-500">
-                  {KIND_LABELS[row.kind] || row.kind} · {row.status}
+                  {(KIND_LABELS as Record<string, string>)[row.kind] ||
+                    row.kind}{' '}
+                  · {row.status}
                 </p>
               </div>
               <button

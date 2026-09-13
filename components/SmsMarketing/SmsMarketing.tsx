@@ -10,16 +10,19 @@ import {
 } from 'lucide-react';
 import type React from 'react';
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   SMS_MARKETING_PRICING,
   SMS_MARKETING_REGISTRATION_FEE,
 } from '../../constants';
 import { buildApiUrl } from '../../services/apiConfig';
-import { DigitalSignageShowcase } from './DigitalSignageShowcase';
+import type { SmsProgram } from '../../shared/sms';
 import { SmsAccountSettings } from './SmsAccountSettings';
 import { SmsAppointmentsPanel } from './SmsAppointmentsPanel';
+import { SmsCampaignIdeas } from './SmsCampaignIdeas';
 import { SmsContactsPanel } from './SmsContactsPanel';
 import { SmsInboxPanel } from './SmsInboxPanel';
+import { SmsKnowledgePanel } from './SmsKnowledgePanel';
 import { SmsProgramsPanel } from './SmsProgramsPanel';
 
 /**
@@ -81,6 +84,7 @@ interface FormState {
   helpMessage: string;
   privacyPolicyLink: string;
   termsAndConditionsLink: string;
+  existingNumber: string;
 }
 
 const EMPTY_FORM: FormState = {
@@ -104,6 +108,7 @@ const EMPTY_FORM: FormState = {
   helpMessage: '',
   privacyPolicyLink: '',
   termsAndConditionsLink: '',
+  existingNumber: '',
 };
 
 /** The shape GET /api/sms/register actually returns. */
@@ -120,6 +125,17 @@ interface RegistrationStatus {
   step?: string;
   error?: string | null;
   smsReady?: boolean;
+  paid?: boolean;
+  paidUntil?: string | null;
+  sender?: string | null;
+  knowledgeBaseId?: string | null;
+  eligibleVoiceNumbers?: Array<{
+    phoneNumber: string;
+    provider: string;
+    friendlyName: string | null;
+    reusableForSms: boolean;
+    reason: string;
+  }>;
 }
 
 /** Carrier vertical codes Telnyx accepts for 10DLC brands. */
@@ -235,6 +251,7 @@ function StatusPanel({
 
 /** Guides a tenant through SMS registration and provides program management tabs. */
 export const SmsMarketing: React.FC = () => {
+  const [searchParams] = useSearchParams();
   const [status, setStatus] = useState<RegistrationStatus | null>(null);
   const [loadingStatus, setLoadingStatus] = useState(true);
   const [step, setStep] = useState<WizardStep>(1);
@@ -242,6 +259,9 @@ export const SmsMarketing: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [tab, setTab] = useState<DashTab>('programs');
+  const [checkoutBusy, setCheckoutBusy] = useState(false);
+  const [seedDraft, setSeedDraft] = useState<Partial<SmsProgram> | null>(null);
+  const payment = searchParams.get('payment');
 
   const loadStatus = async () => {
     setLoadingStatus(true);
@@ -260,6 +280,15 @@ export const SmsMarketing: React.FC = () => {
   useEffect(() => {
     loadStatus();
   }, []);
+
+  useEffect(() => {
+    const ready = status?.status === 'ready' || status?.smsReady === true;
+    if (!status?.registered || ready) return;
+    const timer = window.setInterval(() => {
+      void loadStatus();
+    }, 20000);
+    return () => window.clearInterval(timer);
+  }, [status?.registered, status?.status, status?.smsReady]);
 
   const update =
     (field: keyof FormState) =>
@@ -292,7 +321,7 @@ export const SmsMarketing: React.FC = () => {
         form.city.trim().length >= 2 &&
         form.state.trim().length === 2 &&
         /^\d{5}(-\d{4})?$/.test(form.postalCode) &&
-        /^\d{3}$/.test(form.areaCode)
+        (Boolean(form.existingNumber) || /^\d{3}$/.test(form.areaCode))
       );
     }
     if (target === 3) {
@@ -323,7 +352,13 @@ export const SmsMarketing: React.FC = () => {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          existingNumber: form.existingNumber || undefined,
+          areaCode: form.existingNumber
+            ? form.existingNumber.replace(/\D/g, '').slice(1, 4)
+            : form.areaCode,
+        }),
       });
       const data = await response.json();
       if (!response.ok) {
@@ -338,7 +373,74 @@ export const SmsMarketing: React.FC = () => {
     }
   };
 
+  const startCheckout = async (planKey: string) => {
+    if (form.companyName.trim().length < 2) {
+      setError('Enter your legal business name before checkout.');
+      setStep(1);
+      return;
+    }
+    setCheckoutBusy(true);
+    setError('');
+    try {
+      const currentRes = await fetch(buildApiUrl('/sms/account'), {
+        credentials: 'include',
+      });
+      const current = currentRes.ok ? await currentRes.json() : {};
+      const account = current.account || {};
+      const saved = await fetch(buildApiUrl('/sms/account'), {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          businessName: form.companyName,
+          timezone: account.timezone || 'America/Chicago',
+          spendLimit:
+            typeof account.spend_limit_micros === 'number'
+              ? account.spend_limit_micros / 1_000_000
+              : 50,
+          aiEnabled: Boolean(account.ai_enabled),
+          knowledgeBaseId: account.knowledge_base_id || null,
+          quietStart: account.quiet_start ?? 9,
+          quietEnd: account.quiet_end ?? 20,
+        }),
+      });
+      if (!saved.ok) {
+        const failed = await saved.json().catch(() => ({}));
+        setError(failed.error || 'Could not save the business name');
+        return;
+      }
+      const response = await fetch(buildApiUrl('/sms/checkout'), {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan: planKey }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setError(data.error || 'Checkout failed');
+        return;
+      }
+      if (data.url) {
+        window.location.href = data.url;
+        return;
+      }
+      setError('Checkout URL missing');
+    } catch {
+      setError('Network error — please try again.');
+    } finally {
+      setCheckoutBusy(false);
+    }
+  };
+
   const registered = status?.registered === true;
+  const paid = status?.paid === true;
+  const setupSteps = [
+    ['Knowledge', Boolean(status?.knowledgeBaseId)],
+    ['Pay', paid],
+    ['Register', registered],
+    ['Number', Boolean(status?.sender || status?.step === 'assignment')],
+    ['Launch', status?.smsReady === true || status?.status === 'ready'],
+  ] as const;
 
   return (
     <div className="mx-auto max-w-5xl space-y-8 p-6">
@@ -356,10 +458,66 @@ export const SmsMarketing: React.FC = () => {
         </p>
       </div>
 
-      <DigitalSignageShowcase variant="studio" />
+      <ol className="grid gap-2 sm:grid-cols-5">
+        {setupSteps.map(([label, done], index) => (
+          <li
+            key={label}
+            className={`rounded-md border px-3 py-2 text-sm ${
+              done
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                : 'border-gray-200 bg-white text-gray-600'
+            }`}
+          >
+            <span className="mr-2 font-semibold">{index + 1}.</span>
+            {label}
+            {done ? ' ✓' : ''}
+          </li>
+        ))}
+      </ol>
+
+      {payment === 'complete' && (
+        <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+          Payment received. Continue with carrier registration below — checkout
+          no longer blocks the rest of setup.
+        </p>
+      )}
+      {payment === 'cancelled' && (
+        <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          Checkout was cancelled. You can pick a plan again whenever you are
+          ready.
+        </p>
+      )}
+
+      <SmsCampaignIdeas
+        onUseTemplate={(draft) => {
+          setSeedDraft(draft);
+          setTab('programs');
+        }}
+      />
+
+      <SmsKnowledgePanel />
 
       <div className="rounded-lg border border-gray-200 bg-white p-5">
-        <h2 className="mb-3 text-lg font-semibold text-gray-900">Plans</h2>
+        <h2 className="mb-3 text-lg font-semibold text-gray-900">
+          {paid ? 'Plan' : '1. Choose a plan and pay'}
+        </h2>
+        {!paid && (
+          <p className="mb-3 text-sm text-gray-600">
+            Carriers will not accept a campaign until the first month and
+            registration fee are paid. Enter your legal business name, then
+            pick a plan.
+          </p>
+        )}
+        {!paid && (
+          <div className="mb-4 max-w-md">
+            <Field
+              label="Legal company name"
+              value={form.companyName}
+              onChange={update('companyName')}
+              required
+            />
+          </div>
+        )}
         <div className="grid gap-3 sm:grid-cols-3">
           {SMS_MARKETING_PRICING.map((plan) => (
             <div
@@ -373,6 +531,16 @@ export const SmsMarketing: React.FC = () => {
               <p className="mt-0.5 text-xs text-gray-500">
                 then ${plan.overagePerMessage.toFixed(3)}/msg
               </p>
+              {!paid && (
+                <button
+                  type="button"
+                  disabled={checkoutBusy}
+                  onClick={() => void startCheckout(plan.planKey)}
+                  className="mt-3 w-full rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-40"
+                >
+                  {checkoutBusy ? 'Starting checkout…' : `Start ${plan.name}`}
+                </button>
+              )}
             </div>
           ))}
         </div>
@@ -384,6 +552,11 @@ export const SmsMarketing: React.FC = () => {
           registration — for a limited time only. Non-refundable due to
           provisioning costs.
         </p>
+        {paid && status?.paidUntil && (
+          <p className="mt-2 text-sm text-emerald-700">
+            Paid through {new Date(status.paidUntil).toLocaleDateString()}.
+          </p>
+        )}
       </div>
 
       <div className="rounded-lg border border-gray-200 bg-white p-5">
@@ -396,14 +569,21 @@ export const SmsMarketing: React.FC = () => {
           </div>
         ) : registered && status ? (
           <StatusPanel status={status} onRefresh={loadStatus} />
+        ) : paid ? (
+          <p className="text-sm text-gray-500">
+            Paid — the {TOTAL_STEPS} steps below file your brand and assign a
+            number that can also take voice calls.
+          </p>
         ) : (
           <p className="text-sm text-gray-500">
-            Not registered yet — the {TOTAL_STEPS} steps below get you approved.
+            Pay the first month above, then we can file your business with the
+            carriers. Registration stays hidden until payment clears so you
+            never hit a dead end.
           </p>
         )}
       </div>
 
-      {registered && !loadingStatus && (
+      {(registered || paid) && !loadingStatus && (
         <div className="space-y-4">
           <div className="flex flex-wrap gap-2 border-b border-gray-200 pb-2">
             {(
@@ -430,7 +610,12 @@ export const SmsMarketing: React.FC = () => {
             ))}
           </div>
 
-          {tab === 'programs' && <SmsProgramsPanel />}
+          {tab === 'programs' && (
+            <SmsProgramsPanel
+              seedDraft={seedDraft}
+              onSeedConsumed={() => setSeedDraft(null)}
+            />
+          )}
           {tab === 'inbox' && <SmsInboxPanel />}
           {tab === 'contacts' && <SmsContactsPanel />}
           {tab === 'appointments' && <SmsAppointmentsPanel />}
@@ -438,7 +623,7 @@ export const SmsMarketing: React.FC = () => {
         </div>
       )}
 
-      {!registered && !loadingStatus && (
+      {paid && !registered && !loadingStatus && (
         <div className="rounded-lg border border-gray-200 bg-white p-5">
           <div className="mb-5">
             <div className="mb-2 flex items-center justify-between">
@@ -535,10 +720,58 @@ export const SmsMarketing: React.FC = () => {
                 Address and your number
               </h3>
               <p className="text-sm text-gray-600">
-                We buy and register an SMS-capable number for you in the area
-                code you choose. There is nothing to set up with a carrier
-                yourself.
+                Use your existing Telnyx voice number for texts, or we will buy
+                a number that can handle both calls and SMS.
               </p>
+              {(status?.eligibleVoiceNumbers || []).length > 0 && (
+                <div className="space-y-2 rounded-md border border-indigo-100 bg-indigo-50 p-3">
+                  <p className="text-sm font-medium text-indigo-900">
+                    Reuse a business number
+                  </p>
+                  <label className="flex items-start gap-2 text-sm text-gray-800">
+                    <input
+                      type="radio"
+                      name="sms-number"
+                      checked={!form.existingNumber}
+                      onChange={() =>
+                        setForm((prev) => ({ ...prev, existingNumber: '' }))
+                      }
+                    />
+                    <span>Buy a new local number for calls and texts</span>
+                  </label>
+                  {status?.eligibleVoiceNumbers?.map((number) => (
+                    <label
+                      key={number.phoneNumber}
+                      className="flex items-start gap-2 text-sm text-gray-800"
+                    >
+                      <input
+                        type="radio"
+                        name="sms-number"
+                        disabled={!number.reusableForSms}
+                        checked={form.existingNumber === number.phoneNumber}
+                        onChange={() =>
+                          setForm((prev) => ({
+                            ...prev,
+                            existingNumber: number.phoneNumber,
+                            areaCode:
+                              number.phoneNumber.replace(/\D/g, '').slice(1, 4) ||
+                              prev.areaCode,
+                          }))
+                        }
+                      />
+                      <span>
+                        {number.friendlyName
+                          ? `${number.friendlyName} · `
+                          : ''}
+                        {number.phoneNumber}
+                        <span className="mt-0.5 block text-xs text-gray-600">
+                          {number.reason}
+                        </span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              )}
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field
                   label="Street address"
@@ -566,13 +799,15 @@ export const SmsMarketing: React.FC = () => {
                   placeholder="70801"
                   required
                 />
-                <Field
-                  label="Preferred area code"
-                  value={form.areaCode}
-                  onChange={update('areaCode')}
-                  placeholder="225"
-                  required
-                />
+                {!form.existingNumber && (
+                  <Field
+                    label="Preferred area code"
+                    value={form.areaCode}
+                    onChange={update('areaCode')}
+                    placeholder="225"
+                    required
+                  />
+                )}
               </div>
             </div>
           )}
@@ -717,8 +952,9 @@ export const SmsMarketing: React.FC = () => {
                 ))}
               </dl>
               <p className="text-sm text-gray-500">
-                Registration and number provisioning start once your first month
-                is paid.
+                Submitting files the campaign and assigns{' '}
+                {form.existingNumber || 'your new number'} for SMS
+                {form.existingNumber ? ' and voice' : ' (voice-capable when available)'}.
               </p>
             </div>
           )}
@@ -751,7 +987,7 @@ export const SmsMarketing: React.FC = () => {
               <button
                 type="button"
                 onClick={handleSubmit}
-                disabled={submitting}
+                disabled={submitting || !paid}
                 className="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
               >
                 {submitting && <Loader className="h-4 w-4 animate-spin" />}

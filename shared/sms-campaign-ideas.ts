@@ -79,5 +79,5 @@ export const CAMPAIGN_IDEAS: CampaignIdea[] = [
 
 export function campaignDraft(idea: CampaignIdea): Partial<SmsProgram> {
   // Do not copy the poster number, fictional reward, audience or activation state.
-  return { ...idea.draft, status: 'draft', steps: [], audienceTags: [] };
+  return { ...idea.draft, status: 'draft', steps: [] };
 }

@@ -77,3 +77,37 @@ export async function loadVoiceTeam(
     revision: rows[0].revision,
   };
 }
+
+/** Load the answering bot, then its saved Voice Team. Falls back to defaults. */
+export async function loadVoiceTeamByBotId(botId: string): Promise<{
+  config: VoiceTeam;
+  revision: number;
+  botName: string;
+}> {
+  const rows = (await teamRequest(
+    `bots?id=eq.${encodeURIComponent(botId)}&select=id,name,user_id,organization_id&limit=1`,
+  )) as Array<{
+    id: string;
+    name?: string | null;
+    user_id?: string | null;
+    organization_id?: string | null;
+  }>;
+  if (!rows.length) {
+    return {
+      config: createDefaultVoiceTeam(),
+      revision: 0,
+      botName: 'BuildMyBot',
+    };
+  }
+  const bot = rows[0];
+  const team = await loadVoiceTeam(
+    bot.id,
+    typeof bot.organization_id === 'string' ? bot.organization_id : null,
+    typeof bot.user_id === 'string' ? bot.user_id : null,
+  );
+  const botName =
+    typeof bot.name === 'string' && bot.name.trim()
+      ? bot.name.trim()
+      : 'BuildMyBot';
+  return { ...team, botName };
+}

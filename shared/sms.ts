@@ -278,6 +278,15 @@ export const programSchema = z
     }
   });
 export type SmsProgram = z.infer<typeof programSchema>;
+export const KIND_LABELS: Record<SmsProgram['kind'], string> = {
+  campaign: 'One-time campaign',
+  keyword: 'Keyword reply',
+  welcome: 'Welcome message',
+  after_hours: 'After-hours reply',
+  sequence: 'Follow-up sequence',
+  contest: 'Text-to-win contest',
+  birthday: 'Birthday club',
+};
 
 export const appointmentSchema = z.object({
   externalId: z.string().trim().min(1).max(160),

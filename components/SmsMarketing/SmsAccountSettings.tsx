@@ -5,6 +5,7 @@ import {
   SMS_MARKETING_REGISTRATION_FEE,
 } from '../../constants';
 import { buildApiUrl } from '../../services/apiConfig';
+import { SmsKnowledgePanel } from './SmsKnowledgePanel';
 
 type Account = {
   business_name?: string;
@@ -227,30 +228,13 @@ export const SmsAccountSettings: React.FC = () => {
               onChange={(e) => setQuietEnd(Number(e.target.value))}
             />
           </label>
-          <label className="flex items-center gap-2 text-sm sm:col-span-2">
-            <input
-              type="checkbox"
-              checked={aiEnabled}
-              onChange={(e) => setAiEnabled(e.target.checked)}
-            />
-            <span className="font-medium text-gray-700">
-              AI replies enabled
-            </span>
-          </label>
-          <label className="block text-sm sm:col-span-2">
-            <span className="font-medium text-gray-700">
-              Shared knowledge base ID
-            </span>
-            <input
-              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 font-mono text-sm"
-              value={knowledgeBaseId}
-              onChange={(e) => setKnowledgeBaseId(e.target.value)}
-              placeholder="UUID from business_knowledge_bases (optional)"
-            />
-            <span className="mt-1 block text-xs text-gray-500">
-              Must be a knowledge base your tenant owns. Leave blank to unlink.
-            </span>
-          </label>
+          <SmsKnowledgePanel
+            businessName={businessName}
+            knowledgeBaseId={knowledgeBaseId}
+            aiEnabled={aiEnabled}
+            onKnowledgeBaseId={setKnowledgeBaseId}
+            onAiEnabled={setAiEnabled}
+          />
         </div>
 
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 space-y-2">

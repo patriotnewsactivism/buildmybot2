@@ -3,21 +3,45 @@ import { previewKnowledge, startBusinessCrawl } from '../knowledge/business.js';
 import type { ApiRequest, ApiResponse } from '../lib/http-types.js';
 import { db, filter, rpc, scoped, SmsError, type SmsUser } from './store.js';
 
-export const ownerScope = (user: SmsUser) => user.organizationId
-  ? { organization_id: `eq.${user.organizationId}` }
-  : { user_id: `eq.${user.id}`, organization_id: 'is.null' };
+export const ownerScope = (user: SmsUser): Record<string, string> =>
+  user.organizationId
+    ? { organization_id: `eq.${user.organizationId}` }
+    : { user_id: `eq.${user.id}`, organization_id: 'is.null' };
+
+async function attachKnowledgeToSms(user: SmsUser, baseId: string) {
+  await db(
+    'business_knowledge_links?on_conflict=channel,channel_id',
+    'POST',
+    {
+      tenant_key: user.tenant,
+      base_id: baseId,
+      channel: 'sms',
+      channel_id: user.tenant,
+    },
+    'resolution=merge-duplicates,return=minimal',
+  );
+  await db(`sms_accounts?${scoped(user.tenant)}`, 'PATCH', {
+    knowledge_base_id: baseId,
+  });
+}
 
 export async function smsKnowledge(req: ApiRequest, res: ApiResponse, user: SmsUser, id?: string, action?: string) {
   if (req.method === 'GET' && !id) {
-    const [bases, bots] = await Promise.all([
+    const [bases, bots, account] = await Promise.all([
       db(`business_knowledge_bases?${scoped(user.tenant, { select: 'id,name,published_version_id', order: 'created_at' })}`),
       db(`bots?${filter({ ...ownerScope(user), select: 'id,name', order: 'name', limit: '100' })}`),
+      db<Array<{ knowledge_base_id: string | null }>>(`sms_accounts?${scoped(user.tenant, { select: 'knowledge_base_id' })}`),
     ]);
-    return res.json({ bases, bots });
+    return res.json({
+      bases,
+      bots,
+      selectedId: account[0]?.knowledge_base_id || null,
+    });
   }
   if (req.method === 'POST' && !id) {
     const input = z.object({ name: z.string().trim().min(2).max(160) }).parse(req.body);
     const [base] = await db<Array<{ id: string }>>('business_knowledge_bases', 'POST', { tenant_key: user.tenant, name: input.name });
+    await attachKnowledgeToSms(user, base.id);
     return res.status(201).json(base);
   }
   z.uuid().parse(id);
@@ -43,7 +67,14 @@ export async function smsKnowledge(req: ApiRequest, res: ApiResponse, user: SmsU
     if (review.base.id !== id) throw new SmsError(404, 'Version not found in this knowledge base');
     if (review.conflicts.length) throw new SmsError(409, 'Resolve conflicting facts before publishing');
     // The RPC checks completed review state and atomically switches the published version.
-    return res.json(await rpc('publish_business_knowledge', { p_tenant: user.tenant, p_version: versionId, p_actor: user.id, p_facts: review.facts }));
+    const published = await rpc('publish_business_knowledge', {
+      p_tenant: user.tenant,
+      p_version: versionId,
+      p_user: user.id,
+      p_facts: review.facts,
+    });
+    await attachKnowledgeToSms(user, base.id);
+    return res.json(published);
   }
   if (req.method === 'POST' && action === 'link') {
     const { botId } = z.object({ botId: z.uuid() }).parse(req.body);
@@ -54,7 +85,12 @@ export async function smsKnowledge(req: ApiRequest, res: ApiResponse, user: SmsU
       { tenant_key: user.tenant, base_id: base.id, channel: 'chatbot', channel_id: botId },
       ...voices.map(voice => ({ tenant_key: user.tenant, base_id: base.id, channel: 'voice', channel_id: voice.id })),
     ], 'resolution=merge-duplicates,return=minimal');
+    await attachKnowledgeToSms(user, base.id);
     return res.json({ linked: true });
+  }
+  if (req.method === 'POST' && action === 'select') {
+    await attachKnowledgeToSms(user, base.id);
+    return res.json({ selected: true, id: base.id });
   }
   throw new SmsError(405, 'Method not allowed');
 }

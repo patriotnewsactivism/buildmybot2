@@ -6,6 +6,7 @@ import { accountFor, contactFor, enqueue, ensureAccount, runWorker, saveAppointm
 import { authenticate, db, filter, requireLaunch, requireWorker, rpc, scoped, SmsError } from './store.js';
 import { createSmsCheckout } from './billing.js';
 import { smsKnowledge } from './knowledge.js';
+import { advanceDueProvisioning } from './register.js';
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   try {
@@ -15,7 +16,11 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     if (resource === 'worker') {
       if (req.method !== 'POST') throw new SmsError(405, 'Method not allowed');
       requireWorker(req); requireLaunch();
-      return res.json(await runWorker());
+      const provisioning = await advanceDueProvisioning().catch(() => ({
+        considered: 0,
+        advanced: 0,
+      }));
+      return res.json({ ...(await runWorker()), provisioning });
     }
     if (resource === 'booking-webhook') {
       if (req.method !== 'POST' || !id) throw new SmsError(405, 'Method not allowed');
@@ -29,7 +34,18 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     await ensureAccount(user);
     if (resource === 'knowledge') return smsKnowledge(req, res, user, id, action);
     if (resource === 'account') {
-      if (req.method === 'GET') return res.json({ account: await accountFor(user.tenant), plans: SMS_PLANS, launchEnabled: process.env.SMS_LAUNCH_ENABLED === 'true' });
+      if (req.method === 'GET') {
+        const [account, knowledgeBases] = await Promise.all([
+          accountFor(user.tenant),
+          db(`business_knowledge_bases?${scoped(user.tenant, { select: 'id,name,published_version_id', order: 'created_at' })}`).catch(() => []),
+        ]);
+        return res.json({
+          account,
+          plans: SMS_PLANS,
+          launchEnabled: process.env.SMS_LAUNCH_ENABLED === 'true',
+          knowledgeBases,
+        });
+      }
       if (req.method === 'PATCH') {
         const input = z.object({ businessName: z.string().trim().min(1).max(160), timezone: timezoneSchema,
           spendLimit: z.number().min(0).max(1000), aiEnabled: z.boolean(), knowledgeBaseId: z.uuid().nullable().optional(),

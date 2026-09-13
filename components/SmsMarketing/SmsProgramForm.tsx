@@ -1,6 +1,7 @@
 import type React from 'react';
 import { useMemo, useState } from 'react';
 import {
+  KIND_LABELS,
   SYSTEM_KEYWORDS,
   type SmsProgram,
   programSchema,
@@ -16,6 +17,21 @@ const KINDS: SmsProgram['kind'][] = [
   'contest',
   'birthday',
 ];
+
+function isoToLocalInput(value?: string): string {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function localInputToIso(value: string): string | undefined {
+  if (!value) return undefined;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return undefined;
+  return date.toISOString();
+}
 
 /** Creates the initial editable values for a program of the requested kind. */
 const emptyFor = (kind: SmsProgram['kind']): Partial<SmsProgram> => ({
@@ -93,7 +109,7 @@ export const SmsProgramForm: React.FC<Props> = ({
             value={form.kind}
             onChange={(e) => {
               const kind = e.target.value as SmsProgram['kind'];
-              setForm(emptyFor(kind));
+              setForm({ ...emptyFor(kind), name: form.name });
             }}
             disabled={Boolean(initial?.id)}
           >
@@ -184,32 +200,78 @@ export const SmsProgramForm: React.FC<Props> = ({
       )}
 
       {form.kind === 'contest' && (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {(
-            [
-              ['opensAt', 'Opens at'],
-              ['closesAt', 'Closes at'],
-              ['winnerAnnounceAt', 'Winner announce'],
-            ] as const
-          ).map(([key, label]) => (
-            <label key={key} className="block text-sm">
-              <span className="font-medium text-gray-700">{label}</span>
+        <div className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block text-sm">
+              <span className="font-medium text-gray-700">Opens at</span>
               <input
                 type="datetime-local"
                 className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
-                value={isoToLocalInput(
-                  key === 'opensAt'
-                    ? form.opensAt
-                    : key === 'closesAt'
-                      ? form.closesAt
-                      : form.winnerAnnounceAt,
-                )}
+                value={isoToLocalInput(form.opensAt)}
+                onChange={(e) => set('opensAt', localInputToIso(e.target.value))}
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="font-medium text-gray-700">Closes at</span>
+              <input
+                type="datetime-local"
+                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
+                value={isoToLocalInput(form.closesAt)}
                 onChange={(e) =>
-                  setForm({ ...form, [key]: localInputToIso(e.target.value) })
+                  set('closesAt', localInputToIso(e.target.value))
                 }
               />
             </label>
-          ))}
+          </div>
+          <label className="block text-sm">
+            <span className="font-medium text-gray-700">Prize</span>
+            <input
+              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              value={form.prize || ''}
+              onChange={(e) => set('prize', e.target.value)}
+              placeholder="One $50 gift card"
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="font-medium text-gray-700">Eligibility</span>
+            <textarea
+              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              rows={2}
+              value={form.eligibility || ''}
+              onChange={(e) => set('eligibility', e.target.value)}
+              placeholder="18+, one entry per person, no purchase necessary"
+            />
+          </label>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block text-sm">
+              <span className="font-medium text-gray-700">Official rules URL</span>
+              <input
+                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                value={form.rulesUrl || ''}
+                onChange={(e) => set('rulesUrl', e.target.value)}
+                placeholder="https://example.com/rules"
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="font-medium text-gray-700">Free-entry URL</span>
+              <input
+                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                value={form.entryUrl || ''}
+                onChange={(e) => set('entryUrl', e.target.value)}
+                placeholder="https://example.com/enter"
+              />
+            </label>
+          </div>
+          <label className="block text-sm">
+            <span className="font-medium text-gray-700">Winner text</span>
+            <textarea
+              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              rows={2}
+              value={form.winnerText || ''}
+              onChange={(e) => set('winnerText', e.target.value)}
+              placeholder="{{business}}: you were selected. Reply here for prize-claim instructions. STOP to stop."
+            />
+          </label>
         </div>
       )}
 
