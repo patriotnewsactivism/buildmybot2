@@ -4,18 +4,23 @@ import { getToolDeclarationsForDeepgram } from '../api/voice/deepgram-tools';
 import {
   VOICE_BILLING_KNOWLEDGE,
   VOICE_PARTNER_KNOWLEDGE,
+  VOICE_RECEPTIONIST_KNOWLEDGE,
   VOICE_RECRUITING_KNOWLEDGE,
   VOICE_SALES_KNOWLEDGE,
+  VOICE_SIMPLE_OBJECTIONS,
   departmentKnowledge,
 } from '../shared/voice-department-knowledge';
 import {
+  SPOKEN_CADENCE_RULE,
   TRANSFER_EXECUTION_RULE,
   VOICE_TEAM_ROUTING,
   createDefaultVoiceTeam,
   destinationDepartment,
   handoffContextText,
+  speakingCadenceText,
   voiceTeamSchema,
 } from '../shared/voice-team';
+import { buildAgentPrompt } from '../api/voice/deepgram-team';
 describe('Voice Team constraints', () => {
   it('requires seven distinct names, roles and provider-supported voices', () => {
     const team = createDefaultVoiceTeam();
@@ -180,10 +185,16 @@ describe('Voice Team constraints', () => {
   });
 
   it('exposes fully flushed recruiting, partner, sales, and billing knowledge', () => {
+    expect(departmentKnowledge('receptionist')).toBe(
+      VOICE_RECEPTIONIST_KNOWLEDGE,
+    );
     expect(departmentKnowledge('recruiting')).toBe(VOICE_RECRUITING_KNOWLEDGE);
     expect(departmentKnowledge('partner')).toBe(VOICE_PARTNER_KNOWLEDGE);
     expect(departmentKnowledge('sales')).toBe(VOICE_SALES_KNOWLEDGE);
     expect(departmentKnowledge('billing')).toBe(VOICE_BILLING_KNOWLEDGE);
+    expect(VOICE_SIMPLE_OBJECTIONS).toContain('Just looking');
+    expect(VOICE_SALES_KNOWLEDGE).toContain('Just looking');
+    expect(VOICE_RECEPTIONIST_KNOWLEDGE).toContain('route_department');
     expect(VOICE_RECRUITING_KNOWLEDGE).toContain('Bronze');
     expect(VOICE_RECRUITING_KNOWLEDGE).toContain('buildmybot.app/reseller');
     expect(VOICE_RECRUITING_KNOWLEDGE).toContain('careers@buildmybot.app');
@@ -211,5 +222,35 @@ describe('Voice Team constraints', () => {
     expect(route?.description).toMatch(/do not wait/i);
     expect(route?.description).not.toMatch(/verbally acknowledge/i);
     expect(JSON.stringify(route?.parameters)).not.toMatch(/confirm/i);
+  });
+
+  it('keeps spoken cadence and tenant realism on the live Deepgram prompt', () => {
+    expect(VOICE_TEAM_ROUTING).toContain(SPOKEN_CADENCE_RULE);
+    const team = createDefaultVoiceTeam();
+    expect(team.receptionist.pace).toBe('relaxed');
+    expect(team.sales.pace).toBe('brisk');
+    team.sales.speakingStyle = 'Tenant-specific sales cadence for Acme.';
+    team.sales.acknowledgements = 'warm';
+    const prompt = buildAgentPrompt(
+      'sales',
+      'Acme Bots',
+      undefined,
+      undefined,
+      team,
+    );
+    expect(prompt).toContain('Tenant-specific sales cadence for Acme.');
+    expect(prompt).toContain('Spoken cadence');
+    expect(prompt).toContain('Just looking');
+    expect(prompt).toContain(speakingCadenceText(team.sales));
+    expect(prompt).not.toMatch(/NO_AI_DISCLOSURE_RULE/);
+    const parsed = voiceTeamSchema.parse({
+      ...createDefaultVoiceTeam(),
+      sales: {
+        ...createDefaultVoiceTeam().sales,
+        speakingStyle: 'Custom style that still sounds like sales on the phone.',
+      },
+    });
+    expect(parsed.sales.pace).toBe('brisk');
+    expect(parsed.sales.acknowledgements).toBe('natural');
   });
 });

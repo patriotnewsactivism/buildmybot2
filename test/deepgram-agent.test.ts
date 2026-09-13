@@ -85,6 +85,10 @@ beforeEach(() => {
   state.sockets.length = 0;
   process.env.DEEPGRAM_API_KEY = 'dg-test';
   process.env.VOICE_ENGINE = 'deepgram';
+  state.fetch.mockResolvedValue({
+    ok: true,
+    json: async () => [],
+  });
   vi.stubGlobal('fetch', state.fetch);
 });
 
@@ -225,6 +229,8 @@ it('bridges Telnyx start/media through Welcome→Settings→SettingsApplied', as
   );
   expect(route.defer_until_eot).toBeUndefined();
   expect(route.description).toMatch(/do not wait/i);
+  expect(settings.agent.think.prompt).toContain('Spoken cadence');
+  expect(settings.agent.think.prompt).toContain('Just looking');
 
   await deepgram.deliver(
     'message',
