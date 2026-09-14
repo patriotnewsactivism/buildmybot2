@@ -1,0 +1,42 @@
+name: Repair apex.donmatthews.live DNS
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/repair-apex-dns.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Point apex.donmatthews.live to Vercel
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${CF_TOKEN:?CLOUDFLARE_API_TOKEN is not configured}"
+          API="https://api.cloudflare.com/client/v4"
+          AUTH=(-H "Authorization: Bearer ${CF_TOKEN}" -H "Content-Type: application/json")
+
+          zone_json=$(curl -fsS "${AUTH[@]}" "${API}/zones?name=donmatthews.live&status=active")
+          zone_id=$(jq -r '.result[0].id // empty' <<<"${zone_json}")
+          test -n "${zone_id}" || { echo "Cloudflare zone not found"; exit 1; }
+
+          record_json=$(curl -fsS "${AUTH[@]}" "${API}/zones/${zone_id}/dns_records?name=apex.donmatthews.live")
+          record_id=$(jq -r '.result[0].id // empty' <<<"${record_json}")
+          payload='{"type":"A","name":"apex.donmatthews.live","content":"76.76.21.21","ttl":300,"proxied":false}'
+
+          if [ -n "${record_id}" ]; then
+            result=$(curl -fsS -X PUT "${AUTH[@]}" --data "${payload}" "${API}/zones/${zone_id}/dns_records/${record_id}")
+          else
+            result=$(curl -fsS -X POST "${AUTH[@]}" --data "${payload}" "${API}/zones/${zone_id}/dns_records")
+          fi
+
+          test "$(jq -r '.success' <<<"${result}")" = "true" || { jq '{success,errors}' <<<"${result}"; exit 1; }
+          jq -r '.result | "Updated DNS: \(.name) -> \(.content) (proxied=\(.proxied))"' <<<"${result}"
