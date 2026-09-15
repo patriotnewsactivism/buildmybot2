@@ -120,6 +120,10 @@ export const SmsProgramsPanel: React.FC<{
 
   return (
     <div className="space-y-4">
+      <p className="text-sm text-gray-600">
+        Save drafts any time. Activating a program still needs a paid plan and
+        an approved sender.
+      </p>
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-gray-900">Programs</h2>
         <button

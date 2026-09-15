@@ -120,6 +120,12 @@ it('uses Gemini 3.1 realtime input, automatic barge-in, and department routing',
   expect(route.description).not.toMatch(/verbally acknowledge/i);
   expect(socket.sent[1].realtimeInput.text).toBeTruthy();
   expect(socket.sent[1].clientContent).toBeUndefined();
+  expect(socket.sent[0].setup.systemInstruction.parts[0].text).toContain(
+    'Just looking',
+  );
+  expect(socket.sent[0].setup.systemInstruction.parts[0].text).toContain(
+    'Spoken cadence',
+  );
 });
 async function connect() {
   const phone = new Socket('wss://mock') as any;

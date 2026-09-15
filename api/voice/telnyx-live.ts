@@ -7,6 +7,7 @@ import {
   markLatestRetentionOfferOutcome,
   retentionAuditSnapshot,
 } from '../../shared/voice-commercial-policy.js';
+import { departmentKnowledge } from '../../shared/voice-department-knowledge.js';
 import {
   DEPARTMENT_IDS,
   GEMINI_LIVE_MODEL,
@@ -480,7 +481,9 @@ function buildSystemInstruction(context: SessionContext): string {
     NO_AI_DISCLOSURE_RULE,
     agent.persona,
     `Speaking style: ${agent.speakingStyle}`,
+    speakingCadenceText(agent),
     `Preferred opening greeting: ${openingGreeting}`,
+    departmentKnowledge(department),
     departmentOperatingRules(context),
     context.botId === CORPORATE.botId && department !== 'receptionist'
       ? department === 'manager'
@@ -491,7 +494,6 @@ function buildSystemInstruction(context: SessionContext): string {
       ? 'All outbound calls need separate owner approval. Capture callback requests without promising a callback time or initiating a call.'
       : '',
     context.outboundObjective || '',
-    speakingCadenceText(agent),
     'Never sound robotic, recite bullet points, or sound like a recorded phone menu.',
     'Never claim that a transfer, appointment, CRM update, text message, payment, or any external action succeeded unless the matching tool returned success.',
     'Use search_business_knowledge for business-specific facts that are not already explicit in your instructions.',

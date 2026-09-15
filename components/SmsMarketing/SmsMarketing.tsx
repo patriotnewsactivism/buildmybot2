@@ -495,7 +495,9 @@ export const SmsMarketing: React.FC = () => {
         }}
       />
 
-      {!registered && <SmsKnowledgePanel businessName={form.companyName} />}
+      {!status?.knowledgeBaseId && (
+        <SmsKnowledgePanel businessName={form.companyName} />
+      )}
 
       <div className="rounded-lg border border-gray-200 bg-white p-5">
         <h2 className="mb-3 text-lg font-semibold text-gray-900">
@@ -504,8 +506,8 @@ export const SmsMarketing: React.FC = () => {
         {!paid && (
           <p className="mb-3 text-sm text-gray-600">
             Carriers will not accept a campaign until the first month and
-            registration fee are paid. Enter your legal business name, then
-            pick a plan.
+            registration fee are paid. Enter your legal business name, then pick
+            a plan.
           </p>
         )}
         {!paid && (
@@ -583,7 +585,7 @@ export const SmsMarketing: React.FC = () => {
         )}
       </div>
 
-      {(registered || paid) && !loadingStatus && (
+      {!loadingStatus && (
         <div className="space-y-4">
           <div className="flex flex-wrap gap-2 border-b border-gray-200 pb-2">
             {(
@@ -754,15 +756,14 @@ export const SmsMarketing: React.FC = () => {
                             ...prev,
                             existingNumber: number.phoneNumber,
                             areaCode:
-                              number.phoneNumber.replace(/\D/g, '').slice(1, 4) ||
-                              prev.areaCode,
+                              number.phoneNumber
+                                .replace(/\D/g, '')
+                                .slice(1, 4) || prev.areaCode,
                           }))
                         }
                       />
                       <span>
-                        {number.friendlyName
-                          ? `${number.friendlyName} · `
-                          : ''}
+                        {number.friendlyName ? `${number.friendlyName} · ` : ''}
                         {number.phoneNumber}
                         <span className="mt-0.5 block text-xs text-gray-600">
                           {number.reason}
@@ -954,7 +955,10 @@ export const SmsMarketing: React.FC = () => {
               <p className="text-sm text-gray-500">
                 Submitting files the campaign and assigns{' '}
                 {form.existingNumber || 'your new number'} for SMS
-                {form.existingNumber ? ' and voice' : ' (voice-capable when available)'}.
+                {form.existingNumber
+                  ? ' and voice'
+                  : ' (voice-capable when available)'}
+                .
               </p>
             </div>
           )}
