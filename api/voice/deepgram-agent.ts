@@ -17,12 +17,12 @@ import {
 } from '../../shared/voice-team.js';
 import { validTelnyxClientState } from '../phone/tenant-telnyx-token.js';
 import {
-  type SalesSeat,
+  type DepartmentSeat,
   buildAgentPrompt,
   deepgramSpeakProvider,
   defaultSharedContext,
   openingGreeting,
-  pickSalesSeat,
+  pickDepartmentSeat,
 } from './deepgram-team.js';
 import {
   type DeepgramToolContext,
@@ -30,6 +30,12 @@ import {
   getToolDeclarationsForDeepgram,
 } from './deepgram-tools.js';
 import { MediaDiagnostics } from './media-diagnostics.js';
+import {
+  inferDepartmentFromContext,
+  inferRequestedDepartment,
+  inferSpokenTransfer,
+  looksLikeTransferCommit,
+} from './spoken-transfer.js';
 import {
   MAX_OUTBOUND_PENDING_BYTES,
   TRANSFER_MIN_HOLD_MS,
@@ -143,8 +149,10 @@ export class DeepgramVoiceSession {
   private awaitingDestinationAudio = false;
   private holdTimer: ReturnType<typeof setInterval> | null = null;
   private holdOffsetMs = 0;
-  private salesSeat: SalesSeat | undefined;
+  private activeSeat: DepartmentSeat | undefined;
   private department: VoiceDepartment = 'receptionist';
+  private pendingSpokenTransfer: VoiceDepartment | null = null;
+  private lastRequestedDepartment: VoiceDepartment | null = null;
   private team: VoiceTeam = createDefaultVoiceTeam();
   private callContext: SharedCallContext;
   private readonly pendingInbound: Buffer[] = [];
@@ -283,6 +291,7 @@ export class DeepgramVoiceSession {
       case 'AgentAudioDone':
       case 'AgentStartedListening':
         this.beginSpeakHangover();
+        void this.commitSpokenTransferIfNeeded();
         break;
       case 'UserStartedSpeaking':
         if (this.shouldIgnoreBargeIn()) return;
@@ -333,6 +342,7 @@ export class DeepgramVoiceSession {
     if (role === 'caller' && !this.callContext.reason) {
       this.callContext.reason = content.slice(0, 400);
     }
+    this.noteTransferSpeech(role, content);
     this.callContext.summary = this.callContext.transcript
       .slice(-8)
       .map((turn) => `${turn.role}: ${turn.text}`)
@@ -351,6 +361,12 @@ export class DeepgramVoiceSession {
   private sendDeepgramSettings(): void {
     if (this.settingsSent || this.dgWs?.readyState !== WebSocket.OPEN) return;
     this.settingsSent = true;
+    if (!this.activeSeat) {
+      this.activeSeat = pickDepartmentSeat(
+        this.department,
+        this.callControlId || this.toolContext.callerNumber || 'receptionist',
+      );
+    }
     const functions = getToolDeclarationsForDeepgram().map((tool) => {
       if (!DEFERRED_TOOL_NAMES.has(tool.name)) return tool;
       return { ...tool, defer_until_eot: true };
@@ -365,7 +381,11 @@ export class DeepgramVoiceSession {
           output: { encoding: 'mulaw', sample_rate: 8000, container: 'none' },
         },
         agent: {
-          greeting: openingGreeting(this.department, this.salesSeat, this.team),
+greeting: openingGreeting(
+            this.department,
+            this.salesSeat ?? this.activeSeat,
+            this.team,
+          ),
           listen: {
             provider: {
               type: 'deepgram',
@@ -381,13 +401,13 @@ export class DeepgramVoiceSession {
               this.department,
               botName,
               this.callContext,
-              this.salesSeat,
+              this.activeSeat,
               this.team,
             ),
             functions,
           },
           speak: {
-            provider: deepgramSpeakProvider(this.department, this.salesSeat),
+            provider: deepgramSpeakProvider(this.department, this.activeSeat),
           },
         },
       }),
@@ -648,6 +668,7 @@ export class DeepgramVoiceSession {
     if (destination === this.department) {
       return { ok: false, error: 'Already speaking with that department.' };
     }
+    this.pendingSpokenTransfer = null;
     const callerName =
       typeof args.callerName === 'string' ? args.callerName.trim() : '';
     const reason =
@@ -668,15 +689,15 @@ export class DeepgramVoiceSession {
     if (objection) this.callContext.objection = objection;
     this.beginHold();
     this.department = destination;
-    this.salesSeat =
-      destination === 'sales'
-        ? pickSalesSeat(this.callControlId || callerName || 'sales')
-        : undefined;
+    this.activeSeat = pickDepartmentSeat(
+      destination,
+      this.callControlId || callerName || destination,
+    );
     const botName = this.toolContext.botName || 'BuildMyBot';
     if (this.dgWs?.readyState === WebSocket.OPEN) {
       sendJson(this.dgWs, {
         type: 'UpdateSpeak',
-        speak: { provider: deepgramSpeakProvider(destination, this.salesSeat) },
+        speak: { provider: deepgramSpeakProvider(destination, this.activeSeat) },
       });
       sendJson(this.dgWs, {
         type: 'UpdatePrompt',
@@ -684,7 +705,7 @@ export class DeepgramVoiceSession {
           destination,
           botName,
           this.callContext,
-          this.salesSeat,
+          this.activeSeat,
           this.team,
         ),
       });
@@ -696,14 +717,14 @@ export class DeepgramVoiceSession {
     }
     sendJson(this.dgWs, {
       type: 'InjectAgentMessage',
-      message: openingGreeting(destination, this.salesSeat, this.team),
+      message: openingGreeting(destination, this.activeSeat, this.team),
     });
     this.awaitingDestinationAudio = true;
     this.markAgentSpeaking();
     return {
       ok: true,
       department: destination,
-      agent: this.salesSeat?.name || destination,
+      agent: this.activeSeat?.name || destination,
       hold_ms: TRANSFER_MIN_HOLD_MS,
     };
   }
@@ -767,6 +788,37 @@ export class DeepgramVoiceSession {
     this.pendingOutbound = Buffer.alloc(0);
     this.diagnostics.pendingOutboundBytes = 0;
     sendJson(this.telnyxWs, { event: 'clear' });
+  }
+
+  private noteTransferSpeech(role: 'caller' | 'agent', content: string): void {
+    if (role === 'caller') {
+      const requested = inferRequestedDepartment(content);
+      if (requested) this.lastRequestedDepartment = requested;
+      return;
+    }
+    const spoken = inferSpokenTransfer(content);
+    if (spoken) {
+      this.pendingSpokenTransfer = spoken;
+      return;
+    }
+    if (looksLikeTransferCommit(content)) {
+      this.pendingSpokenTransfer =
+        this.lastRequestedDepartment ||
+        inferDepartmentFromContext(this.callContext.reason || '');
+    }
+  }
+
+  private async commitSpokenTransferIfNeeded(): Promise<void> {
+    if (this.holdInProgress || this.cleaningUp) return;
+    const destination = this.pendingSpokenTransfer;
+    if (!destination || destination === this.department) return;
+    this.pendingSpokenTransfer = null;
+    await this.transferDepartment({
+      department: destination,
+      callerName: this.callContext.callerName || '',
+      reason: this.callContext.reason || '',
+      summary: this.callContext.summary || '',
+    });
   }
 
   private markAgentSpeaking(): void {
