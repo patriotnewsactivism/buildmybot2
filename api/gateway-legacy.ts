@@ -2108,12 +2108,9 @@ const FIRECRAWL_WEBHOOK_SECRET = process.env.FIRECRAWL_WEBHOOK_SECRET || '';
 /** Distinct page count for a source, derived from chunk metadata->url. */
 async function countCrawledPages(sourceId: string): Promise<number> {
   try {
-    const resp = await fetch(
-      `${SUPABASE_URL}/rest/v1/knowledge_chunks?source_id=eq.${sourceId}&select=metadata`,
-      { headers: SUPABASE_HEADERS },
-    );
-    if (!resp.ok) return 0;
-    const rows: any[] = await resp.json();
+    const rows = await sbSelect<any>('knowledge_chunks', 'metadata', {
+      source_id: `eq.${sourceId}`,
+    });
     const urls = new Set(rows.map((r) => r.metadata?.url).filter(Boolean));
     return urls.size;
   } catch {
@@ -6544,7 +6541,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   setCors(res, req);
   if (req.method === 'OPTIONS') return res.status(204).end();
 
-  if (!SUPABASE_SERVICE_KEY || !SESSION_JWT_SECRET) {
+  if (!process.env.DATABASE_URL || !SESSION_JWT_SECRET) {
     return res.status(500).json({
       error: 'Server misconfigured: missing required environment variables',
     });
