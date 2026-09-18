@@ -18,7 +18,7 @@
  * request that produced the value.
  */
 import crypto from 'node:crypto';
-import { supabaseFetch, trackAnalyticsEvent } from '../ai-team/lib.js';
+import { databaseFetch, trackAnalyticsEvent } from '../ai-team/lib.js';
 
 export const MILESTONES = [
   'first_chat',
@@ -99,7 +99,7 @@ export async function recordMilestone(input: MilestoneInput): Promise<boolean> {
 export async function listMilestones(
   userId: string,
 ): Promise<Record<string, string>> {
-  const rows = await supabaseFetch(
+  const rows = await databaseFetch(
     'activation_milestones',
     `select=milestone,achieved_at&user_id=eq.${encodeURIComponent(userId)}`,
   ).catch(() => null);
