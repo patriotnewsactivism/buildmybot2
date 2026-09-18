@@ -14,74 +14,15 @@
 
 import { salesAutomationDryRun, trackAnalyticsEvent } from '../ai-team/lib.js';
 import { recordMilestone } from '../growth/milestones.js';
+import { pgInsert as sbInsert, pgSelect as sbSelect, pgUpdate as sbUpdate } from '../lib/postgres-store.js';
 
 const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
 const TWILIO_PHONE_NUMBER = process.env.TWILIO_PHONE_NUMBER;
 const APP_BASE_URL = process.env.APP_BASE_URL || 'https://buildmybot.app';
 
-const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-const SUPABASE_HEADERS = {
-  apikey: SUPABASE_SERVICE_KEY || '',
-  Authorization: `Bearer ${SUPABASE_SERVICE_KEY || ''}`,
-  'Content-Type': 'application/json',
-};
-
 export function twilioConfigured(): boolean {
   return !!(TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN && TWILIO_PHONE_NUMBER);
-}
-
-async function sbInsert(table: string, data: any) {
-  const url = `${SUPABASE_URL}/rest/v1/${table}`;
-  const resp = await fetch(url, {
-    method: 'POST',
-    headers: { ...SUPABASE_HEADERS, Prefer: 'return=representation' },
-    body: JSON.stringify(data),
-  });
-  if (!resp.ok) {
-    console.error(`[twilio] Supabase insert ${table} failed:`, resp.status);
-    return null;
-  }
-  return resp.json();
-}
-
-async function sbUpdate(
-  table: string,
-  data: any,
-  filters: Record<string, string>,
-) {
-  const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(filters)) {
-    params.set(key, value);
-  }
-  const url = `${SUPABASE_URL}/rest/v1/${table}?${params.toString()}`;
-  const resp = await fetch(url, {
-    method: 'PATCH',
-    headers: { ...SUPABASE_HEADERS, Prefer: 'return=representation' },
-    body: JSON.stringify(data),
-  });
-  if (!resp.ok) {
-    console.error(`[twilio] Supabase update ${table} failed:`, resp.status);
-    return null;
-  }
-  return resp.json();
-}
-
-async function sbSelect(
-  table: string,
-  select = '*',
-  filters: Record<string, string> = {},
-) {
-  const params = new URLSearchParams({ select });
-  for (const [key, value] of Object.entries(filters)) {
-    params.set(key, value);
-  }
-  const url = `${SUPABASE_URL}/rest/v1/${table}?${params.toString()}`;
-  const resp = await fetch(url, { headers: SUPABASE_HEADERS });
-  if (!resp.ok) return [];
-  return resp.json();
 }
 
 /**
