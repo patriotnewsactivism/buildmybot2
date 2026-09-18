@@ -155,6 +155,31 @@ export async function pgInsert<T extends Row = Row>(
   return (await db().unsafe(query, params)) as unknown as T[];
 }
 
+export async function pgUpsert<T extends Row = Row>(
+  table: string,
+  data: Row,
+  conflictColumns: string[],
+): Promise<T[]> {
+  const keys = Object.keys(data);
+  if (!keys.length) throw new Error('Cannot upsert an empty object');
+  if (!conflictColumns.length) throw new Error('Upsert requires conflict columns');
+  const params: unknown[] = [];
+  const placeholders = keys.map((key) => {
+    params.push(data[key]);
+    return `${params.length}`;
+  });
+  const updates = keys
+    .filter((key) => !conflictColumns.includes(key))
+    .map((key) => `${ident(key)} = EXCLUDED.${ident(key)}`);
+  const action = updates.length
+    ? `DO UPDATE SET ${updates.join(', ')}`
+    : 'DO NOTHING';
+  const query =
+    `INSERT INTO ${ident(table)} (${keys.map(ident).join(', ')}) VALUES (${placeholders.join(', ')}) ` +
+    `ON CONFLICT (${conflictColumns.map(ident).join(', ')}) ${action} RETURNING *`;
+  return (await db().unsafe(query, params)) as unknown as T[];
+}
+
 export async function pgUpdate<T extends Row = Row>(
   table: string,
   data: Row,
@@ -258,9 +283,10 @@ export async function neonRestFetch(
       return new Response(null, { status: 204 });
     }
     return new Response('Method not allowed', { status: 405 });
-  } catch (error) {
+  } catch (error: any) {
     const message = error instanceof Error ? error.message : String(error);
     console.error('[postgres-store] database operation failed:', message);
-    return Response.json({ error: 'Database operation failed' }, { status: 503 });
+    const status = error?.code === '23505' ? 409 : 503;
+    return Response.json({ error: 'Database operation failed' }, { status });
   }
 }
