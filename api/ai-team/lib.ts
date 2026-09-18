@@ -487,26 +487,18 @@ export async function recallMemories(
 
   if (queryEmbedding) {
     try {
-      const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/rpc/match_agent_memories`,
-        {
-          method: 'POST',
-          headers: {
-            apikey: SUPABASE_SERVICE_ROLE_KEY,
-            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            query_embedding: JSON.stringify(queryEmbedding),
-            match_subject_type: opts.subjectType ?? null,
-            match_subject_id: opts.subjectId ?? null,
-            match_role_id: opts.roleId ?? null,
-            match_threshold: 0.3,
-            match_count: limit,
-            match_organization_id: organizationId,
-          }),
-        },
-      );
+      const response = await neonRestFetch('rpc/match_agent_memories', {
+        method: 'POST',
+        body: JSON.stringify({
+          query_embedding: JSON.stringify(queryEmbedding),
+          match_subject_type: opts.subjectType ?? null,
+          match_subject_id: opts.subjectId ?? null,
+          match_role_id: opts.roleId ?? null,
+          match_threshold: 0.3,
+          match_count: limit,
+          match_organization_id: organizationId,
+        }),
+      });
       if (response.ok) return (await response.json()) as AgentMemoryRow[];
     } catch {
       // Fall through to recency-based recall.
@@ -521,7 +513,7 @@ export async function recallMemories(
   if (opts.subjectType) filters.push(`subject_type=eq.${opts.subjectType}`);
   if (opts.subjectId) filters.push(`subject_id=eq.${opts.subjectId}`);
   if (opts.roleId) filters.push(`role_id=eq.${opts.roleId}`);
-  const rows = await supabaseFetch('ai_agent_memories', filters.join('&'));
+  const rows = await databaseFetch('ai_agent_memories', filters.join('&'));
   return (rows as AgentMemoryRow[]) || [];
 }
 
@@ -534,7 +526,7 @@ export async function rememberMemory(entry: {
   organizationId?: string;
 }): Promise<void> {
   const embedding = await embedText(entry.content);
-  await supabaseFetch('ai_agent_memories', '', {
+  await databaseFetch('ai_agent_memories', '', {
     method: 'POST',
     body: JSON.stringify({
       role_id: entry.roleId,
@@ -597,7 +589,7 @@ export async function logAgentError(params: {
   context?: Record<string, unknown>;
 }): Promise<void> {
   try {
-    await supabaseFetch('error_logs', '', {
+    await databaseFetch('error_logs', '', {
       method: 'POST',
       body: JSON.stringify({
         source: params.source,
@@ -628,7 +620,7 @@ export async function trackAnalyticsEvent(entry: {
   userId?: string | null;
   eventData?: Record<string, unknown>;
 }): Promise<void> {
-  await supabaseFetch('analytics_events', '', {
+  await databaseFetch('analytics_events', '', {
     method: 'POST',
     body: JSON.stringify({
       id: crypto.randomUUID(),
@@ -768,7 +760,7 @@ export async function messageAgent(opts: {
   threadId?: string;
   requiresPresident?: boolean;
 }): Promise<any> {
-  const rows = await supabaseFetch('agent_messages', '', {
+  const rows = await databaseFetch('agent_messages', '', {
     method: 'POST',
     body: JSON.stringify({
       from_employee: opts.fromRoleId,
@@ -790,7 +782,7 @@ export async function messageAgent(opts: {
 }
 
 export async function markMessagesRead(roleId: string): Promise<void> {
-  await supabaseFetch(
+  await databaseFetch(
     'agent_messages',
     `to_employee=eq.${roleId}&status=eq.sent`,
     { method: 'PATCH', body: JSON.stringify({ status: 'read' }) },
@@ -801,7 +793,7 @@ export async function saveManagerBriefing(
   content: string,
   deliveredVia?: string,
 ): Promise<any> {
-  return supabaseFetch('manager_briefings', '', {
+  return databaseFetch('manager_briefings', '', {
     method: 'POST',
     body: JSON.stringify({
       briefing_date: new Date().toISOString().slice(0, 10),
@@ -819,7 +811,7 @@ export async function logShift(entry: {
   flags?: string;
   escalated_to?: string;
 }): Promise<void> {
-  await supabaseFetch('ai_team_log', '', {
+  await databaseFetch('ai_team_log', '', {
     method: 'POST',
     body: JSON.stringify({
       ...entry,
@@ -846,16 +838,16 @@ export async function getRoleContext(roleId: string): Promise<RoleContext> {
   const today = new Date().toISOString().slice(0, 10);
   const [ownHistory, todayLogs, briefingRows, unreadMessages] =
     await Promise.all([
-      supabaseFetch(
+      databaseFetch(
         'ai_team_log',
         `role_id=eq.${roleId}&order=created_at.desc&limit=5`,
       ),
-      supabaseFetch('ai_team_log', `shift_date=eq.${today}`),
-      supabaseFetch(
+      databaseFetch('ai_team_log', `shift_date=eq.${today}`),
+      databaseFetch(
         'manager_briefings',
         `briefing_date=eq.${today}&order=created_at.desc&limit=1`,
       ),
-      supabaseFetch(
+      databaseFetch(
         'agent_messages',
         `to_employee=eq.${roleId}&status=eq.sent&order=created_at.asc&limit=10`,
       ),
@@ -863,14 +855,14 @@ export async function getRoleContext(roleId: string): Promise<RoleContext> {
 
   let businessData: any = null;
   if (roleId === 'sam-support') {
-    businessData = await supabaseFetch(
+    businessData = await databaseFetch(
       'email_messages',
       'direction=eq.inbound&order=created_at.desc&limit=20',
     );
   } else if (roleId.includes('sales')) {
     const [inboundLeads, researchedLeads] = await Promise.all([
-      supabaseFetch('leads', 'order=created_at.desc&limit=25'),
-      supabaseFetch(
+      databaseFetch('leads', 'order=created_at.desc&limit=25'),
+      databaseFetch(
         'researched_leads',
         'status=in.(new,surfaced_to_sales)&order=created_at.desc&limit=15',
       ),
@@ -882,7 +874,7 @@ export async function getRoleContext(roleId: string): Promise<RoleContext> {
   } else if (roleId === 'eli-engineering') {
     businessData = {
       recent_errors:
-        (await supabaseFetch('error_logs', 'order=created_at.desc&limit=10')) ||
+        (await databaseFetch('error_logs', 'order=created_at.desc&limit=10')) ||
         [],
     };
   }
@@ -1054,7 +1046,7 @@ export async function researchLeads(identity?: {
   );
   let inserted = 0;
   for (const candidate of safeCandidates) {
-    const row = await supabaseFetch('researched_leads', '', {
+    const row = await databaseFetch('researched_leads', '', {
       method: 'POST',
       body: JSON.stringify({
         company_name: candidate.company_name,
@@ -1083,7 +1075,7 @@ export async function runSocialMediaShift(): Promise<any> {
   const roleId = 'frankie-social';
   const roleName = 'Frankie Mercer';
   const todayLogs =
-    (await supabaseFetch(
+    (await databaseFetch(
       'ai_team_log',
       `shift_date=eq.${new Date().toISOString().slice(0, 10)}`,
     )) || [];
@@ -1093,7 +1085,7 @@ export async function runSocialMediaShift(): Promise<any> {
   );
   const content = raw.trim().slice(0, 1900);
   if (content) {
-    await supabaseFetch('social_posts', '', {
+    await databaseFetch('social_posts', '', {
       method: 'POST',
       body: JSON.stringify({
         platform: 'linkedin',
