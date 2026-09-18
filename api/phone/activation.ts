@@ -8,19 +8,17 @@ import {
   releaseNumber,
   searchAvailableNumbers,
 } from '../lib/telephony-provider.js';
+import {
+  pgDelete as sbDelete,
+  pgInsert as sbInsert,
+  pgSelect as sbSelect,
+  pgUpdate as sbUpdate,
+} from '../lib/postgres-store.js';
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const SESSION_JWT_SECRET = process.env.SESSION_JWT_SECRET;
 const APP_BASE_URL = process.env.APP_BASE_URL || 'https://buildmybot.app';
 const TWILIO_WEBHOOK_BASE_URL =
   process.env.TWILIO_WEBHOOK_BASE_URL || APP_BASE_URL;
-
-const SUPABASE_HEADERS = {
-  apikey: SUPABASE_SERVICE_KEY || '',
-  Authorization: `Bearer ${SUPABASE_SERVICE_KEY || ''}`,
-  'Content-Type': 'application/json',
-};
 
 interface AuthUser {
   id: string;
@@ -72,89 +70,6 @@ function parseCookies(
   return cookies;
 }
 
-async function sbSelect(
-  table: string,
-  select = '*',
-  filters: Record<string, string> = {},
-) {
-  const params = new URLSearchParams({ select });
-  for (const [key, value] of Object.entries(filters)) {
-    params.set(key, value);
-  }
-  const response = await fetch(
-    `${SUPABASE_URL}/rest/v1/${table}?${params.toString()}`,
-    { headers: SUPABASE_HEADERS },
-  );
-  if (!response.ok) {
-    const detail = await response.text().catch(() => '');
-    throw new Error(
-      `Supabase select failed for ${table}: ${response.status} ${detail}`.trim(),
-    );
-  }
-  return response.json();
-}
-
-async function sbInsert(table: string, data: Record<string, unknown>) {
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
-    method: 'POST',
-    headers: { ...SUPABASE_HEADERS, Prefer: 'return=representation' },
-    body: JSON.stringify(data),
-  });
-  if (!response.ok) {
-    const detail = await response.text().catch(() => '');
-    throw new Error(
-      `Supabase insert failed for ${table}: ${response.status} ${detail}`.trim(),
-    );
-  }
-  return response.json();
-}
-
-async function sbUpdate(
-  table: string,
-  data: Record<string, unknown>,
-  filters: Record<string, string>,
-) {
-  const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(filters)) {
-    params.set(key, value);
-  }
-  const response = await fetch(
-    `${SUPABASE_URL}/rest/v1/${table}?${params.toString()}`,
-    {
-      method: 'PATCH',
-      headers: { ...SUPABASE_HEADERS, Prefer: 'return=representation' },
-      body: JSON.stringify(data),
-    },
-  );
-  if (!response.ok) {
-    const detail = await response.text().catch(() => '');
-    throw new Error(
-      `Supabase update failed for ${table}: ${response.status} ${detail}`.trim(),
-    );
-  }
-  return response.json();
-}
-
-async function sbDelete(table: string, filters: Record<string, string>) {
-  const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(filters)) {
-    params.set(key, value);
-  }
-  const response = await fetch(
-    `${SUPABASE_URL}/rest/v1/${table}?${params.toString()}`,
-    {
-      method: 'DELETE',
-      headers: SUPABASE_HEADERS,
-    },
-  );
-  if (!response.ok) {
-    const detail = await response.text().catch(() => '');
-    throw new Error(
-      `Supabase delete failed for ${table}: ${response.status} ${detail}`.trim(),
-    );
-  }
-}
-
 function ownerFilter(user: AuthUser): Record<string, string> {
   return user.organizationId
     ? { organization_id: `eq.${user.organizationId}` }
@@ -172,7 +87,7 @@ function tenantTelephonyFilter(user: AuthUser): Record<string, string> {
 }
 
 async function getAuthUser(req: ApiRequest): Promise<AuthUser | null> {
-  if (!SESSION_JWT_SECRET || !SUPABASE_SERVICE_KEY || !SUPABASE_URL) {
+  if (!SESSION_JWT_SECRET || !process.env.DATABASE_URL) {
     return null;
   }
 
