@@ -8,18 +8,7 @@
 
 import crypto from 'node:crypto';
 import { sendEmail } from './mailer.js';
-
-const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-
-function headers(extra: Record<string, string> = {}) {
-  return {
-    apikey: SUPABASE_KEY,
-    Authorization: `Bearer ${SUPABASE_KEY}`,
-    'Content-Type': 'application/json',
-    ...extra,
-  };
-}
+import { pgInsert, pgSelect, pgUpdate } from './postgres-store.js';
 
 export type AuthTokenType = 'password_reset' | 'email_verification';
 
@@ -54,22 +43,14 @@ export async function issueAuthToken(
   const raw = crypto.randomBytes(32).toString('base64url');
   const expiresAt = new Date(Date.now() + TOKEN_TTL_MS[type]).toISOString();
 
-  const resp = await fetch(`${SUPABASE_URL}/rest/v1/auth_tokens`, {
-    method: 'POST',
-    headers: headers({ Prefer: 'return=minimal' }),
-    body: JSON.stringify({
-      id: crypto.randomUUID(),
-      user_id: userId,
-      type,
-      token_hash: hashToken(raw),
-      expires_at: expiresAt,
-      created_at: new Date().toISOString(),
-    }),
+  await pgInsert('auth_tokens', {
+    id: crypto.randomUUID(),
+    user_id: userId,
+    type,
+    token_hash: hashToken(raw),
+    expires_at: expiresAt,
+    created_at: new Date().toISOString(),
   });
-  if (!resp.ok) {
-    const detail = await resp.text().catch(() => '');
-    throw new Error(`auth_tokens insert failed: ${resp.status} ${detail}`);
-  }
 
   return { token: raw, expiresAt };
 }
@@ -92,28 +73,22 @@ export async function consumeAuthToken(
   if (!raw || typeof raw !== 'string') return { ok: false, reason: 'invalid' };
   const tokenHash = hashToken(raw);
 
-  const lookup = await fetch(
-    `${SUPABASE_URL}/rest/v1/auth_tokens?select=id,user_id,expires_at,used_at&token_hash=eq.${tokenHash}&type=eq.${type}&limit=1`,
-    { headers: headers() },
-  );
-  if (!lookup.ok) return { ok: false, reason: 'error' };
-  const rows = (await lookup.json().catch(() => [])) as any[];
+  const rows = await pgSelect<any>('auth_tokens', 'id,user_id,expires_at,used_at', {
+    token_hash: `eq.${tokenHash}`,
+    type: `eq.${type}`,
+    limit: '1',
+  }).catch(() => []);
   const row = rows?.[0];
   if (!row) return { ok: false, reason: 'invalid' };
   if (row.used_at) return { ok: false, reason: 'used' };
   if (new Date(row.expires_at).getTime() <= Date.now())
     return { ok: false, reason: 'expired' };
 
-  const burn = await fetch(
-    `${SUPABASE_URL}/rest/v1/auth_tokens?id=eq.${row.id}&used_at=is.null`,
-    {
-      method: 'PATCH',
-      headers: headers({ Prefer: 'return=representation' }),
-      body: JSON.stringify({ used_at: new Date().toISOString() }),
-    },
-  );
-  if (!burn.ok) return { ok: false, reason: 'error' };
-  const burned = (await burn.json().catch(() => [])) as any[];
+  const burned = await pgUpdate<any>(
+    'auth_tokens',
+    { used_at: new Date().toISOString() },
+    { id: `eq.${row.id}`, used_at: 'is.null' },
+  ).catch(() => []);
   // Empty array => another request burned it first.
   if (!burned?.length) return { ok: false, reason: 'used' };
 
