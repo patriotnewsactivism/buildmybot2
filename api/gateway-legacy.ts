@@ -46,6 +46,12 @@ import {
 } from './security/ssrf.js';
 import { computeSmsOversight } from './sms/oversight.js';
 import { liveVoiceEngineName } from './voice/engine.js';
+import {
+  pgDelete as sbDelete,
+  pgInsert as sbInsert,
+  pgSelect as sbSelect,
+  pgUpdate as sbUpdate,
+} from './lib/postgres-store.js';
 
 // Initialize Sentry for production error monitoring
 if (process.env.SENTRY_DSN) {
@@ -62,30 +68,13 @@ if (process.env.SENTRY_DSN) {
 // Uses Supabase REST API for data, JWT cookies for auth
 // =====================================================================
 
-const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-if (!SUPABASE_URL) {
-  throw new Error(
-    'Missing SUPABASE_URL or VITE_SUPABASE_URL environment variable',
-  );
-}
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const SESSION_JWT_SECRET = process.env.SESSION_JWT_SECRET;
 const CRON_SECRET = process.env.CRON_SECRET || '';
 
-if (!SUPABASE_SERVICE_KEY || !SESSION_JWT_SECRET) {
-  // Logged at cold-start; the handler also checks this per-request so callers get a clean 500
-  // instead of a confusing crash or (worse) running with no auth verification at all.
-  console.error(
-    '[gateway] FATAL: SUPABASE_SERVICE_ROLE_KEY / SESSION_JWT_SECRET env vars not set',
-  );
+if (!process.env.DATABASE_URL || !SESSION_JWT_SECRET) {
+  console.error('[gateway] FATAL: DATABASE_URL / SESSION_JWT_SECRET env vars not set');
 }
 
-// Lazy-init fetch headers
-const SUPABASE_HEADERS = {
-  apikey: SUPABASE_SERVICE_KEY || '',
-  Authorization: `Bearer ${SUPABASE_SERVICE_KEY || ''}`,
-  'Content-Type': 'application/json',
-};
 
 // =====================================================================
 // Auth helpers
@@ -111,7 +100,7 @@ function parseCookies(
 }
 
 async function getAuthUser(req: ApiRequest): Promise<AuthUser | null> {
-  if (!SESSION_JWT_SECRET || !SUPABASE_SERVICE_KEY) return null;
+  if (!SESSION_JWT_SECRET || !process.env.DATABASE_URL) return null;
 
   // Check Bearer token
   const authHeader = req.headers.authorization;
@@ -183,23 +172,8 @@ async function getAuthUser(req: ApiRequest): Promise<AuthUser | null> {
 }
 
 // =====================================================================
-// Supabase query helpers
+// Neon/Postgres query helpers are imported from lib/postgres-store.ts.
 // =====================================================================
-async function sbSelect(
-  table: string,
-  select = '*',
-  filters: Record<string, string> = {},
-) {
-  const params = new URLSearchParams({ select });
-  for (const [key, value] of Object.entries(filters)) {
-    params.set(key, value);
-  }
-  const url = `${SUPABASE_URL}/rest/v1/${table}?${params.toString()}`;
-  const resp = await fetch(url, { headers: SUPABASE_HEADERS });
-  if (!resp.ok) throw new Error(`Supabase error: ${resp.status}`);
-  return resp.json();
-}
-
 export function ownerFilter(user: AuthUser): Record<string, string> {
   // SECURITY: never return an empty filter here -- an empty {} means "no
   // WHERE clause", i.e. every row in the table across every tenant. Users
@@ -414,50 +388,6 @@ async function startTrial(
     { id: `eq.${userId}` },
   );
   return { success: true, endsAt: endsAt.toISOString() };
-}
-
-async function sbInsert(table: string, data: any) {
-  const url = `${SUPABASE_URL}/rest/v1/${table}`;
-  const resp = await fetch(url, {
-    method: 'POST',
-    headers: { ...SUPABASE_HEADERS, Prefer: 'return=representation' },
-    body: JSON.stringify(data),
-  });
-  if (!resp.ok) throw new Error(`Supabase insert error: ${resp.status}`);
-  return resp.json();
-}
-
-async function sbUpdate(
-  table: string,
-  data: any,
-  filters: Record<string, string>,
-) {
-  const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(filters)) {
-    params.set(key, value);
-  }
-  const url = `${SUPABASE_URL}/rest/v1/${table}?${params.toString()}`;
-  const resp = await fetch(url, {
-    method: 'PATCH',
-    headers: { ...SUPABASE_HEADERS, Prefer: 'return=representation' },
-    body: JSON.stringify(data),
-  });
-  if (!resp.ok) throw new Error(`Supabase update error: ${resp.status}`);
-  return resp.json();
-}
-
-async function sbDelete(table: string, filters: Record<string, string>) {
-  const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(filters)) {
-    params.set(key, value);
-  }
-  const url = `${SUPABASE_URL}/rest/v1/${table}?${params.toString()}`;
-  const resp = await fetch(url, {
-    method: 'DELETE',
-    headers: SUPABASE_HEADERS,
-  });
-  if (!resp.ok) throw new Error(`Supabase delete error: ${resp.status}`);
-  return { success: true };
 }
 
 function setCors(res: ApiResponse, req?: ApiRequest) {
