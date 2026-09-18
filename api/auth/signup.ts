@@ -1,9 +1,8 @@
 import type { ApiRequest, ApiResponse } from '../lib/http-types.js';
 import { sendVerificationEmail } from '../lib/auth-tokens.js';
 import { RATE_LIMITS, enforceRateLimit } from '../lib/rate-limit.js';
+import { pgInsert, pgSelect } from '../lib/postgres-store.js';
 
-const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const JWT_SECRET = process.env.SESSION_JWT_SECRET;
 // Security: sessions are short-lived (24h) and are NOT persisted as a
 // long-lived cookie -- no Max-Age is set on the cookie itself, so it's a
@@ -24,9 +23,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (req.method !== 'POST')
     return res.status(405).json({ error: 'Method not allowed' });
 
-  if (!SUPABASE_KEY || !JWT_SECRET) {
+  if (!process.env.DATABASE_URL || !JWT_SECRET) {
     console.error(
-      '[signup] FATAL: SUPABASE_SERVICE_ROLE_KEY / SESSION_JWT_SECRET not set',
+      '[signup] FATAL: DATABASE_URL / SESSION_JWT_SECRET not set',
     );
     return res.status(500).json({ error: 'Server misconfigured' });
   }
@@ -38,19 +37,10 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
-    // Check if user exists
-    const checkUrl = new URL(`${SUPABASE_URL}/rest/v1/users`);
-    checkUrl.searchParams.set('select', 'id');
-    checkUrl.searchParams.set('email', `eq.${email.toLowerCase()}`);
-    checkUrl.searchParams.set('limit', '1');
-
-    const checkRes = await fetch(checkUrl.toString(), {
-      headers: {
-        apikey: SUPABASE_KEY,
-        Authorization: `Bearer ${SUPABASE_KEY}`,
-      },
+    const existing = await pgSelect<any>('users', 'id', {
+      email: `eq.${email.toLowerCase()}`,
+      limit: '1',
     });
-    const existing = await checkRes.json();
     if (existing[0])
       return res.status(409).json({ error: 'Email already registered' });
 
@@ -62,46 +52,25 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     const crypto = await import('node:crypto');
     const userId = crypto.default.randomUUID();
 
-    // Create user
-    const createRes = await fetch(`${SUPABASE_URL}/rest/v1/users`, {
-      method: 'POST',
-      headers: {
-        apikey: SUPABASE_KEY,
-        Authorization: `Bearer ${SUPABASE_KEY}`,
-        'Content-Type': 'application/json',
-        Prefer: 'return=representation',
-      },
-      body: JSON.stringify({
-        id: userId,
-        email: email.toLowerCase(),
-        name: name || email.split('@')[0],
-        password_hash: passwordHash,
-        // OWNER = owner of THIS customer organization. It is not, and must
-        // not be treated as, a platform-wide admin role.
-        role: 'OWNER',
-        plan: 'FREE',
-        status: 'Active',
-        company_name: companyName || null,
-        referred_by: referredBy || null,
-        preferences: {},
-        email_verified: false,
-        referral_credits: 0,
-        reseller_client_count: 0,
-        whitelabel_enabled: false,
-        created_at: new Date().toISOString(),
-      }),
+    // Create user in Neon/Postgres.
+    const createdUsers = await pgInsert<any>('users', {
+      id: userId,
+      email: email.toLowerCase(),
+      name: name || email.split('@')[0],
+      password_hash: passwordHash,
+      role: 'OWNER',
+      plan: 'FREE',
+      status: 'Active',
+      company_name: companyName || null,
+      referred_by: referredBy || null,
+      preferences: {},
+      email_verified: false,
+      referral_credits: 0,
+      reseller_client_count: 0,
+      whitelabel_enabled: false,
+      created_at: new Date().toISOString(),
     });
-
-    if (!createRes.ok) {
-      console.error(
-        'Create user failed:',
-        createRes.status,
-        await createRes.text(),
-      );
-      return res.status(500).json({ error: 'Failed to create account' });
-    }
-
-    const newUser = (await createRes.json())[0];
+    const newUser = createdUsers[0];
 
     // Create JWT
     const payload = {
