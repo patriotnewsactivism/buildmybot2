@@ -1,10 +1,8 @@
+import { neonRestFetch, pgRpc } from '../lib/postgres-store.js';
 // Shared AI Team runtime for BuildMyBot2.
 // Operator policy 2026-09-04: FREE models first (most-reasoning until
 // exhausted), then CHEAPEST high-reasoning PAID models as last resort.
 // No sole paid usage without explicit operator authorization.
-
-const SUPABASE_URL = process.env.SUPABASE_URL!;
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 type Provider =
   | 'openrouter-minimax-m3'
@@ -166,22 +164,7 @@ async function overDailyBudget(): Promise<boolean> {
 
   try {
     const today = new Date().toISOString().slice(0, 10);
-    const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/rpc/increment_llm_usage`,
-      {
-        method: 'POST',
-        headers: {
-          apikey: SUPABASE_SERVICE_ROLE_KEY,
-          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ usage_day: today }),
-      },
-    );
-    if (!response.ok) {
-      throw new Error(`budget RPC returned ${response.status}`);
-    }
-    const count = await response.json();
+    const count = await pgRpc<number>('increment_llm_usage', { usage_day: today });
     return typeof count === 'number' && count > budget;
   } catch (error: any) {
     throw new Error(`llm_budget_guard_unavailable: ${error.message}`);
@@ -342,29 +325,18 @@ async function callWithConfigMessages(
   }
 }
 
-export async function supabaseFetch(
+export async function databaseFetch(
   table: string,
   params: string,
   init?: RequestInit,
 ): Promise<any> {
   const suffix = params ? `?${params}` : '';
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/${table}${suffix}`, {
-    ...init,
-    headers: {
-      apikey: SUPABASE_SERVICE_ROLE_KEY,
-      Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-      'Content-Type': 'application/json',
-      Prefer: init?.method === 'POST' ? 'return=representation' : '',
-      ...(init?.headers || {}),
-    },
-  });
-
+  const response = await neonRestFetch(`${table}${suffix}`, init);
   if (!response.ok) {
     const detail = await response.text().catch(() => '');
-    console.error(`Supabase ${table} fetch failed:`, response.status, detail);
+    console.error(`Postgres ${table} fetch failed:`, response.status, detail);
     return null;
   }
-
   const text = await response.text();
   if (!text) return null;
   try {
@@ -395,19 +367,14 @@ export async function getAiTeamSchemaReadiness(
     return schemaReadinessCache.value;
   }
 
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+  if (!process.env.DATABASE_URL) {
     return {
       ready: false,
-      missing: ['SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY'],
+      missing: ['DATABASE_URL'],
       checkedAt: new Date().toISOString(),
     };
   }
 
-  const headers = {
-    apikey: SUPABASE_SERVICE_ROLE_KEY,
-    Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-    'Content-Type': 'application/json',
-  };
   const checks: Array<{ name: string; path: string; init?: RequestInit }> = [
     {
       name: 'ai_agent_memories.organization_id',
@@ -450,10 +417,7 @@ export async function getAiTeamSchemaReadiness(
   const results = await Promise.all(
     checks.map(async (check) => {
       try {
-        const response = await fetch(`${SUPABASE_URL}/rest/v1/${check.path}`, {
-          ...check.init,
-          headers: { ...headers, ...(check.init?.headers || {}) },
-        });
+        const response = await neonRestFetch(check.path, check.init);
         return response.ok ? null : check.name;
       } catch {
         return check.name;
