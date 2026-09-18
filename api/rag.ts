@@ -118,7 +118,7 @@ export async function ingestKnowledgeSource(
 
 	// 2. Delete existing chunks for this source (re-ingestion)
 	await neonRestFetch(`knowledge_chunks?source_id=eq.${sourceId}`,
-		{ method: "DELETE", headers: SUPABASE_HEADERS },
+		{ method: "DELETE" },
 	).catch(() => {});
 
 	// 3. Embed all chunks in one batch
@@ -219,7 +219,7 @@ export async function searchKnowledge(
 	const queryEmbedding = await embedText(query);
 
 	if (queryEmbedding) {
-		// Use Supabase RPC for vector similarity search
+		// Use the Postgres RPC for vector similarity search
 		// We call a Postgres function that does cosine similarity
 		const rpcResp = await neonRestFetch(`rpc/match_knowledge_chunks`,
 			{
