@@ -1,6 +1,5 @@
 import type { ApiRequest, ApiResponse } from '../lib/http-types.js';
-const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+import { pgSelect } from '../lib/postgres-store.js';
 const JWT_SECRET = process.env.SESSION_JWT_SECRET;
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
@@ -8,9 +7,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (req.method !== 'GET')
     return res.status(405).json({ error: 'Method not allowed' });
 
-  if (!SUPABASE_KEY || !JWT_SECRET) {
+  if (!process.env.DATABASE_URL || !JWT_SECRET) {
     console.error(
-      '[auth/user] FATAL: SUPABASE_SERVICE_ROLE_KEY / SESSION_JWT_SECRET not set',
+      '[auth/user] FATAL: DATABASE_URL / SESSION_JWT_SECRET not set',
     );
     return res.status(500).json({ error: 'Server misconfigured' });
   }
@@ -44,24 +43,11 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       return res.status(401).json({ error: 'Session expired' });
     }
 
-    // Fetch user from Supabase
-    const userUrl = new URL(`${SUPABASE_URL}/rest/v1/users`);
-    userUrl.searchParams.set('select', '*');
-    userUrl.searchParams.set('id', `eq.${payload.sub}`);
-    userUrl.searchParams.set('deleted_at', 'is.null');
-    userUrl.searchParams.set('limit', '1');
-
-    const userRes = await fetch(userUrl.toString(), {
-      headers: {
-        apikey: SUPABASE_KEY,
-        Authorization: `Bearer ${SUPABASE_KEY}`,
-      },
+    const users = await pgSelect<any>('users', '*', {
+      id: `eq.${payload.sub}`,
+      deleted_at: 'is.null',
+      limit: '1',
     });
-
-    if (!userRes.ok)
-      return res.status(500).json({ error: 'Database query failed' });
-
-    const users = await userRes.json();
     const user = users[0];
     if (!user) return res.status(401).json({ error: 'User not found' });
 
