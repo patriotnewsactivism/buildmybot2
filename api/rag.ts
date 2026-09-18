@@ -1,17 +1,10 @@
 // RAG Pipeline — Chunking, Embedding, and Vector Search
 import { assertSafeOutboundUrl, safeFetch } from "./security/ssrf.js";
+import { neonRestFetch } from "./lib/postgres-store.js";
 
 // Uses OpenAI embeddings (text-embedding-3-small, 1536 dims) to match
 // the existing knowledge_chunks.embedding vector(1536) column.
 // Falls back to keyword search if no embedding API key is available.
-
-const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
-const SUPABASE_HEADERS = {
-	apikey: SUPABASE_KEY,
-	Authorization: `Bearer ${SUPABASE_KEY}`,
-	"Content-Type": "application/json",
-};
 
 // Embedding provider — OpenAI text-embedding-3-small (1536 dims, matches DB schema)
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
@@ -124,8 +117,7 @@ export async function ingestKnowledgeSource(
 		};
 
 	// 2. Delete existing chunks for this source (re-ingestion)
-	await fetch(
-		`${SUPABASE_URL}/rest/v1/knowledge_chunks?source_id=eq.${sourceId}`,
+	await neonRestFetch(`knowledge_chunks?source_id=eq.${sourceId}`,
 		{ method: "DELETE", headers: SUPABASE_HEADERS },
 	).catch(() => {});
 
@@ -152,9 +144,9 @@ export async function ingestKnowledgeSource(
 	let insertedCount = 0;
 	for (let i = 0; i < rows.length; i += 20) {
 		const batch = rows.slice(i, i + 20);
-		const resp = await fetch(`${SUPABASE_URL}/rest/v1/knowledge_chunks`, {
+		const resp = await neonRestFetch(`knowledge_chunks`, {
 			method: "POST",
-			headers: { ...SUPABASE_HEADERS, Prefer: "return=minimal" },
+			headers: { Prefer: "return=minimal" },
 			body: JSON.stringify(batch),
 		});
 		if (!resp.ok) {
@@ -189,9 +181,9 @@ export async function ingestKnowledgeSource(
 		? null
 		: `Only ${insertedCount}/${rows.length} chunks were persisted`;
 
-	await fetch(`${SUPABASE_URL}/rest/v1/knowledge_sources?id=eq.${sourceId}`, {
+	await neonRestFetch(`knowledge_sources?id=eq.${sourceId}`, {
 		method: "PATCH",
-		headers: { ...SUPABASE_HEADERS, Prefer: "return=minimal" },
+		headers: { Prefer: "return=minimal" },
 		body: JSON.stringify({
 			status,
 			last_processed_at: new Date().toISOString(),
@@ -229,11 +221,10 @@ export async function searchKnowledge(
 	if (queryEmbedding) {
 		// Use Supabase RPC for vector similarity search
 		// We call a Postgres function that does cosine similarity
-		const rpcResp = await fetch(
-			`${SUPABASE_URL}/rest/v1/rpc/match_knowledge_chunks`,
+		const rpcResp = await neonRestFetch(`rpc/match_knowledge_chunks`,
 			{
 				method: "POST",
-				headers: SUPABASE_HEADERS,
+				
 				body: JSON.stringify({
 					query_embedding: JSON.stringify(queryEmbedding),
 					match_bot_id: botId,
@@ -269,9 +260,8 @@ export async function searchKnowledge(
 	});
 
 	// Search for chunks containing the query keywords
-	const resp = await fetch(
-		`${SUPABASE_URL}/rest/v1/knowledge_chunks?${params}&content=ilike.*${keywords[0]}*`,
-		{ headers: SUPABASE_HEADERS },
+	const resp = await neonRestFetch(`knowledge_chunks?${params}&content=ilike.*${keywords[0]}*`,
+		{},
 	);
 
 	if (resp.ok) {
@@ -449,9 +439,8 @@ export async function ingestPageChunks(
 	const embeddings = await embedBatch(chunks);
 
 	// Find current max chunk_index for this source so appended pages don't collide
-	const existing = await fetch(
-		`${SUPABASE_URL}/rest/v1/knowledge_chunks?source_id=eq.${sourceId}&select=chunk_index&order=chunk_index.desc&limit=1`,
-		{ headers: SUPABASE_HEADERS },
+	const existing = await neonRestFetch(`knowledge_chunks?source_id=eq.${sourceId}&select=chunk_index&order=chunk_index.desc&limit=1`,
+		{},
 	)
 		.then((r) => (r.ok ? r.json() : []))
 		.catch(() => []);
@@ -474,9 +463,9 @@ export async function ingestPageChunks(
 	let insertedCount = 0;
 	for (let i = 0; i < rows.length; i += 20) {
 		const batch = rows.slice(i, i + 20);
-		const resp = await fetch(`${SUPABASE_URL}/rest/v1/knowledge_chunks`, {
+		const resp = await neonRestFetch(`knowledge_chunks`, {
 			method: "POST",
-			headers: { ...SUPABASE_HEADERS, Prefer: "return=minimal" },
+			headers: { Prefer: "return=minimal" },
 			body: JSON.stringify(batch),
 		});
 		if (!resp.ok) {
