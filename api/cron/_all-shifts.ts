@@ -1,4 +1,5 @@
 import type { ApiRequest, ApiResponse } from '../lib/http-types.js';
+import { pgCount, pgInsert, pgSelect } from '../lib/postgres-store.js';
 import {
   aiTeamKilled,
   callLLM,
@@ -113,21 +114,11 @@ async function runMarcusSummary(precomputedResults?: Record<string, any>) {
   let results = precomputedResults;
 
   if (!results) {
-    // Marcus is running standalone (GitHub Actions calls him last, after
-    // every other role already ran earlier today) — pull today's real
-    // shift log from Supabase instead of re-running everyone.
-    const SUPABASE_URL = process.env.SUPABASE_URL!;
-    const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-    const resp = await fetch(
-      `${SUPABASE_URL}/rest/v1/ai_team_log?shift_date=eq.${today}&order=created_at.desc`,
-      {
-        headers: {
-          apikey: SUPABASE_SERVICE_ROLE_KEY,
-          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-        },
-      },
-    );
-    const rows = resp.ok ? await resp.json() : [];
+    // Marcus is running standalone; pull today's real shift log from Neon.
+    const rows = await pgSelect<any>('ai_team_log', '*', {
+      shift_date: `eq.${today}`,
+      order: 'created_at.desc',
+    }).catch(() => []);
     results = {};
     for (const row of rows) {
       if (!results[row.role_id]) {
@@ -146,20 +137,12 @@ async function runMarcusSummary(precomputedResults?: Record<string, any>) {
     0,
   );
 
-  // Echo back whatever briefing Don gave the team today, so his exec email
-  // confirms it was actually received and acted on.
-  const SUPABASE_URL2 = process.env.SUPABASE_URL!;
-  const SUPABASE_SERVICE_ROLE_KEY2 = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-  const briefResp = await fetch(
-    `${SUPABASE_URL2}/rest/v1/manager_briefings?briefing_date=eq.${today}&order=created_at.desc&limit=1`,
-    {
-      headers: {
-        apikey: SUPABASE_SERVICE_ROLE_KEY2,
-        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY2}`,
-      },
-    },
-  );
-  const briefRows = briefResp.ok ? await briefResp.json() : [];
+  // Echo back whatever briefing Don gave the team today.
+  const briefRows = await pgSelect<any>('manager_briefings', '*', {
+    briefing_date: `eq.${today}`,
+    order: 'created_at.desc',
+    limit: '1',
+  }).catch(() => []);
   const briefingToday = briefRows[0]?.content as string | undefined;
   const briefingContext = briefingToday
     ? `\n\nDon's briefing to the team today: "${briefingToday}"`
@@ -167,27 +150,18 @@ async function runMarcusSummary(precomputedResults?: Record<string, any>) {
 
   // ── Hard numbers for the conference call — pulled from real tables, never
   // from the LLM. Marcus narrates them; he doesn't get to make them up.
-  const sbCount = async (table: string, filter: string): Promise<number> => {
-    const resp = await fetch(
-      `${SUPABASE_URL2}/rest/v1/${table}?select=id&${filter}&limit=1000`,
-      {
-        headers: {
-          apikey: SUPABASE_SERVICE_ROLE_KEY2,
-          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY2}`,
-        },
-      },
-    );
-    const rows = resp.ok ? await resp.json() : [];
-    return Array.isArray(rows) ? rows.length : 0;
+  const dbCount = async (table: string, filter: string): Promise<number> => {
+    const params = Object.fromEntries(new URLSearchParams(filter).entries());
+    return pgCount(table, params).catch(() => 0);
   };
   const dayStart = `${today}T00:00:00Z`;
   const [leadsNew, followUpsSent, repliesIn, openErrors, mailUnread] =
     await Promise.all([
-      sbCount('leads', `created_at=gte.${dayStart}`),
-      sbCount('leads', `follow_up_sent_at=gte.${dayStart}`),
-      sbCount('leads', `replied_at=gte.${dayStart}`),
-      sbCount('error_logs', 'status=eq.open'),
-      sbCount('agent_messages', 'status=eq.sent'),
+      dbCount('leads', `created_at=gte.${dayStart}`),
+      dbCount('leads', `follow_up_sent_at=gte.${dayStart}`),
+      dbCount('leads', `replied_at=gte.${dayStart}`),
+      dbCount('error_logs', 'status=eq.open'),
+      dbCount('agent_messages', 'status=eq.sent'),
     ]);
   const numbers = {
     date: today,
@@ -223,18 +197,10 @@ async function runMarcusSummary(precomputedResults?: Record<string, any>) {
   const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
   const planMatch = marcusSummary.match(/TOMORROW'S PLAN:([\s\S]*)$/i);
   if (planMatch?.[1]?.trim()) {
-    await fetch(`${SUPABASE_URL2}/rest/v1/manager_briefings`, {
-      method: 'POST',
-      headers: {
-        apikey: SUPABASE_SERVICE_ROLE_KEY2,
-        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY2}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        briefing_date: tomorrow,
-        content: `Plan agreed on yesterday's conference call (Don's own briefing overrides this if given):\n${planMatch[1].trim().slice(0, 3000)}`,
-        delivered_via: 'daily-conference',
-      }),
+    await pgInsert('manager_briefings', {
+      briefing_date: tomorrow,
+      content: `Plan agreed on yesterday's conference call (Don's own briefing overrides this if given):\n${planMatch[1].trim().slice(0, 3000)}`,
+      delivered_via: 'daily-conference',
     });
   }
 
