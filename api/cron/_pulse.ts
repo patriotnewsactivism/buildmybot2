@@ -8,7 +8,7 @@ import {
   notifySlack,
   rememberMemory,
   salesAutomationDryRun,
-  supabaseFetch,
+  databaseFetch,
 } from '../ai-team/lib.js';
 
 // Around-the-clock pulse worker. Idle pulses use database reads only; model
@@ -49,7 +49,7 @@ export async function pulseHandler(req: ApiRequest, res: ApiResponse) {
     try {
       const cutoff = new Date(Date.now() - 48 * 3_600_000).toISOString();
       const overdue =
-        (await supabaseFetch(
+        (await databaseFetch(
           'leads',
           `select=id&replied_at=is.null&follow_up_sent_at=is.null&created_at=lt.${cutoff}&limit=1`,
         )) || [];
@@ -74,7 +74,7 @@ export async function pulseHandler(req: ApiRequest, res: ApiResponse) {
   // 2. Internal mail: answer one round-trip, never president mail or replies.
   try {
     const unread =
-      (await supabaseFetch(
+      (await databaseFetch(
         'agent_messages',
         'status=eq.sent&order=created_at.asc&limit=5&select=id,from_employee,to_employee,subject,body,thread_id',
       )) || [];
@@ -85,7 +85,7 @@ export async function pulseHandler(req: ApiRequest, res: ApiResponse) {
       const toHuman = /president|don/i.test(message.to_employee || '');
       if (isReply || toHuman) {
         if (isReply) {
-          await supabaseFetch('agent_messages', `id=eq.${message.id}`, {
+          await databaseFetch('agent_messages', `id=eq.${message.id}`, {
             method: 'PATCH',
             body: JSON.stringify({ status: 'read' }),
           });
@@ -110,7 +110,7 @@ export async function pulseHandler(req: ApiRequest, res: ApiResponse) {
         body: reply,
         threadId: message.thread_id || message.id,
       });
-      await supabaseFetch('agent_messages', `id=eq.${message.id}`, {
+      await databaseFetch('agent_messages', `id=eq.${message.id}`, {
         method: 'PATCH',
         body: JSON.stringify({ status: 'read' }),
       });
@@ -135,7 +135,7 @@ export async function pulseHandler(req: ApiRequest, res: ApiResponse) {
   if (outboundEnabled) {
     try {
       const waitingLeads =
-        (await supabaseFetch(
+        (await databaseFetch(
           'researched_leads',
           'select=id&status=in.(new,surfaced_to_sales)&limit=1',
         )) || [];
@@ -161,7 +161,7 @@ export async function pulseHandler(req: ApiRequest, res: ApiResponse) {
   try {
     const cutoff = new Date(Date.now() - 2 * 3_600_000).toISOString();
     const stale =
-      (await supabaseFetch(
+      (await databaseFetch(
         'error_logs',
         `status=eq.open&level=eq.critical&created_at=lt.${cutoff}&select=id,source,message,context,created_at&limit=10`,
       )) || [];
@@ -176,7 +176,7 @@ export async function pulseHandler(req: ApiRequest, res: ApiResponse) {
       await notifySlack(
         `Unresolved CRITICAL (${ageHours}h old) — ${error.source}\n${String(error.message).slice(0, 400)}`,
       );
-      await supabaseFetch('error_logs', `id=eq.${error.id}`, {
+      await databaseFetch('error_logs', `id=eq.${error.id}`, {
         method: 'PATCH',
         body: JSON.stringify({
           context: { ...(error.context ?? {}), pulse_reminded: true },
@@ -194,7 +194,7 @@ export async function pulseHandler(req: ApiRequest, res: ApiResponse) {
     const slaHours = Number(process.env.ESCALATION_SLA_HOURS || 4);
     const cutoff = new Date(Date.now() - slaHours * 3_600_000).toISOString();
     const staleEscalations =
-      (await supabaseFetch(
+      (await databaseFetch(
         'escalations',
         `status=eq.open&created_at=lt.${cutoff}&select=id,source,subject,summary,reason,priority,context,created_at&limit=10`,
       )) || [];
@@ -215,7 +215,7 @@ export async function pulseHandler(req: ApiRequest, res: ApiResponse) {
       await notifySlack(
         `Escalation unacknowledged for ${ageHours}h (${escalation.priority || 'normal'}) — ${escalation.source}\n${String(label).slice(0, 400)}`,
       );
-      await supabaseFetch('escalations', `id=eq.${escalation.id}`, {
+      await databaseFetch('escalations', `id=eq.${escalation.id}`, {
         method: 'PATCH',
         body: JSON.stringify({
           context: {
@@ -228,7 +228,7 @@ export async function pulseHandler(req: ApiRequest, res: ApiResponse) {
     }
 
     const stalePresidentMail =
-      (await supabaseFetch(
+      (await databaseFetch(
         'agent_messages',
         `requires_president=eq.true&status=eq.sent&created_at=lt.${cutoff}&select=id,from_employee,subject,context,created_at&limit=10`,
       )) || [];
@@ -243,7 +243,7 @@ export async function pulseHandler(req: ApiRequest, res: ApiResponse) {
       await notifySlack(
         `President-required message unread for ${ageHours}h — ${message.from_employee}\n${String(message.subject || '(no subject)').slice(0, 200)}`,
       );
-      await supabaseFetch('agent_messages', `id=eq.${message.id}`, {
+      await databaseFetch('agent_messages', `id=eq.${message.id}`, {
         method: 'PATCH',
         body: JSON.stringify({
           context: { ...(message.context ?? {}), pulse_reminded: true },
