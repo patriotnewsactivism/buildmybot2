@@ -1,6 +1,12 @@
 import crypto from 'node:crypto';
 import type { ApiRequest, ApiResponse } from './lib/http-types.js';
 import { handleSmsBillingEvent } from './sms/billing.js';
+import {
+  pgInsert as sbInsert,
+  pgSelect as sbSelect,
+  pgUpdate as sbUpdate,
+  pgUpsert,
+} from './lib/postgres-store.js';
 
 // This is a dedicated Vercel function (not routed through gateway.ts) so we
 // can read the raw request body -- Stripe signature verification requires
@@ -11,70 +17,11 @@ export const config = {
   },
 };
 
-const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-const SUPABASE_HEADERS = {
-  apikey: SUPABASE_KEY,
-  Authorization: `Bearer ${SUPABASE_KEY}`,
-  'Content-Type': 'application/json',
-};
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || '';
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
 
-async function sbSelect(
-  table: string,
-  select = '*',
-  filters: Record<string, string> = {},
-) {
-  const params = new URLSearchParams({ select });
-  for (const [k, v] of Object.entries(filters)) params.set(k, v);
-  const resp = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params}`, {
-    headers: SUPABASE_HEADERS,
-  });
-  if (!resp.ok) throw new Error(`Supabase error: ${resp.status}`);
-  return resp.json();
-}
-
-async function sbUpdate(
-  table: string,
-  data: any,
-  filters: Record<string, string>,
-) {
-  const params = new URLSearchParams();
-  for (const [k, v] of Object.entries(filters)) params.set(k, v);
-  const resp = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params}`, {
-    method: 'PATCH',
-    headers: { ...SUPABASE_HEADERS, Prefer: 'return=representation' },
-    body: JSON.stringify(data),
-  });
-  if (!resp.ok) throw new Error(`Supabase update error: ${resp.status}`);
-  return resp.json();
-}
-
-async function sbInsert(table: string, data: any) {
-  const resp = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
-    method: 'POST',
-    headers: { ...SUPABASE_HEADERS, Prefer: 'return=representation' },
-    body: JSON.stringify(data),
-  });
-  if (!resp.ok) throw new Error(`Supabase insert error: ${resp.status}`);
-  return resp.json();
-}
-
 async function sbUpsert(table: string, data: any, onConflict: string) {
-  const resp = await fetch(
-    `${SUPABASE_URL}/rest/v1/${table}?on_conflict=${onConflict}`,
-    {
-      method: 'POST',
-      headers: {
-        ...SUPABASE_HEADERS,
-        Prefer: 'resolution=merge-duplicates,return=representation',
-      },
-      body: JSON.stringify(data),
-    },
-  );
-  if (!resp.ok) throw new Error(`Supabase upsert error: ${resp.status}`);
-  return resp.json();
+  return pgUpsert(table, data, onConflict.split(',').map((value) => value.trim()).filter(Boolean));
 }
 
 async function stripeGet(path: string) {
