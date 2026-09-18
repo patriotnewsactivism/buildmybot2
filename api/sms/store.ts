@@ -1,14 +1,17 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { ApiRequest } from '../lib/http-types.js';
+import { neonRestFetch } from '../lib/postgres-store.js';
 export class SmsError extends Error {
   constructor(public status: number, message: string) { super(message); }
 }
 export interface SmsUser { id: string; organizationId: string | null; tenant: string; role: string; }
 export async function db<T = unknown>(path: string, method = 'GET', body?: unknown, prefer = 'return=representation'): Promise<T> {
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) throw new SmsError(503, 'Database is not configured');
-  const response = await fetch(`${url}/rest/v1/${path}`, { method, headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: prefer }, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(15000) });
+  if (!process.env.DATABASE_URL) throw new SmsError(503, 'Database is not configured');
+  const response = await neonRestFetch(path, {
+    method,
+    headers: { Prefer: prefer, 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
   if (!response.ok) {
     if (response.status === 409) throw new SmsError(409, 'This record or keyword already exists');
     throw new SmsError(503, `Database operation failed (${response.status})`);
