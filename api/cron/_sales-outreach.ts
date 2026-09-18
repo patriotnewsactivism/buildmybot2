@@ -4,7 +4,7 @@ import {
   logAgentError,
   logShift,
   salesAutomationDryRun,
-  supabaseFetch,
+  databaseFetch,
 } from '../ai-team/lib.js';
 
 export async function salesOutreachHandler(
@@ -33,7 +33,7 @@ export async function salesOutreachHandler(
 
   try {
     const freshLeads =
-      (await supabaseFetch(
+      (await databaseFetch(
         'researched_leads',
         'status=eq.new&order=created_at.desc&limit=10',
       )) || [];
