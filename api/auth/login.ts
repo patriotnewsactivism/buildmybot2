@@ -1,8 +1,7 @@
 import type { ApiRequest, ApiResponse } from '../lib/http-types.js';
 import { RATE_LIMITS, enforceRateLimit } from '../lib/rate-limit.js';
+import { pgSelect, pgUpdate } from '../lib/postgres-store.js';
 
-const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const JWT_SECRET = process.env.SESSION_JWT_SECRET;
 // Security: sessions are short-lived (24h) and are NOT persisted as a
 // long-lived cookie -- no Max-Age is set on the cookie itself, so it's a
@@ -16,9 +15,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (req.method !== 'POST')
     return res.status(405).json({ error: 'Method not allowed' });
 
-  if (!SUPABASE_KEY || !JWT_SECRET) {
+  if (!process.env.DATABASE_URL || !JWT_SECRET) {
     console.error(
-      '[login] FATAL: SUPABASE_SERVICE_ROLE_KEY / SESSION_JWT_SECRET not set',
+      '[login] FATAL: DATABASE_URL / SESSION_JWT_SECRET not set',
     );
     return res.status(500).json({ error: 'Server misconfigured' });
   }
@@ -36,26 +35,11 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
-    // Query Supabase for user
-    const userUrl = new URL(`${SUPABASE_URL}/rest/v1/users`);
-    userUrl.searchParams.set('select', '*');
-    userUrl.searchParams.set('email', `eq.${email.toLowerCase()}`);
-    userUrl.searchParams.set('deleted_at', 'is.null');
-    userUrl.searchParams.set('limit', '1');
-
-    const userRes = await fetch(userUrl.toString(), {
-      headers: {
-        apikey: SUPABASE_KEY,
-        Authorization: `Bearer ${SUPABASE_KEY}`,
-      },
+    const users = await pgSelect<any>('users', '*', {
+      email: `eq.${email.toLowerCase()}`,
+      deleted_at: 'is.null',
+      limit: '1',
     });
-
-    if (!userRes.ok) {
-      console.error('Supabase error:', userRes.status, await userRes.text());
-      return res.status(500).json({ error: 'Database query failed' });
-    }
-
-    const users = await userRes.json();
     const user = users[0];
     if (!user || !user.password_hash) {
       return res.status(401).json({ error: 'Invalid email or password' });
@@ -73,16 +57,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     }
 
     // Update last login (fire and forget)
-    fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${user.id}`, {
-      method: 'PATCH',
-      headers: {
-        apikey: SUPABASE_KEY,
-        Authorization: `Bearer ${SUPABASE_KEY}`,
-        'Content-Type': 'application/json',
-        Prefer: 'return=minimal',
-      },
-      body: JSON.stringify({ last_login_at: new Date().toISOString() }),
-    }).catch(() => {});
+    pgUpdate('users', { last_login_at: new Date().toISOString() }, { id: `eq.${user.id}` }).catch(() => {});
 
     // Create JWT
     const crypto = await import('node:crypto');
