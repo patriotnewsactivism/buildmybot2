@@ -45,6 +45,7 @@ import {
   safeFetch,
 } from './security/ssrf.js';
 import { computeSmsOversight } from './sms/oversight.js';
+import { smsLaunchEnabled } from './sms/store.js';
 import { liveVoiceEngineName } from './voice/engine.js';
 
 // Initialize Sentry for production error monitoring
@@ -1264,7 +1265,7 @@ async function handleAdmin(
         owners: ownerPages.flat() as any[],
         jobs: jobs as any[],
         jobsTruncated: (jobs as any[]).length >= JOB_SCAN_LIMIT,
-        launchEnabled: process.env.SMS_LAUNCH_ENABLED === 'true',
+        launchEnabled: smsLaunchEnabled(),
       }),
       tenantsTruncated:
         (accounts as any[]).length >= TENANT_LIMIT ||

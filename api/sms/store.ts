@@ -52,6 +52,11 @@ export function requireWorker(req: ApiRequest) {
   const received = req.headers.authorization?.replace(/^Bearer /, '') || '';
   if (!expected || received.length !== expected.length || !timingSafeEqual(Buffer.from(received), Buffer.from(expected))) throw new SmsError(401, 'Worker authentication required');
 }
+export function smsLaunchEnabled() {
+  const value = process.env.SMS_LAUNCH_ENABLED?.trim().toLowerCase();
+  return !['false', '0', 'off', 'no'].includes(value || '');
+}
+
 export function requireLaunch() {
-  if (process.env.SMS_LAUNCH_ENABLED !== 'true') throw new SmsError(503, 'SMS activation is awaiting production verification');
+  if (!smsLaunchEnabled()) throw new SmsError(503, 'SMS activation is temporarily disabled');
 }

@@ -3,7 +3,7 @@ import type { ApiRequest, ApiResponse } from '../lib/http-types.js';
 import { z } from 'zod';
 import { appointmentSchema, contactSchema, programSchema, smsSegments, SMS_PLANS, timezoneSchema } from '../../shared/sms.js';
 import { accountFor, contactFor, enqueue, ensureAccount, runWorker, saveAppointment, type Contact } from './runtime.js';
-import { authenticate, db, filter, requireLaunch, requireWorker, rpc, scoped, SmsError } from './store.js';
+import { authenticate, db, filter, requireLaunch, requireWorker, rpc, scoped, smsLaunchEnabled, SmsError } from './store.js';
 import { createSmsCheckout } from './billing.js';
 import { smsKnowledge } from './knowledge.js';
 import { advanceDueProvisioning } from './register.js';
@@ -42,7 +42,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         return res.json({
           account,
           plans: SMS_PLANS,
-          launchEnabled: process.env.SMS_LAUNCH_ENABLED === 'true',
+          launchEnabled: smsLaunchEnabled(),
           knowledgeBases,
         });
       }
