@@ -1,5 +1,5 @@
 import type { ApiRequest, ApiResponse } from '../lib/http-types.js';
-const GEMINI_MODEL = 'models/gemini-3.1-flash-live-preview';
+const GEMINI_MODEL = 'models/gemini-3.8-live';
 const DEMO_VOICE = 'Sulafat';
 const TOKEN_ENDPOINT =
   'https://generativelanguage.googleapis.com/v1beta/auth_tokens';
@@ -155,7 +155,6 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
                 prebuiltVoiceConfig: { voiceName: DEMO_VOICE },
               },
             },
-            thinkingConfig: { thinkingLevel: 'minimal' },
           },
           inputAudioTranscription: {},
           outputAudioTranscription: {},
