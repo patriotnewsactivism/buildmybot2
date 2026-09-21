@@ -42,8 +42,7 @@ class Settings(BaseSettings):
     owner_escalation_phone: str
 
     google_api_key: str
-    gemini_model: str = "gemini-3.1-flash-live-preview"
-    gemini_thinking_level: str = "minimal"
+    gemini_model: str = "gemini-3.8-live"
 
     openai_api_key: str
     openai_realtime_model: str = "gpt-realtime-2.1"
@@ -970,9 +969,6 @@ class GeminiProvider(RealtimeProvider):
             system_instruction=prompt,
             input_audio_transcription={},
             output_audio_transcription={},
-            thinking_config=types.ThinkingConfig(
-                thinking_level=settings.gemini_thinking_level
-            ),
             tools=[{"function_declarations": declarations}],
         )
 
