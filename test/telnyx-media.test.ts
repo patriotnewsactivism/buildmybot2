@@ -102,12 +102,12 @@ afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
-it('uses Gemini 3.1 realtime input, automatic barge-in, and department routing', () => {
+it('uses Gemini 3.8 realtime input, automatic barge-in, and department routing', () => {
   const socket = new Socket('wss://mock') as any;
   setupGeminiSession(socket, context);
   promptInitialGreeting(socket);
   expect(socket.sent[0].setup.model).toBe(
-    'models/gemini-3.1-flash-live-preview',
+    'models/gemini-3.8-live',
   );
   expect(socket.sent[0].setup.realtimeInputConfig.activityHandling).toBe(
     'START_OF_ACTIVITY_INTERRUPTS',

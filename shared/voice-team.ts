@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const GEMINI_LIVE_MODEL = 'models/gemini-3.1-flash-live-preview';
+export const GEMINI_LIVE_MODEL = 'models/gemini-3.8-live';
 export const DEPARTMENT_IDS = [
   'receptionist',
   'sales',

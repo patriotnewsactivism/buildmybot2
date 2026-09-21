@@ -1097,30 +1097,12 @@ async function executeFunction(
   }
 }
 
-function thinkingLevelForDepartment(
-  department: VoiceDepartment | undefined,
-): 'minimal' | 'low' | 'medium' {
-  if (department === 'manager' || department === 'partner') return 'medium';
-  if (
-    department === 'sales' ||
-    department === 'support' ||
-    department === 'recruiting' ||
-    department === 'billing'
-  ) {
-    return 'low';
-  }
-  return 'minimal';
-}
-
 export function setupGeminiSession(gemini: WebSocket, context: SessionContext) {
   sendJson(gemini, {
     setup: {
       model: GEMINI_MODEL,
       generationConfig: {
         responseModalities: ['AUDIO'],
-        thinkingConfig: {
-          thinkingLevel: thinkingLevelForDepartment(context.department),
-        },
         speechConfig: {
           voiceConfig: {
             prebuiltVoiceConfig: {

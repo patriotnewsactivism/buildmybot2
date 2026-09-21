@@ -55,7 +55,6 @@ export function generateTeamPreview(agent: VoiceTeamAgent): Promise<Buffer> {
             model: GEMINI_LIVE_MODEL,
             generationConfig: {
               responseModalities: ['AUDIO'],
-              thinkingConfig: { thinkingLevel: 'minimal' },
               speechConfig: {
                 voiceConfig: {
                   prebuiltVoiceConfig: { voiceName: agent.voice.voiceId },
@@ -78,6 +77,7 @@ export function generateTeamPreview(agent: VoiceTeamAgent): Promise<Buffer> {
       try {
         const message = JSON.parse(raw.toString());
         if (message.error) {
+          console.error('[voice-team-preview] Gemini Live error', message.error);
           finish(new Error('Voice preview is temporarily unavailable.'));
           return;
         }
