@@ -6,7 +6,7 @@ import { recordMilestone } from '../growth/milestones.js';
 import { sendSms, telnyxConfigured } from '../lib/telephony-provider.js';
 import { searchKnowledge } from '../rag.js';
 
-const GEMINI_MODEL = 'models/gemini-3.1-flash-live-preview';
+const GEMINI_MODEL = 'models/gemini-3.8-live';
 const GEMINI_WS_URL =
   'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent';
 const SUPABASE_URL = process.env.SUPABASE_URL;
