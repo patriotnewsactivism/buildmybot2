@@ -7,6 +7,7 @@
 // =====================================================================
 
 import crypto from 'node:crypto';
+import { buildAuthActionLink } from '../../shared/auth-links.js';
 import { sendEmail } from './mailer.js';
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -120,6 +121,11 @@ export async function consumeAuthToken(
   return { ok: true, userId: row.user_id };
 }
 
+/**
+ * Origin for links a person opens in the browser.
+ * PUBLIC_SITE_URL is preferred so verification and reset mail stay on the
+ * customer site when APP_BASE_URL points at an API or platform origin.
+ */
 export function appBaseUrl(): string {
   return (
     process.env.PUBLIC_SITE_URL ||
@@ -135,7 +141,7 @@ export async function sendVerificationEmail(
   name?: string,
 ): Promise<{ sent: boolean; reason?: string }> {
   const { token } = await issueAuthToken(userId, 'email_verification');
-  const link = `${appBaseUrl()}/verify-email?token=${encodeURIComponent(token)}`;
+  const link = buildAuthActionLink(appBaseUrl(), 'email_verification', token);
   const result = await sendEmail({
     from: process.env.AUTH_FROM_EMAIL || 'no-reply@buildmybot.app',
     fromName: 'BuildMyBot',
