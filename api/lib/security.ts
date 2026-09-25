@@ -6,6 +6,8 @@
 // never reaches business logic.
 // =====================================================================
 
+import { isEmbedScriptPath } from '../../shared/embed-snippet.js';
+
 const DEFAULT_ORIGINS = [
   'https://buildmybot.app',
   'https://www.buildmybot.app',
@@ -31,7 +33,7 @@ export function allowedOrigins(): string[] {
  */
 export function isPublicEmbedPath(pathname: string): boolean {
   return (
-    pathname === '/embed.js' ||
+    isEmbedScriptPath(pathname) ||
     pathname.startsWith('/chat/') ||
     pathname.startsWith('/api/chat') ||
     pathname.startsWith('/api/public/') ||
@@ -138,7 +140,7 @@ export function helmetOptions() {
  */
 export function embedFrameMiddleware(req: any, res: any, next: () => void) {
   const pathname = (req.path || req.url || '').split('?')[0];
-  if (pathname.startsWith('/chat/') || pathname === '/embed.js') {
+  if (pathname.startsWith('/chat/') || isEmbedScriptPath(pathname)) {
     res.removeHeader?.('X-Frame-Options');
     res.setHeader(
       'Content-Security-Policy',

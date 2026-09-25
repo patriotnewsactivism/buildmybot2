@@ -142,7 +142,7 @@ Look for high-ticket service providers where **one new customer = $500+ profit.*
 > **The Code:**
 >
 > ```html
-> <script src="https://cdn.buildmybot.app/widget/v2/loader.js" data-id="[CLIENT_ID]" async></script>
+> <script src="https://buildmybot.app/embed.js" data-bot-id="[CLIENT_ID]" async></script>
 > ```
 >
 > **Your Dashboard:**

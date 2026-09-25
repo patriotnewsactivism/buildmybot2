@@ -67,7 +67,7 @@ describe('OnboardingWizard', () => {
         voiceEnabled: true,
         transferNumber: '+1 555 123 4567',
         embedCode:
-          '<script src="http://localhost:3000/widget.js" data-bot-id="bot-123"></script>',
+          '<script src="http://localhost:3000/embed.js" data-bot-id="bot-123" async></script>',
       }),
     );
   });
@@ -102,7 +102,7 @@ describe('OnboardingWizard', () => {
 
     await waitFor(() => {
       expect(writeText).toHaveBeenCalledWith(
-        '<script src="http://localhost:3000/widget.js" data-bot-id="bot-copy"></script>',
+        '<script src="http://localhost:3000/embed.js" data-bot-id="bot-copy" async></script>',
       );
     });
   });

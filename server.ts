@@ -13,6 +13,7 @@ import signupHandler from './api/auth/signup.js';
 import userHandler from './api/auth/user.js';
 import cronHandler from './api/cron/[job].js';
 import gatewayHandler from './api/gateway.js';
+import { attachFrontend } from './api/lib/frontend-static.js';
 import { flushOutcomeOutbox } from './api/lib/outcome-ledger.js';
 import {
   corsMiddleware,
@@ -186,17 +187,7 @@ app.all('/api/{*path}', async (req, res) => {
   await gatewayHandler(req as any, res as any);
 });
 
-app.use((req, res, next) => {
-  if (req.path === '/embed.js')
-    res.setHeader('Cache-Control', 'public, max-age=3600');
-  next();
-});
-
-app.use(express.static(path.join(__dirname, 'dist')));
-
-app.get('/{*splat}', (_req, res) => {
-  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
-});
+attachFrontend(app, path.join(__dirname, 'dist'));
 
 server.listen(PORT, () => {
   void connectCorporatePhone();
