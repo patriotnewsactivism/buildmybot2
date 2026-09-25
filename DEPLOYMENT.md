@@ -1,6 +1,6 @@
 # BuildMyBot — Production Deployment & Operations
 
-_Last updated: 2026-09-10._
+_Last updated: 2026-09-25._
 
 This file is the deployment authority for `patriotnewsactivism/buildmybot2`.
 
@@ -69,6 +69,24 @@ npm run lint
 npm run test:run
 npm run build
 ```
+
+## Embed script and static assets
+
+New install snippets use `/embed.js` and `data-bot-id`. Onboarding and Bot Builder share `buildEmbedSnippet` in `shared/embed-snippet.ts`.
+
+`GET /widget.js` serves that same `public/embed.js` file so snippets already pasted on customer sites keep loading. `GET /embed.js` is unchanged.
+
+A missing static asset (`.js`, `.css`, images, fonts, and the other extensions in `api/lib/frontend-static.ts`) returns **404** with a non-HTML body. Extensionless app routes still receive `index.html`.
+
+After this change is deployed (Railway primary, and Cloud Run if the GET/HEAD fallback should match):
+
+```bash
+curl -sI https://www.buildmybot.app/widget.js
+curl -sI https://www.buildmybot.app/embed.js
+curl -sI https://www.buildmybot.app/nope.js
+```
+
+Expect HTTP 200 and a JavaScript `content-type` for `/widget.js` and `/embed.js`. Expect HTTP 404 for `/nope.js`, not `text/html`. No new environment variables or database migrations.
 
 ## Public release verification
 

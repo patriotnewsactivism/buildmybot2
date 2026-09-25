@@ -129,6 +129,8 @@ describe('CORS + security headers', () => {
   it('only treats anonymous widget endpoints as wildcard-CORS routes', () => {
     expect(isPublicEmbedPath('/api/chat/abc')).toBe(true);
     expect(isPublicEmbedPath('/embed.js')).toBe(true);
+    expect(isPublicEmbedPath('/widget.js')).toBe(true);
+    expect(isPublicEmbedPath('/nope.js')).toBe(false);
     expect(isPublicEmbedPath('/api/bots')).toBe(false);
     expect(isPublicEmbedPath('/api/admin/users')).toBe(false);
   });

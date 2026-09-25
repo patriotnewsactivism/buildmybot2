@@ -9,10 +9,15 @@
   // included), but fall back to a src lookup so a bundler or tag manager that
   // re-executes this file still finds its own tag.
   const config = window.bmbConfig || {};
+  // /widget.js is a compatibility alias for this file. Match either src so a
+  // snippet pasted before the onboarding fix still finds its data-bot-id when
+  // currentScript is unavailable (tag managers, re-execution).
   const el =
     document.currentScript ||
-    document.querySelector('script[data-bot-id][src*="embed.js"]') ||
-    document.querySelector('script[src*="embed.js"]');
+    document.querySelector(
+      'script[data-bot-id][src*="embed.js"], script[data-bot-id][src*="widget.js"]',
+    ) ||
+    document.querySelector('script[src*="embed.js"], script[src*="widget.js"]');
   const data = el?.dataset || {};
 
   const botId = data.botId || config.botId;

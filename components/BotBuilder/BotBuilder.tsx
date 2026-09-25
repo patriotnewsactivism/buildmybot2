@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import type React from 'react';
 import { useEffect, useState } from 'react';
+import { buildEmbedSnippet } from '../../shared/embed-snippet';
 import type { Bot } from '../../types';
 import { Button } from '../UI/Button';
 import { Input } from '../UI/Input';
@@ -120,7 +121,7 @@ const BotBuilder: React.FC<BotBuilderProps> = ({
 
   const embedHost = customDomain || 'buildmybot.app';
   const embedSnippet = draft
-    ? `<script src="https://${embedHost}/embed.js" data-bot-id="${draft.id}" async></script>`
+    ? buildEmbedSnippet({ botId: draft.id, origin: embedHost })
     : '';
   const chatUrl =
     draft?.id && draft.id !== 'new'

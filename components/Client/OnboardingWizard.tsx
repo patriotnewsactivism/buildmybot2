@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import type React from 'react';
 import { useMemo, useState } from 'react';
+import { buildEmbedSnippet } from '../../shared/embed-snippet';
 
 interface OnboardingWizardProps {
   onComplete: (data: OnboardingData) => Promise<void>;
@@ -69,8 +70,10 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
   const progress = (step / 5) * 100;
 
   const embedCode = useMemo(() => {
-    const safeBotId = existingBotId || 'YOUR_BOT_ID';
-    return `<script src="${window.location.origin}/widget.js" data-bot-id="${safeBotId}"></script>`;
+    return buildEmbedSnippet({
+      botId: existingBotId || 'YOUR_BOT_ID',
+      origin: window.location.origin,
+    });
   }, [existingBotId]);
 
   const canGoNext = useMemo(() => {
