@@ -80,6 +80,8 @@ There is an active migration-history reconciliation hold for production Supabase
 
 This applies to the additive voice-team migration as well. Application code being deployed does not prove the production table exists.
 
+`supabase/migrations/20260925120000_auth_tokens_and_email_verification.sql` is a separate pending delta (`users.email_verified`, `users.email_verified_at`, `public.auth_tokens`) for `blyebndyrojmreensbxe`. Do not mark it applied or replay repository history to create it. Signup must keep working when `users.email_verified` is absent until that file is applied on its own after reconciliation.
+
 ## AI/provider reliability and spend safety
 
 AI/provider failure handling is also a security/cost boundary.

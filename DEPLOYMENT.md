@@ -145,6 +145,8 @@ The production database has an unresolved migration-history baseline. Repository
 
 Follow `docs/MIGRATION_BASELINE_RECONCILIATION.md` before any production schema write. Do not reset, recreate, or replay the production database to repair migration history.
 
+`users.email_verified`, `users.email_verified_at`, and `public.auth_tokens` are introduced only by `supabase/migrations/20260925120000_auth_tokens_and_email_verification.sql`. That file is a pending additive delta for this project. Do not apply it with `supabase db push` while the hold is active. Signup tolerates the missing column until that one migration is applied on its own after reconciliation.
+
 For the voice-team release specifically, verify the exact state of the additive voice-team migration against the live schema before claiming persisted team configuration is fully live.
 
 ## Voice production acceptance
