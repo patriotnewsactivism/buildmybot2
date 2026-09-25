@@ -1,6 +1,11 @@
-import type { ApiRequest, ApiResponse } from '../lib/http-types.js';
 import { sendVerificationEmail } from '../lib/auth-tokens.js';
+import type { ApiRequest, ApiResponse } from '../lib/http-types.js';
 import { RATE_LIMITS, enforceRateLimit } from '../lib/rate-limit.js';
+import {
+  buildSignupUserInsert,
+  omitColumn,
+  postgrestMissingColumn,
+} from './signup-insert.js';
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -19,6 +24,29 @@ const SESSION_JWT_TTL = 24 * 60 * 60;
 // access is granted out-of-band by an existing platform admin
 // (scripts/setAdminPermissions.ts) against the database.
 
+const LOOKUP_FAILED = {
+  error: 'Could not verify whether this email is already registered',
+};
+
+function supabaseHeaders(extra: Record<string, string> = {}) {
+  return {
+    apikey: SUPABASE_KEY || '',
+    Authorization: `Bearer ${SUPABASE_KEY}`,
+    ...extra,
+  };
+}
+
+async function insertUser(row: Record<string, unknown>) {
+  return fetch(`${SUPABASE_URL}/rest/v1/users`, {
+    method: 'POST',
+    headers: supabaseHeaders({
+      'Content-Type': 'application/json',
+      Prefer: 'return=representation',
+    }),
+    body: JSON.stringify(row),
+  });
+}
+
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST')
@@ -34,25 +62,46 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   try {
     if (enforceRateLimit(req, res, RATE_LIMITS.signup)) return;
     const { email, password, name, companyName, referredBy } = req.body || {};
-    if (!email || !password) {
+    if (!email || !password || typeof email !== 'string') {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
-    // Check if user exists
+    // Check if user exists. A failed lookup must not be treated as "no row":
+    // PostgREST error bodies are objects, and reading [0] off them used to
+    // fall through into the insert and surface later as a generic 500.
     const checkUrl = new URL(`${SUPABASE_URL}/rest/v1/users`);
     checkUrl.searchParams.set('select', 'id');
     checkUrl.searchParams.set('email', `eq.${email.toLowerCase()}`);
     checkUrl.searchParams.set('limit', '1');
 
     const checkRes = await fetch(checkUrl.toString(), {
-      headers: {
-        apikey: SUPABASE_KEY,
-        Authorization: `Bearer ${SUPABASE_KEY}`,
-      },
+      headers: supabaseHeaders(),
     });
-    const existing = await checkRes.json();
-    if (existing[0])
+    const checkBody = await checkRes.text();
+    if (!checkRes.ok) {
+      console.error(
+        '[signup] existing-user lookup failed:',
+        checkRes.status,
+        checkBody,
+      );
+      return res.status(502).json(LOOKUP_FAILED);
+    }
+    let existing: unknown;
+    try {
+      existing = JSON.parse(checkBody);
+    } catch {
+      console.error('[signup] existing-user lookup returned non-JSON');
+      return res.status(502).json(LOOKUP_FAILED);
+    }
+    if (!Array.isArray(existing)) {
+      console.error(
+        '[signup] existing-user lookup returned an unexpected payload',
+      );
+      return res.status(502).json(LOOKUP_FAILED);
+    }
+    if (existing.length > 0) {
       return res.status(409).json({ error: 'Email already registered' });
+    }
 
     // Hash password
     const bcrypt = await import('bcryptjs');
@@ -62,46 +111,54 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     const crypto = await import('node:crypto');
     const userId = crypto.default.randomUUID();
 
-    // Create user
-    const createRes = await fetch(`${SUPABASE_URL}/rest/v1/users`, {
-      method: 'POST',
-      headers: {
-        apikey: SUPABASE_KEY,
-        Authorization: `Bearer ${SUPABASE_KEY}`,
-        'Content-Type': 'application/json',
-        Prefer: 'return=representation',
-      },
-      body: JSON.stringify({
-        id: userId,
-        email: email.toLowerCase(),
-        name: name || email.split('@')[0],
-        password_hash: passwordHash,
-        // OWNER = owner of THIS customer organization. It is not, and must
-        // not be treated as, a platform-wide admin role.
-        role: 'OWNER',
-        plan: 'FREE',
-        status: 'Active',
-        company_name: companyName || null,
-        referred_by: referredBy || null,
-        preferences: {},
-        email_verified: false,
-        referral_credits: 0,
-        reseller_client_count: 0,
-        whitelabel_enabled: false,
-        created_at: new Date().toISOString(),
-      }),
+    // Create user. Prefer an explicit email_verified=false so new accounts
+    // stay unverified once the column exists. If PostgREST has not learned
+    // the column yet (migration not applied, or schema cache stale), retry
+    // once without it. The migration default is false, and verification
+    // still sets the column when the caller confirms.
+    let row = buildSignupUserInsert({
+      id: userId,
+      email,
+      passwordHash,
+      name: typeof name === 'string' ? name : null,
+      companyName: typeof companyName === 'string' ? companyName : null,
+      referredBy: typeof referredBy === 'string' ? referredBy : null,
     });
-
+    let createRes = await insertUser(row);
     if (!createRes.ok) {
-      console.error(
-        'Create user failed:',
-        createRes.status,
-        await createRes.text(),
-      );
-      return res.status(500).json({ error: 'Failed to create account' });
+      const errText = await createRes.text();
+      if (
+        postgrestMissingColumn(createRes.status, errText) === 'email_verified'
+      ) {
+        console.warn(
+          '[signup] users.email_verified is absent from the schema cache; retrying insert without it',
+        );
+        row = omitColumn(row, 'email_verified');
+        createRes = await insertUser(row);
+        if (!createRes.ok) {
+          console.error(
+            '[signup] create user failed after schema-cache retry:',
+            createRes.status,
+            await createRes.text(),
+          );
+          return res.status(500).json({ error: 'Failed to create account' });
+        }
+      } else {
+        console.error(
+          '[signup] create user failed:',
+          createRes.status,
+          errText,
+        );
+        return res.status(500).json({ error: 'Failed to create account' });
+      }
     }
 
-    const newUser = (await createRes.json())[0];
+    const created: unknown = await createRes.json();
+    const newUser = Array.isArray(created) ? created[0] : null;
+    if (!newUser || typeof newUser !== 'object') {
+      console.error('[signup] create user returned an unexpected payload');
+      return res.status(500).json({ error: 'Failed to create account' });
+    }
 
     // Create JWT
     const payload = {
@@ -122,28 +179,32 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     );
 
     // Send the verification email. Signup itself still succeeds if the
-    // mail provider is down — the account is simply left unverified and
-    // the user can request a new link from /api/auth/resend-verification.
+    // mail provider is down or auth_tokens does not exist yet — the account
+    // is simply left unverified and the user can request a new link from
+    // /api/auth/resend-verification once the migration is applied.
     let verificationSent = false;
     try {
       const result = await sendVerificationEmail(
         userId,
         email.toLowerCase(),
-        name,
+        typeof name === 'string' ? name : undefined,
       );
       verificationSent = result.sent;
     } catch (err) {
       console.error('[signup] verification email failed:', err);
     }
 
-    const { password_hash, ...safeUser } = newUser;
+    const safeUser = omitColumn(
+      newUser as Record<string, unknown>,
+      'password_hash',
+    );
     return res.status(201).json({
       user: safeUser,
       emailVerified: false,
       verificationSent,
       message: 'Account created successfully. Please verify your email.',
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Signup error:', error);
     return res.status(500).json({ error: 'Signup failed' });
   }

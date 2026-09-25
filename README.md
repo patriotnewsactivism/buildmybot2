@@ -42,7 +42,7 @@ The active Supabase project is `blyebndyrojmreensbxe`.
 
 The September 5, 2026 production audit found existing BuildMyBot application relations but no usable Supabase CLI migration-history baseline. Therefore **do not run `supabase db push` against production until repository history and the live schema are reconciled**.
 
-The production migration workflow is intentionally audit-only. Follow `docs/MIGRATION_BASELINE_RECONCILIATION.md` before re-enabling migration writes.
+The production migration workflow is intentionally audit-only. Follow `docs/MIGRATION_BASELINE_RECONCILIATION.md` before re-enabling migration writes. Signup does not require `users.email_verified` to exist yet; `supabase/migrations/20260925120000_auth_tokens_and_email_verification.sql` stays a pending additive delta until that reconciliation apply.
 
 ## Product areas
 
