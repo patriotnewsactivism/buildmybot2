@@ -189,6 +189,8 @@ Important server variables include:
 - `TELNYX_PUBLIC_KEY`
 - `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`
 - `RESEND_API_KEY`
+- `PUBLIC_SITE_URL` — public origin embedded in email verification and password-reset links (`/verify-email`, `/reset-password`). Set this to `https://www.buildmybot.app` (or the apex host if that is what serves the SPA). When it is unset, links fall back to `APP_BASE_URL`, which may be a platform origin rather than the customer site.
+- `AUTH_FROM_EMAIL` — from address for those transactional messages. Mail is not sent unless `RESEND_API_KEY` or SMTP is configured.
 - `CRON_SECRET`
 - `SMS_WORKER_SECRET`
 - `SMS_LAUNCH_ENABLED`
