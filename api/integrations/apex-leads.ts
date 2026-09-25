@@ -42,7 +42,13 @@ const ID_RE = /^[A-Za-z0-9_-]{1,80}$/;
 const EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
 const PHONE_RE = /^\+?[1-9]\d{1,14}$/;
 const SINCE_RE = /^\d{4}-\d{2}-\d{2}(?:[T ][0-9:.+-Z]+)?$/;
-const CONTROL_RE = /[\u0000-\u001F\u007F]/;
+function hasControlChar(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code <= 31 || code === 127) return true;
+  }
+  return false;
+}
 
 type JsonRecord = Record<string, unknown>;
 
@@ -145,11 +151,17 @@ function columnFromMessage(message: string): string | undefined {
 
 function isSchemaGap(error: StoreError): boolean {
   if (error.code === 'PGRST204' || error.code === '42703') return true;
-  return /column/i.test(error.message) && /schema cache|does not exist/i.test(error.message);
+  return (
+    /column/i.test(error.message) &&
+    /schema cache|does not exist/i.test(error.message)
+  );
 }
 
 function isEmailNotNull(error: StoreError): boolean {
-  return error.code === '23502' && /email/i.test(error.message + (error.column || ''));
+  return (
+    error.code === '23502' &&
+    /email/i.test(error.message + (error.column || ''))
+  );
 }
 
 function schemaReason(column: string | undefined): string {
@@ -221,9 +233,13 @@ async function sbRequest<T>(
     } catch {
       parsed = { message: text.slice(0, 300) };
     }
-    const message = String(parsed.message || parsed.error || text.slice(0, 300));
+    const message = String(
+      parsed.message || parsed.error || text.slice(0, 300),
+    );
     const column =
-      typeof parsed.column === 'string' ? parsed.column : columnFromMessage(message);
+      typeof parsed.column === 'string'
+        ? parsed.column
+        : columnFromMessage(message);
     console.error('[apex-leads] supabase error', {
       table,
       method,
@@ -289,7 +305,8 @@ function companyOf(row: LeadRow): string | null {
 }
 
 function externalIdOf(input: unknown): string | undefined {
-  if (!input || typeof input !== 'object' || Array.isArray(input)) return undefined;
+  if (!input || typeof input !== 'object' || Array.isArray(input))
+    return undefined;
   const value = (input as JsonRecord).externalId;
   if (typeof value !== 'string') return undefined;
   const trimmed = value.trim();
@@ -311,7 +328,7 @@ function optionalText(
 
 export function validateLead(
   input: unknown,
-): { ok: true; lead: NormalizedLead } | RejectedLead & { ok: false } {
+): { ok: true; lead: NormalizedLead } | (RejectedLead & { ok: false }) {
   const externalId = externalIdOf(input);
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
     return { ok: false, externalId, reason: 'invalid_lead' };
@@ -320,7 +337,7 @@ export function validateLead(
   if (typeof raw.externalId !== 'string' || !raw.externalId.trim()) {
     return { ok: false, reason: 'external_id_required' };
   }
-  if (externalId && (externalId.length > 512 || CONTROL_RE.test(externalId))) {
+  if (externalId && (externalId.length > 512 || hasControlChar(externalId))) {
     return { ok: false, externalId, reason: 'invalid_external_id' };
   }
   if (!externalId) return { ok: false, reason: 'external_id_required' };
@@ -331,18 +348,21 @@ export function validateLead(
       return { ok: false, externalId, reason: 'invalid_name' };
     }
     name = raw.name.trim();
-    if (name.length > 500) return { ok: false, externalId, reason: 'invalid_name' };
+    if (name.length > 500)
+      return { ok: false, externalId, reason: 'invalid_name' };
   }
 
   const emailField = optionalText(raw.email, 320, 'invalid_email');
-  if (!emailField.ok) return { ok: false, externalId, reason: emailField.reason };
+  if (!emailField.ok)
+    return { ok: false, externalId, reason: emailField.reason };
   const email = emailField.value ? emailField.value.toLowerCase() : null;
   if (email && !EMAIL_RE.test(email)) {
     return { ok: false, externalId, reason: 'invalid_email' };
   }
 
   const phoneField = optionalText(raw.phone, 32, 'invalid_phone');
-  if (!phoneField.ok) return { ok: false, externalId, reason: phoneField.reason };
+  if (!phoneField.ok)
+    return { ok: false, externalId, reason: phoneField.reason };
   let phone: string | null = null;
   if (phoneField.value) {
     const compact = phoneField.value.replace(/[^\d+]/g, '');
@@ -370,7 +390,7 @@ export function validateLead(
   const notes = optionalText(raw.notes, 8000, 'invalid_notes');
   if (!notes.ok) return { ok: false, externalId, reason: notes.reason };
 
-  let tags: string[] = [];
+  const tags: string[] = [];
   if (raw.tags != null) {
     if (!Array.isArray(raw.tags) || raw.tags.length > 50) {
       return { ok: false, externalId, reason: 'invalid_tags' };
@@ -428,7 +448,11 @@ function snapshot(lead: NormalizedLead): JsonRecord {
   };
 }
 
-function writeBody(tenant: Tenant, lead: NormalizedLead, existing?: LeadRow): JsonRecord {
+function writeBody(
+  tenant: Tenant,
+  lead: NormalizedLead,
+  existing?: LeadRow,
+): JsonRecord {
   const metadata = {
     ...asRecord(existing?.metadata),
     apex: snapshot(lead),
@@ -577,7 +601,9 @@ async function resolveOrg(orgId: string): Promise<Tenant | null | StoreError> {
   return { organizationId: orgId, userId: String(preferred.id) };
 }
 
-async function resolveEmail(ownerEmail: string): Promise<Tenant | null | StoreError | 'ambiguous'> {
+async function resolveEmail(
+  ownerEmail: string,
+): Promise<Tenant | null | StoreError | 'ambiguous'> {
   const email = ownerEmail.trim().toLowerCase();
   if (!EMAIL_RE.test(email)) return null;
   const users = await sbRequest<LeadRow[]>('users', 'GET', {
@@ -601,7 +627,9 @@ async function resolveEmail(ownerEmail: string): Promise<Tenant | null | StoreEr
 }
 
 function isStoreError(value: unknown): value is StoreError {
-  return Boolean(value && typeof value === 'object' && (value as StoreError).ok === false);
+  return Boolean(
+    value && typeof value === 'object' && (value as StoreError).ok === false,
+  );
 }
 
 function tenantsMatch(orgTenant: Tenant, emailTenant: Tenant): boolean {
@@ -618,8 +646,7 @@ async function resolveTenant(
   orgId: string | undefined,
   ownerEmail: string | undefined,
 ): Promise<
-  | { ok: true; tenant: Tenant }
-  | { ok: false; status: number; body: JsonRecord }
+  { ok: true; tenant: Tenant } | { ok: false; status: number; body: JsonRecord }
 > {
   if (!orgId && !ownerEmail) {
     return { ok: false, status: 400, body: { error: 'tenant_unresolved' } };
@@ -629,7 +656,10 @@ async function resolveTenant(
     return {
       ok: false,
       status: 503,
-      body: { error: 'lead_store_unavailable', reason: orgTenant.code || 'supabase_error' },
+      body: {
+        error: 'lead_store_unavailable',
+        reason: orgTenant.code || 'supabase_error',
+      },
     };
   }
   const emailTenant = ownerEmail ? await resolveEmail(ownerEmail) : null;
@@ -637,7 +667,10 @@ async function resolveTenant(
     return {
       ok: false,
       status: 503,
-      body: { error: 'lead_store_unavailable', reason: emailTenant.code || 'supabase_error' },
+      body: {
+        error: 'lead_store_unavailable',
+        reason: emailTenant.code || 'supabase_error',
+      },
     };
   }
   if (orgId && !orgTenant) {
@@ -647,7 +680,12 @@ async function resolveTenant(
     return {
       ok: false,
       status: 400,
-      body: { error: emailTenant === 'ambiguous' ? 'tenant_ambiguous' : 'tenant_unresolved' },
+      body: {
+        error:
+          emailTenant === 'ambiguous'
+            ? 'tenant_ambiguous'
+            : 'tenant_unresolved',
+      },
     };
   }
   if (orgTenant && emailTenant && emailTenant !== 'ambiguous') {
@@ -662,12 +700,17 @@ async function resolveTenant(
       },
     };
   }
-  const tenant = orgTenant || (emailTenant && emailTenant !== 'ambiguous' ? emailTenant : null);
-  if (!tenant) return { ok: false, status: 400, body: { error: 'tenant_unresolved' } };
+  const tenant =
+    orgTenant ||
+    (emailTenant && emailTenant !== 'ambiguous' ? emailTenant : null);
+  if (!tenant)
+    return { ok: false, status: 400, body: { error: 'tenant_unresolved' } };
   return { ok: true, tenant };
 }
 
-function schemaResponse(error: StoreError): { status: number; body: JsonRecord } | null {
+function schemaResponse(
+  error: StoreError,
+): { status: number; body: JsonRecord } | null {
   if (isSchemaGap(error)) {
     return {
       status: 503,
@@ -683,7 +726,10 @@ function schemaResponse(error: StoreError): { status: number; body: JsonRecord }
   return null;
 }
 
-function storeUnavailable(error: StoreError): { status: number; body: JsonRecord } {
+function storeUnavailable(error: StoreError): {
+  status: number;
+  body: JsonRecord;
+} {
   return {
     status: 503,
     body: {
@@ -714,7 +760,12 @@ async function applyWrite(
   };
   if (existing?.id) {
     const patch = writeBody(tenant, lead, existing);
-    const updated = await sbRequest<LeadRow[]>('leads', 'PATCH', filters, patch);
+    const updated = await sbRequest<LeadRow[]>(
+      'leads',
+      'PATCH',
+      filters,
+      patch,
+    );
     if (!updated.ok) return updated;
     const row = rowsOf(updated.data)[0];
     if (!row) return { externalId: lead.externalId, reason: 'store_failed' };
@@ -734,7 +785,9 @@ async function applyWrite(
   if (inserted.code !== '23505') return inserted;
   const again = await loadExisting(tenant, [lead.externalId]);
   if (!again.ok) return again;
-  const raced = again.data.find((item) => textOrNull(item.external_id) === lead.externalId);
+  const raced = again.data.find(
+    (item) => textOrNull(item.external_id) === lead.externalId,
+  );
   if (!raced) return { externalId: lead.externalId, reason: 'store_failed' };
   if (sameLead(raced, lead)) return { action: 'duplicates', row: raced };
   const patch = writeBody(tenant, lead, raced);
@@ -779,7 +832,10 @@ function toPublicLead(row: LeadRow): JsonRecord {
   return lead;
 }
 
-async function handleGet(req: ApiRequest, res: ApiResponse): Promise<ApiResponse> {
+async function handleGet(
+  req: ApiRequest,
+  res: ApiResponse,
+): Promise<ApiResponse> {
   const params = queryParams(req);
   const orgId = optionalIdentifier(params.get('orgId'));
   const ownerEmail = optionalIdentifier(params.get('ownerEmail'));
@@ -788,16 +844,22 @@ async function handleGet(req: ApiRequest, res: ApiResponse): Promise<ApiResponse
   }
   const sinceRaw = params.get('since');
   if (sinceRaw != null && sinceRaw !== '') {
-    if (!SINCE_RE.test(sinceRaw) || Number.isNaN(Date.parse(sinceRaw)) || sinceRaw.length > 40) {
+    if (
+      !SINCE_RE.test(sinceRaw) ||
+      Number.isNaN(Date.parse(sinceRaw)) ||
+      sinceRaw.length > 40
+    ) {
       return send(res, 400, { error: 'invalid_since' });
     }
   }
   const limitRaw = params.get('limit');
   let limit = DEFAULT_GET_LIMIT;
   if (limitRaw != null && limitRaw !== '') {
-    if (!/^\d+$/.test(limitRaw)) return send(res, 400, { error: 'invalid_limit' });
+    if (!/^\d+$/.test(limitRaw))
+      return send(res, 400, { error: 'invalid_limit' });
     limit = Number(limitRaw);
-    if (limit < 1 || limit > MAX_LEADS) return send(res, 400, { error: 'invalid_limit' });
+    if (limit < 1 || limit > MAX_LEADS)
+      return send(res, 400, { error: 'invalid_limit' });
   }
   const resolved = await resolveTenant(orgId.value, ownerEmail.value);
   if (!resolved.ok) return send(res, resolved.status, resolved.body);
@@ -805,7 +867,11 @@ async function handleGet(req: ApiRequest, res: ApiResponse): Promise<ApiResponse
   if (!probe.ok) {
     const schema = schemaResponse(probe);
     if (schema) return send(res, schema.status, schema.body);
-    return send(res, storeUnavailable(probe).status, storeUnavailable(probe).body);
+    return send(
+      res,
+      storeUnavailable(probe).status,
+      storeUnavailable(probe).body,
+    );
   }
   const query: Record<string, string> = {
     select: LEAD_COLUMNS,
@@ -821,28 +887,40 @@ async function handleGet(req: ApiRequest, res: ApiResponse): Promise<ApiResponse
   if (!rows.ok) {
     const schema = schemaResponse(rows);
     if (schema) return send(res, schema.status, schema.body);
-    return send(res, storeUnavailable(rows).status, storeUnavailable(rows).body);
+    return send(
+      res,
+      storeUnavailable(rows).status,
+      storeUnavailable(rows).body,
+    );
   }
   const leads = (Array.isArray(rows.data) ? rows.data : [])
     .slice()
     .sort((left, right) => {
       const created =
-        Date.parse(String(right.created_at || '')) - Date.parse(String(left.created_at || ''));
+        Date.parse(String(right.created_at || '')) -
+        Date.parse(String(left.created_at || ''));
       if (created !== 0) return created;
-      return Date.parse(String(right.updated_at || '')) - Date.parse(String(left.updated_at || ''));
+      return (
+        Date.parse(String(right.updated_at || '')) -
+        Date.parse(String(left.updated_at || ''))
+      );
     })
     .map(toPublicLead);
   return send(res, 200, { leads });
 }
 
-async function handlePost(req: ApiRequest, res: ApiResponse): Promise<ApiResponse> {
+async function handlePost(
+  req: ApiRequest,
+  res: ApiResponse,
+): Promise<ApiResponse> {
   const body = readBody(req);
   if (!body) return send(res, 400, { error: 'invalid_body' });
   if (body.dryRun !== undefined && typeof body.dryRun !== 'boolean') {
     return send(res, 400, { error: 'invalid_dry_run' });
   }
   const dryRun = body.dryRun !== false;
-  if (!Array.isArray(body.leads)) return send(res, 400, { error: 'leads_required' });
+  if (!Array.isArray(body.leads))
+    return send(res, 400, { error: 'leads_required' });
   if (body.leads.length > MAX_LEADS) {
     return send(res, 413, { error: 'too_many_leads' });
   }
@@ -882,7 +960,11 @@ async function handlePost(req: ApiRequest, res: ApiResponse): Promise<ApiRespons
   if (!probe.ok) {
     const schema = schemaResponse(probe);
     if (schema) return send(res, schema.status, schema.body);
-    return send(res, storeUnavailable(probe).status, storeUnavailable(probe).body);
+    return send(
+      res,
+      storeUnavailable(probe).status,
+      storeUnavailable(probe).body,
+    );
   }
 
   const existing = await loadExisting(
@@ -892,7 +974,11 @@ async function handlePost(req: ApiRequest, res: ApiResponse): Promise<ApiRespons
   if (!existing.ok) {
     const schema = schemaResponse(existing);
     if (schema) return send(res, schema.status, schema.body);
-    return send(res, storeUnavailable(existing).status, storeUnavailable(existing).body);
+    return send(
+      res,
+      storeUnavailable(existing).status,
+      storeUnavailable(existing).body,
+    );
   }
 
   const byExternalId = new Map<string, LeadRow>();
@@ -948,7 +1034,9 @@ export default async function handler(
   if (req.method === 'OPTIONS') return send(res, 204, {});
   const expected = ingestToken();
   if (!expected) return send(res, 503, { error: 'ingest_disabled' });
-  const provided = bearerToken(req.headers.authorization ?? req.headers.Authorization);
+  const provided = bearerToken(
+    req.headers.authorization ?? req.headers.Authorization,
+  );
   if (!tokenMatches(provided, expected)) {
     return send(res, 401, { error: 'unauthorized' });
   }

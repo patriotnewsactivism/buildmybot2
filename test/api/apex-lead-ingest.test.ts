@@ -1,5 +1,5 @@
-import type { ApiRequest, ApiResponse } from '../../api/lib/http-types.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ApiRequest, ApiResponse } from '../../api/lib/http-types.js';
 
 process.env.SUPABASE_URL = 'https://fake-project.supabase.co';
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'fake-service-role-key';
@@ -48,10 +48,7 @@ function mockReq(overrides: Partial<ApiRequest> = {}): ApiRequest {
 
 function unquote(raw: string): string {
   if (raw.startsWith('"') && raw.endsWith('"')) {
-    return raw
-      .slice(1, -1)
-      .replace(/\\"/g, '"')
-      .replace(/\\\\/g, '\\');
+    return raw.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, '\\');
   }
   return raw;
 }
@@ -60,15 +57,15 @@ function parseList(inner: string): string[] {
   const values: string[] = [];
   let current = '';
   let quoted = false;
-  let escape = false;
+  let escaped = false;
   for (const ch of inner) {
-    if (escape) {
+    if (escaped) {
       current += ch;
-      escape = false;
+      escaped = false;
       continue;
     }
     if (ch === '\\') {
-      escape = true;
+      escaped = true;
       continue;
     }
     if (ch === '"') {
@@ -92,7 +89,9 @@ function matchesFilter(actual: unknown, filter: string | null): boolean {
   if (filter === 'is.null') return value == null;
   if (filter.startsWith('eq.')) return value === unquote(filter.slice(3));
   if (filter.startsWith('ilike.')) {
-    return (value || '').toLowerCase() === unquote(filter.slice(6)).toLowerCase();
+    return (
+      (value || '').toLowerCase() === unquote(filter.slice(6)).toLowerCase()
+    );
   }
   if (filter.startsWith('in.(') && filter.endsWith(')')) {
     const options = parseList(filter.slice(4, -1));
@@ -110,7 +109,11 @@ function jsonResponse(status: number, data: unknown) {
   };
 }
 
-function installFetch(options?: { schemaMissing?: boolean; users?: Row[]; leads?: Row[] }) {
+function installFetch(options?: {
+  schemaMissing?: boolean;
+  users?: Row[];
+  leads?: Row[];
+}) {
   const state = {
     orgs: [{ id: 'org-1', owner_id: 'user-1' }] as Row[],
     users: options?.users ?? [
@@ -143,7 +146,9 @@ function installFetch(options?: { schemaMissing?: boolean; users?: Row[]; leads?
       if (method === 'GET' && table === 'organizations') {
         return jsonResponse(
           200,
-          state.orgs.filter((org) => matchesFilter(org.id, url.searchParams.get('id'))),
+          state.orgs.filter((org) =>
+            matchesFilter(org.id, url.searchParams.get('id')),
+          ),
         );
       }
       if (method === 'GET' && table === 'users') {
@@ -153,7 +158,10 @@ function installFetch(options?: { schemaMissing?: boolean; users?: Row[]; leads?
             return (
               matchesFilter(user.id, url.searchParams.get('id')) &&
               matchesFilter(user.email, url.searchParams.get('email')) &&
-              matchesFilter(user.organization_id, url.searchParams.get('organization_id'))
+              matchesFilter(
+                user.organization_id,
+                url.searchParams.get('organization_id'),
+              )
             );
           }),
         );
@@ -163,9 +171,15 @@ function installFetch(options?: { schemaMissing?: boolean; users?: Row[]; leads?
           return (
             matchesFilter(lead.id, url.searchParams.get('id')) &&
             matchesFilter(lead.source, url.searchParams.get('source')) &&
-            matchesFilter(lead.external_id, url.searchParams.get('external_id')) &&
+            matchesFilter(
+              lead.external_id,
+              url.searchParams.get('external_id'),
+            ) &&
             matchesFilter(lead.user_id, url.searchParams.get('user_id')) &&
-            matchesFilter(lead.organization_id, url.searchParams.get('organization_id'))
+            matchesFilter(
+              lead.organization_id,
+              url.searchParams.get('organization_id'),
+            )
           );
         });
         const since = url.searchParams.get('or');
@@ -183,7 +197,8 @@ function installFetch(options?: { schemaMissing?: boolean; users?: Row[]; leads?
         if (url.searchParams.get('order') === 'created_at.desc') {
           rows = [...rows].sort(
             (a, b) =>
-              Date.parse(String(b.created_at || '')) - Date.parse(String(a.created_at || '')),
+              Date.parse(String(b.created_at || '')) -
+              Date.parse(String(a.created_at || '')),
           );
         }
         const limit = Number(url.searchParams.get('limit') || rows.length);
@@ -198,8 +213,14 @@ function installFetch(options?: { schemaMissing?: boolean; users?: Row[]; leads?
           (lead) =>
             matchesFilter(lead.id, url.searchParams.get('id')) &&
             matchesFilter(lead.source, url.searchParams.get('source')) &&
-            matchesFilter(lead.external_id, url.searchParams.get('external_id')) &&
-            matchesFilter(lead.organization_id, url.searchParams.get('organization_id')),
+            matchesFilter(
+              lead.external_id,
+              url.searchParams.get('external_id'),
+            ) &&
+            matchesFilter(
+              lead.organization_id,
+              url.searchParams.get('organization_id'),
+            ),
         );
         for (const lead of matched) Object.assign(lead, body);
         return jsonResponse(200, matched);
@@ -236,7 +257,7 @@ describe('apex lead ingest auth', () => {
   });
 
   it('returns 503 ingest_disabled when the env is unset, even with a bearer token', async () => {
-    delete process.env.APEX_LEAD_INGEST_TOKEN;
+    Reflect.deleteProperty(process.env, 'APEX_LEAD_INGEST_TOKEN');
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
     const res = mockRes();
@@ -283,7 +304,7 @@ describe('apex lead ingest auth', () => {
   });
 
   it('is registered on the API gateway', async () => {
-    delete process.env.APEX_LEAD_INGEST_TOKEN;
+    Reflect.deleteProperty(process.env, 'APEX_LEAD_INGEST_TOKEN');
     const gateway = await import('../../api/gateway.ts');
     const res = mockRes();
     await gateway.default(
@@ -325,7 +346,9 @@ describe('apex lead ingest contract', () => {
       mockReq({
         body: {
           orgId: 'org-1',
-          leads: Array.from({ length: 201 }, (_, index) => lead(`ext-${index}`)),
+          leads: Array.from({ length: 201 }, (_, index) =>
+            lead(`ext-${index}`),
+          ),
         },
       }),
       tooMany,
@@ -366,7 +389,9 @@ describe('apex lead ingest contract', () => {
       ],
     });
     expect(calls.some((call) => call.method !== 'GET')).toBe(false);
-    expect(calls.some((call) => call.url.includes('/rest/v1/leads'))).toBe(true);
+    expect(calls.some((call) => call.url.includes('/rest/v1/leads'))).toBe(
+      true,
+    );
   });
 
   it('does not write when dryRun is omitted and reports an update without a PATCH', async () => {
@@ -415,10 +440,15 @@ describe('apex lead ingest contract', () => {
       res,
     );
     expect(res.statusCode).toBe(200);
-    expect(res.body).toMatchObject({ dryRun: true, accepted: 0, updated: 1, duplicates: 0 });
-    expect(calls.some((call) => call.method === 'PATCH' || call.method === 'POST')).toBe(
-      false,
-    );
+    expect(res.body).toMatchObject({
+      dryRun: true,
+      accepted: 0,
+      updated: 1,
+      duplicates: 0,
+    });
+    expect(
+      calls.some((call) => call.method === 'PATCH' || call.method === 'POST'),
+    ).toBe(false);
   });
 
   it('inserts once and treats an identical resend as a duplicate', async () => {
@@ -443,9 +473,11 @@ describe('apex lead ingest contract', () => {
       duplicates: 0,
       rejected: [],
     });
-    expect(calls.filter((call) => call.method === 'POST' && call.url.includes('/leads'))).toHaveLength(
-      1,
-    );
+    expect(
+      calls.filter(
+        (call) => call.method === 'POST' && call.url.includes('/leads'),
+      ),
+    ).toHaveLength(1);
     const stored = state.leads[0];
     expect(stored.source).toBe('apex');
     expect(stored.external_id).toBe('ext-1');
@@ -474,9 +506,11 @@ describe('apex lead ingest contract', () => {
       rejected: [],
     });
     expect(state.leads).toHaveLength(1);
-    expect(calls.filter((call) => call.method === 'POST' && call.url.includes('/leads'))).toHaveLength(
-      1,
-    );
+    expect(
+      calls.filter(
+        (call) => call.method === 'POST' && call.url.includes('/leads'),
+      ),
+    ).toHaveLength(1);
   });
 
   it('treats a repeated externalId in one batch as a duplicate', async () => {
@@ -502,7 +536,9 @@ describe('apex lead ingest contract', () => {
     });
     expect(state.leads).toHaveLength(1);
     expect(
-      calls.filter((call) => call.method === 'POST' && call.url.includes('/leads')),
+      calls.filter(
+        (call) => call.method === 'POST' && call.url.includes('/leads'),
+      ),
     ).toHaveLength(1);
   });
 
@@ -520,7 +556,13 @@ describe('apex lead ingest contract', () => {
           source: 'apex',
           notes: 'keep',
           metadata: {
-            apex: { company: 'Old Co', title: null, website: null, tags: [], source: null },
+            apex: {
+              company: 'Old Co',
+              title: null,
+              website: null,
+              tags: [],
+              source: null,
+            },
           },
           user_id: 'user-1',
           organization_id: 'org-1',
@@ -559,10 +601,12 @@ describe('apex lead ingest contract', () => {
     );
     expect(res.statusCode).toBe(503);
     expect(res.body).toMatchObject({ error: 'schema_not_ready' });
-    expect(String((res.body as { reason: string }).reason)).toContain('external_id');
-    expect(calls.some((call) => call.method === 'POST' || call.method === 'PATCH')).toBe(
-      false,
+    expect(String((res.body as { reason: string }).reason)).toContain(
+      'external_id',
     );
+    expect(
+      calls.some((call) => call.method === 'POST' || call.method === 'PATCH'),
+    ).toBe(false);
   });
 
   it('lists the tenant leads newest first', async () => {
@@ -628,10 +672,13 @@ describe('apex lead ingest contract', () => {
       ],
     });
     const listCall = calls.find(
-      (call) => call.method === 'GET' && call.url.includes('order=created_at.desc'),
+      (call) =>
+        call.method === 'GET' && call.url.includes('order=created_at.desc'),
     );
     expect(listCall?.url).toContain('limit=10');
-    expect(decodeURIComponent(listCall?.url || '')).toContain('2026-09-23T00:00:00.000Z');
+    expect(decodeURIComponent(listCall?.url || '')).toContain(
+      '2026-09-23T00:00:00.000Z',
+    );
   });
 
   it('rejects an out-of-range GET limit', async () => {
