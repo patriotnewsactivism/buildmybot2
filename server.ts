@@ -13,6 +13,7 @@ import signupHandler from './api/auth/signup.js';
 import userHandler from './api/auth/user.js';
 import cronHandler from './api/cron/[job].js';
 import gatewayHandler from './api/gateway.js';
+import apexLeadsHandler from './api/integrations/apex-leads.js';
 import { flushOutcomeOutbox } from './api/lib/outcome-ledger.js';
 import {
   corsMiddleware,
@@ -180,6 +181,10 @@ app.all('/api/voice/twilio-media', (_req, res) => {
 
 app.all('/api/voice/telnyx-media', (_req, res) => {
   res.status(426).json({ error: 'WebSocket upgrade required' });
+});
+
+app.all('/api/integrations/apex/leads', async (req, res) => {
+  await apexLeadsHandler(req as any, res as any);
 });
 
 app.all('/api/{*path}', async (req, res) => {

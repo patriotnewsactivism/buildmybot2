@@ -44,6 +44,12 @@ Call telemetry should record agent/voice transitions without storing secrets. Se
 
 See `docs/VOICE_TEAM_ARCHITECTURE_2026-09-10.md` and `docs/AI_VOICE_TEAM.md`.
 
+## Apex lead ingest
+
+`/api/integrations/apex/leads` is a server-to-server route documented in `docs/APEX_LEAD_INGEST.md`. It authenticates with `Authorization: Bearer` compared in constant time to `APEX_LEAD_INGEST_TOKEN`. If that variable is unset or blank, the route returns 503 `ingest_disabled` and does not accept the caller. The token is not a user session and must not be placed in a `VITE_*` variable.
+
+The target organization is resolved on the server from `orgId` or `ownerEmail` against Supabase. A client-supplied organization id is a lookup key, not proof of membership. When both identifiers are sent and they resolve to different tenants, the write is rejected.
+
 ## Telephony and webhook verification
 
 Telnyx/Twilio-compatible provider webhooks must be cryptographically verified according to the active provider path and fail closed in production when verification is required.

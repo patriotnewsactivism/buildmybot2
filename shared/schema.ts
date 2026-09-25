@@ -279,12 +279,14 @@ export const leadSources = pgTable('lead_sources', {
 export const leads = pgTable('leads', {
   id: text('id').primaryKey(),
   name: varchar('name', { length: 255 }).notNull(),
-  email: varchar('email', { length: 255 }).notNull(),
+  email: varchar('email', { length: 255 }),
   phone: varchar('phone', { length: 50 }),
+  company: text('company'),
   score: integer('score'),
   status: varchar('status', { length: 50 }),
   sourceBotId: text('source_bot_id'),
   source: varchar('source', { length: 255 }),
+  externalId: text('external_id'),
   userId: text('user_id'),
   organizationId: text('organization_id'),
   // Outreach tracking (Phase 1)

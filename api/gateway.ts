@@ -1,5 +1,6 @@
 import base44AgentHandler from './base44-agent.js';
 import legacyHandler from './gateway-legacy.js';
+import apexLeadsHandler from './integrations/apex-leads.js';
 import type { ApiRequest, ApiResponse } from './lib/http-types.js';
 import { handlePhoneActivation } from './phone/activation.js';
 import corporatePhoneHandler from './phone/corporate.js';
@@ -18,6 +19,12 @@ function pathname(req: ApiRequest): string {
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   const path = pathname(req);
+  if (
+    path === '/api/integrations/apex/leads' ||
+    path === '/api/integrations/apex/leads/'
+  ) {
+    return apexLeadsHandler(req, res);
+  }
   if (path === '/api/phone/recording') {
     return phoneRecordingHandler(req, res);
   }
