@@ -56,6 +56,17 @@ describe('embed.js', () => {
     })) as unknown as typeof window.matchMedia;
   });
 
+  it('reads the bot id from a legacy /widget.js snippet', () => {
+    const iframe = runEmbed({
+      src: 'https://buildmybot.app/widget.js',
+      'data-bot-id': 'bot-legacy',
+    });
+    expect(iframe).not.toBeNull();
+    expect(iframe?.src).toBe(
+      'https://buildmybot.app/chat/bot-legacy?mode=embed',
+    );
+  });
+
   it('reads the bot id from data-bot-id, as the generated snippet supplies it', () => {
     const iframe = runEmbed({
       src: 'https://buildmybot.app/embed.js',

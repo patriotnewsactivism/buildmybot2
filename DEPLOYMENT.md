@@ -1,6 +1,6 @@
 # BuildMyBot — Production Deployment & Operations
 
-_Last updated: 2026-09-10._
+_Last updated: 2026-09-25._
 
 This file is the deployment authority for `patriotnewsactivism/buildmybot2`.
 
@@ -70,6 +70,24 @@ npm run test:run
 npm run build
 ```
 
+## Embed script and static assets
+
+New install snippets use `/embed.js` and `data-bot-id`. Onboarding and Bot Builder share `buildEmbedSnippet` in `shared/embed-snippet.ts`.
+
+`GET /widget.js` serves that same `public/embed.js` file so snippets already pasted on customer sites keep loading. `GET /embed.js` is unchanged.
+
+A missing static asset (`.js`, `.css`, images, fonts, and the other extensions in `api/lib/frontend-static.ts`) returns **404** with a non-HTML body. Extensionless app routes still receive `index.html`.
+
+After this change is deployed (Railway primary, and Cloud Run if the GET/HEAD fallback should match):
+
+```bash
+curl -sI https://www.buildmybot.app/widget.js
+curl -sI https://www.buildmybot.app/embed.js
+curl -sI https://www.buildmybot.app/nope.js
+```
+
+Expect HTTP 200 and a JavaScript `content-type` for `/widget.js` and `/embed.js`. Expect HTTP 404 for `/nope.js`, not `text/html`. No new environment variables or database migrations.
+
 ## Public release verification
 
 A merge is not a completed release until the intended SHA is visible through the serving stack.
@@ -126,6 +144,8 @@ Do not blindly run `supabase db push`.
 The production database has an unresolved migration-history baseline. Repository migration files cannot safely be assumed to be unapplied merely because they exist in Git.
 
 Follow `docs/MIGRATION_BASELINE_RECONCILIATION.md` before any production schema write. Do not reset, recreate, or replay the production database to repair migration history.
+
+`users.email_verified`, `users.email_verified_at`, and `public.auth_tokens` are introduced only by `supabase/migrations/20260925120000_auth_tokens_and_email_verification.sql`. That file is a pending additive delta for this project. Do not apply it with `supabase db push` while the hold is active. Signup tolerates the missing column until that one migration is applied on its own after reconciliation.
 
 For the voice-team release specifically, verify the exact state of the additive voice-team migration against the live schema before claiming persisted team configuration is fully live.
 
