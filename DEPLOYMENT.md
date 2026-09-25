@@ -149,6 +149,8 @@ Follow `docs/MIGRATION_BASELINE_RECONCILIATION.md` before any production schema 
 
 For the voice-team release specifically, verify the exact state of the additive voice-team migration against the live schema before claiming persisted team configuration is fully live.
 
+Apex lead ingest (`docs/APEX_LEAD_INGEST.md`) needs `APEX_LEAD_INGEST_TOKEN` on Railway `BuildMyBot2` / `buildmybot2-web` before the route will accept calls. It also needs the additive migration `supabase/migrations/20260925200000_apex_lead_ingest.sql` (`leads.external_id`, `leads.company`, nullable `leads.email`, and the Apex idempotency indexes). Do not apply that file until this hold is cleared for it. Until then the route returns 503 `schema_not_ready` rather than failing with 500. An unset token returns 503 `ingest_disabled`.
+
 ## Voice production acceptance
 
 A health check or successful build is not sufficient for realtime voice acceptance.
@@ -190,6 +192,7 @@ Important server variables include:
 - `CRON_SECRET`
 - `SMS_WORKER_SECRET`
 - `SMS_LAUNCH_ENABLED`
+- `APEX_LEAD_INGEST_TOKEN` (empty disables `POST`/`GET /api/integrations/apex/leads`)
 
 The complete annotated inventory belongs in `.env.example`.
 

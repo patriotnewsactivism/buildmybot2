@@ -73,6 +73,7 @@ The backend includes Telnyx-oriented SMS accounts, contacts, campaigns, keywords
 ### CRM, leads, billing, and AI workforce
 
 - Lead scoring and CRM workflows.
+- Apex lead ingest at `POST`/`GET /api/integrations/apex/leads` (`docs/APEX_LEAD_INGEST.md`). Disabled until `APEX_LEAD_INGEST_TOKEN` is set. The additive migration stays under the production migration hold.
 - Hot-lead notification paths.
 - Stripe billing/webhook integration.
 - AI employee/research workflows and scheduled jobs.
@@ -132,6 +133,7 @@ Core server configuration includes Supabase, session signing, encryption, AI pro
 - `docs/CORPORATE_PHONE.md` — corporate phone routing and operations.
 - `SECURITY.md` — security requirements and boundaries.
 - `docs/MIGRATION_BASELINE_RECONCILIATION.md` — production database migration safety procedure.
+- `docs/APEX_LEAD_INGEST.md` — Apex → BuildMyBot lead handoff contract.
 
 ## Deployment rule
 

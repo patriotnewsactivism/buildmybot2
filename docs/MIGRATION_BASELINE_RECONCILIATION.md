@@ -63,3 +63,9 @@ Stop and do not migrate if any of the following is true:
 - a migration depends on credentials, provider state, or external resources that have not been verified.
 
 The goal is to establish a trustworthy baseline once, not to force the database to resemble Git by replaying history blindly.
+
+## Pending: Apex lead ingest (2026-09-25)
+
+`supabase/migrations/20260925200000_apex_lead_ingest.sql` is an additive, idempotent delta for the Apex lead handoff (`docs/APEX_LEAD_INGEST.md`). It adds `leads.external_id`, ensures `source`, `organization_id`, `company`, `notes`, and `metadata`, drops `NOT NULL` on `leads.email` so phone-only leads can be stored, and adds partial unique indexes for `(organization or user, source='apex', external_id)`.
+
+Do not apply it by replaying repository history. When the hold is cleared, review this file on its own against the live `leads` table in `blyebndyrojmreensbxe` and apply only that delta. The application route stays safe before the migration: it returns 503 `schema_not_ready` when `external_id` or another required column is missing.

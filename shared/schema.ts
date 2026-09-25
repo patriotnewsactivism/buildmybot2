@@ -279,12 +279,14 @@ export const leadSources = pgTable('lead_sources', {
 export const leads = pgTable('leads', {
   id: text('id').primaryKey(),
   name: varchar('name', { length: 255 }).notNull(),
-  email: varchar('email', { length: 255 }).notNull(),
+  email: varchar('email', { length: 255 }),
   phone: varchar('phone', { length: 50 }),
+  company: text('company'),
   score: integer('score'),
   status: varchar('status', { length: 50 }),
   sourceBotId: text('source_bot_id'),
   source: varchar('source', { length: 255 }),
+  externalId: text('external_id'),
   userId: text('user_id'),
   organizationId: text('organization_id'),
   // Outreach tracking (Phase 1)
@@ -561,14 +563,20 @@ export const voiceAgents = pgTable('voice_agents', {
 // Apply supabase/migrations/*_distinct_ai_voice_team.sql for the JSON constraint,
 // grants and RLS. Production uses the REST API with service-role authorization.
 export const voiceTeams = pgTable('voice_teams', {
-  botId: text('bot_id').primaryKey().references(() => bots.id, { onDelete: 'cascade' }),
+  botId: text('bot_id')
+    .primaryKey()
+    .references(() => bots.id, { onDelete: 'cascade' }),
   organizationId: text('organization_id'),
   userId: text('user_id').notNull(),
   config: jsonb('config').$type<import('./voice-team').VoiceTeam>().notNull(),
   revision: integer('revision').default(1).notNull(),
   updatedBy: text('updated_by').notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true })
+    .defaultNow()
+    .notNull(),
 });
 
 export const voiceCallMessages = pgTable('voice_call_messages', {
